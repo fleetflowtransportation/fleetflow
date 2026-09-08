@@ -104,13 +104,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const reload = useCallback(() => setReloadTick(t => t + 1), []);
 
   const login = useCallback((name: string, password: string): boolean => {
+    console.log('[DEBUG login] dipanggil dengan name=', JSON.stringify(name));
+    console.log('[DEBUG login] jumlah users dimuatkan:', users.length);
     const user = users.find(u =>
         u.name.trim().toLowerCase() === name.trim().toLowerCase() &&
         String(u.password).trim() === String(password).trim() &&
         String(u.status).trim().toLowerCase() === 'active'
     );
+    console.log('[DEBUG login] user dijumpai:', user);
 
     if (user) {
+      console.log('[DEBUG login] setCurrentUser dipanggil dengan:', { id: user.id, name: user.name, role: user.role });
       setCurrentUser({ id: user.id, name: user.name, role: user.role });
       return true;
     }
