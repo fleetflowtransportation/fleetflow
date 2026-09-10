@@ -198,17 +198,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       setBookings(prev => [...newBookings, ...prev]);
       newBookings.forEach(b => {
-        storageService.createBooking(b).catch(err => {
-          alert('Gagal simpan booking berulang: ' + err.message);
-        });
+        storageService.createBooking(b)
+          .then(saved => {
+            setBookings(prev => prev.map(x => (x.id === b.id ? saved : x)));
+          })
+          .catch(err => {
+            alert('Gagal simpan booking berulang: ' + err.message);
+          });
       });
     } else {
       const newBooking: Booking = { ...bookingData, id: tempId('booking') };
       setBookings(prev => [newBooking, ...prev]);
-      storageService.createBooking(newBooking).catch(err => {
-        alert('Gagal simpan booking: ' + err.message);
-        setBookings(prev => prev.filter(b => b.id !== newBooking.id));
-      });
+      storageService.createBooking(newBooking)
+        .then(saved => {
+          setBookings(prev => prev.map(b => (b.id === newBooking.id ? saved : b)));
+        })
+        .catch(err => {
+          alert('Gagal simpan booking: ' + err.message);
+          setBookings(prev => prev.filter(b => b.id !== newBooking.id));
+        });
     }
   }, []);
 
@@ -280,10 +288,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const addFuelLog = useCallback((logData: Omit<FuelLog, 'id'>) => {
     const newLog: FuelLog = { ...logData, id: tempId('fuel') };
     setFuelLogs(prev => [...prev, newLog].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-    storageService.createFuelLog(newLog).catch(err => {
-      alert('Gagal simpan fuel log: ' + err.message);
-      setFuelLogs(prev => prev.filter(l => l.id !== newLog.id));
-    });
+    storageService.createFuelLog(newLog)
+      .then(saved => {
+        setFuelLogs(prev => prev.map(l => (l.id === newLog.id ? saved : l)));
+      })
+      .catch(err => {
+        alert('Gagal simpan fuel log: ' + err.message);
+        setFuelLogs(prev => prev.filter(l => l.id !== newLog.id));
+      });
   }, []);
 
   const updateFuelLog = useCallback((logId: string, updatedData: Partial<Omit<FuelLog, 'id'>>) => {
@@ -312,10 +324,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const addOdometerLog = useCallback((logData: Omit<OdometerLog, 'id'>) => {
     const newLog: OdometerLog = { ...logData, id: tempId('odo') };
     setOdometerLogs(prev => [newLog, ...prev]);
-    storageService.createOdometerLog(newLog).catch(err => {
-      alert('Gagal simpan odometer log: ' + err.message);
-      setOdometerLogs(prev => prev.filter(l => l.id !== newLog.id));
-    });
+    storageService.createOdometerLog(newLog)
+      .then(saved => {
+        setOdometerLogs(prev => prev.map(l => (l.id === newLog.id ? saved : l)));
+      })
+      .catch(err => {
+        alert('Gagal simpan odometer log: ' + err.message);
+        setOdometerLogs(prev => prev.filter(l => l.id !== newLog.id));
+      });
   }, []);
 
   const updateOdometerLog = useCallback((logId: string, updatedData: Partial<Omit<OdometerLog, 'id'>>) => {
@@ -337,10 +353,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const addIssueLog = useCallback((logData: Omit<IssueLog, 'id'>) => {
     const newLog: IssueLog = { ...logData, id: tempId('issue') };
     setIssueLogs(prev => [newLog, ...prev].sort((a, b) => new Date(b.reportedDate).getTime() - new Date(a.reportedDate).getTime()));
-    storageService.createIssueLog(newLog).catch(err => {
-      alert('Gagal simpan issue log: ' + err.message);
-      setIssueLogs(prev => prev.filter(l => l.id !== newLog.id));
-    });
+    storageService.createIssueLog(newLog)
+      .then(saved => {
+        setIssueLogs(prev => prev.map(l => (l.id === newLog.id ? saved : l)));
+      })
+      .catch(err => {
+        alert('Gagal simpan issue log: ' + err.message);
+        setIssueLogs(prev => prev.filter(l => l.id !== newLog.id));
+      });
   }, []);
 
   const updateIssueLog = useCallback((logId: string, updatedData: Partial<Omit<IssueLog, 'id'>>) => {
@@ -368,10 +388,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const addDriverSchedule = useCallback((schedData: Omit<DriverSchedule, 'id'>) => {
     const newSched: DriverSchedule = { ...schedData, id: tempId('sched') };
     setDriverSchedules(prev => [...prev, newSched]);
-    storageService.createDriverSchedule(newSched).catch(err => {
-      alert('Gagal simpan jadual: ' + err.message);
-      setDriverSchedules(prev => prev.filter(s => s.id !== newSched.id));
-    });
+    storageService.createDriverSchedule(newSched)
+      .then(saved => {
+        setDriverSchedules(prev => prev.map(s => (s.id === newSched.id ? saved : s)));
+      })
+      .catch(err => {
+        alert('Gagal simpan jadual: ' + err.message);
+        setDriverSchedules(prev => prev.filter(s => s.id !== newSched.id));
+      });
   }, []);
 
   const updateDriverSchedule = useCallback((schedId: string, updatedData: Partial<Omit<DriverSchedule, 'id'>>) => {
@@ -392,10 +416,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const addUser = useCallback((userData: Omit<User, 'id'>) => {
     const newUser: User = { ...userData, id: tempId(userData.role) };
     setUsers(prev => [newUser, ...prev]);
-    storageService.createUser(newUser).catch(err => {
-      alert('Gagal simpan user: ' + err.message);
-      setUsers(prev => prev.filter(u => u.id !== newUser.id));
-    });
+    storageService.createUser(newUser)
+      .then(saved => {
+        setUsers(prev => prev.map(u => (u.id === newUser.id ? saved : u)));
+      })
+      .catch(err => {
+        alert('Gagal simpan user: ' + err.message);
+        setUsers(prev => prev.filter(u => u.id !== newUser.id));
+      });
   }, []);
 
   const updateUser = useCallback((userId: string, updatedData: Partial<Omit<User, 'id'>>) => {
@@ -430,10 +458,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const addVehicle = useCallback((vehicleData: Omit<Vehicle, 'id'>) => {
     const newVehicle: Vehicle = { ...vehicleData, id: tempId('vehicle') };
     setVehicles(prev => [newVehicle, ...prev]);
-    storageService.createVehicle(newVehicle).catch(err => {
-      alert('Gagal simpan vehicle: ' + err.message);
-      setVehicles(prev => prev.filter(v => v.id !== newVehicle.id));
-    });
+    storageService.createVehicle(newVehicle)
+      .then(saved => {
+        setVehicles(prev => prev.map(v => (v.id === newVehicle.id ? saved : v)));
+      })
+      .catch(err => {
+        alert('Gagal simpan vehicle: ' + err.message);
+        setVehicles(prev => prev.filter(v => v.id !== newVehicle.id));
+      });
   }, []);
 
   const updateVehicle = useCallback((vehicleId: string, updatedData: Partial<Omit<Vehicle, 'id'>>) => {
