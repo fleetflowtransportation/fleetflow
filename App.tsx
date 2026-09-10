@@ -15,7 +15,6 @@ import DriverScheduleManager from './components/DriverScheduleManager';
 
 const App: React.FC = () => {
   const { currentUser, isLoading, loadError, reload } = useAppContext();
-  console.log('[DEBUG App render] currentUser =', currentUser);
   const [activeView, setActiveView] = useState<'dashboard' | 'reports' | 'archive' | 'vehicles' | 'users' | 'calendar' | 'issues' | 'schedule'>('dashboard');
 
   if (isLoading) {
