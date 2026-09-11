@@ -21,7 +21,7 @@ interface AppContextType {
   deleteBooking: (bookingId: string) => void;
   restoreBooking: (bookingId: string) => void;
   assignToBooking: (bookingId: string, driverId: string, vehicleId: string) => void;
-  updateBookingStatus: (bookingId: string, status: Booking['status']) => void;
+  updateBookingStatus: (bookingId: string, status: Booking['status'], cancellationReason?: string) => void;
   addFuelLog: (log: Omit<FuelLog, 'id'>) => void;
   updateFuelLog: (logId: string, updatedData: Partial<Omit<FuelLog, 'id'>>) => void;
   deleteFuelLog: (logId: string) => void;
@@ -264,12 +264,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   }, [setUndoableAction]);
 
-  const updateBookingStatus = useCallback((bookingId: string, status: Booking['status']) => {
+  const updateBookingStatus = useCallback((bookingId: string, status: Booking['status'], cancellationReason?: string) => {
+    let mergedRemarks: string | undefined;
     setBookings(prev => {
       setUndoableAction(bookingId, prev);
-      return prev.map(b => (b.id === bookingId ? { ...b, status } : b));
+      return prev.map(b => {
+        if (b.id !== bookingId) return b;
+        if (status === 'Cancelled' && cancellationReason) {
+          mergedRemarks = (b.remarks ? b.remarks + ' | ' : '') + 'Dibatalkan: ' + cancellationReason;
+          return { ...b, status, remarks: mergedRemarks };
+        }
+        return { ...b, status };
+      });
     });
-    storageService.updateBooking({ id: bookingId, status }).catch(err => {
+    const payload: Partial<Booking> & { id: string } = { id: bookingId, status };
+    if (mergedRemarks !== undefined) payload.remarks = mergedRemarks;
+    storageService.updateBooking(payload).catch(err => {
       alert('Gagal kemaskini status booking: ' + err.message);
     });
   }, [setUndoableAction]);
