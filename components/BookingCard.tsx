@@ -228,7 +228,11 @@ const BookingCard: React.FC<BookingCardProps> = ({
                         )}
                         <button onClick={() => onEdit?.(booking)} className="text-gray-600 hover:text-indigo-800 p-1.5 rounded-full hover:bg-indigo-100 transition" title="Edit Trip Details"><EditIcon className="h-5 w-5" /></button>
                         <button onClick={() => updateBookingStatus(booking.id, 'Completed')} className="text-green-600 hover:text-green-800 p-1.5 rounded-full hover:bg-green-100 transition" title="Mark as Completed"><CheckCircleIcon className="h-6 w-6" /></button>
-                        <button onClick={() => updateBookingStatus(booking.id, 'Cancelled')} className="text-red-600 hover:text-red-800 p-1.5 rounded-full hover:bg-red-100 transition" title="Cancel Booking"><XCircleIcon className="h-6 w-6"/></button>
+                        <button onClick={() => {
+                            const reason = window.prompt('Sebab booking ini dibatalkan? (pemohon akan terima emel dengan sebab ini)');
+                            if (reason === null) return;
+                            updateBookingStatus(booking.id, 'Cancelled', reason || undefined);
+                        }} className="text-red-600 hover:text-red-800 p-1.5 rounded-full hover:bg-red-100 transition" title="Cancel Booking"><XCircleIcon className="h-6 w-6"/></button>
                     </div>
                 )}
                  {view === 'archive' && (
