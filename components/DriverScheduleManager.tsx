@@ -20,6 +20,18 @@ const DRIVER_COLORS = [
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const toDateKey = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const toTimeHHMM = (raw: string) => {
+  if (!raw) return '';
+  if (/^\d{2}:\d{2}$/.test(raw)) return raw;
+  const match = raw.match(/T(\d{2}):(\d{2})/);
+  if (match) return `${match[1]}:${match[2]}`;
+  const d = new Date(raw);
+  if (!isNaN(d.getTime())) {
+    return `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
+  }
+  return raw;
+};
+
 const parseDateKeyLoose = (raw: string) => {
   // Handle 'yyyy-MM-dd', full ISO string, atau 'dd/MM/yyyy' — semua di-normalize ke 'yyyy-MM-dd'
   if (!raw) return '';
@@ -196,7 +208,7 @@ const DriverScheduleManager: React.FC = () => {
         <div className={`grid grid-cols-7 ${viewMode === 'month' ? 'auto-rows-fr' : ''}`}>
           {gridDays.map(date => {
             const dateKey = toDateKey(date);
-            const daySchedules = (schedulesByDate.get(dateKey) || []).sort((a, b) => a.Mula.localeCompare(b.Mula));
+            const daySchedules = (schedulesByDate.get(dateKey) || []).sort((a, b) => toTimeHHMM(a.Mula).localeCompare(toTimeHHMM(b.Mula)));
             const isToday = dateKey === todayKey;
             const isCurrentMonth = viewMode === 'week' || date.getMonth() === anchor.getMonth();
             const isSelected = selectedDates.has(dateKey);
@@ -230,9 +242,9 @@ const DriverScheduleManager: React.FC = () => {
                         key={sched.id}
                         onClick={(e) => { e.stopPropagation(); if (!bulkMode) setModal({ mode: 'edit', schedule: sched }); }}
                         className={`w-full text-left text-[11px] leading-tight px-1.5 py-0.5 rounded ${color.bg} ${color.text} truncate hover:opacity-75 transition`}
-                        title={`${driverName(sched.DriverId)}: ${sched.Mula} - ${sched.Tamat}`}
+                        title={`${driverName(sched.DriverId)}: ${toTimeHHMM(sched.Mula)} - ${toTimeHHMM(sched.Tamat)}`}
                       >
-                        <span className="font-semibold">{driverName(sched.DriverId).split(' ')[0]}</span> {sched.Mula}-{sched.Tamat}
+                        <span className="font-semibold">{driverName(sched.DriverId).split(' ')[0]}</span> {toTimeHHMM(sched.Mula)}-{toTimeHHMM(sched.Tamat)}
                       </button>
                     );
                   })}
@@ -305,8 +317,8 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ modal, drivers, onClose, 
   const [selectedDriverIds, setSelectedDriverIds] = useState<Set<string>>(
     new Set(editSchedule ? [editSchedule.DriverId] : [])
   );
-  const [mula, setMula] = useState(editSchedule?.Mula || '09:00');
-  const [tamat, setTamat] = useState(editSchedule?.Tamat || '17:00');
+  const [mula, setMula] = useState(toTimeHHMM(editSchedule?.Mula || '') || '09:00');
+  const [tamat, setTamat] = useState(toTimeHHMM(editSchedule?.Tamat || '') || '17:00');
 
   if (!modal) return null;
 
