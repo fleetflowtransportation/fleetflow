@@ -85,8 +85,13 @@ export interface OdometerLog {
   driverId: string;
   vehicleId: string;
   date: string;
-  odometer: number;
-  purpose?: string;
+  odometer: number; // Odometer Tamat (bacaan akhir selepas perjalanan)
+  purpose?: string; // Tujuan Perjalanan
+  fromLocation?: string; // Lokasi Dari
+  toLocation?: string; // Lokasi Ke
+  startOdometer?: number; // Odometer Mula
+  distance?: number; // Auto: odometer (Tamat) - startOdometer
+  remarks?: string; // Catatan Tambahan
 }
 
 export interface IssueLog {
