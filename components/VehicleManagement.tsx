@@ -71,14 +71,18 @@ const OdometerHistoryModal: React.FC<OdometerHistoryModalProps> = ({ vehicle, on
 
     doc.text(`Odometer History for ${vehicle.name} (${vehicle.plateNumber})`, 14, 16);
     
-    const tableColumn = ["Date", "Driver", "Odometer (km)", "Purpose"];
+    const tableColumn = ["Date", "Driver", "From", "To", "Start (km)", "End (km)", "Distance (km)", "Purpose"];
     const tableRows: (string | number)[][] = [];
 
     vehicleLogs.forEach(log => {
         const logData = [
             new Date(log.date).toLocaleDateString('en-GB'),
             getDriverName(log.driverId),
+            log.fromLocation || '-',
+            log.toLocation || '-',
+            log.startOdometer !== undefined ? log.startOdometer.toLocaleString() : '-',
             log.odometer.toLocaleString(),
+            log.distance !== undefined ? log.distance.toLocaleString() : '-',
             log.purpose || '-',
         ];
         tableRows.push(logData);
@@ -119,8 +123,11 @@ const OdometerHistoryModal: React.FC<OdometerHistoryModalProps> = ({ vehicle, on
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Driver</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Odometer (km)</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purpose / Description</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">From → To</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Start (km)</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">End (km)</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Distance (km)</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purpose</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
@@ -134,7 +141,10 @@ const OdometerHistoryModal: React.FC<OdometerHistoryModalProps> = ({ vehicle, on
                               {getDriverName(log.driverId)}
                           </div>
                       </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{log.fromLocation || '-'} → {log.toLocation || '-'}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 text-right">{log.startOdometer !== undefined ? log.startOdometer.toLocaleString() : '-'}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 font-semibold text-right">{log.odometer.toLocaleString()}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-indigo-700 font-semibold text-right">{log.distance !== undefined ? log.distance.toLocaleString() : '-'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 whitespace-pre-wrap">{log.purpose || '-'}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-right text-sm">
                           <button onClick={() => handleEdit(log)} className="text-gray-600 hover:text-indigo-800 p-1.5 rounded-full hover:bg-indigo-100 transition" title="Edit Log"><EditIcon className="h-5 w-5" /></button>
