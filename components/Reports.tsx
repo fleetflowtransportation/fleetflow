@@ -1,7 +1,9 @@
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import type { Booking, FuelLog, User, Vehicle, OdometerLog } from '../types';
-import { PaperClipIcon, EditIcon, TrashIcon, XIcon, TruckIcon, RouteIcon, FuelIcon, PrinterIcon, DocumentDownloadIcon } from './icons/Icons';
+import { PaperClipIcon, EditIcon, TrashIcon, XIcon, TruckIcon, RouteIcon, FuelIcon, PrinterIcon, DocumentDownloadIcon, GaugeIcon, UserCircleIcon } from './icons/Icons';
+import OdometerLogEditForm from './OdometerLogEditForm';
+import type { OdometerLog } from '../types';
 
 declare global {
   interface Window {
@@ -189,7 +191,29 @@ const dateFilters = [
 ];
 
 const Reports: React.FC = () => {
-  const { bookings, fuelLogs, users, vehicles, deleteFuelLog, odometerLogs } = useAppContext();
+const { bookings, fuelLogs, users, vehicles, deleteFuelLog, odometerLogs, deleteOdometerLog } = useAppContext();
+const [editingOdoLog, setEditingOdoLog] = useState<OdometerLog | null>(null);
+const [isOdoFormOpen, setIsOdoFormOpen] = useState(false);
+const [odoVehicleFilter, setOdoVehicleFilter] = useState('');
+
+const odometerByVehicle = useMemo(() => {
+  const map: Record<string, OdometerLog[]> = {};
+  vehicles.forEach(v => {
+    map[v.id] = odometerLogs
+      .filter(l => l.vehicleId === v.id)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  });
+  return map;
+}, [vehicles, odometerLogs]);
+
+const handleEditOdoLog = (log: OdometerLog) => {
+  setEditingOdoLog(log);
+  setIsOdoFormOpen(true);
+};
+const handleDeleteOdoLog = (id: string) => {
+  if (window.confirm('Padam log odometer ini?')) deleteOdometerLog(id);
+};
+const getDriverNameOdo = (id: string) => users.find(u => u.id === id)?.name || 'Unknown';
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingLog, setEditingLog] = useState<FuelLog | null>(null);
   const [fuelLogFilters, setFuelLogFilters] = useState({ 
@@ -974,7 +998,89 @@ const Reports: React.FC = () => {
             </div>
         </div>
 
+        {/* Odometer Trip Report per Vehicle */}
+        <div className="bg-white p-6 rounded-lg shadow-md space-y-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xl font-semibold text-gray-800 flex items-center">
+              <GaugeIcon className="h-6 w-6 mr-2 text-indigo-500" />
+              Odometer Trip Report
+            </h3>
+            <select
+              value={odoVehicleFilter}
+              onChange={e => setOdoVehicleFilter(e.target.value)}
+              className="border-gray-300 rounded-md shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500"
+            >
+              <option value="">Semua Kenderaan</option>
+              {vehicles.map(v => <option key={v.id} value={v.id}>{v.name} ({v.plateNumber})</option>)}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {vehicles
+              .filter(v => !odoVehicleFilter || v.id === odoVehicleFilter)
+              .map(vehicle => {
+                const logs = odometerByVehicle[vehicle.id] || [];
+                const latest = logs[0];
+                return (
+                  <div key={vehicle.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                    <div className="bg-gray-50 px-4 py-3 flex items-center justify-between border-b">
+                      <div className="flex items-center gap-3">
+                        {vehicle.photoUrl ? (
+                          <img src={vehicle.photoUrl} alt={vehicle.name} className="h-9 w-9 rounded-full object-cover" />
+                        ) : (
+                          <div className="h-9 w-9 rounded-full bg-gray-200 flex items-center justify-center">
+                            <TruckIcon className="h-5 w-5 text-gray-500" />
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-semibold text-gray-800 text-sm">{vehicle.name}</p>
+                          <p className="text-xs text-gray-500 font-mono">{vehicle.plateNumber}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-gray-500">Odometer Terkini</p>
+                        <p className="text-sm font-bold text-gray-900">
+                          {latest ? `${latest.odometer.toLocaleString()} km` : 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto divide-y divide-gray-100">
+                      {logs.length > 0 ? logs.map(log => (
+                        <div key={log.id} className="px-4 py-2.5 flex items-start justify-between text-sm hover:bg-gray-50">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 text-gray-700">
+                              <span className="font-semibold">{log.odometer.toLocaleString()} km</span>
+                              <span className="text-gray-400">•</span>
+                              <span>{new Date(log.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                            </div>
+                            <div className="flex items-center text-xs text-gray-500 mt-0.5">
+                              <UserCircleIcon className="h-3.5 w-3.5 mr-1" />
+                              {getDriverNameOdo(log.driverId)}
+                            </div>
+                            {log.purpose && <p className="text-xs text-gray-500 mt-1 truncate" title={log.purpose}>{log.purpose}</p>}
+                          </div>
+                          <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                            <button onClick={() => handleEditOdoLog(log)} className="text-gray-500 hover:text-indigo-700 p-1 rounded-full hover:bg-indigo-100" title="Edit"><EditIcon className="h-4 w-4" /></button>
+                            <button onClick={() => handleDeleteOdoLog(log.id)} className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100" title="Padam"><TrashIcon className="h-4 w-4" /></button>
+                          </div>
+                        </div>
+                      )) : (
+                        <p className="text-center text-gray-400 text-sm py-6">Tiada log odometer.</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+
       </div>
+
+      <OdometerLogEditForm
+        isOpen={isOdoFormOpen}
+        onClose={() => { setIsOdoFormOpen(false); setEditingOdoLog(null); }}
+        logToEdit={editingOdoLog}
+      />
     </div>
   );
 };
