@@ -3,7 +3,6 @@ import { useAppContext } from '../context/AppContext';
 import type { Booking, FuelLog, User, Vehicle, OdometerLog } from '../types';
 import { PaperClipIcon, EditIcon, TrashIcon, XIcon, TruckIcon, RouteIcon, FuelIcon, PrinterIcon, DocumentDownloadIcon, GaugeIcon, UserCircleIcon } from './icons/Icons';
 import OdometerLogEditForm from './OdometerLogEditForm';
-import type { OdometerLog } from '../types';
 
 declare global {
   interface Window {
