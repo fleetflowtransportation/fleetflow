@@ -103,6 +103,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const reload = useCallback(() => setReloadTick(t => t + 1), []);
 
+  // Auto-refresh setiap 15 saat supaya perubahan dari device/pengguna lain turut terpapar.
+  useEffect(() => {
+    const interval = setInterval(() => reload(), 15000);
+    return () => clearInterval(interval);
+  }, [reload]);
+
   // Auto-refresh data setiap 15 saat supaya perubahan dari device/pengguna lain
   // (contoh: admin lain assign booking) turut terpapar tanpa perlu refresh manual.
   useEffect(() => {
