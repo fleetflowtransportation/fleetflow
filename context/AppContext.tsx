@@ -65,10 +65,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [lastBookingChange, setLastBookingChange] = useState<BookingHistory | null>(null);
   const undoTimeoutRef = useRef<number | null>(null);
 
+  const hasLoadedOnceRef = useRef(false);
+
   // ---- Initial load (dan reload) dari Google Sheet API ----
   useEffect(() => {
     let cancelled = false;
-    setIsLoading(true);
+    // Full-screen spinner hanya untuk load PERTAMA. Refresh latar belakang
+    // (polling/reload manual selepas itu) tak patut ganggu UI sedia ada.
+    if (!hasLoadedOnceRef.current) {
+      setIsLoading(true);
+    }
     setLoadError(null);
 
     Promise.all([
@@ -95,7 +101,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setLoadError(err.message || 'Gagal memuatkan data dari server.');
       })
       .finally(() => {
-        if (!cancelled) setIsLoading(false);
+        if (!cancelled) {
+          setIsLoading(false);
+          hasLoadedOnceRef.current = true;
+        }
       });
 
     return () => { cancelled = true; };
