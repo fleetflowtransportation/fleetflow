@@ -417,13 +417,15 @@ const getDriverNameOdo = (id: string) => users.find(u => u.id === id)?.name || '
 
     const datedReport = applyDateFilter(baseReport, fuelLogFilters) as FuelLog[];
 
-    const logsByVehicle = datedReport.reduce((acc, log) => {
-      if (!acc[log.vehicleId]) {
-        acc[log.vehicleId] = [];
-      }
-      acc[log.vehicleId].push(log);
-      return acc;
-    }, {} as Record<string, FuelLog[]>);
+    const logsByVehicle = datedReport
+      .filter(log => typeof log.odometer === 'number' && !isNaN(log.odometer))
+      .reduce((acc, log) => {
+        if (!acc[log.vehicleId]) {
+          acc[log.vehicleId] = [];
+        }
+        acc[log.vehicleId].push(log);
+        return acc;
+      }, {} as Record<string, FuelLog[]>);
 
     const report: FuelLogWithMetrics[] = [];
 
@@ -674,7 +676,7 @@ const getDriverNameOdo = (id: string) => users.find(u => u.id === id)?.name || '
                                                         </div>
                                                     </td>
                                                     <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 font-semibold text-right">{tripData.tripCount}</td>
-                                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 font-semibold text-right">{tripData.totalDistance.toLocaleString()} km</td>
+                                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 font-semibold text-right">{typeof tripData.totalDistance === 'number' ? tripData.totalDistance.toLocaleString() : 'N/A'} km</td>
                                                 </tr>
                                             )})}
                                         </tbody>
@@ -857,8 +859,8 @@ const getDriverNameOdo = (id: string) => users.find(u => u.id === id)?.name || '
                                                             <span>{vehicle?.name} ({vehicle?.plateNumber})</span>
                                                         </div>
                                                     </td>
-                                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 font-semibold text-right">RM{summaryData.totalCost.toFixed(2)}</td>
-                                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 font-semibold text-right">{summaryData.totalDistance > 0 ? `${summaryData.totalDistance.toLocaleString()} km` : 'N/A'}</td>
+                                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 font-semibold text-right">RM{typeof summaryData.totalCost === 'number' ? summaryData.totalCost.toFixed(2) : '0.00'}</td>
+                                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 font-semibold text-right">{typeof summaryData.totalDistance === 'number' && summaryData.totalDistance > 0 ? `${summaryData.totalDistance.toLocaleString()} km` : 'N/A'}</td>
                                                     <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 font-semibold text-right">{avgKML}</td>
                                                 </tr>
                                             )})}
@@ -968,12 +970,12 @@ const getDriverNameOdo = (id: string) => users.find(u => u.id === id)?.name || '
                             </td>
                             <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-700">{getDriverName(log.driverId)}</td>
                             <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-700">{new Date(log.date).toLocaleDateString('en-GB')}</td>
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-800 text-right">{log.odometer.toLocaleString()} km</td>
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500 text-right">{log.distance ? `${log.distance.toLocaleString()} km` : 'N/A'}</td>
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-800 text-right">{log.liters.toFixed(2)} L</td>
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900 font-medium text-right">RM{log.cost.toFixed(2)}</td>
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-green-700 font-semibold text-right">{log.avgKML ? log.avgKML.toFixed(2) : 'N/A'}</td>
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-red-700 font-semibold text-right">{log.costPerKM ? `RM${log.costPerKM.toFixed(2)}` : 'N/A'}</td>
+                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-800 text-right">{typeof log.odometer === 'number' ? log.odometer.toLocaleString() : 'N/A'} km</td>
+                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500 text-right">{typeof log.distance === 'number' ? `${log.distance.toLocaleString()} km` : 'N/A'}</td>
+                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-800 text-right">{typeof log.liters === 'number' ? log.liters.toFixed(2) : 'N/A'} L</td>
+                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900 font-medium text-right">RM{typeof log.cost === 'number' ? log.cost.toFixed(2) : 'N/A'}</td>
+                            <td className="px-3 py-3 whitespace-nowrap text-sm text-green-700 font-semibold text-right">{typeof log.avgKML === 'number' ? log.avgKML.toFixed(2) : 'N/A'}</td>
+                            <td className="px-3 py-3 whitespace-nowrap text-sm text-red-700 font-semibold text-right">{typeof log.costPerKM === 'number' ? `RM${log.costPerKM.toFixed(2)}` : 'N/A'}</td>
                             <td className="px-3 py-3 whitespace-nowrap text-sm text-center">
                             {log.receiptAttachmentUrl ? (
                                 <a href={log.receiptAttachmentUrl} title={log.receiptAttachmentName} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800">
