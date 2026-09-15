@@ -1039,7 +1039,7 @@ const getDriverNameOdo = (id: string) => users.find(u => u.id === id)?.name || '
                       <div className="text-right">
                         <p className="text-xs text-gray-500">Odometer Terkini</p>
                         <p className="text-sm font-bold text-gray-900">
-                          {latest ? `${latest.odometer.toLocaleString()} km` : 'N/A'}
+                          {latest && typeof latest.odometer === 'number' ? `${latest.odometer.toLocaleString()} km` : 'N/A'}
                         </p>
                       </div>
                     </div>
@@ -1048,9 +1048,9 @@ const getDriverNameOdo = (id: string) => users.find(u => u.id === id)?.name || '
                         <div key={log.id} className="px-4 py-2.5 flex items-start justify-between text-sm hover:bg-gray-50">
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2 text-gray-700">
-                              <span className="font-semibold">{log.odometer.toLocaleString()} km</span>
+                              <span className="font-semibold">{typeof log.odometer === 'number' ? log.odometer.toLocaleString() : 'N/A'} km</span>
                               <span className="text-gray-400">•</span>
-                              <span>{new Date(log.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                              <span>{log.date && !isNaN(new Date(log.date).getTime()) ? new Date(log.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}</span>
                             </div>
                             <div className="flex items-center text-xs text-gray-500 mt-0.5">
                               <UserCircleIcon className="h-3.5 w-3.5 mr-1" />
