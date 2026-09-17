@@ -1,9 +1,24 @@
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { parseAsLocal } from '../utils';
 import type { Booking, FuelLog, User, Vehicle, OdometerLog } from '../types';
-import { PaperClipIcon, EditIcon, TrashIcon, XIcon, TruckIcon, RouteIcon, FuelIcon, PrinterIcon, DocumentDownloadIcon, GaugeIcon, UserCircleIcon } from './icons/Icons';
+import { 
+  PaperClipIcon, 
+  EditIcon, 
+  TrashIcon, 
+  TruckIcon, 
+  RouteIcon, 
+  FuelIcon, 
+  PrinterIcon, 
+  DocumentDownloadIcon, 
+  GaugeIcon, 
+  UserCircleIcon,
+  PlusIcon,
+  SearchIcon,
+  DocumentReportIcon
+} from './icons/Icons';
 import OdometerLogEditForm from './OdometerLogEditForm';
+import FuelLogModal from './FuelLogModal';
 
 declare global {
   interface Window {
@@ -17,253 +32,235 @@ interface FuelLogWithMetrics extends FuelLog {
   costPerKM?: number;
 }
 
-// --- Fuel Log Edit Form Component ---
-interface FuelLogEditFormProps {
-  isOpen: boolean;
-  onClose: () => void;
-  logToEdit: FuelLog | null;
-}
-
-const emptyFormData = {
-  vehicleId: '',
-  date: '',
-  odometer: 0,
-  liters: 0,
-  cost: 0,
-  pricePerLiter: 0,
-};
-
-type FormData = typeof emptyFormData;
-
-const FuelLogEditForm: React.FC<FuelLogEditFormProps> = ({ isOpen, onClose, logToEdit }) => {
-  const { vehicles, updateFuelLog } = useAppContext();
-  const [formData, setFormData] = useState<FormData>(emptyFormData);
-  const [receiptFile, setReceiptFile] = useState<File | null>(null);
-  const [existingReceipt, setExistingReceipt] = useState<{ name: string; url: string } | null>(null);
-  
-  const resetForm = useCallback(() => {
-    setFormData(emptyFormData);
-    setReceiptFile(null);
-    setExistingReceipt(null);
-  }, []);
-
-  useEffect(() => {
-    if (isOpen && logToEdit) {
-      setFormData({
-        vehicleId: logToEdit.vehicleId,
-        date: logToEdit.date.split('T')[0],
-        odometer: logToEdit.odometer,
-        liters: logToEdit.liters,
-        cost: logToEdit.cost,
-        pricePerLiter: logToEdit.pricePerLiter,
-      });
-      if (logToEdit.receiptAttachmentName && logToEdit.receiptAttachmentUrl) {
-        setExistingReceipt({ name: logToEdit.receiptAttachmentName, url: logToEdit.receiptAttachmentUrl });
-      } else {
-        setExistingReceipt(null);
-      }
-      setReceiptFile(null);
-    } else if (!isOpen) {
-      resetForm();
-    }
-  }, [isOpen, logToEdit, resetForm]);
-
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: name === 'vehicleId' ? value : Number(value) || value }));
-  };
-  
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-        setReceiptFile(e.target.files[0]);
-        setExistingReceipt(null);
-    }
-  };
-  
-  const removeReceipt = () => {
-    setReceiptFile(null);
-    setExistingReceipt(null);
-    const fileInput = document.getElementById('receipt-edit-input') as HTMLInputElement;
-    if (fileInput) fileInput.value = '';
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!logToEdit) return;
-
-    const processedData: Partial<FuelLog> = {
-        ...formData,
-        odometer: Number(formData.odometer),
-        liters: Number(formData.liters),
-        cost: Number(formData.cost),
-        pricePerLiter: Number(formData.pricePerLiter),
-    };
-
-    if (receiptFile) {
-        if (logToEdit.receiptAttachmentUrl) URL.revokeObjectURL(logToEdit.receiptAttachmentUrl);
-        processedData.receiptAttachmentName = receiptFile.name;
-        processedData.receiptAttachmentUrl = URL.createObjectURL(receiptFile);
-    } else if (existingReceipt) {
-        processedData.receiptAttachmentName = existingReceipt.name;
-        processedData.receiptAttachmentUrl = existingReceipt.url;
-    } else {
-        if (logToEdit.receiptAttachmentUrl) URL.revokeObjectURL(logToEdit.receiptAttachmentUrl);
-        processedData.receiptAttachmentName = undefined;
-        processedData.receiptAttachmentUrl = undefined;
-    }
-
-    updateFuelLog(logToEdit.id, processedData);
-    onClose();
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
-      <div className="bg-white rounded-lg shadow-2xl w-full max-w-lg flex flex-col">
-        <div className="flex justify-between items-center p-4 border-b">
-          <h2 className="text-xl font-bold text-gray-800">Edit Fuel Log</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><XIcon className="h-6 w-6" /></button>
-        </div>
-        <form onSubmit={handleSubmit} className="overflow-y-auto p-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Vehicle</label>
-            <select name="vehicleId" value={formData.vehicleId} onChange={handleChange} required className="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
-              <option value="">Select Vehicle</option>
-              {vehicles.map(v => <option key={v.id} value={v.id}>{v.name} ({v.plateNumber})</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Date</label>
-            <input type="date" name="date" value={formData.date} onChange={handleChange} required className="mt-1 block w-full border-gray-300 rounded-md shadow-sm" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Odometer (km)</label>
-            <input type="number" name="odometer" value={formData.odometer} onChange={handleChange} required className="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="e.g. 123456" />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-              <div>
-                  <label className="block text-sm font-medium text-gray-700">Price / Liter (RM)</label>
-                  <input type="number" step="0.01" name="pricePerLiter" value={formData.pricePerLiter} onChange={handleChange} required className="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="e.g. 1.50"/>
-              </div>
-              <div>
-                  <label className="block text-sm font-medium text-gray-700">Liters</label>
-                  <input type="number" step="0.01" name="liters" value={formData.liters} onChange={handleChange} required className="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="e.g. 40.5"/>
-              </div>
-          </div>
-          <div>
-              <label className="block text-sm font-medium text-gray-700">Total Cost (RM)</label>
-              <input type="number" step="0.01" name="cost" value={formData.cost} onChange={handleChange} required className="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="e.g. 60.75" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Receipt (Optional)</label>
-            {!receiptFile && !existingReceipt ? (
-                <div className="mt-1">
-                    <input id="receipt-edit-input" type="file" onChange={handleFileChange} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100"/>
-                </div>
-            ) : (
-                <div className="mt-2 flex items-center justify-between p-2 pl-3 border rounded-md bg-gray-50">
-                    <div className="flex items-center space-x-2 truncate">
-                        <PaperClipIcon className="h-5 w-5 text-gray-500 flex-shrink-0"/>
-                        <span className="text-sm text-gray-700 truncate">{receiptFile?.name || existingReceipt?.name}</span>
-                    </div>
-                    <button type="button" onClick={removeReceipt} className="text-sm font-medium text-red-600 hover:text-red-800 ml-2">Remove</button>
-                </div>
-            )}
-          </div>
-          <div className="pt-4 flex justify-end space-x-3">
-            <button type="button" onClick={onClose} className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
-            <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-md">Save Changes</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
-
 const dateFilters = [
-  { key: 'all', label: 'All Time' },
-  { key: 'week', label: 'This Week' },
-  { key: 'month', label: 'This Month' },
-  { key: 'last_month', label: 'Last Month' },
-  { key: 'custom', label: 'Custom Range...' },
+  { key: 'all', label: 'Semua Masa' },
+  { key: 'today', label: 'Hari Ini' },
+  { key: 'week', label: 'Minggu Ini' },
+  { key: 'month', label: 'Bulan Ini' },
+  { key: 'last_month', label: 'Bulan Lepas' },
+  { key: 'custom', label: 'Julat Tarikh...' },
 ];
 
 const Reports: React.FC = () => {
-const { bookings, fuelLogs, users, vehicles, deleteFuelLog, odometerLogs, deleteOdometerLog } = useAppContext();
-const [editingOdoLog, setEditingOdoLog] = useState<OdometerLog | null>(null);
-const [isOdoFormOpen, setIsOdoFormOpen] = useState(false);
-const [odoVehicleFilter, setOdoVehicleFilter] = useState('');
+  const { 
+    bookings, 
+    fuelLogs, 
+    users, 
+    vehicles, 
+    deleteFuelLog, 
+    odometerLogs, 
+    deleteOdometerLog 
+  } = useAppContext();
 
-const odometerByVehicle = useMemo(() => {
-  const map: Record<string, OdometerLog[]> = {};
-  vehicles.forEach(v => {
-    map[v.id] = odometerLogs
-      .filter(l => l.vehicleId === v.id)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  });
-  return map;
-}, [vehicles, odometerLogs]);
+  // Active Sub-Tab: 'odometer' | 'fuel' | 'reports'
+  const [activeSubTab, setActiveSubTab] = useState<'odometer' | 'fuel' | 'reports'>('odometer');
 
-const handleEditOdoLog = (log: OdometerLog) => {
-  setEditingOdoLog(log);
-  setIsOdoFormOpen(true);
-};
-const handleDeleteOdoLog = (id: string) => {
-  if (window.confirm('Padam log odometer ini?')) deleteOdometerLog(id);
-};
-const getDriverNameOdo = (id: string) => users.find(u => u.id === id)?.name || 'Unknown';
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingLog, setEditingLog] = useState<FuelLog | null>(null);
+  // --- Odometer Logs State ---
+  const [editingOdoLog, setEditingOdoLog] = useState<OdometerLog | null>(null);
+  const [isOdoModalOpen, setIsOdoModalOpen] = useState(false);
+  const [odoSearch, setOdoSearch] = useState('');
+  const [odoVehicleFilter, setOdoVehicleFilter] = useState('');
+  const [odoDriverFilter, setOdoDriverFilter] = useState('');
+  const [odoDateFilter, setOdoDateFilter] = useState('all');
+  const [odoStartDate, setOdoStartDate] = useState('');
+  const [odoEndDate, setOdoEndDate] = useState('');
+
+  // --- Fuel Logs State ---
+  const [editingFuelLog, setEditingFuelLog] = useState<FuelLog | null>(null);
+  const [isFuelModalOpen, setIsFuelModalOpen] = useState(false);
+  const [fuelSearch, setFuelSearch] = useState('');
   const [fuelLogFilters, setFuelLogFilters] = useState({ 
-      vehicleId: '', 
-      driverId: '', 
-      dateFilter: 'all',
-      startDate: '',
-      endDate: ''
+    vehicleId: '', 
+    driverId: '', 
+    dateFilter: 'all',
+    startDate: '',
+    endDate: ''
   });
+
+  // --- General Trip Filters for Reports Tab ---
   const [tripFilters, setTripFilters] = useState({ 
-      vehicleId: '', 
-      driverId: '', 
-      dateFilter: 'all',
-      startDate: '',
-      endDate: ''
+    vehicleId: '', 
+    driverId: '', 
+    dateFilter: 'all',
+    startDate: '',
+    endDate: ''
   });
 
-  const drivers = useMemo(() => users.filter(u => u.role === 'driver'), [users]);
+  const drivers = useMemo(() => users.filter(u => u.role === 'driver' || u.role === 'admin'), [users]);
 
+  const getDriverName = useCallback((driverId: string | null | undefined) => {
+    if (!driverId) return 'Pemandu Tidak Ditetapkan';
+    return users.find(d => d.id === driverId)?.name || 'Pemandu';
+  }, [users]);
 
-  const getDriverName = (driverId: string | null) => users.find(d => d.id === driverId)?.name || 'Unknown';
-  
-  const handleEditLog = (log: FuelLog) => {
-    setEditingLog(log);
-    setIsFormOpen(true);
+  const getVehicleInfo = useCallback((vehicleId: string | null | undefined) => {
+    if (!vehicleId) return { name: 'Kenderaan Bebas', plateNumber: '-' };
+    return vehicles.find(v => v.id === vehicleId) || { name: 'Kenderaan Tidak Dikenali', plateNumber: '-' };
+  }, [vehicles]);
+
+  // --- CRUD Handlers for Odometer ---
+  const handleCreateOdoLog = () => {
+    setEditingOdoLog(null);
+    setIsOdoModalOpen(true);
   };
 
-  const handleDeleteLog = (logId: string) => {
-    if (window.confirm('Are you sure you want to delete this fuel log? This action cannot be undone.')) {
-      deleteFuelLog(logId);
+  const handleEditOdoLog = (log: OdometerLog) => {
+    setEditingOdoLog(log);
+    setIsOdoModalOpen(true);
+  };
+
+  const handleDeleteOdoLog = (id: string) => {
+    if (window.confirm('Adakah anda pasti mahu memadam log odometer ini? Tindakan ini tidak boleh diundur.')) {
+      deleteOdometerLog(id);
     }
   };
 
-  const handleCloseForm = () => {
-    setIsFormOpen(false);
-    setEditingLog(null);
+  // --- CRUD Handlers for Fuel ---
+  const handleCreateFuelLog = () => {
+    setEditingFuelLog(null);
+    setIsFuelModalOpen(true);
   };
-  
-  const handleFilterChange = (setter: React.Dispatch<React.SetStateAction<any>>) => (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setter((prevFilters: any) => {
-        const newFilters = { ...prevFilters, [name]: value };
-        if (name === 'dateFilter' && value !== 'custom') {
-            newFilters.startDate = '';
-            newFilters.endDate = '';
+
+  const handleEditFuelLog = (log: FuelLog) => {
+    setEditingFuelLog(log);
+    setIsFuelModalOpen(true);
+  };
+
+  const handleDeleteFuelLog = (id: string) => {
+    if (window.confirm('Adakah anda pasti mahu memadam log bahan api ini? Tindakan ini tidak boleh diundur.')) {
+      deleteFuelLog(id);
+    }
+  };
+
+  // Helper date filtering logic
+  const checkDateMatch = useCallback((dateStr: string, filterKey: string, start?: string, end?: string) => {
+    if (!dateStr) return false;
+    const now = new Date();
+    const itemDate = new Date(dateStr);
+    if (isNaN(itemDate.getTime())) return false;
+
+    if (filterKey === 'all') return true;
+
+    if (filterKey === 'today') {
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const check = new Date(itemDate.getFullYear(), itemDate.getMonth(), itemDate.getDate());
+      return today.getTime() === check.getTime();
+    }
+
+    if (filterKey === 'week') {
+      const todayForWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const dayOfWeek = todayForWeek.getDay();
+      const diff = todayForWeek.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+      const startOfWeek = new Date(todayForWeek.getFullYear(), todayForWeek.getMonth(), diff);
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(startOfWeek.getDate() + 6);
+      endOfWeek.setHours(23, 59, 59, 999);
+      return itemDate >= startOfWeek && itemDate <= endOfWeek;
+    }
+
+    if (filterKey === 'month') {
+      return itemDate.getFullYear() === now.getFullYear() && itemDate.getMonth() === now.getMonth();
+    }
+
+    if (filterKey === 'last_month') {
+      const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      return itemDate.getFullYear() === lastMonth.getFullYear() && itemDate.getMonth() === lastMonth.getMonth();
+    }
+
+    if (filterKey === 'custom' && start && end) {
+      const startDate = new Date(start);
+      const endDate = new Date(end);
+      endDate.setHours(23, 59, 59, 999);
+      return itemDate >= startDate && itemDate <= endDate;
+    }
+
+    return true;
+  }, []);
+
+  // --- Filtered Odometer Logs ---
+  const filteredOdoLogs = useMemo(() => {
+    return odometerLogs.filter(log => {
+      // Vehicle filter
+      if (odoVehicleFilter && log.vehicleId !== odoVehicleFilter) return false;
+      // Driver filter
+      if (odoDriverFilter && log.driverId !== odoDriverFilter) return false;
+      // Date filter
+      if (!checkDateMatch(log.date, odoDateFilter, odoStartDate, odoEndDate)) return false;
+
+      // Search keyword
+      if (odoSearch.trim()) {
+        const q = odoSearch.toLowerCase().trim();
+        const v = vehicles.find(veh => veh.id === log.vehicleId);
+        const d = users.find(usr => usr.id === log.driverId);
+
+        const matchV = v?.name.toLowerCase().includes(q) || v?.plateNumber.toLowerCase().includes(q);
+        const matchD = d?.name.toLowerCase().includes(q);
+        const matchFrom = log.fromLocation?.toLowerCase().includes(q);
+        const matchTo = log.toLocation?.toLowerCase().includes(q);
+        const matchPurpose = log.purpose?.toLowerCase().includes(q);
+        const matchRemarks = log.remarks?.toLowerCase().includes(q);
+
+        if (!matchV && !matchD && !matchFrom && !matchTo && !matchPurpose && !matchRemarks) {
+          return false;
         }
-        return newFilters;
+      }
+
+      return true;
+    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [odometerLogs, odoVehicleFilter, odoDriverFilter, odoDateFilter, odoStartDate, odoEndDate, odoSearch, vehicles, users, checkDateMatch]);
+
+  // --- Odometer Statistics ---
+  const odoStats = useMemo(() => {
+    const totalTrips = filteredOdoLogs.length;
+    const totalKm = filteredOdoLogs.reduce((sum, log) => sum + (log.distance || 0), 0);
+    const avgKm = totalTrips > 0 ? (totalKm / totalTrips).toFixed(1) : '0';
+    const distinctVehicles = new Set(filteredOdoLogs.map(l => l.vehicleId)).size;
+
+    return { totalTrips, totalKm, avgKm, distinctVehicles };
+  }, [filteredOdoLogs]);
+
+  // Grouped by vehicle for fleet status
+  const odometerByVehicle = useMemo(() => {
+    const map: Record<string, OdometerLog[]> = {};
+    vehicles.forEach(v => {
+      map[v.id] = odometerLogs
+        .filter(l => l.vehicleId === v.id)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     });
-  };
-  
+    return map;
+  }, [vehicles, odometerLogs]);
+
+  // --- Filtered Fuel Logs ---
+  const filteredFuelLogs = useMemo(() => {
+    return fuelLogs.filter(log => {
+      if (fuelLogFilters.vehicleId && log.vehicleId !== fuelLogFilters.vehicleId) return false;
+      if (fuelLogFilters.driverId && log.driverId !== fuelLogFilters.driverId) return false;
+      if (!checkDateMatch(log.date, fuelLogFilters.dateFilter, fuelLogFilters.startDate, fuelLogFilters.endDate)) return false;
+
+      if (fuelSearch.trim()) {
+        const q = fuelSearch.toLowerCase().trim();
+        const v = vehicles.find(veh => veh.id === log.vehicleId);
+        const d = users.find(usr => usr.id === log.driverId);
+        const matchV = v?.name.toLowerCase().includes(q) || v?.plateNumber.toLowerCase().includes(q);
+        const matchD = d?.name.toLowerCase().includes(q);
+        if (!matchV && !matchD) return false;
+      }
+
+      return true;
+    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [fuelLogs, fuelLogFilters, fuelSearch, vehicles, users, checkDateMatch]);
+
+  // --- Fuel Statistics ---
+  const fuelStats = useMemo(() => {
+    const totalCount = filteredFuelLogs.length;
+    const totalCost = filteredFuelLogs.reduce((sum, l) => sum + (l.cost || 0), 0);
+    const totalLiters = filteredFuelLogs.reduce((sum, l) => sum + (l.liters || 0), 0);
+    const avgPricePerLiter = totalLiters > 0 ? (totalCost / totalLiters).toFixed(2) : '0.00';
+
+    return { totalCount, totalCost, totalLiters, avgPricePerLiter };
+  }, [filteredFuelLogs]);
+
+  // --- Reports Tab Calculations ---
   const handlePrint = (elementId: string) => {
     const node = document.getElementById(elementId);
     if (!node) return;
@@ -280,76 +277,14 @@ const getDriverNameOdo = (id: string) => users.find(u => u.id === id)?.name || '
     document.body.classList.remove('is-printing');
   };
 
-  const exportDetailedTripReportPdf = (data: Booking[], vehicles: Vehicle[], users: User[]) => {
-    if (data.length === 0) {
-      alert("No data to export.");
-      return;
-    }
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    doc.text("Detailed Trip Report", 14, 16);
-
-    const tableColumn = ["Date", "Vehicle", "Driver", "Destination", "Purpose"];
-    const tableRows: (string | number)[][] = [];
-
-    data.forEach(booking => {
-        const vehicle = vehicles.find(v => v.id === booking.vehicleId);
-        const driver = users.find(u => u.id === booking.driverId);
-        const bookingData = [
-            parseAsLocal(booking.dateTime).toLocaleDateString('en-GB'),
-            vehicle?.plateNumber || 'N/A',
-            driver?.name || 'N/A',
-            booking.destination,
-            booking.purpose,
-        ];
-        tableRows.push(bookingData);
-    });
-
-    doc.autoTable({ head: [tableColumn], body: tableRows, startY: 25 });
-    doc.save(`trip_report_${new Date().toISOString().split('T')[0]}.pdf`);
-  };
-
-  const exportDetailedFuelReportPdf = (data: FuelLogWithMetrics[], vehicles: Vehicle[], users: User[]) => {
-      if (data.length === 0) {
-        alert("No data to export.");
-        return;
-      }
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF("landscape");
-      doc.text("Detailed Fuel Log & Economy Analysis", 14, 16);
-
-      const tableColumn = ["Vehicle", "Driver", "Date", "Odometer", "Distance", "Liters", "Cost", "Avg KM/L", "Cost/KM"];
-      const tableRows: (string | number)[][] = [];
-
-      data.forEach(log => {
-          const vehicle = vehicles.find(v => v.id === log.vehicleId);
-          const driver = users.find(u => u.id === log.driverId);
-          const logData = [
-              vehicle?.plateNumber || 'N/A',
-              driver?.name || 'Unknown',
-              new Date(log.date).toLocaleDateString('en-GB'),
-              `${log.odometer.toLocaleString()} km`,
-              log.distance ? `${log.distance.toLocaleString()} km` : 'N/A',
-              `${log.liters.toFixed(2)} L`,
-              `RM${log.cost.toFixed(2)}`,
-              log.avgKML ? log.avgKML.toFixed(2) : 'N/A',
-              log.costPerKM ? `RM${log.costPerKM.toFixed(2)}` : 'N/A',
-          ];
-          tableRows.push(logData);
-      });
-
-      doc.autoTable({ head: [tableColumn], body: tableRows, startY: 25 });
-      doc.save(`fuel_report_${new Date().toISOString().split('T')[0]}.pdf`);
-  };
-
-  const convertToCSV = (data: any[], headers: {key: string, label: string}[]) => {
+  const convertToCSV = (data: any[], headers: { key: string; label: string }[]) => {
     const headerRow = headers.map(h => h.label).join(',');
     const rows = data.map(row => {
-        return headers.map(header => {
-            const value = header.key.split('.').reduce((o, i) => (o ? o[i] : ''), row);
-            const escaped = ('' + (value !== null && value !== undefined ? value : '')).replace(/"/g, '""');
-            return `"${escaped}"`;
-        }).join(',');
+      return headers.map(header => {
+        const value = header.key.split('.').reduce((o, i) => (o ? o[i] : ''), row);
+        const escaped = ('' + (value !== null && value !== undefined ? value : '')).replace(/"/g, '""');
+        return `"${escaped}"`;
+      }).join(',');
     });
     return [headerRow, ...rows].join('\n');
   };
@@ -365,60 +300,114 @@ const getDriverNameOdo = (id: string) => users.find(u => u.id === id)?.name || '
     link.click();
     document.body.removeChild(link);
   };
-  
-  const applyDateFilter = (items: (FuelLog | Booking)[], filters: { dateFilter: string, startDate: string, endDate: string }) => {
-    const now = new Date();
-    
-    // This Week (Mon-Sun)
-    const todayForWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const dayOfWeek = todayForWeek.getDay();
-    const diff = todayForWeek.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-    const startOfWeek = new Date(todayForWeek.getFullYear(), todayForWeek.getMonth(), diff);
-    const endOfWeek = new Date(startOfWeek);
-    endOfWeek.setDate(startOfWeek.getDate() + 6);
-    endOfWeek.setHours(23,59,59,999);
-    
-    // This Month
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    endOfMonth.setHours(23,59,59,999);
 
-    // Last Month
-    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
-    endOfLastMonth.setHours(23,59,59,999);
-      
-    return items.filter(item => {
-        const itemDateStr = 'dateTime' in item ? item.dateTime : item.date;
-        const [year, month, day] = itemDateStr.split('T')[0].split('-').map(Number);
-        const itemDate = new Date(year, month - 1, day);
-        
-        switch(filters.dateFilter) {
-            case 'week': return itemDate >= startOfWeek && itemDate <= endOfWeek;
-            case 'month': return itemDate >= startOfMonth && itemDate <= endOfMonth;
-            case 'last_month': return itemDate >= startOfLastMonth && itemDate <= endOfLastMonth;
-            case 'custom':
-              if (filters.startDate && filters.endDate) {
-                  const start = new Date(filters.startDate);
-                  const end = new Date(filters.endDate);
-                  return itemDate >= start && itemDate <= end;
-              }
-              return true;
-            case 'all': default: return true;
-        }
+  // Detailed Trip Report for Reports tab
+  const tripReportData = useMemo(() => {
+    const completed = bookings.filter(b => b.status === 'Completed');
+    return completed.filter(b => {
+      if (tripFilters.vehicleId && b.vehicleId !== tripFilters.vehicleId) return false;
+      if (tripFilters.driverId && b.driverId !== tripFilters.driverId) return false;
+      return checkDateMatch(b.dateTime, tripFilters.dateFilter, tripFilters.startDate, tripFilters.endDate);
     });
+  }, [bookings, tripFilters, checkDateMatch]);
+
+  const monthlyTripReport = useMemo(() => {
+    const completedTrips = bookings.filter(b => b.status === 'Completed' && b.vehicleId);
+    const summary: Record<string, Record<string, { tripCount: number; totalDistance: number }>> = {};
+
+    completedTrips.forEach(trip => {
+      const tripDate = parseAsLocal(trip.dateTime);
+      const monthYear = tripDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+      const vehicleId = trip.vehicleId!;
+
+      if (!summary[monthYear]) {
+        summary[monthYear] = {};
+      }
+      if (!summary[monthYear][vehicleId]) {
+        summary[monthYear][vehicleId] = { tripCount: 0, totalDistance: 0 };
+      }
+
+      summary[monthYear][vehicleId].tripCount += 1;
+      if (typeof trip.distance === 'number') {
+        summary[monthYear][vehicleId].totalDistance += trip.distance;
+      }
+    });
+
+    return Object.entries(summary).sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime());
+  }, [bookings]);
+
+  const handleExportTripSummary = (format: 'pdf' | 'csv') => {
+    const dataToExport = monthlyTripReport.flatMap(([month, vehicleData]) =>
+      Object.entries(vehicleData).map(([vehicleId, data]) => {
+        const vehicle = vehicles.find(v => v.id === vehicleId);
+        const tripData = data as { tripCount: number; totalDistance: number };
+        return {
+          month,
+          vehicle: `${vehicle?.name || 'Unknown'} (${vehicle?.plateNumber || 'N/A'})`,
+          tripCount: tripData.tripCount,
+          totalDistance: typeof tripData.totalDistance === 'number' ? `${tripData.totalDistance} km` : 'N/A',
+        };
+      })
+    );
+
+    if (dataToExport.length === 0) {
+      alert("Tiada data untuk dieksport.");
+      return;
+    }
+
+    if (format === 'pdf') {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      doc.text("Ringkasan Bulanan Perjalanan & Jarak", 14, 16);
+      doc.autoTable({
+        head: [['Bulan', 'Kenderaan', 'Jumlah Trip', 'Jumlah Jarak']],
+        body: dataToExport.map(d => [d.month, d.vehicle, d.tripCount, d.totalDistance]),
+        startY: 25,
+      });
+      doc.save('monthly_trip_summary.pdf');
+    } else {
+      const headers = [
+        { key: 'month', label: 'Bulan' },
+        { key: 'vehicle', label: 'Kenderaan' },
+        { key: 'tripCount', label: 'Jumlah Trip' },
+        { key: 'totalDistance', label: 'Jumlah Jarak' }
+      ];
+      const csv = convertToCSV(dataToExport, headers);
+      downloadCSV(csv, 'monthly_trip_summary.csv');
+    }
   };
 
-  const fuelReportData = useMemo(() => {
-    const baseReport = fuelLogs.filter(log => {
-        const vehicleMatch = !fuelLogFilters.vehicleId || log.vehicleId === fuelLogFilters.vehicleId;
-        const driverMatch = !fuelLogFilters.driverId || log.driverId === fuelLogFilters.driverId;
-        return vehicleMatch && driverMatch;
+  const exportDetailedTripReportPdf = (data: Booking[], vehicles: Vehicle[], users: User[]) => {
+    if (data.length === 0) {
+      alert("Tiada data untuk dieksport.");
+      return;
+    }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    doc.text("Laporan Perjalanan Terperinci", 14, 16);
+
+    const tableColumn = ["Tarikh", "Kenderaan", "Pemandu", "Destinasi", "Tujuan"];
+    const tableRows: (string | number)[][] = [];
+
+    data.forEach(booking => {
+      const vehicle = vehicles.find(v => v.id === booking.vehicleId);
+      const driver = users.find(u => u.id === booking.driverId);
+      tableRows.push([
+        parseAsLocal(booking.dateTime).toLocaleDateString('en-GB'),
+        vehicle?.plateNumber || 'Bebas',
+        driver?.name || 'N/A',
+        booking.destination,
+        booking.purpose,
+      ]);
     });
 
-    const datedReport = applyDateFilter(baseReport, fuelLogFilters) as FuelLog[];
+    doc.autoTable({ head: [tableColumn], body: tableRows, startY: 25 });
+    doc.save(`laporan_perjalanan_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
 
-    const logsByVehicle = datedReport
+  // Detailed fuel report metrics
+  const fuelReportData = useMemo(() => {
+    const logsByVehicle = filteredFuelLogs
       .filter(log => typeof log.odometer === 'number' && !isNaN(log.odometer))
       .reduce((acc, log) => {
         if (!acc[log.vehicleId]) {
@@ -432,656 +421,957 @@ const getDriverNameOdo = (id: string) => users.find(u => u.id === id)?.name || '
 
     for (const vehicleId in logsByVehicle) {
       const sortedLogs = logsByVehicle[vehicleId].sort((a, b) => a.odometer - b.odometer);
-      
       for (let i = 0; i < sortedLogs.length; i++) {
         const currentLog = sortedLogs[i];
         let calculatedMetrics: Partial<FuelLogWithMetrics> = {};
-
         if (i > 0) {
-          const prevLog = sortedLogs[i-1];
+          const prevLog = sortedLogs[i - 1];
           const distance = currentLog.odometer - prevLog.odometer;
           if (distance > 0) {
             calculatedMetrics.distance = distance;
-            if(prevLog.liters > 0) {
+            if (prevLog.liters > 0) {
               calculatedMetrics.avgKML = distance / prevLog.liters;
             }
-            if(distance > 0) {
-                calculatedMetrics.costPerKM = prevLog.cost / distance;
+            if (distance > 0) {
+              calculatedMetrics.costPerKM = prevLog.cost / distance;
             }
           }
         }
         report.push({ ...currentLog, ...calculatedMetrics });
       }
     }
-    return report.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || b.odometer - a.odometer);
-  }, [fuelLogs, fuelLogFilters]);
-
-  const monthlyFuelSummary = useMemo(() => {
-    const summary: Record<string, Record<string, {
-        totalCost: number;
-        totalDistance: number;
-        totalLiters: number;
-    }>> = {};
-
-    const logsByVehicle = fuelLogs.reduce((acc, log) => {
-        if (!acc[log.vehicleId]) { acc[log.vehicleId] = []; }
-        acc[log.vehicleId].push(log);
-        return acc;
-    }, {} as Record<string, FuelLog[]>);
-
-    for (const vehicleId in logsByVehicle) {
-        const sortedLogs = logsByVehicle[vehicleId].sort((a, b) => a.odometer - b.odometer);
-        for (let i = 1; i < sortedLogs.length; i++) {
-            const currentLog = sortedLogs[i];
-            const prevLog = sortedLogs[i-1];
-            const distance = currentLog.odometer - prevLog.odometer;
-
-            if (distance > 0) {
-                const month = new Date(currentLog.date).toLocaleString('default', { month: 'long', year: 'numeric' });
-                if (!summary[month]) summary[month] = {};
-                if (!summary[month][vehicleId]) {
-                    summary[month][vehicleId] = { totalCost: 0, totalDistance: 0, totalLiters: 0 };
-                }
-                summary[month][vehicleId].totalDistance += distance;
-                summary[month][vehicleId].totalLiters += prevLog.liters;
-            }
-        }
-    }
-    
-    fuelLogs.forEach(log => {
-        const month = new Date(log.date).toLocaleString('default', { month: 'long', year: 'numeric' });
-        const vehicleId = log.vehicleId;
-        if (!summary[month]) summary[month] = {};
-        if (!summary[month][vehicleId]) {
-            summary[month][vehicleId] = { totalCost: 0, totalDistance: 0, totalLiters: 0 };
-        }
-        summary[month][vehicleId].totalCost += log.cost;
-    });
-
-    return Object.entries(summary).sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime());
-  }, [fuelLogs]);
-  
-  const monthlyTripReport = useMemo(() => {
-    const summary: Record<string, Record<string, { tripCount: number; totalDistance: number }>> = {};
-
-    // 1. Calculate trip counts from all completed bookings
-    const completedBookings = bookings.filter(b => b.status === 'Completed');
-    for (const booking of completedBookings) {
-        const month = parseAsLocal(booking.dateTime).toLocaleString('default', { month: 'long', year: 'numeric' });
-        const vehicleId = booking.vehicleId;
-        if (!vehicleId) continue;
-        if (!summary[month]) summary[month] = {};
-        if (!summary[month][vehicleId]) summary[month][vehicleId] = { tripCount: 0, totalDistance: 0 };
-        summary[month][vehicleId].tripCount += 1;
-    }
-    
-    // 2. Calculate distance from odometer logs by month and vehicle
-    const logsByMonthAndVehicle: Record<string, Record<string, number[]>> = {};
-    for (const log of odometerLogs) {
-        const month = new Date(log.date).toLocaleString('default', { month: 'long', year: 'numeric' });
-        const vehicleId = log.vehicleId;
-        if (!logsByMonthAndVehicle[month]) logsByMonthAndVehicle[month] = {};
-        if (!logsByMonthAndVehicle[month][vehicleId]) logsByMonthAndVehicle[month][vehicleId] = [];
-        logsByMonthAndVehicle[month][vehicleId].push(log.odometer);
-    }
-    
-    for (const month in logsByMonthAndVehicle) {
-        for (const vehicleId in logsByMonthAndVehicle[month]) {
-            const odometers = logsByMonthAndVehicle[month][vehicleId];
-            if (odometers.length > 1) { // Need at least two readings to calculate distance
-                const minOdo = Math.min(...odometers);
-                const maxOdo = Math.max(...odometers);
-                const distance = maxOdo - minOdo;
-
-                if (distance >= 0) { // Distance can be 0, that's fine
-                     if (!summary[month]) summary[month] = {}; // Should already exist if there are trips
-                     if (!summary[month][vehicleId]) summary[month][vehicleId] = { tripCount: 0, totalDistance: 0 };
-                     summary[month][vehicleId].totalDistance = distance;
-                }
-            }
-        }
-    }
-
-    return Object.entries(summary).sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime());
-  }, [bookings, odometerLogs]);
-
-  const detailedTripReportData = useMemo(() => {
-    const baseReport = bookings.filter(b => {
-      if (b.status !== 'Completed') return false;
-      const vehicleMatch = !tripFilters.vehicleId || b.vehicleId === tripFilters.vehicleId;
-      const driverMatch = !tripFilters.driverId || b.driverId === tripFilters.driverId;
-      return vehicleMatch && driverMatch;
-    });
-
-    return applyDateFilter(baseReport, tripFilters) as Booking[];
-  }, [bookings, tripFilters]);
-  
-  const handleExportTripSummary = (format: 'pdf' | 'csv') => {
-    const dataToExport = monthlyTripReport.flatMap(([month, vehicleData]) => 
-        Object.entries(vehicleData).map(([vehicleId, data]) => {
-            const vehicle = vehicles.find(v => v.id === vehicleId);
-            const tripData = data as { tripCount: number; totalDistance: number };
-            return {
-                month,
-                vehicle: `${vehicle?.name} (${vehicle?.plateNumber})`,
-                tripCount: tripData.tripCount,
-                totalDistance: tripData.totalDistance,
-            };
-        })
-    );
-
-    if (format === 'pdf') {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-        doc.text("Monthly Trip & Distance Summary", 14, 16);
-        doc.autoTable({
-            head: [['Month', 'Vehicle', 'Total Trips', 'Total Distance (km)']],
-            body: dataToExport.map(d => [d.month, d.vehicle, d.tripCount, `${d.totalDistance.toLocaleString()} km`]),
-            startY: 25,
-        });
-        doc.save('monthly_trip_summary.pdf');
-    } else { // csv
-        const headers = [{key: 'month', label: 'Month'}, {key: 'vehicle', label: 'Vehicle'}, {key: 'tripCount', label: 'Total Trips'}, {key: 'totalDistance', label: 'Total Distance (km)'}];
-        const csv = convertToCSV(dataToExport, headers);
-        downloadCSV(csv, 'monthly_trip_summary.csv');
-    }
-  };
-
-  const handleExportFuelSummary = (format: 'pdf' | 'csv') => {
-    const dataToExport = monthlyFuelSummary.flatMap(([month, vehicleData]) =>
-        Object.entries(vehicleData).map(([vehicleId, data]) => {
-            const vehicle = vehicles.find(v => v.id === vehicleId);
-            const summaryData = data as { totalCost: number; totalDistance: number; totalLiters: number };
-            return {
-                month,
-                vehicle: `${vehicle?.name} (${vehicle?.plateNumber})`,
-                totalCost: `RM${summaryData.totalCost.toFixed(2)}`,
-                totalDistance: `${summaryData.totalDistance.toLocaleString()} km`,
-                avgKML: summaryData.totalLiters > 0 ? (summaryData.totalDistance / summaryData.totalLiters).toFixed(2) : 'N/A',
-            };
-        })
-    );
-     if (format === 'pdf') {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-        doc.text("Monthly Fuel Summary", 14, 16);
-        doc.autoTable({
-            head: [['Month', 'Vehicle', 'Total Cost', 'Total Distance', 'Avg. KM/L']],
-            body: dataToExport.map(d => [d.month, d.vehicle, d.totalCost, d.totalDistance, d.avgKML]),
-            startY: 25,
-        });
-        doc.save('monthly_fuel_summary.pdf');
-    } else { // csv
-        const headers = [{key: 'month', label: 'Month'}, {key: 'vehicle', label: 'Vehicle'}, {key: 'totalCost', label: 'Total Cost'}, {key: 'totalDistance', label: 'Total Distance'}, {key: 'avgKML', label: 'Avg. KM/L'}];
-        const csv = convertToCSV(dataToExport, headers);
-        downloadCSV(csv, 'monthly_fuel_summary.csv');
-    }
-  };
+    return report.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [filteredFuelLogs]);
 
   return (
-    <div className="max-w-7xl mx-auto">
-      <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6">Reports</h2>
-      
-      <FuelLogEditForm 
-        isOpen={isFormOpen}
-        onClose={handleCloseForm}
-        logToEdit={editingLog}
-      />
-
-      <div className="space-y-12">
-
-        {/* Trip Distance Report */}
-        <div className="bg-white p-6 rounded-lg shadow-md space-y-8">
-            <h3 className="text-xl font-semibold text-gray-800 flex items-center"><RouteIcon className="h-6 w-6 mr-2 text-indigo-500" />Trip Distance Report</h3>
-            
-            <div className="bg-white rounded-lg shadow-inner border" id="monthly-trip-summary-printable">
-                <div className="p-6">
-                    <div className="flex justify-between items-center mb-4">
-                        <h4 className="text-lg font-semibold text-gray-800">Monthly Trip & Distance Summary</h4>
-                        <div className="flex items-center space-x-2">
-                           <button onClick={() => handlePrint('monthly-trip-summary-printable')} className="flex items-center text-sm bg-white hover:bg-gray-100 text-gray-700 font-semibold py-1.5 px-3 border border-gray-300 rounded-md shadow-sm"><PrinterIcon className="h-4 w-4 mr-1.5"/> Print</button>
-                           <button onClick={() => handleExportTripSummary('pdf')} className="flex items-center text-sm bg-white hover:bg-gray-100 text-gray-700 font-semibold py-1.5 px-3 border border-gray-300 rounded-md shadow-sm"><DocumentDownloadIcon className="h-4 w-4 mr-1.5"/> PDF</button>
-                           <button onClick={() => handleExportTripSummary('csv')} className="flex items-center text-sm bg-white hover:bg-gray-100 text-gray-700 font-semibold py-1.5 px-3 border border-gray-300 rounded-md shadow-sm"><DocumentDownloadIcon className="h-4 w-4 mr-1.5"/> CSV</button>
-                        </div>
-                    </div>
-                    <div className="overflow-x-auto">
-                        {monthlyTripReport.length > 0 ? (
-                            monthlyTripReport.map(([month, vehicleData]) => (
-                                <div key={month} className="mb-6">
-                                    <h5 className="text-md font-medium text-gray-700 bg-gray-50 p-3 rounded-t-md">{month}</h5>
-                                    <table className="min-w-full divide-y divide-gray-200 border">
-                                        <thead className="bg-gray-100">
-                                            <tr>
-                                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase">Vehicle</th>
-                                                <th className="px-4 py-2 text-right text-xs font-medium text-gray-600 uppercase">Total Trips</th>
-                                                <th className="px-4 py-2 text-right text-xs font-medium text-gray-600 uppercase">Total Distance (km)</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="bg-white divide-y divide-gray-200">
-                                            {Object.entries(vehicleData).map(([vehicleId, data]) => {
-                                                const vehicle = vehicles.find(v => v.id === vehicleId);
-                                                // FIX: Cast 'data' to the correct type to resolve properties 'tripCount' and 'totalDistance' on type 'unknown'.
-                                                const tripData = data as { tripCount: number; totalDistance: number };
-                                                return (
-                                                <tr key={vehicleId}>
-                                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-800">
-                                                        <div className="flex items-center">
-                                                            {vehicle?.photoUrl ? (
-                                                                <img src={vehicle.photoUrl} alt={vehicle.name} className="h-8 w-8 rounded-full object-cover mr-3" />
-                                                            ) : (
-                                                                <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center mr-3">
-                                                                    <TruckIcon className="h-5 w-5 text-gray-500" />
-                                                                </div>
-                                                            )}
-                                                            <span>{vehicle?.name} ({vehicle?.plateNumber})</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 font-semibold text-right">{tripData.tripCount}</td>
-                                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 font-semibold text-right">{typeof tripData.totalDistance === 'number' ? tripData.totalDistance.toLocaleString() : 'N/A'} km</td>
-                                                </tr>
-                                            )})}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            ))
-                        ) : (
-                            <p className="text-center py-4 text-gray-500">No completed trips with distance data to generate a summary.</p>
-                        )}
-                    </div>
-                </div>
+    <div className="max-w-7xl mx-auto space-y-6 pb-12">
+      {/* PAGE TITLE & ACTION TABS */}
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <div className="flex items-center space-x-2 text-indigo-600 mb-1">
+              <DocumentReportIcon className="h-5 w-5" />
+              <span className="text-xs font-bold uppercase tracking-wider">Pengurusan Rekod & Audit</span>
             </div>
-
-            <div className="bg-white rounded-lg shadow-inner border">
-                <div className="p-6">
-                    <div className="flex justify-between items-center mb-4">
-                        <div>
-                            <h4 className="text-lg font-semibold text-gray-800">Detailed Trip Log</h4>
-                            <p className="text-sm text-gray-500">A log of all completed trips.</p>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                            <button onClick={() => handlePrint('detailed-trip-log-printable')} className="flex items-center text-sm bg-white hover:bg-gray-100 text-gray-700 font-semibold py-1.5 px-3 border border-gray-300 rounded-md shadow-sm"><PrinterIcon className="h-4 w-4 mr-1.5"/> Print</button>
-                            <button onClick={() => exportDetailedTripReportPdf(detailedTripReportData, vehicles, users)} className="flex items-center text-sm bg-white hover:bg-gray-100 text-gray-700 font-semibold py-1.5 px-3 border border-gray-300 rounded-md shadow-sm"><DocumentDownloadIcon className="h-4 w-4 mr-1.5"/> PDF</button>
-                        </div>
-                    </div>
-
-                    <div className="p-4 bg-gray-50 rounded-lg mb-4 space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                            <label htmlFor="trip-vehicle-filter" className="block text-sm font-medium text-gray-700">Vehicle</label>
-                            <select
-                                id="trip-vehicle-filter"
-                                name="vehicleId"
-                                value={tripFilters.vehicleId}
-                                onChange={handleFilterChange(setTripFilters)}
-                                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-                            >
-                                <option value="">All Vehicles</option>
-                                {vehicles.map(v => <option key={v.id} value={v.id}>{v.name} ({v.plateNumber})</option>)}
-                            </select>
-                            </div>
-                            <div>
-                            <label htmlFor="trip-driver-filter" className="block text-sm font-medium text-gray-700">Driver</label>
-                            <select
-                                id="trip-driver-filter"
-                                name="driverId"
-                                value={tripFilters.driverId}
-                                onChange={handleFilterChange(setTripFilters)}
-                                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-                            >
-                                <option value="">All Drivers</option>
-                                {drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                            </select>
-                            </div>
-                            <div className="self-end">
-                            <button 
-                                onClick={() => setTripFilters({ vehicleId: '', driverId: '', dateFilter: 'all', startDate: '', endDate: '' })}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-                            >
-                                Clear Filters
-                            </button>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                            <div>
-                                <label htmlFor="trip-date-filter" className="block text-sm font-medium text-gray-700">Date Range</label>
-                                <select
-                                    id="trip-date-filter"
-                                    name="dateFilter"
-                                    value={tripFilters.dateFilter}
-                                    onChange={handleFilterChange(setTripFilters)}
-                                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-                                >
-                                    {dateFilters.map(({ key, label }) => (
-                                    <option key={key} value={key}>{label}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            {tripFilters.dateFilter === 'custom' && (
-                                <>
-                                    <div>
-                                        <label htmlFor="trip-start-date" className="block text-sm font-medium text-gray-700">Start Date</label>
-                                        <input type="date" id="trip-start-date" name="startDate" value={tripFilters.startDate || ''} onChange={handleFilterChange(setTripFilters)} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm sm:text-sm"/>
-                                    </div>
-                                    <div>
-                                        <label htmlFor="trip-end-date" className="block text-sm font-medium text-gray-700">End Date</label>
-                                        <input type="date" id="trip-end-date" name="endDate" value={tripFilters.endDate || ''} onChange={handleFilterChange(setTripFilters)} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm sm:text-sm" />
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                    </div>
-
-                    <div id="detailed-trip-log-printable" className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vehicle</th>
-                                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Driver</th>
-                                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Destination</th>
-                                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remarks</th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {detailedTripReportData.length > 0 ? detailedTripReportData.map(booking => {
-                                const vehicle = vehicles.find(v => v.id === booking.vehicleId);
-                                return (
-                                    <tr key={booking.id}>
-                                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-700">{parseAsLocal(booking.dateTime).toLocaleDateString('en-GB')}</td>
-                                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-700">{vehicle?.plateNumber || 'N/A'}</td>
-                                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-700">{getDriverName(booking.driverId)}</td>
-                                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-800">{booking.destination}</td>
-                                        <td className="px-3 py-3 text-sm text-gray-500 max-w-xs truncate" title={booking.remarks}>{booking.remarks || '-'}</td>
-                                    </tr>
-                                )
-                            }) : (
-                            <tr><td colSpan={5} className="text-center py-4 text-gray-500">No trips match the current filters.</td></tr>
-                            )}
-                        </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-        </div>
-        
-        {/* Fuel Consumption Report */}
-        <div className="bg-white p-6 rounded-lg shadow-md space-y-8">
-            <h3 className="text-xl font-semibold text-gray-800 flex items-center">
-                <FuelIcon className="h-6 w-6 mr-2 text-indigo-500" />
-                Fuel Consumption Report
-            </h3>
-
-            <div className="bg-white rounded-lg shadow-inner border" id="monthly-fuel-summary-printable">
-                <div className="p-6">
-                     <div className="flex justify-between items-center mb-4">
-                        <h4 className="text-lg font-semibold text-gray-800">Monthly Fuel Summary</h4>
-                        <div className="flex items-center space-x-2">
-                           <button onClick={() => handlePrint('monthly-fuel-summary-printable')} className="flex items-center text-sm bg-white hover:bg-gray-100 text-gray-700 font-semibold py-1.5 px-3 border border-gray-300 rounded-md shadow-sm"><PrinterIcon className="h-4 w-4 mr-1.5"/> Print</button>
-                           <button onClick={() => handleExportFuelSummary('pdf')} className="flex items-center text-sm bg-white hover:bg-gray-100 text-gray-700 font-semibold py-1.5 px-3 border border-gray-300 rounded-md shadow-sm"><DocumentDownloadIcon className="h-4 w-4 mr-1.5"/> PDF</button>
-                           <button onClick={() => handleExportFuelSummary('csv')} className="flex items-center text-sm bg-white hover:bg-gray-100 text-gray-700 font-semibold py-1.5 px-3 border border-gray-300 rounded-md shadow-sm"><DocumentDownloadIcon className="h-4 w-4 mr-1.5"/> CSV</button>
-                        </div>
-                    </div>
-                    <div className="overflow-x-auto">
-                        {monthlyFuelSummary.length > 0 ? (
-                            monthlyFuelSummary.map(([month, vehicleData]) => (
-                                <div key={month} className="mb-6">
-                                    <h5 className="text-md font-medium text-gray-700 bg-gray-50 p-3 rounded-t-md">{month}</h5>
-                                    <table className="min-w-full divide-y divide-gray-200 border">
-                                        <thead className="bg-gray-100">
-                                            <tr>
-                                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase">Vehicle</th>
-                                                <th className="px-4 py-2 text-right text-xs font-medium text-gray-600 uppercase">Total Cost</th>
-                                                <th className="px-4 py-2 text-right text-xs font-medium text-gray-600 uppercase">Total Distance</th>
-                                                <th className="px-4 py-2 text-right text-xs font-medium text-gray-600 uppercase">Avg. KM/L</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="bg-white divide-y divide-gray-200">
-                                            {Object.entries(vehicleData).sort((a,b) => {
-                                                const vehicleA = vehicles.find(v => v.id === a[0]);
-                                                const vehicleB = vehicles.find(v => v.id === b[0]);
-                                                return (vehicleA?.name || '').localeCompare(vehicleB?.name || '');
-                                            }).map(([vehicleId, data]) => {
-                                                const vehicle = vehicles.find(v => v.id === vehicleId);
-                                                // FIX: Cast 'data' to the correct type to resolve properties on type 'unknown'.
-                                                const summaryData = data as { totalCost: number; totalDistance: number; totalLiters: number };
-                                                const avgKML = summaryData.totalLiters > 0 ? (summaryData.totalDistance / summaryData.totalLiters).toFixed(2) : 'N/A';
-                                                return (
-                                                <tr key={vehicleId}>
-                                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-800">
-                                                        <div className="flex items-center">
-                                                            {vehicle?.photoUrl ? (
-                                                                <img src={vehicle.photoUrl} alt={vehicle.name} className="h-8 w-8 rounded-full object-cover mr-3" />
-                                                            ) : (
-                                                                <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center mr-3">
-                                                                    <TruckIcon className="h-5 w-5 text-gray-500" />
-                                                                </div>
-                                                            )}
-                                                            <span>{vehicle?.name} ({vehicle?.plateNumber})</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 font-semibold text-right">RM{typeof summaryData.totalCost === 'number' ? summaryData.totalCost.toFixed(2) : '0.00'}</td>
-                                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 font-semibold text-right">{typeof summaryData.totalDistance === 'number' && summaryData.totalDistance > 0 ? `${summaryData.totalDistance.toLocaleString()} km` : 'N/A'}</td>
-                                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 font-semibold text-right">{avgKML}</td>
-                                                </tr>
-                                            )})}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            ))
-                        ) : (
-                            <p className="text-center py-4 text-gray-500">Not enough fuel log data to generate a summary.</p>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow-inner border">
-              <div className="p-6">
-                 <div className="flex justify-between items-center mb-4">
-                    <div>
-                        <h4 className="text-lg font-semibold text-gray-800">Detailed Fuel Log & Economy Analysis</h4>
-                        <p className="text-sm text-gray-500">Detailed breakdown of fuel efficiency and costs. Metrics like Avg KM/L are calculated based on the previous refuel.</p>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                        <button onClick={() => handlePrint('detailed-fuel-log-printable')} className="flex items-center text-sm bg-white hover:bg-gray-100 text-gray-700 font-semibold py-1.5 px-3 border border-gray-300 rounded-md shadow-sm"><PrinterIcon className="h-4 w-4 mr-1.5"/> Print</button>
-                        <button onClick={() => exportDetailedFuelReportPdf(fuelReportData, vehicles, users)} className="flex items-center text-sm bg-white hover:bg-gray-100 text-gray-700 font-semibold py-1.5 px-3 border border-gray-300 rounded-md shadow-sm"><DocumentDownloadIcon className="h-4 w-4 mr-1.5"/> PDF</button>
-                    </div>
-                </div>
-
-                <div className="p-4 bg-gray-50 rounded-lg mb-4 space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                        <label htmlFor="fuel-vehicle-filter" className="block text-sm font-medium text-gray-700">Vehicle</label>
-                        <select id="fuel-vehicle-filter" name="vehicleId" value={fuelLogFilters.vehicleId} onChange={handleFilterChange(setFuelLogFilters)} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md" >
-                            <option value="">All Vehicles</option>
-                            {vehicles.map(v => <option key={v.id} value={v.id}>{v.name} ({v.plateNumber})</option>)}
-                        </select>
-                        </div>
-                        <div>
-                        <label htmlFor="fuel-driver-filter" className="block text-sm font-medium text-gray-700">Driver</label>
-                        <select id="fuel-driver-filter" name="driverId" value={fuelLogFilters.driverId} onChange={handleFilterChange(setFuelLogFilters)} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md" >
-                            <option value="">All Drivers</option>
-                            {drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                        </select>
-                        </div>
-                        <div className="self-end">
-                        <button onClick={() => setFuelLogFilters({ vehicleId: '', driverId: '', dateFilter: 'all', startDate: '', endDate: '' })} className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
-                            Clear Filters
-                        </button>
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                    <div>
-                        <label htmlFor="fuel-date-filter" className="block text-sm font-medium text-gray-700">Date Range</label>
-                        <select id="fuel-date-filter" name="dateFilter" value={fuelLogFilters.dateFilter} onChange={handleFilterChange(setFuelLogFilters)} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md" >
-                            {dateFilters.map(({ key, label }) => (
-                            <option key={key} value={key}>{label}</option>
-                            ))}
-                        </select>
-                        </div>
-                        {fuelLogFilters.dateFilter === 'custom' && (
-                            <>
-                                <div>
-                                    <label htmlFor="fuel-start-date" className="block text-sm font-medium text-gray-700">Start Date</label>
-                                    <input type="date" id="fuel-start-date" name="startDate" value={fuelLogFilters.startDate || ''} onChange={handleFilterChange(setFuelLogFilters)} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm sm:text-sm" />
-                                </div>
-                                <div>
-                                    <label htmlFor="fuel-end-date" className="block text-sm font-medium text-gray-700">End Date</label>
-                                    <input type="date" id="fuel-end-date" name="endDate" value={fuelLogFilters.endDate || ''} onChange={handleFilterChange(setFuelLogFilters)} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm sm:text-sm" />
-                                </div>
-                            </>
-                        )}
-                    </div>
-                </div>
-
-                <div id="detailed-fuel-log-printable" className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50 sticky top-0">
-                        <tr>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vehicle</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Driver</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                        <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Odometer</th>
-                        <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Distance</th>
-                        <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Liters</th>
-                        <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Cost</th>
-                        <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Avg KM/L</th>
-                        <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Cost/KM</th>
-                        <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Receipt</th>
-                        <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                        {fuelReportData.length > 0 ? fuelReportData.map(log => {
-                            const vehicle = vehicles.find(v => v.id === log.vehicleId);
-                            return (
-                        <tr key={log.id}>
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-700">
-                                <div className="flex items-center">
-                                    {vehicle?.photoUrl ? (
-                                        <img src={vehicle.photoUrl} alt={vehicle.name} className="h-8 w-8 rounded-full object-cover mr-3" />
-                                    ) : (
-                                        <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center mr-3 flex-shrink-0">
-                                            <TruckIcon className="h-5 w-5 text-gray-500" />
-                                        </div>
-                                    )}
-                                    <span>{vehicle?.plateNumber}</span>
-                                </div>
-                            </td>
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-700">{getDriverName(log.driverId)}</td>
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-700">{new Date(log.date).toLocaleDateString('en-GB')}</td>
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-800 text-right">{typeof log.odometer === 'number' ? log.odometer.toLocaleString() : 'N/A'} km</td>
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500 text-right">{typeof log.distance === 'number' ? `${log.distance.toLocaleString()} km` : 'N/A'}</td>
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-800 text-right">{typeof log.liters === 'number' ? log.liters.toFixed(2) : 'N/A'} L</td>
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900 font-medium text-right">RM{typeof log.cost === 'number' ? log.cost.toFixed(2) : 'N/A'}</td>
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-green-700 font-semibold text-right">{typeof log.avgKML === 'number' ? log.avgKML.toFixed(2) : 'N/A'}</td>
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-red-700 font-semibold text-right">{typeof log.costPerKM === 'number' ? `RM${log.costPerKM.toFixed(2)}` : 'N/A'}</td>
-                            <td className="px-3 py-3 whitespace-nowrap text-sm text-center">
-                            {log.receiptAttachmentUrl ? (
-                                <a href={log.receiptAttachmentUrl} title={log.receiptAttachmentName} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800">
-                                <PaperClipIcon className="h-5 w-5 mx-auto"/>
-                                </a>
-                            ) : '-'}
-                            </td>
-                            <td className="px-3 py-3 whitespace-nowrap text-right text-sm font-medium">
-                                <button onClick={() => handleEditLog(log)} className="text-gray-600 hover:text-indigo-800 p-1.5 rounded-full hover:bg-indigo-100 transition" title="Edit Log"><EditIcon className="h-5 w-5" /></button>
-                                <button onClick={() => handleDeleteLog(log.id)} className="text-red-600 hover:text-red-800 ml-1 p-1.5 rounded-full hover:bg-red-100 transition" title="Delete Log"><TrashIcon className="h-5 w-5"/></button>
-                            </td>
-                        </tr>
-                        )
-                        }) : (
-                        <tr><td colSpan={11} className="text-center py-4 text-gray-500">No fuel logs match the current filters.</td></tr>
-                        )}
-                    </tbody>
-                    </table>
-                </div>
-              </div>
-            </div>
-        </div>
-
-        {/* Odometer Trip Report per Vehicle */}
-        <div className="bg-white p-6 rounded-lg shadow-md space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-semibold text-gray-800 flex items-center">
-              <GaugeIcon className="h-6 w-6 mr-2 text-indigo-500" />
-              Odometer Trip Report
-            </h3>
-            <select
-              value={odoVehicleFilter}
-              onChange={e => setOdoVehicleFilter(e.target.value)}
-              className="border-gray-300 rounded-md shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500"
-            >
-              <option value="">Semua Kenderaan</option>
-              {vehicles.map(v => <option key={v.id} value={v.id}>{v.name} ({v.plateNumber})</option>)}
-            </select>
+            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Logs & Audit Pemandu</h1>
+            <p className="text-xs sm:text-sm text-slate-500 mt-1">
+              Pusat kawalan CRUD bagi log odometer perjalanan pemandu, log pembelian bahan api, dan analisis perbatuan.
+            </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {vehicles
-              .filter(v => !odoVehicleFilter || v.id === odoVehicleFilter)
-              .map(vehicle => {
-                const logs = odometerByVehicle[vehicle.id] || [];
+          {/* QUICK CREATE BUTTONS */}
+          <div className="flex items-center flex-wrap gap-2.5">
+            <button
+              onClick={handleCreateOdoLog}
+              className="inline-flex items-center px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition transform hover:-translate-y-0.5"
+            >
+              <PlusIcon className="h-4 w-4 mr-1.5" />
+              + Log Odometer
+            </button>
+            <button
+              onClick={handleCreateFuelLog}
+              className="inline-flex items-center px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-sm transition transform hover:-translate-y-0.5"
+            >
+              <PlusIcon className="h-4 w-4 mr-1.5" />
+              + Log Bahan Api
+            </button>
+          </div>
+        </div>
+
+        {/* SUB-TABS NAVIGATION */}
+        <div className="mt-6 flex border-b border-slate-200 space-x-4 sm:space-x-8">
+          <button
+            onClick={() => setActiveSubTab('odometer')}
+            className={`pb-3 text-sm font-bold flex items-center border-b-2 transition ${
+              activeSubTab === 'odometer'
+                ? 'border-indigo-600 text-indigo-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <GaugeIcon className="h-4 w-4 mr-2" />
+            Log Odometer
+            <span className={`ml-2 px-2 py-0.5 text-xs rounded-full font-bold ${
+              activeSubTab === 'odometer' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-600'
+            }`}>
+              {odometerLogs.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveSubTab('fuel')}
+            className={`pb-3 text-sm font-bold flex items-center border-b-2 transition ${
+              activeSubTab === 'fuel'
+                ? 'border-amber-600 text-amber-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <FuelIcon className="h-4 w-4 mr-2" />
+            Log Bahan Api
+            <span className={`ml-2 px-2 py-0.5 text-xs rounded-full font-bold ${
+              activeSubTab === 'fuel' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'
+            }`}>
+              {fuelLogs.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveSubTab('reports')}
+            className={`pb-3 text-sm font-bold flex items-center border-b-2 transition ${
+              activeSubTab === 'reports'
+                ? 'border-slate-800 text-slate-800'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <DocumentReportIcon className="h-4 w-4 mr-2" />
+            Laporan & Eksport
+          </button>
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* TAB 1: ODOMETER LOGS (FULL CRUD)                                          */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'odometer' && (
+        <div className="space-y-6">
+          {/* STATS OVERVIEW */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-500">Jumlah Rekod Log</p>
+                <p className="text-2xl font-black text-slate-800 mt-1">{odoStats.totalTrips}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Penyerahan odometer</p>
+              </div>
+              <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                <GaugeIcon className="h-6 w-6" />
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-500">Jumlah Jarak Direkod</p>
+                <p className="text-2xl font-black text-indigo-700 mt-1">
+                  {odoStats.totalKm.toLocaleString()} <span className="text-xs font-bold text-slate-500">KM</span>
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Perjalanan selesai</p>
+              </div>
+              <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                <RouteIcon className="h-6 w-6" />
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-500">Purata Jarak / Trip</p>
+                <p className="text-2xl font-black text-slate-800 mt-1">
+                  {odoStats.avgKm} <span className="text-xs font-bold text-slate-500">KM</span>
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Efisiensi laluan</p>
+              </div>
+              <div className="p-3 bg-slate-50 text-slate-600 rounded-xl">
+                <RouteIcon className="h-6 w-6" />
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-500">Kenderaan Terlibat</p>
+                <p className="text-2xl font-black text-emerald-700 mt-1">{odoStats.distinctVehicles}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Armada aktif</p>
+              </div>
+              <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                <TruckIcon className="h-6 w-6" />
+              </div>
+            </div>
+          </div>
+
+          {/* CONTROLS & FILTERS BAR */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              {/* Search */}
+              <div className="relative lg:col-span-2">
+                <SearchIcon className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Cari lokasi, tujuan, plat kenderaan, pemandu..."
+                  value={odoSearch}
+                  onChange={e => setOdoSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 font-medium"
+                />
+              </div>
+
+              {/* Vehicle Filter */}
+              <div>
+                <select
+                  value={odoVehicleFilter}
+                  onChange={e => setOdoVehicleFilter(e.target.value)}
+                  className="w-full p-2 text-xs border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 font-medium"
+                >
+                  <option value="">Semua Kenderaan</option>
+                  {vehicles.map(v => (
+                    <option key={v.id} value={v.id}>{v.name} ({v.plateNumber})</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Driver Filter */}
+              <div>
+                <select
+                  value={odoDriverFilter}
+                  onChange={e => setOdoDriverFilter(e.target.value)}
+                  className="w-full p-2 text-xs border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 font-medium"
+                >
+                  <option value="">Semua Pemandu</option>
+                  {drivers.map(d => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Date Filter */}
+              <div>
+                <select
+                  value={odoDateFilter}
+                  onChange={e => setOdoDateFilter(e.target.value)}
+                  className="w-full p-2 text-xs border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 font-medium"
+                >
+                  {dateFilters.map(df => (
+                    <option key={df.key} value={df.key}>{df.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Custom Date Range Picker */}
+            {odoDateFilter === 'custom' && (
+              <div className="flex items-center gap-3 pt-2 border-t border-slate-100">
+                <span className="text-xs font-semibold text-slate-600">Dari:</span>
+                <input
+                  type="date"
+                  value={odoStartDate}
+                  onChange={e => setOdoStartDate(e.target.value)}
+                  className="text-xs border border-slate-300 rounded-lg p-1.5"
+                />
+                <span className="text-xs font-semibold text-slate-600">Hingga:</span>
+                <input
+                  type="date"
+                  value={odoEndDate}
+                  onChange={e => setOdoEndDate(e.target.value)}
+                  className="text-xs border border-slate-300 rounded-lg p-1.5"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* ODOMETER TABLE */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Senarai Log Odometer ({filteredOdoLogs.length} rekod dijumpai)
+              </span>
+              {(odoSearch || odoVehicleFilter || odoDriverFilter || odoDateFilter !== 'all') && (
+                <button
+                  onClick={() => {
+                    setOdoSearch('');
+                    setOdoVehicleFilter('');
+                    setOdoDriverFilter('');
+                    setOdoDateFilter('all');
+                    setOdoStartDate('');
+                    setOdoEndDate('');
+                  }}
+                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+                >
+                  Reset Penapis
+                </button>
+              )}
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200 text-xs">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-bold text-slate-600">Tarikh</th>
+                    <th className="px-4 py-3 text-left font-bold text-slate-600">Kenderaan</th>
+                    <th className="px-4 py-3 text-left font-bold text-slate-600">Pemandu</th>
+                    <th className="px-4 py-3 text-left font-bold text-slate-600">Laluan (Dari → Ke)</th>
+                    <th className="px-4 py-3 text-left font-bold text-slate-600">Tujuan & Catatan</th>
+                    <th className="px-4 py-3 text-right font-bold text-slate-600">Meter Mula</th>
+                    <th className="px-4 py-3 text-right font-bold text-slate-600">Meter Tamat</th>
+                    <th className="px-4 py-3 text-right font-bold text-slate-600">Jarak (KM)</th>
+                    <th className="px-4 py-3 text-center font-bold text-slate-600 w-24">Tindakan</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {filteredOdoLogs.length > 0 ? (
+                    filteredOdoLogs.map(log => {
+                      const veh = getVehicleInfo(log.vehicleId);
+                      const driverName = getDriverName(log.driverId);
+                      const displayDate = log.date ? new Date(log.date).toLocaleDateString('ms-MY', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric'
+                      }) : '-';
+
+                      return (
+                        <tr key={log.id} className="hover:bg-slate-50/70 transition">
+                          <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">
+                            {displayDate}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="font-bold text-slate-900">{veh.name}</div>
+                            <span className="font-mono text-[11px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">
+                              {veh.plateNumber}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-slate-700 font-medium">
+                            <div className="flex items-center">
+                              <UserCircleIcon className="h-3.5 w-3.5 mr-1 text-slate-400" />
+                              {driverName}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="font-semibold text-slate-800">
+                              {log.fromLocation || '-'} <span className="text-indigo-500 font-bold">→</span> {log.toLocation || '-'}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 max-w-[200px]">
+                            <p className="truncate font-medium text-slate-700" title={log.purpose}>
+                              {log.purpose || '-'}
+                            </p>
+                            {log.remarks && (
+                              <p className="truncate text-[10px] text-slate-400 italic" title={log.remarks}>
+                                {log.remarks}
+                              </p>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono text-slate-600 font-medium">
+                            {log.startOdometer !== undefined ? log.startOdometer.toLocaleString() : '-'}
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono font-bold text-slate-900">
+                            {log.odometer !== undefined ? log.odometer.toLocaleString() : '-'}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {log.distance !== undefined ? (
+                              <span className="font-extrabold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-lg">
+                                +{log.distance.toLocaleString()} KM
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">-</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-center whitespace-nowrap">
+                            <div className="flex items-center justify-center space-x-1">
+                              <button
+                                onClick={() => handleEditOdoLog(log)}
+                                className="p-1.5 text-slate-500 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition"
+                                title="Kemaskini Log"
+                              >
+                                <EditIcon className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteOdoLog(log.id)}
+                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                                title="Padam Log"
+                              >
+                                <TrashIcon className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={9} className="px-4 py-12 text-center text-slate-400">
+                        <GaugeIcon className="h-8 w-8 mx-auto text-slate-300 mb-2" />
+                        <p className="font-semibold text-slate-600">Tiada rekod odometer dijumpai</p>
+                        <p className="text-xs text-slate-400 mt-0.5">Sila ubah kata carian atau penapis, atau tambah log baru.</p>
+                        <button
+                          onClick={handleCreateOdoLog}
+                          className="mt-3 inline-flex items-center px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold"
+                        >
+                          <PlusIcon className="h-3.5 w-3.5 mr-1" />
+                          Tambah Log Odometer
+                        </button>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* QUICK VEHICLE CARDS */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center">
+              <TruckIcon className="h-4 w-4 mr-2 text-indigo-600" />
+              Status Odometer Semasa Mengikut Kenderaan Armada
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {vehicles.map(v => {
+                const logs = odometerByVehicle[v.id] || [];
                 const latest = logs[0];
+                const totalKm = logs.reduce((acc, curr) => acc + (curr.distance || 0), 0);
+
                 return (
-                  <div key={vehicle.id} className="border border-gray-200 rounded-lg overflow-hidden">
-                    <div className="bg-gray-50 px-4 py-3 flex items-center justify-between border-b">
-                      <div className="flex items-center gap-3">
-                        {vehicle.photoUrl ? (
-                          <img src={vehicle.photoUrl} alt={vehicle.name} className="h-9 w-9 rounded-full object-cover" />
-                        ) : (
-                          <div className="h-9 w-9 rounded-full bg-gray-200 flex items-center justify-center">
-                            <TruckIcon className="h-5 w-5 text-gray-500" />
-                          </div>
-                        )}
-                        <div>
-                          <p className="font-semibold text-gray-800 text-sm">{vehicle.name}</p>
-                          <p className="text-xs text-gray-500 font-mono">{vehicle.plateNumber}</p>
-                        </div>
+                  <div key={v.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white hover:border-indigo-200 transition">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <span className="font-mono text-xs font-extrabold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">
+                          {v.plateNumber}
+                        </span>
+                        <h4 className="font-bold text-slate-900 text-sm mt-1">{v.name}</h4>
+                        <p className="text-[11px] text-slate-500 font-medium">{logs.length} rekod perjalanan direkod</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs text-gray-500">Odometer Terkini</p>
-                        <p className="text-sm font-bold text-gray-900">
-                          {latest && typeof latest.odometer === 'number' ? `${latest.odometer.toLocaleString()} km` : 'N/A'}
-                        </p>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">Meter Semasa</span>
+                        <span className="font-mono font-extrabold text-slate-900 text-sm">
+                          {latest ? `${latest.odometer.toLocaleString()} km` : `${v.initialOdometer || 0} km`}
+                        </span>
                       </div>
                     </div>
-                    <div className="max-h-64 overflow-y-auto divide-y divide-gray-100">
-                      {logs.length > 0 ? logs.map(log => (
-                        <div key={log.id} className="px-4 py-2.5 flex items-start justify-between text-sm hover:bg-gray-50">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 text-gray-700">
-                              <span className="font-semibold">{typeof log.odometer === 'number' ? log.odometer.toLocaleString() : 'N/A'} km</span>
-                              <span className="text-gray-400">•</span>
-                              <span>{log.date && !isNaN(new Date(log.date).getTime()) ? new Date(log.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}</span>
-                            </div>
-                            <div className="flex items-center text-xs text-gray-500 mt-0.5">
-                              <UserCircleIcon className="h-3.5 w-3.5 mr-1" />
-                              {getDriverNameOdo(log.driverId)}
-                            </div>
-                            {log.purpose && <p className="text-xs text-gray-500 mt-1 truncate" title={log.purpose}>{log.purpose}</p>}
-                          </div>
-                          <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-                            <button onClick={() => handleEditOdoLog(log)} className="text-gray-500 hover:text-indigo-700 p-1 rounded-full hover:bg-indigo-100" title="Edit"><EditIcon className="h-4 w-4" /></button>
-                            <button onClick={() => handleDeleteOdoLog(log.id)} className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100" title="Padam"><TrashIcon className="h-4 w-4" /></button>
-                          </div>
-                        </div>
-                      )) : (
-                        <p className="text-center text-gray-400 text-sm py-6">Tiada log odometer.</p>
-                      )}
+                    <div className="mt-3 pt-2.5 border-t border-slate-200/70 flex justify-between items-center text-xs">
+                      <span className="text-slate-500 font-medium">Jumlah Jarak Log:</span>
+                      <span className="font-bold text-indigo-700">{totalKm.toLocaleString()} KM</span>
                     </div>
                   </div>
                 );
               })}
+            </div>
           </div>
         </div>
+      )}
 
-      </div>
+      {/* ========================================================================= */}
+      {/* TAB 2: FUEL LOGS (FULL CRUD)                                              */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'fuel' && (
+        <div className="space-y-6">
+          {/* FUEL STATS OVERVIEW */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-500">Jumlah Isian Minyak</p>
+                <p className="text-2xl font-black text-slate-800 mt-1">{fuelStats.totalCount}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Resit & log berdaftar</p>
+              </div>
+              <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
+                <FuelIcon className="h-6 w-6" />
+              </div>
+            </div>
 
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-500">Jumlah Perbelanjaan</p>
+                <p className="text-2xl font-black text-amber-700 mt-1">
+                  RM {fuelStats.totalCost.toFixed(2)}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Kos belian bahan api</p>
+              </div>
+              <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
+                <FuelIcon className="h-6 w-6" />
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-500">Jumlah Liter Bahan Api</p>
+                <p className="text-2xl font-black text-slate-800 mt-1">
+                  {fuelStats.totalLiters.toFixed(1)} <span className="text-xs font-bold text-slate-500">L</span>
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Isipadu keseluruhan</p>
+              </div>
+              <div className="p-3 bg-slate-50 text-slate-600 rounded-xl">
+                <FuelIcon className="h-6 w-6" />
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-500">Purata Harga / Liter</p>
+                <p className="text-2xl font-black text-emerald-700 mt-1">
+                  RM {fuelStats.avgPricePerLiter}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Kadar purata per liter</p>
+              </div>
+              <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                <FuelIcon className="h-6 w-6" />
+              </div>
+            </div>
+          </div>
+
+          {/* CONTROLS & FILTERS BAR */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              {/* Search */}
+              <div className="relative lg:col-span-2">
+                <SearchIcon className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Cari kenderaan, plat nombor, pemandu..."
+                  value={fuelSearch}
+                  onChange={e => setFuelSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 font-medium"
+                />
+              </div>
+
+              {/* Vehicle Filter */}
+              <div>
+                <select
+                  value={fuelLogFilters.vehicleId}
+                  onChange={e => setFuelLogFilters(prev => ({ ...prev, vehicleId: e.target.value }))}
+                  className="w-full p-2 text-xs border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 font-medium"
+                >
+                  <option value="">Semua Kenderaan</option>
+                  {vehicles.map(v => (
+                    <option key={v.id} value={v.id}>{v.name} ({v.plateNumber})</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Driver Filter */}
+              <div>
+                <select
+                  value={fuelLogFilters.driverId}
+                  onChange={e => setFuelLogFilters(prev => ({ ...prev, driverId: e.target.value }))}
+                  className="w-full p-2 text-xs border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 font-medium"
+                >
+                  <option value="">Semua Pemandu</option>
+                  {drivers.map(d => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Date Filter */}
+              <div>
+                <select
+                  value={fuelLogFilters.dateFilter}
+                  onChange={e => setFuelLogFilters(prev => ({ ...prev, dateFilter: e.target.value }))}
+                  className="w-full p-2 text-xs border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 font-medium"
+                >
+                  {dateFilters.map(df => (
+                    <option key={df.key} value={df.key}>{df.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Custom Date Range Picker */}
+            {fuelLogFilters.dateFilter === 'custom' && (
+              <div className="flex items-center gap-3 pt-2 border-t border-slate-100">
+                <span className="text-xs font-semibold text-slate-600">Dari:</span>
+                <input
+                  type="date"
+                  value={fuelLogFilters.startDate}
+                  onChange={e => setFuelLogFilters(prev => ({ ...prev, startDate: e.target.value }))}
+                  className="text-xs border border-slate-300 rounded-lg p-1.5"
+                />
+                <span className="text-xs font-semibold text-slate-600">Hingga:</span>
+                <input
+                  type="date"
+                  value={fuelLogFilters.endDate}
+                  onChange={e => setFuelLogFilters(prev => ({ ...prev, endDate: e.target.value }))}
+                  className="text-xs border border-slate-300 rounded-lg p-1.5"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* FUEL LOGS TABLE */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Senarai Log Bahan Api ({filteredFuelLogs.length} rekod dijumpai)
+              </span>
+              {(fuelSearch || fuelLogFilters.vehicleId || fuelLogFilters.driverId || fuelLogFilters.dateFilter !== 'all') && (
+                <button
+                  onClick={() => {
+                    setFuelSearch('');
+                    setFuelLogFilters({ vehicleId: '', driverId: '', dateFilter: 'all', startDate: '', endDate: '' });
+                  }}
+                  className="text-xs font-semibold text-amber-600 hover:text-amber-800"
+                >
+                  Reset Penapis
+                </button>
+              )}
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200 text-xs">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-bold text-slate-600">Tarikh</th>
+                    <th className="px-4 py-3 text-left font-bold text-slate-600">Kenderaan</th>
+                    <th className="px-4 py-3 text-left font-bold text-slate-600">Pemandu</th>
+                    <th className="px-4 py-3 text-right font-bold text-slate-600">Odometer (KM)</th>
+                    <th className="px-4 py-3 text-right font-bold text-slate-600">Kuantiti (L)</th>
+                    <th className="px-4 py-3 text-right font-bold text-slate-600">Harga/L (RM)</th>
+                    <th className="px-4 py-3 text-right font-bold text-slate-600">Jumlah Kos (RM)</th>
+                    <th className="px-4 py-3 text-center font-bold text-slate-600">Resit</th>
+                    <th className="px-4 py-3 text-center font-bold text-slate-600 w-24">Tindakan</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {filteredFuelLogs.length > 0 ? (
+                    filteredFuelLogs.map(log => {
+                      const veh = getVehicleInfo(log.vehicleId);
+                      const driverName = getDriverName(log.driverId);
+                      const displayDate = log.date ? new Date(log.date).toLocaleDateString('ms-MY', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric'
+                      }) : '-';
+
+                      return (
+                        <tr key={log.id} className="hover:bg-slate-50/70 transition">
+                          <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">
+                            {displayDate}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="font-bold text-slate-900">{veh.name}</div>
+                            <span className="font-mono text-[11px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
+                              {veh.plateNumber}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-slate-700 font-medium">
+                            <div className="flex items-center">
+                              <UserCircleIcon className="h-3.5 w-3.5 mr-1 text-slate-400" />
+                              {driverName}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono font-bold text-slate-800">
+                            {log.odometer ? `${log.odometer.toLocaleString()} km` : '-'}
+                          </td>
+                          <td className="px-4 py-3 text-right font-bold text-slate-800">
+                            {log.liters.toFixed(2)} L
+                          </td>
+                          <td className="px-4 py-3 text-right font-medium text-slate-600">
+                            RM {log.pricePerLiter ? log.pricePerLiter.toFixed(2) : '-'}
+                          </td>
+                          <td className="px-4 py-3 text-right font-extrabold text-amber-800">
+                            RM {log.cost.toFixed(2)}
+                          </td>
+                          <td className="px-4 py-3 text-center whitespace-nowrap">
+                            {log.receiptAttachmentUrl ? (
+                              <a
+                                href={log.receiptAttachmentUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center text-xs text-indigo-600 hover:text-indigo-800 font-bold hover:underline"
+                              >
+                                <PaperClipIcon className="h-3.5 w-3.5 mr-1" />
+                                Resit
+                              </a>
+                            ) : (
+                              <span className="text-slate-400 text-[11px] italic">Tiada</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-center whitespace-nowrap">
+                            <div className="flex items-center justify-center space-x-1">
+                              <button
+                                onClick={() => handleEditFuelLog(log)}
+                                className="p-1.5 text-slate-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition"
+                                title="Kemaskini Log Bahan Api"
+                              >
+                                <EditIcon className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteFuelLog(log.id)}
+                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                                title="Padam Log Bahan Api"
+                              >
+                                <TrashIcon className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={9} className="px-4 py-12 text-center text-slate-400">
+                        <FuelIcon className="h-8 w-8 mx-auto text-slate-300 mb-2" />
+                        <p className="font-semibold text-slate-600">Tiada log bahan api dijumpai</p>
+                        <p className="text-xs text-slate-400 mt-0.5">Sila ubah kata carian atau penapis, atau daftar resit minyak baru.</p>
+                        <button
+                          onClick={handleCreateFuelLog}
+                          className="mt-3 inline-flex items-center px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold"
+                        >
+                          <PlusIcon className="h-3.5 w-3.5 mr-1" />
+                          Tambah Log Bahan Api
+                        </button>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 3: REPORTS & ANALYTICS (SUMMARY & EXPORTS)                             */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'reports' && (
+        <div className="space-y-8">
+          {/* 1. Monthly Trip & Distance Summary */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 flex items-center">
+                  <RouteIcon className="h-5 w-5 mr-2 text-indigo-600" />
+                  Ringkasan Bulanan Perjalanan & Jarak Kenderaan
+                </h3>
+                <p className="text-xs text-slate-500">Agregat perjalanan selesai dan perbatuan mengikut bulan & kenderaan</p>
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => handlePrint('monthly-trip-summary-printable')}
+                  className="flex items-center text-xs bg-white hover:bg-slate-50 text-slate-700 font-bold py-1.5 px-3 border border-slate-300 rounded-xl shadow-xs"
+                >
+                  <PrinterIcon className="h-3.5 w-3.5 mr-1.5 text-slate-500" /> Cetak
+                </button>
+                <button
+                  onClick={() => handleExportTripSummary('pdf')}
+                  className="flex items-center text-xs bg-white hover:bg-slate-50 text-slate-700 font-bold py-1.5 px-3 border border-slate-300 rounded-xl shadow-xs"
+                >
+                  <DocumentDownloadIcon className="h-3.5 w-3.5 mr-1.5 text-indigo-600" /> PDF
+                </button>
+                <button
+                  onClick={() => handleExportTripSummary('csv')}
+                  className="flex items-center text-xs bg-white hover:bg-slate-50 text-slate-700 font-bold py-1.5 px-3 border border-slate-300 rounded-xl shadow-xs"
+                >
+                  <DocumentDownloadIcon className="h-3.5 w-3.5 mr-1.5 text-emerald-600" /> CSV
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200" id="monthly-trip-summary-printable">
+              {monthlyTripReport.length > 0 ? (
+                monthlyTripReport.map(([month, vehicleData]) => (
+                  <div key={month} className="mb-6 last:mb-0">
+                    <h5 className="text-xs font-bold text-slate-800 bg-slate-200/80 px-3 py-2 rounded-t-lg uppercase tracking-wider">
+                      {month}
+                    </h5>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-slate-200 border border-slate-200 text-xs bg-white">
+                        <thead className="bg-slate-100/70">
+                          <tr>
+                            <th className="px-4 py-2.5 text-left font-bold text-slate-700 uppercase">Kenderaan</th>
+                            <th className="px-4 py-2.5 text-right font-bold text-slate-700 uppercase">Jumlah Trip</th>
+                            <th className="px-4 py-2.5 text-right font-bold text-slate-700 uppercase">Jumlah Jarak (KM)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {Object.entries(vehicleData).map(([vehicleId, data]) => {
+                            const veh = vehicles.find(v => v.id === vehicleId);
+                            const tripData = data as { tripCount: number; totalDistance: number };
+                            return (
+                              <tr key={vehicleId} className="hover:bg-slate-50">
+                                <td className="px-4 py-2.5 whitespace-nowrap text-slate-800 font-semibold">
+                                  {veh?.name} ({veh?.plateNumber})
+                                </td>
+                                <td className="px-4 py-2.5 whitespace-nowrap text-right font-bold text-slate-900">
+                                  {tripData.tripCount}
+                                </td>
+                                <td className="px-4 py-2.5 whitespace-nowrap text-right font-extrabold text-indigo-700">
+                                  {typeof tripData.totalDistance === 'number' ? tripData.totalDistance.toLocaleString() : 'N/A'} km
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-center py-6 text-slate-400 text-xs font-semibold">
+                  Tiada rekod perjalanan selesai yang mempunyai data jarak.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* 2. Detailed Trip Log with Filters */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 flex items-center">
+                  <RouteIcon className="h-5 w-5 mr-2 text-indigo-600" />
+                  Log Perjalanan Terperinci
+                </h3>
+                <p className="text-xs text-slate-500">Senarai rekod tempahan yang telah berjaya diselesaikan oleh pemandu</p>
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => handlePrint('detailed-trip-log-printable')}
+                  className="flex items-center text-xs bg-white hover:bg-slate-50 text-slate-700 font-bold py-1.5 px-3 border border-slate-300 rounded-xl shadow-xs"
+                >
+                  <PrinterIcon className="h-3.5 w-3.5 mr-1.5 text-slate-500" /> Cetak
+                </button>
+                <button
+                  onClick={() => exportDetailedTripReportPdf(tripReportData, vehicles, users)}
+                  className="flex items-center text-xs bg-white hover:bg-slate-50 text-slate-700 font-bold py-1.5 px-3 border border-slate-300 rounded-xl shadow-xs"
+                >
+                  <DocumentDownloadIcon className="h-3.5 w-3.5 mr-1.5 text-indigo-600" /> Eksport PDF
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto" id="detailed-trip-log-printable">
+              <table className="min-w-full divide-y divide-slate-200 text-xs border border-slate-200 rounded-xl overflow-hidden">
+                <thead className="bg-slate-100">
+                  <tr>
+                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Tarikh</th>
+                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Kenderaan</th>
+                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Pemandu</th>
+                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Destinasi</th>
+                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Tujuan</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {tripReportData.length > 0 ? (
+                    tripReportData.map(b => {
+                      const veh = vehicles.find(v => v.id === b.vehicleId);
+                      const driver = users.find(u => u.id === b.driverId);
+                      return (
+                        <tr key={b.id} className="hover:bg-slate-50">
+                          <td className="px-4 py-2.5 whitespace-nowrap font-medium text-slate-700">
+                            {parseAsLocal(b.dateTime).toLocaleDateString('ms-MY')}
+                          </td>
+                          <td className="px-4 py-2.5 whitespace-nowrap font-bold text-slate-900">
+                            {veh ? `${veh.name} (${veh.plateNumber})` : 'Bebas (Belum Tetap)'}
+                          </td>
+                          <td className="px-4 py-2.5 whitespace-nowrap text-slate-700 font-medium">
+                            {driver?.name || 'N/A'}
+                          </td>
+                          <td className="px-4 py-2.5 font-semibold text-slate-800">
+                            {b.destination}
+                          </td>
+                          <td className="px-4 py-2.5 text-slate-600">
+                            {b.purpose}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={5} className="text-center py-6 text-slate-400 font-medium">
+                        Tiada log perjalanan selesai bagi tapisan ini.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* 3. Detailed Fuel Log & Economy Analysis */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 flex items-center">
+                  <FuelIcon className="h-5 w-5 mr-2 text-amber-600" />
+                  Analisis Efisiensi & Kecekapan Bahan Api
+                </h3>
+                <p className="text-xs text-slate-500">Perbandingan bacaan odometer berturut-turut bagi mengira KM/Liter dan Kos/KM</p>
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => handlePrint('detailed-fuel-log-printable')}
+                  className="flex items-center text-xs bg-white hover:bg-slate-50 text-slate-700 font-bold py-1.5 px-3 border border-slate-300 rounded-xl shadow-xs"
+                >
+                  <PrinterIcon className="h-3.5 w-3.5 mr-1.5 text-slate-500" /> Cetak
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto" id="detailed-fuel-log-printable">
+              <table className="min-w-full divide-y divide-slate-200 text-xs border border-slate-200 rounded-xl overflow-hidden">
+                <thead className="bg-slate-100">
+                  <tr>
+                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Kenderaan</th>
+                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Pemandu</th>
+                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Tarikh</th>
+                    <th className="px-4 py-2.5 text-right font-bold text-slate-700">Odometer</th>
+                    <th className="px-4 py-2.5 text-right font-bold text-slate-700">Jarak (KM)</th>
+                    <th className="px-4 py-2.5 text-right font-bold text-slate-700">Liter</th>
+                    <th className="px-4 py-2.5 text-right font-bold text-slate-700">Kos (RM)</th>
+                    <th className="px-4 py-2.5 text-right font-bold text-slate-700">Purata KM/L</th>
+                    <th className="px-4 py-2.5 text-right font-bold text-slate-700">Kos/KM</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {fuelReportData.length > 0 ? (
+                    fuelReportData.map(log => {
+                      const veh = vehicles.find(v => v.id === log.vehicleId);
+                      const driver = users.find(u => u.id === log.driverId);
+                      return (
+                        <tr key={log.id} className="hover:bg-slate-50">
+                          <td className="px-4 py-2.5 whitespace-nowrap font-bold text-slate-900">
+                            {veh ? `${veh.name} (${veh.plateNumber})` : 'N/A'}
+                          </td>
+                          <td className="px-4 py-2.5 whitespace-nowrap text-slate-700 font-medium">
+                            {driver?.name || 'N/A'}
+                          </td>
+                          <td className="px-4 py-2.5 whitespace-nowrap text-slate-600 font-medium">
+                            {new Date(log.date).toLocaleDateString('ms-MY')}
+                          </td>
+                          <td className="px-4 py-2.5 text-right font-mono font-bold text-slate-800">
+                            {log.odometer ? `${log.odometer.toLocaleString()} km` : '-'}
+                          </td>
+                          <td className="px-4 py-2.5 text-right font-semibold text-slate-700">
+                            {log.distance ? `${log.distance.toLocaleString()} km` : '-'}
+                          </td>
+                          <td className="px-4 py-2.5 text-right font-bold text-slate-800">
+                            {log.liters.toFixed(2)} L
+                          </td>
+                          <td className="px-4 py-2.5 text-right font-extrabold text-amber-800">
+                            RM {log.cost.toFixed(2)}
+                          </td>
+                          <td className="px-4 py-2.5 text-right font-extrabold text-indigo-700">
+                            {log.avgKML ? `${log.avgKML.toFixed(2)} km/L` : '-'}
+                          </td>
+                          <td className="px-4 py-2.5 text-right font-semibold text-slate-700">
+                            {log.costPerKM ? `RM ${log.costPerKM.toFixed(2)}` : '-'}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={9} className="text-center py-6 text-slate-400 font-medium">
+                        Tiada data bahan api untuk dijana analisis.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ODOMETER MODAL (CREATE / EDIT) */}
       <OdometerLogEditForm
-        isOpen={isOdoFormOpen}
-        onClose={() => { setIsOdoFormOpen(false); setEditingOdoLog(null); }}
+        isOpen={isOdoModalOpen}
+        onClose={() => {
+          setIsOdoModalOpen(false);
+          setEditingOdoLog(null);
+        }}
         logToEdit={editingOdoLog}
+      />
+
+      {/* FUEL LOG MODAL (CREATE / EDIT) */}
+      <FuelLogModal
+        isOpen={isFuelModalOpen}
+        onClose={() => {
+          setIsFuelModalOpen(false);
+          setEditingFuelLog(null);
+        }}
+        logToEdit={editingFuelLog}
       />
     </div>
   );

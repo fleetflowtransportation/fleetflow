@@ -15,7 +15,7 @@ import DriverScheduleManager from './components/DriverScheduleManager';
 
 const App: React.FC = () => {
   const { currentUser, isLoading, loadError, reload } = useAppContext();
-  const [activeView, setActiveView] = useState<'dashboard' | 'reports' | 'archive' | 'vehicles' | 'users' | 'calendar' | 'issues' | 'schedule'>('dashboard');
+  const [activeView, setActiveView] = useState<'dashboard' | 'reports' | 'logs' | 'archive' | 'vehicles' | 'users' | 'calendar' | 'issues' | 'schedule'>('dashboard');
 
   if (isLoading) {
     return (
@@ -57,6 +57,7 @@ const App: React.FC = () => {
           </div>
         );
       case 'reports':
+      case 'logs':
         return <Reports />;
       case 'archive':
         return <BookingArchive />;

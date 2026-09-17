@@ -13,7 +13,7 @@ import {
     ClockIcon
 } from './icons/Icons';
 
-type NavView = 'dashboard' | 'reports' | 'archive' | 'vehicles' | 'users' | 'calendar' | 'issues' | 'schedule';
+type NavView = 'dashboard' | 'reports' | 'logs' | 'archive' | 'vehicles' | 'users' | 'calendar' | 'issues' | 'schedule';
 
 interface HeaderProps {
   activeView: NavView;
@@ -47,7 +47,7 @@ const Header: React.FC<HeaderProps> = ({ activeView, setActiveView }) => {
         { view: 'dashboard', label: 'Dashboard', icon: <ViewGridIcon className="h-5 w-5" /> },
         { view: 'calendar', label: 'Calendar', icon: <CalendarIcon className="h-5 w-5" /> },
         { view: 'schedule', label: 'Jadual Pemandu', icon: <ClockIcon className="h-5 w-5" /> },
-        { view: 'reports', label: 'Reports', icon: <DocumentReportIcon className="h-5 w-5" /> },
+        { view: 'reports', label: 'Logs', icon: <DocumentReportIcon className="h-5 w-5" /> },
         { view: 'issues', label: 'Issues', icon: <ExclamationIcon className="h-5 w-5" /> },
         { view: 'archive', label: 'Archive', icon: <ArchiveIcon className="h-5 w-5" /> },
         { view: 'vehicles', label: 'Vehicles', icon: <TruckIcon className="h-5 w-5" /> },
