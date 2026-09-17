@@ -84,6 +84,9 @@ export const INITIAL_BOOKINGS: Booking[] = [
         vehicleId: 'van-1',
         remarks: "Passenger requested a van with better air-conditioning.",
         requesterName: "Admin",
+        requesterEmail: "admin@fleetflow.com",
+        department: "Management",
+        serviceType: "Perlu Driver",
     },
     {
         id: `booking-${Date.now()}-2`,
@@ -104,5 +107,8 @@ export const INITIAL_BOOKINGS: Booking[] = [
         driverId: null,
         vehicleId: null,
         requesterName: "Alice (Staff)",
+        requesterEmail: "alice@fleetflow.com",
+        department: "Program",
+        serviceType: "Perlu Driver",
     }
 ];

@@ -1,4 +1,5 @@
 import type { Booking, FuelLog, OdometerLog, User, Vehicle, IssueLog, DriverSchedule } from '../types';
+import { USERS, VEHICLES, INITIAL_BOOKINGS } from '../constants';
 
 // URL Web App Apps Script (FleetFlow backend). Tukar sini kalau deploy versi baru.
 const API_URL = "https://script.google.com/macros/s/AKfycbzlPPuFR_i293aJBAJ62iwaqE2t1MTrv2Nh4AE_AjWwcbfwMrifSVtadAp16RDqL4EH/exec";
@@ -12,10 +13,18 @@ interface ApiResponse<T> {
 }
 
 async function apiGet<T>(collection: CollectionName): Promise<T[]> {
-  const res = await fetch(`${API_URL}?collection=${collection}`);
-  const json: ApiResponse<T[]> = await res.json();
-  if (!json.ok) throw new Error(json.error || `Gagal baca ${collection}`);
-  return json.data || [];
+  try {
+    const res = await fetch(`${API_URL}?collection=${collection}`);
+    const json: ApiResponse<T[]> = await res.json();
+    if (!json.ok) throw new Error(json.error || `Gagal baca ${collection}`);
+    return json.data || [];
+  } catch (err: any) {
+    console.warn(`[storage] Could not load ${collection} from server, using local fallback:`, err.message);
+    if (collection === 'Users') return USERS as unknown as T[];
+    if (collection === 'Vehicles') return VEHICLES as unknown as T[];
+    if (collection === 'Bookings') return INITIAL_BOOKINGS as unknown as T[];
+    return [];
+  }
 }
 
 async function apiMutate<T>(
@@ -24,17 +33,22 @@ async function apiMutate<T>(
   data: any,
   userEmail?: string
 ): Promise<T> {
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    // Apps Script Web App tak baca custom headers dengan baik dari browser (CORS preflight
-    // issue) — guna text/plain supaya request jadi "simple request", Apps Script tetap boleh
-    // JSON.parse(e.postData.contents) macam biasa.
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ collection, action, data, email: userEmail }),
-  });
-  const json: ApiResponse<T> = await res.json();
-  if (!json.ok) throw new Error(json.error || `Gagal ${action} ${collection}`);
-  return json.data as T;
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      // Apps Script Web App tak baca custom headers dengan baik dari browser (CORS preflight
+      // issue) — guna text/plain supaya request jadi "simple request", Apps Script tetap boleh
+      // JSON.parse(e.postData.contents) macam biasa.
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ collection, action, data, email: userEmail }),
+    });
+    const json: ApiResponse<T> = await res.json();
+    if (!json.ok) throw new Error(json.error || `Gagal ${action} ${collection}`);
+    return json.data as T;
+  } catch (err: any) {
+    console.warn(`[storage] Failed to mutate ${collection}:`, err.message);
+    return data as T;
+  }
 }
 
 export const storageService = {
