@@ -41,7 +41,7 @@ export const USERS: User[] = [
     phone: '017-3131604',
     joiningDate: '2023-05-10',
     address: 'Selangor',
-    role: 'driver',
+    role: 'admin',
     status: 'active',
     password: 'password123' 
   },

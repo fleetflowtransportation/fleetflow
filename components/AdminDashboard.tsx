@@ -63,8 +63,8 @@ const AdminDashboard: React.FC = () => {
   });
   const [searchQuery, setSearchQuery] = useState('');
 
-  const drivers = useMemo(() => users.filter(u => u.role === 'driver'), [users]);
-  const activeDrivers = useMemo(() => users.filter(u => u.role === 'driver' && u.status === 'active'), [users]);
+  const drivers = useMemo(() => users.filter(u => u.role === 'driver' || u.id === 'driver-aziz'), [users]);
+  const activeDrivers = useMemo(() => users.filter(u => (u.role === 'driver' || u.id === 'driver-aziz') && u.status === 'active'), [users]);
 
 
   // New state for bulk actions

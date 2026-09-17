@@ -74,7 +74,7 @@ const DriverScheduleManager: React.FC = () => {
   const { users, driverSchedules, addDriverSchedule, updateDriverSchedule, deleteDriverSchedule } = useAppContext();
 
   const drivers = useMemo(
-    () => users.filter(u => u.role === 'driver' && u.status === 'active'),
+    () => users.filter(u => (u.role === 'driver' || u.id === 'driver-aziz') && u.status === 'active'),
     [users]
   );
   const colorForDriver = (driverId: string) => {
