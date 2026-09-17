@@ -39,10 +39,10 @@ export const BookingResultModal: React.FC<BookingResultModalProps> = ({ isOpen, 
             )}
             <div>
               <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${isConfirmed ? 'bg-emerald-200 text-emerald-900' : 'bg-rose-200 text-rose-900'}`}>
-                {isConfirmed ? 'CONFIRMED' : 'CONFLICT / REJECTED'}
+                {isConfirmed ? 'CONFIRMED' : 'REJECTED AUTOMATICALLY'}
               </span>
               <h3 className="text-lg font-bold text-gray-900 mt-1">
-                {isConfirmed ? 'Tempahan Berjaya Disahkan' : 'Tempahan Memerlukan Tindakan Manual'}
+                {isConfirmed ? 'Tempahan Berjaya Disahkan' : 'Tempahan Ditolak Secara Automatik'}
               </h3>
             </div>
           </div>
@@ -71,14 +71,14 @@ export const BookingResultModal: React.FC<BookingResultModalProps> = ({ isOpen, 
             <div className="p-4 bg-rose-50 border border-rose-200 rounded-lg space-y-2">
               <div className="font-semibold text-rose-800 flex items-center space-x-2">
                 <InformationCircleIcon className="h-5 w-5 text-rose-600 flex-shrink-0" />
-                <span>Sebab Konflik:</span>
+                <span>Sebab Penolakan:</span>
               </div>
               <p className="text-rose-700 leading-relaxed font-medium">
                 {result.conflictReason || result.adminNotes}
               </p>
               <div className="pt-2 mt-2 border-t border-rose-200 text-xs text-rose-800 space-y-1">
-                <p>• Notifikasi emel automatik telah dihantar kepada <b>Admin Ain (ain@yck.org.my)</b> untuk tindakan manual.</p>
-                <p>• Rekod booking telah disimpan dalam tab Admin sebagai <b>CONFLICT</b> untuk tujuan penyelarasan.</p>
+                <p>• Notifikasi emel penolakan automatik telah dihantar terus kepada pemohon (<b>{result.emailNotifications.requester.to}</b>).</p>
+                <p>• Tempahan ini <b>TIDAK</b> disimpan ke dalam pangkalan data dan <b>TIDAK</b> dimasukkan ke dalam kalendar.</p>
               </div>
             </div>
           )}

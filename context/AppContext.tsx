@@ -249,6 +249,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           runningLastDriver = result.newLastDriverAssignedId;
         }
 
+        if (result.status === 'Conflict') {
+          // Skip saving this occurrence due to conflict / rejection
+          switch (frequency) {
+            case 'weekly':
+              currentDate.setDate(currentDate.getDate() + 7);
+              break;
+            case 'bi-weekly':
+              currentDate.setDate(currentDate.getDate() + 14);
+              break;
+            case 'monthly': {
+              const originalDay = startDate.getDate();
+              const hours = currentDate.getHours();
+              const minutes = currentDate.getMinutes();
+              const seconds = currentDate.getSeconds();
+
+              let nextDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+              const lastDayOfNextMonth = new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, 0).getDate();
+              const newDay = Math.min(originalDay, lastDayOfNextMonth);
+
+              currentDate = new Date(nextDate.getFullYear(), nextDate.getMonth(), newDay, hours, minutes, seconds);
+              break;
+            }
+          }
+          continue;
+        }
+
         const newBooking: Booking = {
           ...bookingData,
           id: tempId('booking'),
@@ -329,6 +355,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         vehicles,
         lastDriverAssignedId,
       });
+
+      if (result.status === 'Conflict') {
+        return result;
+      }
 
       if (result.newLastDriverAssignedId) {
         setLastDriverAssignedId(result.newLastDriverAssignedId);
