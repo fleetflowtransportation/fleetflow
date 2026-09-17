@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAppContext } from '../context/AppContext';
 import type { Booking, PassengerCount } from '../types';
 import { DEPARTMENTS, PICKUP_POINTS } from '../types';
-import { XIcon, PaperClipIcon } from './icons/Icons';
+import { XIcon, PaperClipIcon, ClockIcon } from './icons/Icons';
 import { BookingResultModal } from './BookingResultModal';
 import type { AutoAssignResult } from '../services/bookingEngine';
 
@@ -48,6 +48,18 @@ const splitIso = (iso?: string) => {
   };
 };
 
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64String = (reader.result as string).split(',')[1];
+      resolve(base64String);
+    };
+    reader.onerror = (error) => reject(error);
+    reader.readAsDataURL(file);
+  });
+};
+
 const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdit }) => {
   const { addBooking, updateBooking, vehicles } = useAppContext();
   const [formData, setFormData] = useState<FormData>(emptyFormData);
@@ -59,6 +71,8 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
     frequency: 'weekly' as 'weekly' | 'bi-weekly' | 'monthly',
     endDate: ''
   });
+  const [isUploading, setIsUploading] = useState(false);
+  const [showDriveSetup, setShowDriveSetup] = useState(false);
 
   const resetForm = useCallback(() => {
     setFormData(emptyFormData);
@@ -125,8 +139,9 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
     if (fileInput) fileInput.value = '';
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isUploading) return;
 
     const passengers: PassengerCount[] = [];
     if (Number(formData.staffCount) > 0) passengers.push({ category: 'Staff', count: Number(formData.staffCount) });
@@ -183,14 +198,82 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
     };
 
     if (attachmentFile) {
-        if (bookingToEdit?.attachmentUrl) URL.revokeObjectURL(bookingToEdit.attachmentUrl);
+        if (bookingToEdit?.attachmentUrl && bookingToEdit.attachmentUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(bookingToEdit.attachmentUrl);
+        }
         processedData.attachmentName = attachmentFile.name;
-        processedData.attachmentUrl = URL.createObjectURL(attachmentFile);
+        
+        const driveUrl = import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL;
+        if (driveUrl) {
+            setIsUploading(true);
+            try {
+                const base64Str = await fileToBase64(attachmentFile);
+                const response = await fetch(driveUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'text/plain;charset=utf-8'
+                    },
+                    body: JSON.stringify({
+                        base64: base64Str,
+                        fileName: attachmentFile.name,
+                        mimeType: attachmentFile.type
+                    })
+                });
+                
+                const resText = await response.text();
+                let resJson;
+                try {
+                    resJson = JSON.parse(resText);
+                } catch {
+                    throw new Error("Respon dari Google Apps Script tidak sah (bukan JSON).");
+                }
+
+                if (resJson && resJson.success && resJson.url) {
+                    processedData.attachmentUrl = resJson.url;
+                } else {
+                    throw new Error(resJson?.error || 'Pemuatan fail ke Google Drive gagal.');
+                }
+            } catch (error: any) {
+                console.error("Ralat Google Drive:", error);
+                const confirmFallback = window.confirm(
+                    `Gagal memuat naik lampiran ke Google Drive: ${error.message || 'Sila pastikan URL Google Apps Script adalah betul'}.\n\nAdakah anda mahu meneruskan tempahan menggunakan storan fail tempatan (lokal)?`
+                );
+                if (!confirmFallback) {
+                    setIsUploading(false);
+                    return;
+                }
+                if (attachmentFile.size < 500 * 1024) {
+                    try {
+                        const base64Str = await fileToBase64(attachmentFile);
+                        processedData.attachmentUrl = `data:${attachmentFile.type};base64,${base64Str}`;
+                    } catch {
+                        processedData.attachmentUrl = URL.createObjectURL(attachmentFile);
+                    }
+                } else {
+                    processedData.attachmentUrl = URL.createObjectURL(attachmentFile);
+                }
+            } finally {
+                setIsUploading(false);
+            }
+        } else {
+            if (attachmentFile.size < 500 * 1024) {
+                try {
+                    const base64Str = await fileToBase64(attachmentFile);
+                    processedData.attachmentUrl = `data:${attachmentFile.type};base64,${base64Str}`;
+                } catch {
+                    processedData.attachmentUrl = URL.createObjectURL(attachmentFile);
+                }
+            } else {
+                processedData.attachmentUrl = URL.createObjectURL(attachmentFile);
+            }
+        }
     } else if (existingAttachment) {
         processedData.attachmentName = existingAttachment.name;
         processedData.attachmentUrl = existingAttachment.url;
     } else {
-        if (bookingToEdit?.attachmentUrl) URL.revokeObjectURL(bookingToEdit.attachmentUrl);
+        if (bookingToEdit?.attachmentUrl && bookingToEdit.attachmentUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(bookingToEdit.attachmentUrl);
+        }
         processedData.attachmentName = undefined;
         processedData.attachmentUrl = undefined;
     }
@@ -261,9 +344,19 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
                     <input type="time" name="endTime" value={formData.endTime} onChange={handleChange} required className={inputClass}/>
                 </div>
             </div>
-            <div className="text-xs text-indigo-800 bg-indigo-50 border border-indigo-100 rounded-md p-2.5 flex items-start space-x-1.5">
-                <span className="font-bold text-indigo-600">💡 Polisi Waktu Rehat:</span>
-                <span>Isnin–Khamis & Ahad: <b>12:00–13:00</b> | Jumaat: <b>12:30–14:30</b>. Tempahan yang bermula sebelum waktu rehat dibenarkan (pengecualian). Tempahan yang bermula dalam waktu rehat akan ditandakan sebagai <b>KONFLIK</b>.</span>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3.5 space-y-2">
+              <div className="flex items-center space-x-2 text-amber-800 font-bold text-sm">
+                <ClockIcon className="h-5 w-5 text-amber-600 flex-shrink-0" />
+                <span>Polisi Waktu Rehat Rasmi (Sekatan Tempahan)</span>
+              </div>
+              <div className="text-xs text-amber-950 leading-relaxed space-y-1.5 pl-7">
+                <p>• <b>Isnin – Khamis & Ahad:</b> 12:00 tengah hari – 1:00 petang</p>
+                <p>• <b>Jumaat:</b> 12:30 tengah hari – 2:30 petang</p>
+                <div className="pt-2 border-t border-amber-200 mt-1.5 text-amber-900 font-medium flex items-start space-x-1">
+                  <span>💡</span>
+                  <span><i>Tempahan yang bermula <b>DI DALAM</b> waktu rehat di atas akan <b>DITOLAK SECARA AUTOMATIK</b> demi memelihara kebajikan waktu rehat pemandu.</i></span>
+                </div>
+              </div>
             </div>
 
             {/* 6: Tujuan Perjalanan */}
@@ -345,9 +438,106 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
 
             <div>
                 <label className={labelClass}>Lampiran (Jika Ada)</label>
+                
+                {/* Google Drive Status indicator */}
+                <div className="mt-1 mb-2.5 flex items-center justify-between text-xs bg-slate-50 border border-slate-200 rounded-md p-2">
+                    <div className="flex items-center space-x-1.5 text-slate-700">
+                        <span>☁️</span>
+                        <span className="font-semibold text-slate-800">Penyimpanan Lampiran:</span>
+                        {import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                Google Drive Aktif
+                            </span>
+                        ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                                Storan Tempatan (Bukan Drive)
+                            </span>
+                        )}
+                    </div>
+                    
+                    {!import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL && (
+                        <button
+                            type="button"
+                            onClick={() => setShowDriveSetup(!showDriveSetup)}
+                            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium underline focus:outline-none"
+                        >
+                            {showDriveSetup ? "Tutup Cara Setup" : "Cara Setup Google Drive"}
+                        </button>
+                    )}
+                </div>
+
+                {/* Google Drive Setup Instructions Panel */}
+                {showDriveSetup && !import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL && (
+                    <div className="mb-4 bg-slate-50 border border-dashed border-slate-300 rounded-lg p-4 space-y-3">
+                        <h4 className="text-sm font-bold text-slate-800 flex items-center space-x-1">
+                            <span>🛠️</span>
+                            <span>Cara Simpan Lampiran Terus Ke Google Drive Anda (Percuma!)</span>
+                        </h4>
+                        <p className="text-xs text-slate-600 leading-relaxed">
+                            Sistem ini menyokong penyimpanan automatik semua fail lampiran tempahan ke dalam akaun Google Drive Workspace anda menggunakan <b>Google Apps Script Web App</b> yang berjalan di akaun Google anda secara selamat tanpa sebarang kos.
+                        </p>
+                        
+                        <div className="text-xs text-slate-700 space-y-2">
+                            <p><b>Langkah 1:</b> Buka <a href="https://script.google.com" target="_blank" rel="noreferrer" className="text-indigo-600 underline font-semibold">script.google.com</a> dan buat projek baharu.</p>
+                            <p><b>Langkah 2:</b> Salin kod berikut dan gantikan semua kod di dalam projek tersebut:</p>
+                            
+                            <div className="relative">
+                                <pre className="bg-slate-900 text-slate-100 text-[11px] p-3 rounded-md overflow-x-auto select-all max-h-48 whitespace-pre font-mono">
+{`function doPost(e) {
+  try {
+    var data = JSON.parse(e.postData.contents);
+    var base64Data = data.base64;
+    var fileName = data.fileName;
+    var mimeType = data.mimeType;
+    
+    // Nyahkod Base64 dan simpan ke folder spesifik yang ditetapkan
+    var decoded = Utilities.base64Decode(base64Data);
+    var blob = Utilities.newBlob(decoded, mimeType, fileName);
+    
+    var folderId = "1N2r4Ctwz9qVnAGgoFNQpCWSLPzU7f-29";
+    var folder = DriveApp.getFolderById(folderId);
+    var file = folder.createFile(blob);
+    
+    // Set agar sesiapa yang mempunyai pautan boleh melihat fail tersebut
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    
+    return ContentService.createTextOutput(JSON.stringify({
+      success: true,
+      url: file.getUrl(),
+      fileId: file.getId()
+    })).setMimeType(ContentService.MimeType.JSON);
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      error: error.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}`}
+                                </pre>
+                            </div>
+
+                            <p><b>Langkah 3:</b> Klik betang <b>Deploy &gt; New deployment</b>.</p>
+                            <ul className="list-disc pl-5 space-y-1 text-slate-600">
+                                <li>Pilih jenis deployment: <b>Web app</b>.</li>
+                                <li>Set <i>Execute as:</i> <b>Me</b> (Akaun Google anda).</li>
+                                <li>Set <i>Who has access:</i> <b>Anyone</b> (Penting!).</li>
+                            </ul>
+                            <p><b>Langkah 4:</b> Salin <b>Web app URL</b> yang diberikan (bermula dengan <code className="bg-slate-200 px-1 rounded font-mono font-bold text-slate-800">https://script.google.com/macros/s/...</code>).</p>
+                            <p><b>Langkah 5:</b> Buka bahagian <b>Settings</b> dalam panel AI Studio anda, tambah pembolehubah persekitaran (Environment Variable) dengan nama <b><code className="bg-slate-200 px-1 rounded font-mono font-bold text-slate-800 font-semibold text-slate-900">VITE_GOOGLE_SCRIPT_UPLOAD_URL</code></b> dan tampalkan URL Web App tadi.</p>
+                        </div>
+                    </div>
+                )}
+
+                {/* File input / display */}
                 {!attachmentFile && !existingAttachment ? (
                     <div className="mt-1">
-                        <input id="attachment-input" type="file" onChange={handleFileChange} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100"/>
+                        <input
+                            id="attachment-input"
+                            type="file"
+                            onChange={handleFileChange}
+                            disabled={isUploading}
+                            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100 disabled:opacity-50"
+                        />
                     </div>
                 ) : (
                     <div className="mt-2 flex items-center justify-between p-2 pl-3 border rounded-md bg-gray-50">
@@ -355,7 +545,14 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
                             <PaperClipIcon className="h-5 w-5 text-gray-500 flex-shrink-0"/>
                             <span className="text-sm text-gray-700 truncate">{attachmentFile?.name || existingAttachment?.name}</span>
                         </div>
-                        <button type="button" onClick={removeAttachment} className="text-sm font-medium text-red-600 hover:text-red-800 ml-2">Buang</button>
+                        <button
+                            type="button"
+                            onClick={removeAttachment}
+                            disabled={isUploading}
+                            className="text-sm font-medium text-red-600 hover:text-red-800 ml-2 disabled:opacity-50"
+                        >
+                            Buang
+                        </button>
                     </div>
                 )}
             </div>
@@ -409,8 +606,31 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
             )}
 
             <div className="pt-4 flex justify-end space-x-3">
-              <button type="button" onClick={onClose} className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">Batal</button>
-              <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-md">{bookingToEdit ? 'Simpan Perubahan' : 'Hantar Booking'}</button>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    disabled={isUploading}
+                    className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                    Batal
+                </button>
+                <button
+                    type="submit"
+                    disabled={isUploading}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-md disabled:bg-indigo-400 flex items-center justify-center space-x-2"
+                >
+                    {isUploading ? (
+                        <>
+                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
+                            <span>Memuat Naik...</span>
+                        </>
+                    ) : (
+                        <span>{bookingToEdit ? 'Simpan Perubahan' : 'Hantar Booking'}</span>
+                    )}
+                </button>
             </div>
         </form>
       </div>
