@@ -8,7 +8,6 @@ import {
   FuelIcon, 
   WrenchScrewdriverIcon, 
   GaugeIcon, 
-  CalendarIcon, 
   ClockIcon, 
   LocationMarkerIcon, 
   UserGroupIcon, 
@@ -16,8 +15,7 @@ import {
   CheckCircleIcon,
   UserCircleIcon,
   RouteIcon,
-  ArrowUpCircleIcon,
-  PlusIcon
+  ExternalLinkIcon
 } from './icons/Icons';
 import CalendarView from './CalendarView';
 import { parseAsLocal } from '../utils';
@@ -93,91 +91,124 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
     setIsOdometerLogOpen(true);
   };
 
+  const getVehicleInfo = (vehicleId: string | null) => {
+    if (!vehicleId) return { name: 'Pandu Sendiri', plate: 'Tiada' };
+    const vehicle = vehicles.find(v => v.id === vehicleId);
+    if (vehicle) return { name: vehicle.name, plate: vehicle.plateNumber };
+    return { name: `Kenderaan #${vehicleId.slice(-4).toUpperCase()}`, plate: '-' };
+  };
+
+  const formatTripDateTime = (dateTimeStr: string, finishDateTimeStr?: string) => {
+    try {
+      const start = parseAsLocal(dateTimeStr);
+      const dateFormatted = start.toLocaleDateString('ms-MY', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      });
+      const startTime = start.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      });
+
+      if (finishDateTimeStr) {
+        const end = parseAsLocal(finishDateTimeStr);
+        const endTime = end.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        });
+        return { date: dateFormatted, time: `${startTime} – ${endTime}` };
+      }
+
+      return { date: dateFormatted, time: startTime };
+    } catch {
+      return { date: dateTimeStr, time: '' };
+    }
+  };
+
   return (
-    <div className="max-w-md md:max-w-2xl mx-auto space-y-6 pb-28 relative">
+    <div className="max-w-md md:max-w-3xl mx-auto space-y-5 pb-28 relative">
       
-      {/* GRAB-STYLE DRIVER PROFILE */}
-      <div className="bg-indigo-900 text-white p-6 rounded-2xl shadow-xl relative overflow-hidden">
-        <div className="absolute right-0 bottom-0 translate-x-10 translate-y-10 opacity-10">
-          <TruckIcon className="h-44 w-44" />
-        </div>
-        
+      {/* DRIVER COCKPIT PROFILE */}
+      <div className="bg-slate-900 text-white p-5 rounded-2xl shadow-md border border-slate-800">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3.5">
-            <div className="bg-white/10 p-2 rounded-full border border-white/20">
-              <UserCircleIcon className="h-10 w-10 text-indigo-200" />
+          <div className="flex items-center space-x-3">
+            <div className="bg-indigo-600/30 p-2 rounded-xl border border-indigo-500/40 text-indigo-300">
+              <UserCircleIcon className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-xs text-indigo-200 font-medium tracking-wide uppercase">Rakan Pemandu</p>
-              <h2 className="text-xl font-extrabold tracking-tight">{driver.name}</h2>
+              <div className="flex items-center space-x-2">
+                <span className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase">Portal Pemandu</span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1 animate-pulse"></span>
+                  Bertugas (Online)
+                </span>
+              </div>
+              <h2 className="text-lg font-extrabold tracking-tight text-white mt-0.5">{driver.name}</h2>
             </div>
-          </div>
-          <div className="flex items-center space-x-2 bg-emerald-500/20 border border-emerald-500/30 px-3 py-1.5 rounded-full">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-            <span className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider">Online</span>
           </div>
         </div>
 
-        {/* DRIVER STATS CARD */}
-        <div className="grid grid-cols-3 gap-3 mt-6 pt-5 border-t border-white/10 text-center">
-          <div className="bg-white/5 py-2.5 px-1.5 rounded-xl border border-white/5">
-            <span className="block text-xl sm:text-2xl font-extrabold text-emerald-300">{completedTripsCount}</span>
-            <span className="block text-[9px] text-indigo-200 uppercase font-bold mt-1 tracking-wide">Trip Selesai</span>
+        {/* DRIVER METRICS STRIP */}
+        <div className="grid grid-cols-3 gap-2.5 mt-4 pt-4 border-t border-slate-800 text-center">
+          <div className="bg-slate-800/60 py-2 px-2 rounded-xl border border-slate-700/60">
+            <span className="block text-lg font-extrabold text-emerald-400">{completedTripsCount}</span>
+            <span className="block text-[10px] text-slate-400 font-medium uppercase tracking-wider">Trip Selesai</span>
           </div>
-          <div className="bg-white/5 py-2.5 px-1.5 rounded-xl border border-white/5">
-            <span className="block text-xl sm:text-2xl font-extrabold text-indigo-100">{totalDriverMileage.toLocaleString()} km</span>
-            <span className="block text-[9px] text-indigo-200 uppercase font-bold mt-1 tracking-wide">Jumlah Jarak</span>
+          <div className="bg-slate-800/60 py-2 px-2 rounded-xl border border-slate-700/60">
+            <span className="block text-lg font-extrabold text-indigo-300">{totalDriverMileage.toLocaleString()} km</span>
+            <span className="block text-[10px] text-slate-400 font-medium uppercase tracking-wider">Jumlah Jarak</span>
           </div>
-          <div className="bg-white/5 py-2.5 px-1.5 rounded-xl border border-white/5">
-            <span className="block text-xl sm:text-2xl font-extrabold text-indigo-100">{fuelLogsCount}</span>
-            <span className="block text-[9px] text-indigo-200 uppercase font-bold mt-1 tracking-wide">Log Minyak</span>
+          <div className="bg-slate-800/60 py-2 px-2 rounded-xl border border-slate-700/60">
+            <span className="block text-lg font-extrabold text-amber-300">{fuelLogsCount}</span>
+            <span className="block text-[10px] text-slate-400 font-medium uppercase tracking-wider">Log Minyak</span>
           </div>
         </div>
       </div>
 
-      {/* QUICK UTILITY ACTIONS */}
-      <div className="grid grid-cols-3 gap-3">
+      {/* REFINED COMPACT QUICK UTILITY ACTIONS */}
+      <div className="grid grid-cols-3 gap-2.5">
         <button
           onClick={() => setIsFuelLogOpen(true)}
-          className="flex flex-col items-center justify-center p-3.5 bg-white hover:bg-indigo-50/50 border border-gray-100 rounded-2xl shadow-sm hover:shadow-md transition duration-200"
+          className="flex flex-col items-center justify-center p-3 bg-white hover:bg-amber-50/60 border border-slate-200 rounded-xl shadow-sm transition active:scale-98 text-center"
         >
-          <div className="p-2.5 bg-amber-50 rounded-xl text-amber-600 mb-2">
-            <FuelIcon className="h-6 w-6" />
+          <div className="p-2 bg-amber-50 rounded-lg text-amber-600 mb-1.5 border border-amber-100">
+            <FuelIcon className="h-4 w-4" />
           </div>
-          <span className="text-xs font-extrabold text-gray-700">Log Minyak</span>
+          <span className="text-xs font-bold text-slate-700">Log Minyak</span>
         </button>
         <button
           onClick={handleOpenGeneralOdometer}
-          className="flex flex-col items-center justify-center p-3.5 bg-white hover:bg-indigo-50/50 border border-gray-100 rounded-2xl shadow-sm hover:shadow-md transition duration-200"
+          className="flex flex-col items-center justify-center p-3 bg-white hover:bg-indigo-50/60 border border-slate-200 rounded-xl shadow-sm transition active:scale-98 text-center"
         >
-          <div className="p-2.5 bg-blue-50 rounded-xl text-blue-600 mb-2">
-            <GaugeIcon className="h-6 w-6" />
+          <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600 mb-1.5 border border-indigo-100">
+            <GaugeIcon className="h-4 w-4" />
           </div>
-          <span className="text-xs font-extrabold text-gray-700">Log Odometer</span>
+          <span className="text-xs font-bold text-slate-700">Log Odometer</span>
         </button>
         <button
           onClick={() => setIsIssueLogOpen(true)}
-          className="flex flex-col items-center justify-center p-3.5 bg-white hover:bg-red-50/50 border border-gray-100 rounded-2xl shadow-sm hover:shadow-md transition duration-200"
+          className="flex flex-col items-center justify-center p-3 bg-white hover:bg-rose-50/60 border border-slate-200 rounded-xl shadow-sm transition active:scale-98 text-center"
         >
-          <div className="p-2.5 bg-red-50 rounded-xl text-red-600 mb-2">
-            <WrenchScrewdriverIcon className="h-6 w-6" />
+          <div className="p-2 bg-rose-50 rounded-lg text-rose-600 mb-1.5 border border-rose-100">
+            <WrenchScrewdriverIcon className="h-4 w-4" />
           </div>
-          <span className="text-xs font-extrabold text-gray-700">Lapor Isu Van</span>
+          <span className="text-xs font-bold text-slate-700">Lapor Isu Van</span>
         </button>
       </div>
 
       {/* TABBED INTERFACE (ACTIVE JOBS VS HISTORY) */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="flex border-b">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="flex border-b border-slate-200 bg-slate-50/70 p-1">
           <button
             onClick={() => setActiveTab('active')}
-            className={`flex-1 py-4 text-center font-extrabold text-sm border-b-2 transition ${
+            className={`flex-1 py-2.5 rounded-xl text-center font-bold text-xs sm:text-sm transition ${
               activeTab === 'active' 
-                ? 'border-indigo-600 text-indigo-600 bg-indigo-50/10' 
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' 
+                : 'text-slate-500 hover:text-slate-800'
             }`}
           >
             Tugasan Aktif ({assignedBookings.length})
@@ -185,28 +216,28 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
           <button
             onClick={() => {
               setActiveTab('history');
-              setSelectedBookingIds([]); // clear selection when moving to history
+              setSelectedBookingIds([]);
             }}
-            className={`flex-1 py-4 text-center font-extrabold text-sm border-b-2 transition ${
+            className={`flex-1 py-2.5 rounded-xl text-center font-bold text-xs sm:text-sm transition ${
               activeTab === 'history' 
-                ? 'border-indigo-600 text-indigo-600 bg-indigo-50/10' 
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' 
+                : 'text-slate-500 hover:text-slate-800'
             }`}
           >
-            📜 Sejarah Trip ({historyBookings.length})
+            Sejarah Trip ({historyBookings.length})
           </button>
         </div>
 
-        <div className="p-4 sm:p-5">
+        <div className="p-3.5 sm:p-5">
           {activeTab === 'active' ? (
             /* TAB: ACTIVE JOBS */
             <div className="space-y-4">
               {assignedBookings.length > 0 ? (
                 <>
-                  <div className="bg-indigo-50 p-3.5 rounded-xl border border-indigo-100 flex items-start space-x-2.5">
-                    <span className="text-lg">💡</span>
-                    <p className="text-[11px] text-indigo-950 font-semibold leading-relaxed">
-                      Selesaikan trip dengan menanda checkbox pada kad trip yang telah selesai, kemudian tekan <strong>"Selesaikan Trip Serentak"</strong> di bawah untuk melapor odometer sekali gus!
+                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs flex items-start gap-2.5 text-slate-700">
+                    <span className="text-sm">💡</span>
+                    <p className="text-[11px] leading-relaxed">
+                      <strong>Tip Pemandu:</strong> Anda boleh menanda checkbox pada trip yang selesai, kemudian tekan butang <strong>"Hantar Meter & Selesai"</strong> di bawah untuk menghantar laporan odometer sekali gus bagi beberapa perjalanan berturut-turut.
                     </p>
                   </div>
 
@@ -220,132 +251,214 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
                     const isAssigned = booking.status === 'Assigned';
                     const isConfirmed = booking.status === 'Confirmed';
                     const isChecked = selectedBookingIds.includes(booking.id);
+                    const vehicleInfo = getVehicleInfo(booking.vehicleId);
+                    const dateTimeInfo = formatTripDateTime(booking.dateTime, booking.finishDateTime);
 
                     return (
                       <div 
                         key={booking.id}
-                        className={`rounded-2xl border-2 overflow-hidden transition relative ${
+                        className={`rounded-2xl border transition-all duration-200 bg-white overflow-hidden ${
                           isChecked 
-                            ? 'border-indigo-600 bg-indigo-50/10' 
+                            ? 'border-indigo-600 ring-2 ring-indigo-500/20 shadow-md' 
                             : isAssigned 
-                              ? 'border-amber-400 bg-white' 
-                              : 'border-emerald-500 bg-white'
+                              ? 'border-amber-300 hover:border-amber-400 shadow-sm' 
+                              : 'border-emerald-300 hover:border-emerald-400 shadow-sm'
                         }`}
                       >
-                        {/* Header Banner */}
-                        <div className={`px-4 py-2.5 flex items-center justify-between text-xs font-bold ${
+                        {/* CARD HEADER BAR */}
+                        <div className={`px-3.5 py-2.5 border-b flex items-center justify-between text-xs ${
                           isChecked 
-                            ? 'bg-indigo-100 text-indigo-900'
+                            ? 'bg-indigo-50/80 border-indigo-100 text-indigo-950'
                             : isAssigned 
-                              ? 'bg-amber-100 text-amber-900' 
-                              : 'bg-emerald-100 text-emerald-900'
+                              ? 'bg-amber-50/80 border-amber-100 text-amber-950' 
+                              : 'bg-emerald-50/80 border-emerald-100 text-emerald-950'
                         }`}>
-                          <div className="flex items-center">
+                          <div className="flex items-center gap-2">
                             {isConfirmed && (
                               <input 
                                 type="checkbox"
                                 checked={isChecked}
                                 onChange={() => handleToggleSelectBooking(booking.id)}
-                                className="h-4.5 w-4.5 rounded text-indigo-600 border-gray-300 focus:ring-indigo-500 mr-2 cursor-pointer"
+                                className="h-4 w-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                                title="Pilih untuk selesai sekali gus"
                               />
                             )}
-                            <span className="uppercase tracking-wider flex items-center">
-                              <span className={`w-2 h-2 rounded-full mr-2 ${isAssigned ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`}></span>
-                              {isAssigned ? 'Tugasan Ditawarkan' : 'Trip Sedang Berjalan'}
+                            <div className="flex items-center gap-1.5">
+                              <span className={`inline-block w-2 h-2 rounded-full ${isAssigned ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`}></span>
+                              <span className="font-extrabold uppercase tracking-wide text-[11px]">
+                                {isAssigned ? 'Tugasan Baru Ditawarkan' : 'Dalam Perjalanan (Confirmed)'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-mono font-bold bg-white/80 px-2 py-0.5 rounded border border-slate-200/60 text-slate-700">
+                              #{booking.id.split('-')[1] || booking.id.slice(0, 5)}
                             </span>
                           </div>
-                          <span>#{booking.id.split('-')[1] || booking.id.slice(0, 4)}</span>
                         </div>
 
-                        {/* Content */}
-                        <div className="p-4 space-y-4">
-                          {/* Route indicators */}
-                          <div className="relative pl-7 space-y-4">
-                            <div className="absolute left-[9px] top-2.5 bottom-2.5 w-0.5 border-l-2 border-dashed border-gray-300"></div>
+                        {/* CARD BODY CONTENT */}
+                        <div className="p-4 space-y-3.5">
+                          
+                          {/* DATE & TIME BANNER */}
+                          <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-slate-200/70 px-3 py-2 rounded-xl text-xs">
+                            <div className="flex items-center gap-1.5 text-slate-800 font-bold">
+                              <ClockIcon className="w-3.5 h-3.5 text-indigo-600 flex-shrink-0" />
+                              <span>{dateTimeInfo.date}</span>
+                            </div>
+                            <div className="font-extrabold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 text-[11px]">
+                              {dateTimeInfo.time}
+                            </div>
+                          </div>
 
-                            {/* Pickup */}
-                            <div className="relative">
-                              <span className="absolute left-[-23px] top-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500">
-                                <span className="h-1.5 w-1.5 rounded-full bg-white"></span>
+                          {/* REFINED SLEEK ROUTE SECTION (NO OVERSIZED BULKY ICONS) */}
+                          <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-3">
+                            <div className="flex flex-col space-y-3">
+                              
+                              {/* PICKUP */}
+                              <div className="flex items-start gap-2.5">
+                                <div className="mt-1 flex flex-col items-center">
+                                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-100"></div>
+                                  <div className="w-0.5 h-6 border-l border-dashed border-slate-300 mt-1"></div>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Lokasi Ambil (Pickup)</span>
+                                  <p className="text-xs sm:text-sm font-bold text-slate-900 leading-tight truncate">{booking.pickupPoint}</p>
+                                </div>
+                              </div>
+
+                              {/* DROP-OFF */}
+                              <div className="flex items-start gap-2.5">
+                                <div className="mt-1 flex flex-col items-center">
+                                  <div className="w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-rose-100"></div>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Lokasi Hantar (Destinasi)</span>
+                                  <p className="text-xs sm:text-sm font-extrabold text-slate-900 leading-tight">{booking.destination}</p>
+                                  {booking.address && (
+                                    <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{booking.address}</p>
+                                  )}
+                                  
+                                  {/* QUICK NAVIGATION BUTTON FOR DRIVER */}
+                                  <div className="mt-1.5">
+                                    <a
+                                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((booking.address ? booking.address + ', ' : '') + booking.destination)}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-indigo-50 text-indigo-700 hover:text-indigo-800 rounded-lg text-[11px] font-bold border border-slate-200 shadow-2xs transition"
+                                    >
+                                      <LocationMarkerIcon className="w-3 h-3 text-indigo-600" />
+                                      <span>Buka Google Maps</span>
+                                      <ExternalLinkIcon className="w-2.5 h-2.5 text-slate-400 ml-0.5" />
+                                    </a>
+                                  </div>
+                                </div>
+                              </div>
+
+                            </div>
+                          </div>
+
+                          {/* PURPOSE SECTION */}
+                          <div className="p-3 bg-indigo-50/40 border border-indigo-100/70 rounded-xl text-xs">
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-indigo-900/60 block mb-0.5">Tujuan Perjalanan</span>
+                            <p className="font-bold text-slate-900 leading-snug">{booking.purpose}</p>
+                          </div>
+
+                          {/* COMPREHENSIVE DETAILS GRID (EVERY SINGLE SPECIFICATION SHOWN) */}
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                            
+                            {/* VEHICLE INFO */}
+                            <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Kenderaan</span>
+                              <p className="font-extrabold text-slate-800 mt-0.5 truncate">{vehicleInfo.name}</p>
+                              <span className="inline-block mt-0.5 text-[10px] font-mono font-bold bg-slate-200/80 px-1.5 py-0.2 rounded text-slate-700">
+                                {vehicleInfo.plate}
                               </span>
-                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Pickup Lokasi</p>
-                              <p className="text-sm font-extrabold text-gray-800">{booking.pickupPoint}</p>
                             </div>
 
-                            {/* Drop-off */}
-                            <div className="relative">
-                              <span className="absolute left-[-24px] top-0.5 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-rose-500 text-white">
-                                <LocationMarkerIcon className="h-3 w-3" />
-                              </span>
-                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Destinasi</p>
-                              <p className="text-sm font-extrabold text-gray-900">{booking.destination}</p>
-                              <p className="text-xs text-gray-500 mt-0.5">{booking.address}</p>
+                            {/* REQUESTER & DEPT */}
+                            <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Pemohon & Jabatan</span>
+                              <p className="font-bold text-slate-800 mt-0.5 truncate">{booking.requesterName}</p>
+                              <p className="text-[10px] text-slate-500 truncate">{booking.department || 'Am'}</p>
                             </div>
+
+                            {/* ESCORT */}
+                            <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Pengiring</span>
+                              <p className="font-bold text-slate-800 mt-0.5 truncate">
+                                {booking.escort ? booking.escort : 'Tiada Pengiring'}
+                              </p>
+                              <span className="text-[10px] text-slate-400">Pegawai Pengiring</span>
+                            </div>
+
+                            {/* PASSENGERS */}
+                            <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Penumpang</span>
+                              <p className="font-bold text-slate-800 mt-0.5">
+                                {totalPassengers} Orang
+                              </p>
+                              <p className="text-[10px] text-slate-500 truncate" title={passengerBreakdown || 'Tiada pecahan'}>
+                                {passengerBreakdown || 'Tiada'}
+                              </p>
+                            </div>
+
+                            {/* SHOULD WAIT SPEC */}
+                            <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Perlu Tunggu?</span>
+                              <p className={`font-bold mt-0.5 text-[11px] ${booking.shouldWait ? 'text-amber-700' : 'text-slate-700'}`}>
+                                {booking.shouldWait ? '⏳ Perlu Tunggu' : '🚀 Hantar Sahaja'}
+                              </p>
+                              <span className="text-[10px] text-slate-400">Di lokasi destinasi</span>
+                            </div>
+
+                            {/* RETURN TRIP SPEC */}
+                            <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Hala Perjalanan</span>
+                              <p className="font-bold text-slate-800 mt-0.5 text-[11px]">
+                                {booking.returnTrip ? '🔄 Pergi-Balik (2-Hala)' : '➡️ Satu Hala'}
+                              </p>
+                              <span className="text-[10px] text-slate-400">{booking.serviceType || 'Perlu Driver'}</span>
+                            </div>
+
                           </div>
 
-                          {/* Time & Vehicle */}
-                          <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-100 text-xs">
-                            <div className="flex items-center space-x-2 text-gray-700 bg-gray-50 px-2.5 py-2 rounded-xl border border-gray-100">
-                              <ClockIcon className="h-4.5 w-4.5 text-indigo-500 flex-shrink-0" />
-                              <div>
-                                <p className="text-[9px] text-gray-400 font-bold uppercase">Masa Perjalanan</p>
-                                <p className="font-extrabold">
-                                  {parseAsLocal(booking.dateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
-                                </p>
-                              </div>
+                          {/* OPTIONAL REMARKS / ADMIN NOTES */}
+                          {booking.remarks && (
+                            <div className="p-2.5 bg-amber-50/70 border border-amber-200/60 rounded-xl text-xs text-amber-900">
+                              <span className="font-extrabold text-[10px] uppercase tracking-wide block text-amber-800 mb-0.5">Catatan Pemohon:</span>
+                              <p className="leading-snug">{booking.remarks}</p>
                             </div>
-                            <div className="flex items-center space-x-2 text-gray-700 bg-gray-50 px-2.5 py-2 rounded-xl border border-gray-100">
-                              <TruckIcon className="h-4.5 w-4.5 text-indigo-500 flex-shrink-0" />
-                              <div>
-                                <p className="text-[9px] text-gray-400 font-bold uppercase">Van Ditugaskan</p>
-                                <p className="font-extrabold truncate max-w-[100px]">
-                                  {booking.vehicleId ? 'Van ' + (booking.vehicleId.slice(-3).toUpperCase()) : 'Pandu Sendiri'}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
+                          )}
 
-                          {/* Details Summary Drawer */}
-                          <div className="bg-slate-50 rounded-2xl p-3 text-xs space-y-2 text-gray-700 border border-slate-100">
-                            <div>
-                              <span className="font-bold text-slate-400 block text-[9px] uppercase tracking-wide">Tujuan</span>
-                              <p className="font-bold text-slate-800">{booking.purpose}</p>
+                          {booking.adminNotes && (
+                            <div className="p-2.5 bg-blue-50/70 border border-blue-200/60 rounded-xl text-xs text-blue-900">
+                              <span className="font-extrabold text-[10px] uppercase tracking-wide block text-blue-800 mb-0.5">Nota Arahan Admin:</span>
+                              <p className="leading-snug">{booking.adminNotes}</p>
                             </div>
-                            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200/50">
-                              <div>
-                                <span className="font-bold text-slate-400 block text-[9px] uppercase tracking-wide">Pemohon</span>
-                                <p className="font-semibold text-slate-800 truncate">{booking.requesterName}</p>
-                              </div>
-                              <div>
-                                <span className="font-bold text-slate-400 block text-[9px] uppercase tracking-wide">Pengiring</span>
-                                <p className="font-semibold text-slate-800 truncate">{booking.escort || 'Tiada'}</p>
-                              </div>
-                            </div>
-                            <div className="pt-1.5 flex items-center space-x-1.5 text-[11px] text-slate-600 border-t border-slate-200/50">
-                              <UserGroupIcon className="h-4 w-4 text-slate-400" />
-                              <span>Penumpang: <strong className="text-slate-800">{totalPassengers} orang</strong> ({passengerBreakdown})</span>
-                            </div>
-                          </div>
+                          )}
 
-                          {/* Individual actions */}
-                          <div className="pt-1">
+                          {/* ACTION BUTTONS */}
+                          <div className="pt-1.5 border-t border-slate-100">
                             {isAssigned && (
                               <button
                                 onClick={() => handleAcceptJob(booking.id)}
-                                className="w-full flex items-center justify-center bg-amber-500 hover:bg-amber-600 text-white font-extrabold py-3 px-4 rounded-xl shadow-md transition duration-150 active:scale-98 text-xs sm:text-sm uppercase tracking-wide"
+                                className="w-full flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white font-extrabold py-3 px-4 rounded-xl shadow-sm transition active:scale-98 text-xs sm:text-sm uppercase tracking-wider"
                               >
-                                <CheckCircleIcon className="h-5 w-5 mr-2" />
-                                Terima Tugasan Ini
+                                <CheckCircleIcon className="h-4 w-4" />
+                                <span>Terima Tugasan Ini</span>
                               </button>
                             )}
+
                             {isConfirmed && (
-                              <div className="flex items-center space-x-2">
+                              <div className="flex items-center gap-2">
                                 <button
                                   onClick={() => handleSingleOdometerOpen(booking.id)}
-                                  className="flex-1 flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 px-3 rounded-xl shadow-md transition duration-150 active:scale-98 text-xs uppercase tracking-wide"
+                                  className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-2.5 px-3 rounded-xl shadow-sm transition active:scale-98 text-xs uppercase tracking-wide"
                                 >
-                                  <GaugeIcon className="h-4.5 w-4.5 mr-1.5" />
-                                  Lapor Meter & Selesai
+                                  <GaugeIcon className="h-4 w-4" />
+                                  <span>Lapor Meter & Selesai</span>
                                 </button>
                                 <button
                                   onClick={() => {
@@ -353,8 +466,8 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
                                       updateBookingStatus(booking.id, 'Completed');
                                     }
                                   }}
-                                  className="py-3 px-3.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl transition font-extrabold text-xs uppercase"
-                                  title="Selesai Serta-merta"
+                                  className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition font-bold text-xs uppercase tracking-wider"
+                                  title="Selesai Serta-merta tanpa mengisi odometer"
                                 >
                                   Direct Selesai
                                 </button>
@@ -368,62 +481,80 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
                   })}
                 </>
               ) : (
-                <div className="text-center py-12 px-6 flex flex-col items-center justify-center border border-dashed border-gray-200 rounded-2xl bg-gray-50/50">
-                  <div className="relative w-14 h-14 bg-indigo-50 rounded-full flex items-center justify-center mb-4">
-                    <span className="animate-ping absolute inline-flex h-8 w-8 rounded-full bg-indigo-400 opacity-20"></span>
-                    <TruckIcon className="h-7 w-7 text-indigo-600" />
+                <div className="text-center py-10 px-4 flex flex-col items-center justify-center border border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+                  <div className="w-10 h-10 bg-indigo-50 rounded-full flex items-center justify-center mb-3 text-indigo-600">
+                    <TruckIcon className="h-5 w-5" />
                   </div>
-                  <p className="text-sm font-extrabold text-gray-800">Menunggu Tugasan Seterusnya...</p>
-                  <p className="text-xs text-gray-400 mt-1 max-w-xs leading-relaxed">Tiada trip aktif buat masa sekarang. Admin akan memberikan tugas van baru di sini.</p>
+                  <p className="text-sm font-bold text-slate-800">Menunggu Tugasan Seterusnya</p>
+                  <p className="text-xs text-slate-400 mt-1 max-w-xs leading-relaxed">
+                    Tiada trip aktif yang ditugaskan buat masa ini. Sebarang trip baru dari admin akan muncul di sini secara automatik.
+                  </p>
                 </div>
               )}
             </div>
           ) : (
             /* TAB: TRIP HISTORY */
-            <div className="space-y-3.5">
+            <div className="space-y-3">
               {historyBookings.length > 0 ? (
                 historyBookings.map((booking: Booking) => {
                   const isCompleted = booking.status === 'Completed';
-                  const vehicle = vehicles.find(v => v.id === booking.vehicleId);
+                  const vehicleInfo = getVehicleInfo(booking.vehicleId);
+                  const dateTimeInfo = formatTripDateTime(booking.dateTime, booking.finishDateTime);
 
                   return (
                     <div 
                       key={booking.id}
-                      className="p-4 rounded-xl border border-gray-100 bg-gray-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs"
+                      className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-2xs text-xs space-y-2.5"
                     >
-                      <div className="space-y-1.5 flex-1">
-                        <div className="flex items-center space-x-2">
+                      {/* HISTORY HEADER */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
                           <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
-                            isCompleted ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'
+                            isCompleted ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
                           }`}>
-                            {booking.status === 'Completed' ? 'SELESAI ✅' : 'BATAL ❌'}
+                            {booking.status === 'Completed' ? 'SELESAI ✅' : 'DIBATALKAN ❌'}
                           </span>
-                          <span className="font-bold text-gray-400 font-mono">#{booking.id.split('-')[1] || booking.id.slice(0, 4)}</span>
+                          <span className="font-mono text-[10px] text-slate-400 font-bold">
+                            #{booking.id.split('-')[1] || booking.id.slice(0, 5)}
+                          </span>
                         </div>
-                        <p className="text-sm font-extrabold text-gray-800">{booking.pickupPoint} ➡️ {booking.destination}</p>
-                        <p className="text-gray-500 font-semibold">Tujuan: {booking.purpose}</p>
-                        
-                        {/* Render odometer log metrics from linkage */}
+                        <span className="text-[11px] font-bold text-slate-600">
+                          {dateTimeInfo.date} • {dateTimeInfo.time}
+                        </span>
+                      </div>
+
+                      {/* HISTORY ROUTE & PURPOSE */}
+                      <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 space-y-1">
+                        <div className="flex items-center gap-1.5 font-bold text-slate-900">
+                          <span>{booking.pickupPoint}</span>
+                          <span className="text-slate-400">➡️</span>
+                          <span className="text-indigo-900">{booking.destination}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-600">
+                          <strong className="text-slate-700">Tujuan:</strong> {booking.purpose}
+                        </p>
+                      </div>
+
+                      {/* HISTORY METRICS & DETAILS */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600 pt-1 border-t border-slate-100">
+                        <div>
+                          <span className="text-slate-400 font-medium">Van:</span>{' '}
+                          <strong className="text-slate-800">{vehicleInfo.name} ({vehicleInfo.plate})</strong>
+                        </div>
+
+                        {/* Odometer metrics */}
                         {isCompleted && booking.startOdometer !== undefined && booking.endOdometer !== undefined && (
-                          <div className="p-2 bg-white rounded-lg border border-gray-100 font-mono text-[10px] text-indigo-950 inline-block">
-                            🚗 Meter: {booking.startOdometer} km - {booking.endOdometer} km (<strong>+{booking.distance} km</strong>)
+                          <div className="px-2 py-0.5 bg-indigo-50 rounded border border-indigo-100 font-mono text-[10px] text-indigo-950">
+                            Meter: {booking.startOdometer} ➡️ {booking.endOdometer} km (<strong className="text-indigo-700">+{booking.distance} km</strong>)
                           </div>
                         )}
                       </div>
 
-                      <div className="text-left sm:text-right flex-shrink-0 border-t sm:border-t-0 pt-2.5 sm:pt-0 border-gray-100">
-                        <p className="font-extrabold text-gray-700">
-                          {parseAsLocal(booking.dateTime).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                        </p>
-                        <p className="text-[10px] text-gray-400 font-medium mt-1">
-                          Van: {vehicle ? `${vehicle.name} (${vehicle.plateNumber})` : 'Self-Drive'}
-                        </p>
-                      </div>
                     </div>
                   );
                 })
               ) : (
-                <div className="text-center py-10 text-gray-400 font-semibold text-xs border border-dashed rounded-xl">
+                <div className="text-center py-8 text-slate-400 font-semibold text-xs border border-dashed rounded-xl">
                   Tiada rekod perjalanan selesai lagi.
                 </div>
               )}
@@ -433,19 +564,19 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
       </div>
 
       {/* TEAM SCHEDULE CALENDAR ACCORDION */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <button 
           onClick={() => setShowCalendar(!showCalendar)}
-          className="w-full px-5 py-4 flex items-center justify-between text-left font-bold text-gray-800 focus:outline-none hover:bg-gray-50 transition"
+          className="w-full px-4 py-3 flex items-center justify-between text-left font-bold text-slate-800 focus:outline-none hover:bg-slate-50 transition"
         >
-          <span className="flex items-center text-sm font-extrabold">
-            <RouteIcon className="h-5 w-5 mr-2.5 text-indigo-600" />
-            Jadual Semua Pemandu / Kalendar
+          <span className="flex items-center text-xs sm:text-sm font-extrabold text-slate-800">
+            <RouteIcon className="h-4 w-4 mr-2 text-indigo-600" />
+            Jadual Semua Pemandu & Kalendar
           </span>
-          <span className="text-indigo-600 text-xs font-extrabold">{showCalendar ? 'Tutup ▲' : 'Papar ▼'}</span>
+          <span className="text-indigo-600 text-xs font-bold">{showCalendar ? 'Tutup ▲' : 'Papar ▼'}</span>
         </button>
         {showCalendar && (
-          <div className="p-4 border-t border-gray-100 overflow-x-auto bg-gray-50/50">
+          <div className="p-3.5 border-t border-slate-100 overflow-x-auto bg-slate-50/50">
             <CalendarView />
           </div>
         )}
@@ -453,30 +584,31 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
 
       {/* FLOATING ACTION BOTTOM BAR FOR MULTI-TRIP LOGGING */}
       {selectedBookingIds.length > 0 && (
-        <div className="fixed bottom-6 left-4 right-4 md:left-auto md:right-auto md:w-[640px] bg-indigo-950 text-white p-4 rounded-2xl shadow-2xl border border-indigo-800 flex items-center justify-between animate-slide-up z-40 backdrop-blur-md bg-opacity-95">
+        <div className="fixed bottom-6 left-4 right-4 md:left-auto md:right-auto md:w-[768px] bg-slate-900 text-white p-3.5 rounded-2xl shadow-2xl border border-slate-700 flex items-center justify-between z-40 backdrop-blur-md">
           <div className="flex items-center space-x-3">
-            <div className="bg-indigo-600 text-white font-extrabold h-9 w-9 rounded-full flex items-center justify-center text-sm shadow-md border border-indigo-400">
+            <div className="bg-indigo-600 text-white font-extrabold h-8 w-8 rounded-full flex items-center justify-center text-xs shadow-sm border border-indigo-400">
               {selectedBookingIds.length}
             </div>
             <div>
-              <p className="text-xs font-bold text-indigo-200">Trip Dipilih</p>
-              <p className="text-xs text-indigo-100 font-semibold truncate max-w-[180px] sm:max-w-[300px]">
-                Sedia untuk diselesaikan bersama-sama
+              <p className="text-xs font-bold text-slate-200">{selectedBookingIds.length} Trip Dipilih</p>
+              <p className="text-[11px] text-slate-400 truncate max-w-[160px] sm:max-w-[320px]">
+                Sedia untuk dilaporkan sekali gus
               </p>
             </div>
           </div>
           <div className="flex items-center space-x-2">
             <button
               onClick={() => setSelectedBookingIds([])}
-              className="text-xs font-bold text-indigo-300 hover:text-white px-3 py-2 rounded-xl"
+              className="text-xs font-bold text-slate-400 hover:text-white px-2.5 py-1.5 rounded-lg"
             >
-              Reset
+              Batal
             </button>
             <button
               onClick={handleOpenOdometerForSelected}
-              className="bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold py-2.5 px-4 rounded-xl shadow-lg transition duration-150 active:scale-95 text-xs uppercase"
+              className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 px-3.5 rounded-xl shadow-md transition active:scale-95 text-xs uppercase tracking-wide flex items-center gap-1"
             >
-              Hantar Meter & Selesai
+              <GaugeIcon className="w-3.5 h-3.5" />
+              <span>Hantar Meter ({selectedBookingIds.length})</span>
             </button>
           </div>
         </div>
