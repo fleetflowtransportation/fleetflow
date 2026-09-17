@@ -130,15 +130,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => clearInterval(interval);
   }, [reload]);
 
-  // Auto-refresh data setiap 15 saat supaya perubahan dari device/pengguna lain
-  // (contoh: admin lain assign booking) turut terpapar tanpa perlu refresh manual.
-  useEffect(() => {
-    const interval = setInterval(() => {
-      reload();
-    }, 15000);
-    return () => clearInterval(interval);
-  }, [reload]);
-
   const login = useCallback((name: string, password: string): boolean => {
     const user = users.find(u =>
         u.name.trim().toLowerCase() === name.trim().toLowerCase() &&
@@ -181,6 +172,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const addBooking = useCallback((bookingData: Omit<Booking, 'id'>): AutoAssignResult => {
     const staffCount = bookingData.passengers?.find(p => p.category === 'Staff')?.count || 0;
     const kidsCount = bookingData.passengers?.find(p => p.category === 'Kids')?.count || 0;
+    const teenagersCount = bookingData.passengers?.find(p => p.category === 'Teenagers')?.count || 0;
 
     const baseInput = {
       requesterName: bookingData.requesterName,
@@ -195,8 +187,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       address: bookingData.address,
       staffCount,
       kidsCount,
+      teenagersCount,
       serviceType: bookingData.serviceType,
       vehiclePreference: bookingData.vehiclePreference,
+      shouldWait: bookingData.shouldWait,
       remarks: bookingData.remarks,
       icNumber: bookingData.icNumber,
     };
@@ -580,9 +574,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setOdometerLogs(prev => prev.filter(l => l.id !== newLog.id));
       });
 
-    // Sekiranya ada tempahan yang dipautkan, kemaskini maklumat odometer & status tempahan tersebut kepada Completed
+    // Sekiranya ada tempahan yang dipautkan, kemaskini maklumat odometer, kenderaan & status tempahan tersebut kepada Completed
     if (logData.bookingId) {
       updateBooking(logData.bookingId, {
+        vehicleId: logData.vehicleId,
         startOdometer: logData.startOdometer,
         endOdometer: logData.odometer,
         distance: logData.distance,
@@ -593,6 +588,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (logData.bookingIds && logData.bookingIds.length > 0) {
       logData.bookingIds.forEach(id => {
         updateBooking(id, {
+          vehicleId: logData.vehicleId,
           startOdometer: logData.startOdometer,
           endOdometer: logData.odometer,
           distance: logData.distance,

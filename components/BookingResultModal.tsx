@@ -105,10 +105,10 @@ export const BookingResultModal: React.FC<BookingResultModalProps> = ({ isOpen, 
                   <span>Kenderaan Diperuntukkan</span>
                 </div>
                 <div className="text-gray-900 font-bold text-base">
-                  {result.assignedVehicleName || 'Perodua Alza'}
+                  {result.assignedVehicleName || 'Bebas (Belum Ditugaskan)'}
                 </div>
                 <div className="text-xs text-blue-700 mt-1">
-                  Slot masa disahkan bebas
+                  {result.assignedVehicleName ? 'Slot kenderaan disahkan bebas' : 'Pemandu akan tentukan kenderaan semasa lapor meter'}
                 </div>
               </div>
             </div>

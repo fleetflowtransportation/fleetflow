@@ -54,7 +54,13 @@ const OdometerLogForm: React.FC<OdometerLogFormProps> = ({
   // Combined auto-fill logic for one or multiple bookings
   const autoFillForMultipleBookings = useCallback((ids: string[]) => {
     if (ids.length === 0) {
-      resetForm();
+      setFormData(prev => ({
+        ...prev,
+        bookingId: '',
+        fromLocation: 'YCK',
+        toLocation: '',
+        purpose: '',
+      }));
       return;
     }
 
@@ -81,23 +87,25 @@ const OdometerLogForm: React.FC<OdometerLogFormProps> = ({
       }
     }
 
-    setFormData({
-      bookingId: ids[0], // backward compatibility
-      vehicleId: firstVehicleId,
-      date: new Date().toISOString().split('T')[0],
+    setFormData(prev => ({
+      ...prev,
+      bookingId: ids[0],
+      vehicleId: firstVehicleId || prev.vehicleId,
+      date: prev.date || new Date().toISOString().split('T')[0],
       fromLocation: fromLoc,
       toLocation: combinedTo,
       purpose: combinedPurpose,
-      startOdometer: suggestedStart,
-      endOdometer: '',
-      remarks: '',
-    });
+      startOdometer: suggestedStart || prev.startOdometer,
+    }));
     setError('');
-  }, [bookings, odometerLogs, resetForm]);
+  }, [bookings, odometerLogs]);
 
-  // Monitor open states and default props
+  // Track previous open state so we ONLY initialize once upon modal opening.
+  // This prevents background polling / re-renders from wiping user checkbox selections.
+  const prevIsOpenRef = React.useRef(false);
+
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevIsOpenRef.current) {
       if (defaultBookingIds && defaultBookingIds.length > 0) {
         setSelectedIds(defaultBookingIds);
         autoFillForMultipleBookings(defaultBookingIds);
@@ -109,6 +117,7 @@ const OdometerLogForm: React.FC<OdometerLogFormProps> = ({
         resetForm();
       }
     }
+    prevIsOpenRef.current = isOpen;
   }, [isOpen, defaultBookingId, defaultBookingIds, autoFillForMultipleBookings, resetForm]);
 
   // Suggest start odometer when user changes vehicle manually
@@ -128,14 +137,11 @@ const OdometerLogForm: React.FC<OdometerLogFormProps> = ({
 
   const handleToggleBooking = (id: string) => {
     setError('');
-    setSelectedIds(prev => {
-      const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
-      // Run autofill in immediate next tick
-      setTimeout(() => {
-        autoFillForMultipleBookings(next);
-      }, 0);
-      return next;
-    });
+    const next = selectedIds.includes(id) 
+      ? selectedIds.filter(x => x !== id) 
+      : [...selectedIds, id];
+    setSelectedIds(next);
+    autoFillForMultipleBookings(next);
   };
 
   const distance = useMemo(() => {

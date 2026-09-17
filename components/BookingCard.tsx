@@ -139,12 +139,6 @@ const BookingCard: React.FC<BookingCardProps> = ({
             <UserGroupIcon className="h-5 w-5 text-gray-400" />
             <span>{totalPassengers} Passengers ({passengerBreakdown})</span>
           </div>
-           <div className="flex items-center space-x-2">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-            </svg>
-            <span>Escort: {booking.escort}</span>
-          </div>
           {typeof booking.distance === 'number' && (
             <div className="flex items-center space-x-2">
                 <RouteIcon className="h-5 w-5 text-gray-400" />
@@ -203,11 +197,8 @@ const BookingCard: React.FC<BookingCardProps> = ({
                 Calendar: {booking.serviceType === 'Self-Drive' ? 'Self-Drive' : (driverName !== 'N/A' ? driverName : 'Scheduled')}
               </div>
             )}
-            <div className={`flex items-center px-3 py-1 rounded-full text-xs ${booking.shouldWait ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                Driver to wait: {booking.shouldWait ? 'Yes' : 'No'}
-            </div>
-            <div className={`flex items-center px-3 py-1 rounded-full text-xs ${booking.returnTrip ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                Return trip: {booking.returnTrip ? 'Yes' : 'No'}
+            <div className={`flex items-center px-3 py-1 rounded-full text-xs ${booking.shouldWait ? 'bg-amber-100 text-amber-800 font-medium' : 'bg-gray-100 text-gray-800'}`}>
+                Perlu Tunggu: {booking.shouldWait ? 'Ya (Driver Menunggu)' : 'Tidak'}
             </div>
             {booking.isPreWorkingHour && (
               <div className="flex items-center px-3 py-1 rounded-full text-xs bg-amber-100 text-amber-800 font-medium">
@@ -257,7 +248,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
                               )}
                             <div>
                                 <span className="font-medium">Vehicle:</span>
-                                <span> {vehicle?.plateNumber || 'N/A'}</span>
+                                <span> {vehicle ? `${vehicle.name} (${vehicle.plateNumber})` : (booking.serviceType === 'Self-Drive' ? 'Self-Drive (Alza)' : 'Bebas (Pemandu Tentukan)')}</span>
                             </div>
                         </div>
                     </div>

@@ -28,8 +28,10 @@ const emptyFormData = {
   address: '',
   staffCount: '',
   kidsCount: '',
+  teenagersCount: '',
   serviceType: '' as '' | 'Perlu Driver' | 'Self-Drive',
   vehiclePreference: FREE_VEHICLE_CHOICE,
+  shouldWait: false,
   icNumber: '',
   remarks: '',
 };
@@ -88,6 +90,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
       const { time: endTime } = splitIso(bookingToEdit.finishDateTime);
       const staffCount = bookingToEdit.passengers?.find(p => p.category === 'Staff')?.count ?? '';
       const kidsCount = bookingToEdit.passengers?.find(p => p.category === 'Kids')?.count ?? '';
+      const teenagersCount = bookingToEdit.passengers?.find(p => p.category === 'Teenagers')?.count ?? '';
 
       setFormData({
         requesterName: bookingToEdit.requesterName,
@@ -102,8 +105,10 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
         address: bookingToEdit.address || '',
         staffCount: staffCount === '' ? '' : String(staffCount),
         kidsCount: kidsCount === '' ? '' : String(kidsCount),
+        teenagersCount: teenagersCount === '' ? '' : String(teenagersCount),
         serviceType: bookingToEdit.serviceType || '',
         vehiclePreference: bookingToEdit.vehiclePreference || FREE_VEHICLE_CHOICE,
+        shouldWait: Boolean(bookingToEdit.shouldWait),
         icNumber: bookingToEdit.icNumber || '',
         remarks: bookingToEdit.remarks || '',
       });
@@ -146,8 +151,9 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
     const passengers: PassengerCount[] = [];
     if (Number(formData.staffCount) > 0) passengers.push({ category: 'Staff', count: Number(formData.staffCount) });
     if (Number(formData.kidsCount) > 0) passengers.push({ category: 'Kids', count: Number(formData.kidsCount) });
+    if (Number(formData.teenagersCount) > 0) passengers.push({ category: 'Teenagers', count: Number(formData.teenagersCount) });
     if (passengers.length === 0) {
-        alert('Sila isi bilangan penumpang (Staff dan/atau Kanak-kanak/Remaja).');
+        alert('Sila isi bilangan penumpang (Staff, Kanak-kanak, atau Remaja).');
         return;
     }
 
@@ -190,9 +196,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
         serviceType: formData.serviceType,
         vehiclePreference: formData.serviceType === 'Perlu Driver' ? formData.vehiclePreference : undefined,
         icNumber: formData.serviceType === 'Self-Drive' ? formData.icNumber.trim() : undefined,
-        escort: '',
-        shouldWait: false,
-        returnTrip: false,
+        shouldWait: formData.shouldWait,
         remarks: formData.remarks.trim() ? formData.remarks.trim() : undefined,
         recurrence: isRecurring ? recurrence : undefined,
     };
@@ -388,16 +392,68 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
                 )}
             </div>
 
-            {/* 10 & 11: Bilangan Penumpang */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label className={labelClass}>Bilangan Staff</label>
-                    <input type="number" min="0" name="staffCount" value={formData.staffCount} onChange={handleChange} className={inputClass}/>
+            {/* Bilangan Penumpang: Staff, Kanak-kanak, Remaja */}
+            <div>
+                <label className={labelClass}>Bilangan Penumpang</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-1">
+                    <div>
+                        <span className="text-xs font-semibold text-gray-600 block mb-1">Staf (Staff)</span>
+                        <input
+                            type="number"
+                            min="0"
+                            name="staffCount"
+                            value={formData.staffCount}
+                            onChange={handleChange}
+                            className={inputClass}
+                            placeholder="0"
+                        />
+                    </div>
+                    <div>
+                        <span className="text-xs font-semibold text-gray-600 block mb-1">Kanak-kanak (Kids)</span>
+                        <input
+                            type="number"
+                            min="0"
+                            name="kidsCount"
+                            value={formData.kidsCount}
+                            onChange={handleChange}
+                            className={inputClass}
+                            placeholder="0"
+                        />
+                    </div>
+                    <div>
+                        <span className="text-xs font-semibold text-gray-600 block mb-1">Remaja (Teenagers)</span>
+                        <input
+                            type="number"
+                            min="0"
+                            name="teenagersCount"
+                            value={formData.teenagersCount}
+                            onChange={handleChange}
+                            className={inputClass}
+                            placeholder="0"
+                        />
+                    </div>
                 </div>
-                <div>
-                    <label className={labelClass}>Bilangan Kanak-kanak / Remaja</label>
-                    <input type="number" min="0" name="kidsCount" value={formData.kidsCount} onChange={handleChange} className={inputClass}/>
-                </div>
+            </div>
+
+            {/* Keperluan Pemandu Menunggu (shouldWait) */}
+            <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl">
+                <label className="flex items-start space-x-3 cursor-pointer select-none">
+                    <input
+                        type="checkbox"
+                        name="shouldWait"
+                        checked={formData.shouldWait}
+                        onChange={(e) => setFormData(prev => ({ ...prev, shouldWait: e.target.checked }))}
+                        className="h-5 w-5 rounded text-amber-600 border-gray-300 focus:ring-amber-500 mt-0.5 cursor-pointer"
+                    />
+                    <div>
+                        <span className="text-sm font-bold text-gray-800 flex items-center gap-1.5">
+                            ⏳ Pemandu Perlu Menunggu di Destinasi?
+                        </span>
+                        <p className="text-xs text-gray-600 mt-0.5 leading-relaxed">
+                            Tandakan jika pemandu perlu menunggu di lokasi urusan untuk membawa penumpang balik. Pemohon tidak perlu lagi menaipnya di ruangan catatan.
+                        </p>
+                    </div>
+                </label>
             </div>
 
             {/* 12: Jenis Perkhidmatan */}
@@ -415,9 +471,12 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
                 <div>
                     <label className={labelClass}>Kenderaan Pilihan</label>
                     <select name="vehiclePreference" value={formData.vehiclePreference} onChange={handleChange} className={inputClass}>
-                        <option value={FREE_VEHICLE_CHOICE}>Bebas (Sistem/Driver akan tentukan)</option>
+                        <option value={FREE_VEHICLE_CHOICE}>Bebas (Tiada keutamaan - Pemandu akan pilih kenderaan semasa tugasan)</option>
                         {vehicles.map(v => <option key={v.id} value={v.name}>{v.name}</option>)}
                     </select>
+                    <p className="mt-1 text-xs text-gray-500">
+                        Pilihan "Bebas" tidak akan mengunci mana-mana van terlebih dahulu; kenderaan akan direkodkan berdasarkan van yang dipandu pemandu.
+                    </p>
                 </div>
             )}
 
@@ -433,7 +492,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
             {/* Nota Tambahan */}
             <div>
                 <label className={labelClass}>Nota Tambahan (Jika Ada)</label>
-                <textarea name="remarks" value={formData.remarks} onChange={handleChange} rows={3} className={inputClass} placeholder="cth: driver perlu menunggu, ambil barang di lokasi, dll."></textarea>
+                <textarea name="remarks" value={formData.remarks} onChange={handleChange} rows={3} className={inputClass} placeholder="cth: Ambil barang di pejabat, laluan tertentu, atau info lain."></textarea>
             </div>
 
             <div>

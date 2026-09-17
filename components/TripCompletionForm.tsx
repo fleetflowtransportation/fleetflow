@@ -10,13 +10,15 @@ interface TripCompletionFormProps {
 }
 
 const TripCompletionForm: React.FC<TripCompletionFormProps> = ({ isOpen, onClose, booking }) => {
-  const { updateBooking, bookings, odometerLogs } = useAppContext();
+  const { updateBooking, bookings, odometerLogs, vehicles } = useAppContext();
+  const [selectedVehicleId, setSelectedVehicleId] = useState('');
   const [startOdometer, setStartOdometer] = useState('');
   const [endOdometer, setEndOdometer] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (booking) {
+        setSelectedVehicleId(booking.vehicleId || '');
         // If the booking already has odometer data (e.g., being re-edited), use it.
         if (typeof booking.startOdometer === 'number') {
             setStartOdometer(booking.startOdometer.toString());
@@ -53,6 +55,11 @@ const TripCompletionForm: React.FC<TripCompletionFormProps> = ({ isOpen, onClose
     e.preventDefault();
     if (!booking) return;
 
+    if (!booking.vehicleId && !selectedVehicleId) {
+      setError('Sila pilih kenderaan yang dibawa.');
+      return;
+    }
+
     const start = Number(startOdometer);
     const end = Number(endOdometer);
 
@@ -69,6 +76,7 @@ const TripCompletionForm: React.FC<TripCompletionFormProps> = ({ isOpen, onClose
     const distance = end - start;
 
     updateBooking(booking.id, {
+      vehicleId: selectedVehicleId || booking.vehicleId,
       startOdometer: start,
       endOdometer: end,
       distance: distance,
@@ -89,6 +97,25 @@ const TripCompletionForm: React.FC<TripCompletionFormProps> = ({ isOpen, onClose
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+          
+          {!booking.vehicleId && (
+            <div>
+              <label className="block text-sm font-bold text-gray-700">Pilih Kenderaan Yang Digunakan *</label>
+              <select
+                value={selectedVehicleId}
+                onChange={(e) => setSelectedVehicleId(e.target.value)}
+                required
+                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+              >
+                <option value="">-- Pilih Kenderaan --</option>
+                {vehicles.map(v => (
+                  <option key={v.id} value={v.id}>{v.name} ({v.plateNumber})</option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-amber-600">Tempahan ini didaftarkan sebagai "Bebas", sila pilih van yang anda bawa.</p>
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-gray-700">Start Odometer (km)</label>
             <input 

@@ -41,9 +41,9 @@ export interface Booking {
   pickupPoint: string;
   address: string;
   passengers: PassengerCount[];
-  escort: string;
+  escort?: string;
   shouldWait: boolean;
-  returnTrip: boolean;
+  returnTrip?: boolean;
   status: 'Pending' | 'Assigned' | 'Confirmed' | 'Conflict' | 'Completed' | 'Cancelled';
   driverId: string | null;
   vehicleId: string | null;

@@ -46,8 +46,10 @@ export interface BookingInput {
   address?: string;
   staffCount?: number;
   kidsCount?: number;
+  teenagersCount?: number;
   serviceType: 'Perlu Driver' | 'Self-Drive';
   vehiclePreference?: string;
+  shouldWait?: boolean;
   remarks?: string;
   icNumber?: string;
 }
@@ -164,8 +166,10 @@ export function evaluateBookingAssignment({
     address,
     staffCount = 0,
     kidsCount = 0,
+    teenagersCount = 0,
     serviceType,
     vehiclePreference,
+    shouldWait = false,
     remarks,
   } = booking;
 
@@ -443,27 +447,25 @@ export function evaluateBookingAssignment({
   }
 
   // Peruntukkan kenderaan (Vehicle Allocation)
-  // Check preferred vehicle first, or find free available vehicle
-  const freeVehicle = vehicles.find(v => {
-    if (vehiclePreference && vehiclePreference !== 'Bebas' && v.name === vehiclePreference) {
-      // Check clash for this preferred vehicle
+  // Syarat: Jika pemohon pilih Bebas/tiada keutamaan, sistem jangan assign kenderaan (biarkan null).
+  // Kenderaan akan diambil daripada rekod lapor meter pemandu apabila selesai tugasan.
+  let allocatedVehicle: Vehicle | null = null;
+  const isFreeChoice = !vehiclePreference || vehiclePreference === 'Bebas';
+
+  if (!isFreeChoice) {
+    const preferred = vehicles.find(v => v.name === vehiclePreference);
+    if (preferred) {
       const clash = existingBookings.find(b => {
         if (b.status === 'Cancelled') return false;
-        if (b.vehicleId !== v.id) return false;
+        if (b.vehicleId !== preferred.id) return false;
         if (normalizeDate(b.dateTime) !== bookingDate) return false;
         return isTimeOverlap(startTime, endTime, normalizeTime(b.dateTime), normalizeTime(b.finishDateTime || b.dateTime));
       });
-      if (!clash) return true;
+      if (!clash) {
+        allocatedVehicle = preferred;
+      }
     }
-    // Check if free
-    const clash = existingBookings.find(b => {
-      if (b.status === 'Cancelled') return false;
-      if (b.vehicleId !== v.id) return false;
-      if (normalizeDate(b.dateTime) !== bookingDate) return false;
-      return isTimeOverlap(startTime, endTime, normalizeTime(b.dateTime), normalizeTime(b.finishDateTime || b.dateTime));
-    });
-    return !clash;
-  }) || vehicles[0] || { id: 'van-1', name: 'Toyota Hiace', plateNumber: 'WXY 1234' };
+  }
 
   // STEP 7: Google Calendar Event formatting
   // Title format: (NamaDriver) Pemohon → Destinasi
@@ -474,18 +476,31 @@ export function evaluateBookingAssignment({
     ? '⚠️ PERHATIAN: Booking sebelum waktu kerja pemandu bermula. Sila buat pengesahan manual dengan pemandu & Head of Transportation.'
     : '';
 
+  const vehicleNotice = allocatedVehicle
+    ? `Kenderaan: ${allocatedVehicle.name} (${allocatedVehicle.plateNumber}).`
+    : `Kenderaan: Bebas (Belum di-assign. Pemandu akan pilih kenderaan semasa lapor meter/selesai trip).`;
+
   const adminNotes = isPreWorkingHour
     ? `CONFIRMED (Pre-working-hour): Auto-assigned kepada ${chosen.driver.name} (Shift paling awal mula: ${formatTime12H(chosen.shiftStart)}). ${preWorkingWarning}`
-    : `CONFIRMED: Auto-assigned kepada ${chosen.driver.name} melalui kaedah ${availableDrivers.length > 1 ? 'Round-Robin' : 'Pemandu Tunggal Berkelayakan'}. Kenderaan: ${freeVehicle.name} (${freeVehicle.plateNumber}).`;
+    : `CONFIRMED: Auto-assigned kepada ${chosen.driver.name} melalui kaedah ${availableDrivers.length > 1 ? 'Round-Robin' : 'Pemandu Tunggal Berkelayakan'}. ${vehicleNotice}`;
 
-  const totalPassengers = staffCount + kidsCount;
+  const totalPassengers = staffCount + kidsCount + teenagersCount;
+  const passengerDetails = [
+    staffCount > 0 ? `Staff: ${staffCount}` : '',
+    kidsCount > 0 ? `Kanak-kanak: ${kidsCount}` : '',
+    teenagersCount > 0 ? `Remaja: ${teenagersCount}` : '',
+  ].filter(Boolean).join(', ') || 'Tiada maklumat';
+
+  const vehicleDisplay = allocatedVehicle
+    ? `${allocatedVehicle.name} (${allocatedVehicle.plateNumber})`
+    : `Bebas (Akan ditentukan oleh pemandu semasa perjalanan)`;
 
   return {
     status: 'Confirmed',
     driverId: chosen.driver.id,
-    vehicleId: freeVehicle.id,
+    vehicleId: allocatedVehicle ? allocatedVehicle.id : null,
     assignedDriverName: chosen.driver.name,
-    assignedVehicleName: `${freeVehicle.name} (${freeVehicle.plateNumber})`,
+    assignedVehicleName: allocatedVehicle ? `${allocatedVehicle.name} (${allocatedVehicle.plateNumber})` : undefined,
     calendarEventTitle,
     calendarColor,
     calendarEventId: `evt-${chosen.driver.id}-${Date.now()}`,
@@ -497,12 +512,12 @@ export function evaluateBookingAssignment({
       requester: {
         to: requesterEmail,
         subject: `[CONFIRMED] Tempahan Pengangkutan Disahkan: ${destination}`,
-        body: `Salam ${requesterName},\n\nTempahan pengangkutan anda telah BERJAYA DISAHKAN!\n\n📅 Tarikh: ${bookingDate}\n⏰ Masa: ${startTime12} - ${endTime12}\n📍 Lokasi Pickup: ${pickupPoint} ${address ? '(' + address + ')' : ''}\n🎯 Destinasi: ${destination}\n👥 Penumpang: ${totalPassengers} orang (Staff: ${staffCount}, Kanak-kanak: ${kidsCount})\n👤 Pemandu Ditugaskan: ${chosen.driver.name} (No Tel: ${chosen.driver.phone})\n🚐 Kenderaan: ${freeVehicle.name} (${freeVehicle.plateNumber})\n${remarks ? '📝 Nota: ' + remarks + '\n' : ''}\n${isPreWorkingHour ? '\n' + preWorkingWarning + '\n' : ''}\nEvent telah dimasukkan ke dalam Google Calendar YCK dan emel anda dijemput sebagai tetamu.\n\nFleetFlow`,
+        body: `Salam ${requesterName},\n\nTempahan pengangkutan anda telah BERJAYA DISAHKAN!\n\n📅 Tarikh: ${bookingDate}\n⏰ Masa: ${startTime12} - ${endTime12}\n📍 Lokasi Pickup: ${pickupPoint} ${address ? '(' + address + ')' : ''}\n🎯 Destinasi: ${destination}\n👥 Penumpang: ${totalPassengers} orang (${passengerDetails})\n👤 Pemandu Ditugaskan: ${chosen.driver.name} (No Tel: ${chosen.driver.phone})\n🚐 Kenderaan: ${vehicleDisplay}\n${shouldWait ? '⏳ Status: Pemandu dikehendaki menunggu di destinasi\n' : ''}${remarks ? '📝 Nota: ' + remarks + '\n' : ''}${isPreWorkingHour ? '\n' + preWorkingWarning + '\n' : ''}\nEvent telah dimasukkan ke dalam Google Calendar YCK dan emel anda dijemput sebagai tetamu.\n\nFleetFlow`,
       },
       driver: {
         to: chosen.driver.email,
         subject: `[TUGASAN BARU] Perjalanan ke ${destination} (${bookingDate})`,
-        body: `Salam ${chosen.driver.name},\n\nAnda telah ditugaskan untuk perjalanan berikut:\n\n📅 Tarikh: ${bookingDate}\n⏰ Masa: ${startTime12} - ${endTime12}\n👤 Pemohon: ${requesterName} (${department})\n📞 Emel Pemohon: ${requesterEmail}\n📍 Pickup: ${pickupPoint} ${address ? '(' + address + ')' : ''}\n🎯 Destinasi: ${destination}\n👥 Bilangan Penumpang: ${totalPassengers}\n🚐 Kenderaan: ${freeVehicle.name} (${freeVehicle.plateNumber})\n${remarks ? '📝 Nota: ' + remarks : ''}\n${isPreWorkingHour ? '\n' + preWorkingWarning : ''}\n\nSila pastikan kenderaan berada dalam keadaan baik sebelum bertolak.\n\nFleetFlow`,
+        body: `Salam ${chosen.driver.name},\n\nAnda telah ditugaskan untuk perjalanan berikut:\n\n📅 Tarikh: ${bookingDate}\n⏰ Masa: ${startTime12} - ${endTime12}\n👤 Pemohon: ${requesterName} (${department})\n📞 Emel Pemohon: ${requesterEmail}\n📍 Pickup: ${pickupPoint} ${address ? '(' + address + ')' : ''}\n🎯 Destinasi: ${destination}\n👥 Bilangan Penumpang: ${totalPassengers} (${passengerDetails})\n🚐 Kenderaan: ${vehicleDisplay}\n${shouldWait ? '⏳ Perlu Tunggu: YA (Sila tunggu penumpang sehingga urusan selesai)\n' : ''}${remarks ? '📝 Nota: ' + remarks : ''}\n${isPreWorkingHour ? '\n' + preWorkingWarning : ''}\n\nSila pastikan kenderaan berada dalam keadaan baik sebelum bertolak.\n\nFleetFlow`,
       },
     },
   };
