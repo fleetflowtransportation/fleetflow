@@ -68,6 +68,7 @@ const buildWeekGrid = (anchor: Date): Date[] => {
 type ModalState =
   | { mode: 'add'; dates: string[] }
   | { mode: 'edit'; schedule: DriverSchedule }
+  | { mode: 'bulkDelete'; dates: string[] }
   | null;
 
 const DriverScheduleManager: React.FC = () => {
@@ -269,21 +270,7 @@ const DriverScheduleManager: React.FC = () => {
           <button
             type="button"
             onClick={() => {
-              const selectedDatesArr = Array.from(selectedDates);
-              const schedIdsToDelete = driverSchedules
-                .filter(s => selectedDatesArr.includes(parseDateKeyLoose(s.Date)))
-                .map(s => s.id);
-                
-              if (schedIdsToDelete.length === 0) {
-                alert("Tiada jadual pemandu pada tarikh-tarikh yang dipilih.");
-                return;
-              }
-              
-              if (window.confirm(`Adakah anda pasti mahu memadamkan semua jadual pemandu (${schedIdsToDelete.length} jadual) pada tarikh-tarikh yang dipilih?`)) {
-                deleteDriverSchedulesBulk(schedIdsToDelete);
-                setSelectedDates(new Set());
-                setBulkMode(false);
-              }
+              setModal({ mode: 'bulkDelete', dates: Array.from(selectedDates) });
             }}
             className="bg-red-600 hover:bg-red-500 text-white text-sm font-semibold px-4 py-1.5 rounded-full transition"
           >
@@ -320,6 +307,29 @@ const DriverScheduleManager: React.FC = () => {
             deleteDriverSchedule(schedId);
             closeModal();
           }}
+          onDeleteBulk={(driverId, dates) => {
+            const schedIdsToDelete = driverSchedules
+              .filter(s => {
+                const isMatchingDate = dates.includes(parseDateKeyLoose(s.Date));
+                if (!isMatchingDate) return false;
+                if (driverId === 'all') return true;
+                return s.DriverId === driverId;
+              })
+              .map(s => s.id);
+
+            if (schedIdsToDelete.length === 0) {
+              alert("Tiada jadual pemandu yang sepadan dengan pilihan anda.");
+              return;
+            }
+
+            const label = driverId === 'all' ? 'semua pemandu' : `pemandu ${drivers.find(d => d.id === driverId)?.name || ''}`;
+            if (window.confirm(`Adakah anda pasti mahu memadamkan jadual bagi ${label} (${schedIdsToDelete.length} jadual) pada tarikh-tarikh yang dipilih?`)) {
+              deleteDriverSchedulesBulk(schedIdsToDelete);
+              setSelectedDates(new Set());
+              setBulkMode(false);
+              closeModal();
+            }
+          }}
         />
       )}
     </div>
@@ -333,9 +343,10 @@ interface ScheduleModalProps {
   onSave: (entries: { date: string; driverId: string; mula: string; tamat: string }[]) => void;
   onUpdate: (schedId: string, mula: string, tamat: string) => void;
   onDelete: (schedId: string) => void;
+  onDeleteBulk?: (driverId: string | 'all', dates: string[]) => void;
 }
 
-const ScheduleModal: React.FC<ScheduleModalProps> = ({ modal, drivers, onClose, onSave, onUpdate, onDelete }) => {
+const ScheduleModal: React.FC<ScheduleModalProps> = ({ modal, drivers, onClose, onSave, onUpdate, onDelete, onDeleteBulk }) => {
   const isEdit = modal?.mode === 'edit';
   const editSchedule = isEdit && modal?.mode === 'edit' ? modal.schedule : null;
 
@@ -344,8 +355,11 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ modal, drivers, onClose, 
   );
   const [mula, setMula] = useState(toTimeHHMM(editSchedule?.Mula || '') || '09:00');
   const [tamat, setTamat] = useState(toTimeHHMM(editSchedule?.Tamat || '') || '17:00');
+  const [targetDriverId, setTargetDriverId] = useState<string>('all');
 
   if (!modal) return null;
+
+  const isBulkDelete = modal.mode === 'bulkDelete';
 
   const toggleDriver = (id: string) => {
     setSelectedDriverIds(prev => {
@@ -358,6 +372,10 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ modal, drivers, onClose, 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isBulkDelete) {
+      if (onDeleteBulk) onDeleteBulk(targetDriverId, modal.dates);
+      return;
+    }
     if (!mula || !tamat) {
       alert('Sila isi masa mula dan tamat.');
       return;
@@ -382,6 +400,56 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ modal, drivers, onClose, 
     const d = new Date(dateKey + 'T00:00:00');
     return d.toLocaleDateString('ms-MY', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
   };
+
+  if (isBulkDelete) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
+        <div className="bg-white rounded-lg shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
+          <div className="flex justify-between items-center p-4 border-b">
+            <h3 className="text-lg font-bold text-gray-800">
+              Padam Jadual Pukal ({modal.dates.length} Tarikh)
+            </h3>
+            <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
+              <XIcon className="h-5 w-5" />
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="overflow-y-auto p-5 space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Tarikh Terpilih</label>
+              <div className="max-h-24 overflow-y-auto bg-gray-50 border border-gray-200 rounded-md p-2 text-sm text-gray-600 space-y-0.5">
+                {modal.dates.map(d => <div key={d}>{formatDateLabel(d)}</div>)}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Pilih Pemandu Yang Ingin Dipadamkan</label>
+              <select
+                value={targetDriverId}
+                onChange={(e) => setTargetDriverId(e.target.value)}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
+              >
+                <option value="all">Semua Pemandu (Padam Semua)</option>
+                {drivers.map(d => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+              <p className="mt-1.5 text-xs text-gray-500">
+                Pilih pemandu spesifik untuk memadamkan jadual beliau sahaja pada tarikh terpilih, atau pilih "Semua Pemandu" untuk memadamkan semua jadual pada tarikh tersebut.
+              </p>
+            </div>
+
+            <div className="pt-4 flex items-center justify-end gap-2 border-t">
+              <button type="button" onClick={onClose} className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">Batal</button>
+              <button type="submit" className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg shadow-md text-sm transition">
+                Sahkan Padam
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
