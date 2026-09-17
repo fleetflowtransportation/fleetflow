@@ -1,16 +1,49 @@
-import type { User, Vehicle, Booking } from './types';
+import type { User, Vehicle, Booking, DriverSchedule } from './types';
 
 export const USERS: User[] = [
   { 
-    id: 'admin-1', 
-    name: 'Admin User', 
-    email: 'admin@fleetflow.com',
+    id: 'admin-ain', 
+    name: 'Ain', 
+    email: 'ain@yck.org.my',
     phone: '012-3456789',
     joiningDate: '2023-01-01',
-    address: '123 Admin Street, KL',
+    address: 'HQ Yayasan Chow Kit, KL',
     role: 'admin',
     status: 'active',
-    password: 'adminpass' 
+    password: 'admin' 
+  },
+  { 
+    id: 'driver-syafiq', 
+    name: 'Syafiq', 
+    email: 'syafiq@yck.org.my',
+    phone: '011-2345678',
+    joiningDate: '2023-03-01',
+    address: 'Kuala Lumpur',
+    role: 'driver',
+    status: 'active',
+    password: 'password123' 
+  },
+  { 
+    id: 'driver-saiful', 
+    name: 'Saiful', 
+    email: 'saiful@yck.org.my',
+    phone: '012-8765432',
+    joiningDate: '2023-04-15',
+    address: 'Petaling Jaya',
+    role: 'driver',
+    status: 'active',
+    password: 'password123' 
+  },
+  { 
+    id: 'driver-aziz', 
+    name: 'Aziz', 
+    email: 'aziz@yck.org.my',
+    phone: '017-3131604',
+    joiningDate: '2023-05-10',
+    address: 'Selangor',
+    role: 'driver',
+    status: 'active',
+    password: 'password123' 
   },
   { 
     id: 'driver-1', 
@@ -23,35 +56,46 @@ export const USERS: User[] = [
     status: 'active',
     password: 'password123' 
   },
-  { 
-    id: 'driver-2', 
-    name: 'Jane Smith', 
-    email: 'jane.smith@email.com',
-    phone: '012-9876543',
-    joiningDate: '2023-08-20',
-    address: '789 Driver Road, Shah Alam',
-    role: 'driver',
-    status: 'active',
-    password: 'password123'
-  },
-  { 
-    id: 'driver-3', 
-    name: 'Peter Jones',
-    email: 'peter.jones@email.com',
-    phone: '019-5551234',
-    joiningDate: '2024-01-10',
-    address: '101 Driver Lane, Subang Jaya',
-    role: 'driver',
-    status: 'inactive',
-    password: 'password123'
-  },
 ];
 
 export const VEHICLES: Vehicle[] = [
-  { id: 'van-1', name: 'Toyota Hiace', plateNumber: 'WXY 1234' },
-  { id: 'van-2', name: 'Nissan Urvan', plateNumber: 'BCA 5678' },
-  { id: 'van-3', name: 'Ford Transit', plateNumber: 'QDR 9012' },
+  { id: 'alza-1', name: 'Perodua Alza', plateNumber: 'VAA 8821', specifications: '7-Seater MPV (Self-Drive)' },
+  { id: 'van-1', name: 'Toyota Hiace', plateNumber: 'WXY 1234', specifications: '11-Seater Van' },
+  { id: 'van-2', name: 'Nissan Urvan', plateNumber: 'BCA 5678', specifications: '14-Seater Van' },
+  { id: 'van-3', name: 'Ford Transit', plateNumber: 'QDR 9012', specifications: '12-Seater Van' },
 ];
+
+// Helper to generate schedules around the current month/week
+const generateSchedules = (): DriverSchedule[] => {
+  const scheds: DriverSchedule[] = [];
+  const base = new Date();
+  for (let offset = -7; offset <= 30; offset++) {
+    const d = new Date(base);
+    d.setDate(base.getDate() + offset);
+    const day = d.getDay();
+    // Monday to Friday
+    if (day >= 1 && day <= 5) {
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      scheds.push({
+        id: `sched-syafiq-${dateStr}`,
+        Date: dateStr,
+        DriverId: 'driver-syafiq',
+        Mula: '08:00',
+        Tamat: '17:00'
+      });
+      scheds.push({
+        id: `sched-saiful-${dateStr}`,
+        Date: dateStr,
+        DriverId: 'driver-saiful',
+        Mula: '09:00',
+        Tamat: '18:00'
+      });
+    }
+  }
+  return scheds;
+};
+
+export const INITIAL_DRIVER_SCHEDULES: DriverSchedule[] = generateSchedules();
 
 const now = new Date();
 const twoDaysFromNow = new Date(now);

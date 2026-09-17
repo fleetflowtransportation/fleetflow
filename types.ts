@@ -44,7 +44,7 @@ export interface Booking {
   escort: string;
   shouldWait: boolean;
   returnTrip: boolean;
-  status: 'Pending' | 'Assigned' | 'Completed' | 'Cancelled';
+  status: 'Pending' | 'Assigned' | 'Confirmed' | 'Conflict' | 'Completed' | 'Cancelled';
   driverId: string | null;
   vehicleId: string | null;
   attachmentName?: string;
@@ -65,6 +65,12 @@ export interface Booking {
   endOdometer?: number;
   distance?: number;
   calendarEventId?: string;
+  calendarEventTitle?: string;
+  calendarColor?: string;
+  adminNotes?: string;
+  conflictReason?: string;
+  isPreWorkingHour?: boolean;
+  warningNotes?: string;
 }
 
 export interface FuelLog {

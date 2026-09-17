@@ -4,17 +4,26 @@ import { useAppContext } from '../context/AppContext';
 import type { Booking, User, Vehicle } from '../types';
 import { CalendarIcon, ClockIcon, LocationMarkerIcon, UserGroupIcon, TruckIcon, XIcon, ArrowUpCircleIcon } from './icons/Icons';
 
-const driverColors = [
-  'bg-blue-200 text-blue-800', 'bg-green-200 text-green-800', 'bg-yellow-200 text-yellow-800',
-  'bg-purple-200 text-purple-800', 'bg-pink-200 text-pink-800', 'bg-indigo-200 text-indigo-800',
-  'bg-teal-200 text-teal-800', 'bg-red-200 text-red-800',
-];
-const unassignedColor = 'bg-gray-200 text-gray-800';
-
-const getDriverColor = (driverId: string | null) => {
-  if (!driverId) return unassignedColor;
-  const hash = driverId.split('').reduce((acc, char) => char.charCodeAt(0) + ((acc << 5) - acc), 0);
-  return driverColors[Math.abs(hash) % driverColors.length];
+const getBookingBadgeStyle = (booking: Booking, driverName: string) => {
+  if (booking.status === 'Conflict') {
+    return 'bg-rose-100 text-rose-800 border border-rose-300';
+  }
+  if (booking.serviceType === 'Self-Drive') {
+    return 'bg-slate-200 text-slate-800 border border-slate-300';
+  }
+  if (driverName.toLowerCase().includes('syafiq')) {
+    return 'bg-blue-100 text-blue-900 border border-blue-300';
+  }
+  if (driverName.toLowerCase().includes('saiful')) {
+    return 'bg-emerald-100 text-emerald-900 border border-emerald-300';
+  }
+  if (booking.calendarColor) {
+    return 'bg-indigo-100 text-indigo-900 border border-indigo-200';
+  }
+  if (booking.status === 'Pending') {
+    return 'bg-amber-100 text-amber-800 border border-amber-300';
+  }
+  return 'bg-gray-100 text-gray-800 border border-gray-200';
 };
 
 const BookingDetailModal: React.FC<{ booking: Booking | null; onClose: () => void }> = ({ booking, onClose }) => {
@@ -36,6 +45,26 @@ const BookingDetailModal: React.FC<{ booking: Booking | null; onClose: () => voi
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><XIcon className="h-6 w-6" /></button>
         </div>
         <div className="p-6 space-y-4 text-sm text-gray-700">
+          {booking.calendarEventTitle && (
+            <div className="p-2.5 bg-slate-100 rounded-md font-mono text-xs font-semibold text-slate-800">
+              📅 {booking.calendarEventTitle}
+            </div>
+          )}
+
+          {booking.status === 'Conflict' && (
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-md text-xs text-rose-800">
+              <p className="font-bold">⚠️ STATUS: KONFLIK</p>
+              <p className="mt-1">{booking.conflictReason || 'Bertembung jadual atau waktu rehat.'}</p>
+              <p className="mt-1 text-rose-600">Sila hubungi Admin Ain untuk semakan dan penetapan manual.</p>
+            </div>
+          )}
+
+          {booking.warningNotes && (
+            <div className="p-2 bg-amber-50 border border-amber-200 rounded-md text-xs text-amber-800 font-medium">
+              ⚠️ {booking.warningNotes}
+            </div>
+          )}
+
           <p><strong>Purpose:</strong> {booking.purpose}</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
              <div className="flex items-center space-x-2">
@@ -67,9 +96,14 @@ const BookingDetailModal: React.FC<{ booking: Booking | null; onClose: () => voi
              </div>
              <div className="flex items-center space-x-2">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" /></svg>
-                <span><strong>Vehicle:</strong> {vehicleInfo ? `${vehicleInfo.name} (${vehicleInfo.plateNumber})` : 'Unassigned'}</span>
+                <span><strong>Vehicle:</strong> {vehicleInfo ? `${vehicleInfo.name} (${vehicleInfo.plateNumber})` : (booking.serviceType === 'Self-Drive' ? 'Perodua Alza' : 'Unassigned')}</span>
              </div>
           </div>
+          {booking.adminNotes && (
+            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-md text-xs text-slate-700">
+              <span className="font-semibold">Nota Pentadbiran:</span> {booking.adminNotes}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -142,10 +176,31 @@ const CalendarView: React.FC = () => {
     <>
       <BookingDetailModal booking={selectedBooking} onClose={() => setSelectedBooking(null)} />
       <div className="bg-white p-4 sm:p-6 rounded-lg shadow-md">
-        <div className="flex justify-between items-center mb-4">
-          <button onClick={() => changeMonth(-1)} className="p-2 rounded-full hover:bg-gray-100">&lt;</button>
-          <h3 className="text-lg sm:text-xl font-semibold text-gray-800">{monthName} {year}</h3>
-          <button onClick={() => changeMonth(1)} className="p-2 rounded-full hover:bg-gray-100">&gt;</button>
+        <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3">
+          <div className="flex items-center space-x-2">
+            <button onClick={() => changeMonth(-1)} className="p-2 rounded-full hover:bg-gray-100">&lt;</button>
+            <h3 className="text-lg sm:text-xl font-semibold text-gray-800">{monthName} {year}</h3>
+            <button onClick={() => changeMonth(1)} className="p-2 rounded-full hover:bg-gray-100">&gt;</button>
+          </div>
+
+          {/* Color Legend from Project Context */}
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-blue-100 text-blue-900 border border-blue-200">
+              <span className="w-2 h-2 rounded-full bg-blue-600"></span> Syafiq
+            </span>
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-200">
+              <span className="w-2 h-2 rounded-full bg-emerald-600"></span> Saiful
+            </span>
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-slate-200 text-slate-800 border border-slate-300">
+              <span className="w-2 h-2 rounded-full bg-slate-600"></span> Pandu Sendiri
+            </span>
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-200 font-semibold">
+              <span className="w-2 h-2 rounded-full bg-rose-600"></span> Konflik
+            </span>
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
+              <span className="w-2 h-2 rounded-full bg-amber-600"></span> Menunggu
+            </span>
+          </div>
         </div>
         <div className="grid grid-cols-7 gap-px text-center text-sm font-medium text-gray-600 border-t border-l border-gray-200">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
@@ -164,17 +219,25 @@ const CalendarView: React.FC = () => {
                   {date.getDate()}
                 </span>
                 <div className="mt-7 space-y-1">
-                  {dayBookings.map(booking => (
-                    <button
-                      key={booking.id}
-                      onClick={() => setSelectedBooking(booking)}
-                      className={`w-full text-left p-1 rounded-md text-xs truncate cursor-pointer transition-transform hover:scale-105 ${getDriverColor(booking.driverId)}`}
-                    >
-                      <p className="font-semibold">{new Date(booking.dateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}</p>
-                      <p>{booking.destination}</p>
-                      <p className="font-medium opacity-80">{getDriverName(booking.driverId)}</p>
-                    </button>
-                  ))}
+                  {dayBookings.map(booking => {
+                    const dName = getDriverName(booking.driverId);
+                    const isConflict = booking.status === 'Conflict';
+                    return (
+                      <button
+                        key={booking.id}
+                        onClick={() => setSelectedBooking(booking)}
+                        className={`w-full text-left p-1 rounded text-xs truncate cursor-pointer transition-transform hover:scale-105 shadow-xs ${getBookingBadgeStyle(booking, dName)}`}
+                        title={booking.calendarEventTitle || `${booking.destination} (${dName})`}
+                      >
+                        <p className="font-semibold flex items-center justify-between">
+                          <span>{new Date(booking.dateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}</span>
+                          {isConflict && <span className="text-xs font-bold text-rose-700">⚠️</span>}
+                        </p>
+                        <p className="font-medium truncate">{booking.destination}</p>
+                        <p className="opacity-85 truncate text-[11px]">{booking.serviceType === 'Self-Drive' ? '🚗 Pandu Sendiri' : dName}</p>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             );

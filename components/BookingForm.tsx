@@ -3,6 +3,8 @@ import { useAppContext } from '../context/AppContext';
 import type { Booking, PassengerCount } from '../types';
 import { DEPARTMENTS, PICKUP_POINTS } from '../types';
 import { XIcon, PaperClipIcon } from './icons/Icons';
+import { BookingResultModal } from './BookingResultModal';
+import type { AutoAssignResult } from '../services/bookingEngine';
 
 interface BookingFormProps {
   isOpen: boolean;
@@ -52,6 +54,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [existingAttachment, setExistingAttachment] = useState<{ name: string; url: string } | null>(null);
   const [isRecurring, setIsRecurring] = useState(false);
+  const [submissionResult, setSubmissionResult] = useState<AutoAssignResult | null>(null);
   const [recurrence, setRecurrence] = useState({
     frequency: 'weekly' as 'weekly' | 'bi-weekly' | 'monthly',
     endDate: ''
@@ -194,6 +197,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
 
     if (bookingToEdit) {
         updateBooking(bookingToEdit.id, processedData);
+        onClose();
     } else {
         const newBooking: Omit<Booking, 'id'> = {
             ...(processedData as Omit<Booking, 'id' | 'status' | 'driverId' | 'vehicleId'>),
@@ -201,24 +205,26 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
             driverId: null,
             vehicleId: null,
         };
-        addBooking(newBooking);
+        const result = addBooking(newBooking);
+        setSubmissionResult(result);
     }
-    onClose();
   };
 
-  if (!isOpen) return null;
+  if (!isOpen && !submissionResult) return null;
 
   const inputClass = "mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500";
   const labelClass = "block text-sm font-medium text-gray-700";
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
-      <div className="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-        <div className="flex justify-between items-center p-4 border-b">
-          <h2 className="text-xl font-bold text-gray-800">{bookingToEdit ? 'Edit Booking Van' : 'Booking Van Baharu'}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><XIcon className="h-6 w-6" /></button>
-        </div>
-        <form onSubmit={handleSubmit} className="overflow-y-auto p-6 space-y-4">
+    <>
+      {isOpen && !submissionResult && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div className="flex justify-between items-center p-4 border-b">
+              <h2 className="text-xl font-bold text-gray-800">{bookingToEdit ? 'Edit Booking Van' : 'Booking Van Baharu'}</h2>
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><XIcon className="h-6 w-6" /></button>
+            </div>
+            <form onSubmit={handleSubmit} className="overflow-y-auto p-6 space-y-4">
 
             {/* 1 & 2: Nama Pemohon & Jabatan */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -254,6 +260,10 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
                     <label className={labelClass}>Masa Tamat</label>
                     <input type="time" name="endTime" value={formData.endTime} onChange={handleChange} required className={inputClass}/>
                 </div>
+            </div>
+            <div className="text-xs text-indigo-800 bg-indigo-50 border border-indigo-100 rounded-md p-2.5 flex items-start space-x-1.5">
+                <span className="font-bold text-indigo-600">💡 Polisi Waktu Rehat:</span>
+                <span>Isnin–Khamis & Ahad: <b>12:00–13:00</b> | Jumaat: <b>12:30–14:30</b>. Tempahan yang bermula sebelum waktu rehat dibenarkan (pengecualian). Tempahan yang bermula dalam waktu rehat akan ditandakan sebagai <b>KONFLIK</b>.</span>
             </div>
 
             {/* 6: Tujuan Perjalanan */}
@@ -405,6 +415,17 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
         </form>
       </div>
     </div>
+    )}
+    <BookingResultModal
+      isOpen={!!submissionResult}
+      result={submissionResult}
+      onClose={() => {
+        setSubmissionResult(null);
+        onClose();
+        resetForm();
+      }}
+    />
+  </>
   );
 };
 

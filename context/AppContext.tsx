@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode, useCallback, useRef, useEffect } from 'react';
 import type { Booking, FuelLog, OdometerLog, User, Vehicle, BookingHistory, CurrentUser, IssueLog, DriverSchedule } from '../types';
 import { storageService } from '../services/storage';
+import { evaluateBookingAssignment, normalizeDate, normalizeTime, getDriverCalendarColor, type AutoAssignResult } from '../services/bookingEngine';
 
 interface AppContextType {
   users: User[];
@@ -13,10 +14,11 @@ interface AppContextType {
   currentUser: CurrentUser | null;
   isLoading: boolean;
   loadError: string | null;
+  lastDriverAssignedId: string | null;
   reload: () => void;
   login: (name: string, password: string) => boolean;
   logout: () => void;
-  addBooking: (booking: Omit<Booking, 'id'>) => void;
+  addBooking: (booking: Omit<Booking, 'id'>) => AutoAssignResult;
   updateBooking: (bookingId: string, updatedData: Partial<Omit<Booking, 'id'>>) => void;
   deleteBooking: (bookingId: string) => void;
   restoreBooking: (bookingId: string) => void;
@@ -64,6 +66,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const [lastBookingChange, setLastBookingChange] = useState<BookingHistory | null>(null);
   const undoTimeoutRef = useRef<number | null>(null);
+
+  const [lastDriverAssignedId, setLastDriverAssignedId] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('fleetflow_last_driver_assigned');
+    } catch {
+      return null;
+    }
+  });
 
   const hasLoadedOnceRef = useRef(false);
 
@@ -166,7 +176,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [clearUndoState]);
 
   // ---- Bookings ----
-  const addBooking = useCallback((bookingData: Omit<Booking, 'id'>) => {
+  const addBooking = useCallback((bookingData: Omit<Booking, 'id'>): AutoAssignResult => {
+    const staffCount = bookingData.passengers?.find(p => p.category === 'Staff')?.count || 0;
+    const kidsCount = bookingData.passengers?.find(p => p.category === 'Kids')?.count || 0;
+
+    const baseInput = {
+      requesterName: bookingData.requesterName,
+      requesterEmail: bookingData.requesterEmail,
+      department: bookingData.department,
+      bookingDate: normalizeDate(bookingData.dateTime),
+      startTime: normalizeTime(bookingData.dateTime),
+      endTime: normalizeTime(bookingData.finishDateTime || bookingData.dateTime),
+      purpose: bookingData.purpose,
+      destination: bookingData.destination,
+      pickupPoint: bookingData.pickupPoint,
+      address: bookingData.address,
+      staffCount,
+      kidsCount,
+      serviceType: bookingData.serviceType,
+      vehiclePreference: bookingData.vehiclePreference,
+      remarks: bookingData.remarks,
+      icNumber: bookingData.icNumber,
+    };
+
     if (bookingData.recurrence) {
       const { frequency, endDate: recurrenceEndDateStr } = bookingData.recurrence;
 
@@ -178,6 +210,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const newBookings: Booking[] = [];
       const recurrenceId = `recur-${Date.now()}`;
       let currentDate = new Date(startDate);
+      let runningLastDriver = lastDriverAssignedId;
+      let primaryResult: AutoAssignResult | null = null;
 
       while (currentDate <= recurrenceEndDate) {
         const finishDateTime = bookingData.finishDateTime ? new Date(bookingData.finishDateTime) : null;
@@ -187,6 +221,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           currentFinishDateTime = new Date(currentDate.getTime() + duration);
         }
 
+        const dateStr = normalizeDate(currentDate);
+        const startTimeStr = normalizeTime(currentDate);
+        const endTimeStr = normalizeTime(currentFinishDateTime || currentDate);
+
+        const currentInput = {
+          ...baseInput,
+          bookingDate: dateStr,
+          startTime: startTimeStr,
+          endTime: endTimeStr,
+        };
+
+        const result = evaluateBookingAssignment({
+          booking: currentInput,
+          existingBookings: [...newBookings, ...bookings],
+          driverSchedules,
+          users,
+          vehicles,
+          lastDriverAssignedId: runningLastDriver,
+        });
+
+        if (!primaryResult) {
+          primaryResult = result;
+        }
+
+        if (result.newLastDriverAssignedId) {
+          runningLastDriver = result.newLastDriverAssignedId;
+        }
+
         const newBooking: Booking = {
           ...bookingData,
           id: tempId('booking'),
@@ -194,6 +256,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           finishDateTime: currentFinishDateTime ? currentFinishDateTime.toISOString() : undefined,
           recurrenceId,
           recurrence: newBookings.length === 0 ? bookingData.recurrence : undefined,
+          status: result.status,
+          driverId: result.driverId,
+          vehicleId: result.vehicleId,
+          calendarEventTitle: result.calendarEventTitle,
+          calendarColor: result.calendarColor,
+          calendarEventId: result.calendarEventId,
+          adminNotes: result.adminNotes,
+          conflictReason: result.conflictReason,
+          isPreWorkingHour: result.isPreWorkingHour,
+          warningNotes: result.warningNotes,
         };
         newBookings.push(newBooking);
 
@@ -220,29 +292,80 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
       }
 
+      if (runningLastDriver && runningLastDriver !== lastDriverAssignedId) {
+        setLastDriverAssignedId(runningLastDriver);
+        try {
+          localStorage.setItem('fleetflow_last_driver_assigned', runningLastDriver);
+        } catch {
+          // ignore
+        }
+      }
+
       setBookings(prev => [...newBookings, ...prev]);
       newBookings.forEach(b => {
         storageService.createBooking(b)
           .then(saved => {
-            setBookings(prev => prev.map(x => (x.id === b.id ? saved : x)));
+            setBookings(prev => prev.map(x => (x.id === b.id ? { ...b, ...saved } : x)));
           })
           .catch(err => {
-            alert('Gagal simpan booking berulang: ' + err.message);
+            console.warn('Gagal simpan booking berulang:', err.message);
           });
       });
+
+      return primaryResult || evaluateBookingAssignment({
+        booking: baseInput,
+        existingBookings: bookings,
+        driverSchedules,
+        users,
+        vehicles,
+        lastDriverAssignedId,
+      });
     } else {
-      const newBooking: Booking = { ...bookingData, id: tempId('booking') };
+      const result = evaluateBookingAssignment({
+        booking: baseInput,
+        existingBookings: bookings,
+        driverSchedules,
+        users,
+        vehicles,
+        lastDriverAssignedId,
+      });
+
+      if (result.newLastDriverAssignedId) {
+        setLastDriverAssignedId(result.newLastDriverAssignedId);
+        try {
+          localStorage.setItem('fleetflow_last_driver_assigned', result.newLastDriverAssignedId);
+        } catch {
+          // ignore
+        }
+      }
+
+      const newBooking: Booking = {
+        ...bookingData,
+        id: tempId('booking'),
+        status: result.status,
+        driverId: result.driverId,
+        vehicleId: result.vehicleId,
+        calendarEventTitle: result.calendarEventTitle,
+        calendarColor: result.calendarColor,
+        calendarEventId: result.calendarEventId,
+        adminNotes: result.adminNotes,
+        conflictReason: result.conflictReason,
+        isPreWorkingHour: result.isPreWorkingHour,
+        warningNotes: result.warningNotes,
+      };
+
       setBookings(prev => [newBooking, ...prev]);
       storageService.createBooking(newBooking)
         .then(saved => {
-          setBookings(prev => prev.map(b => (b.id === newBooking.id ? saved : b)));
+          setBookings(prev => prev.map(b => (b.id === newBooking.id ? { ...newBooking, ...saved } : b)));
         })
         .catch(err => {
-          alert('Gagal simpan booking: ' + err.message);
-          setBookings(prev => prev.filter(b => b.id !== newBooking.id));
+          console.warn('Gagal simpan booking ke server, rekod kekal dalam state:', err.message);
         });
+
+      return result;
     }
-  }, []);
+  }, [bookings, driverSchedules, users, vehicles, lastDriverAssignedId]);
 
   const updateBooking = useCallback((bookingId: string, updatedData: Partial<Omit<Booking, 'id'>>) => {
     setBookings(prev => {
@@ -279,14 +402,37 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [setUndoableAction]);
 
   const assignToBooking = useCallback((bookingId: string, driverId: string, vehicleId: string) => {
+    const driver = users.find(u => u.id === driverId);
+    const vehicle = vehicles.find(v => v.id === vehicleId);
+    const driverName = driver?.name || 'Driver';
+
     setBookings(prev => {
       setUndoableAction(bookingId, prev);
-      return prev.map(b => (b.id === bookingId ? { ...b, driverId, vehicleId, status: 'Assigned' as Booking['status'] } : b));
+      return prev.map(b => {
+        if (b.id !== bookingId) return b;
+        const calTitle = `(${driverName}) ${b.requesterName} → ${b.destination}`;
+        const calColor = getDriverCalendarColor(driverName, b.serviceType);
+        return {
+          ...b,
+          driverId,
+          vehicleId,
+          status: 'Confirmed' as Booking['status'],
+          calendarEventTitle: calTitle,
+          calendarColor: calColor,
+          adminNotes: `Pengendalian Manual: Disahkan oleh Admin Ain. Pemandu: ${driverName}, Kenderaan: ${vehicle?.name || vehicleId} (${vehicle?.plateNumber || ''}).`,
+          conflictReason: undefined,
+        };
+      });
     });
-    storageService.updateBooking({ id: bookingId, driverId, vehicleId, status: 'Assigned' }).catch(err => {
+    storageService.updateBooking({
+      id: bookingId,
+      driverId,
+      vehicleId,
+      status: 'Confirmed',
+    }).catch(err => {
       alert('Gagal assign booking: ' + err.message);
     });
-  }, [setUndoableAction]);
+  }, [setUndoableAction, users, vehicles]);
 
   const updateBookingStatus = useCallback((bookingId: string, status: Booking['status'], cancellationReason?: string) => {
     let mergedRemarks: string | undefined;
@@ -539,6 +685,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       currentUser,
       isLoading,
       loadError,
+      lastDriverAssignedId,
       reload,
       login,
       logout,

@@ -74,8 +74,12 @@ const AdminDashboard: React.FC = () => {
 
   const activeBookings = useMemo(() => {
     return bookings
-      .filter(b => b.status === 'Pending' || b.status === 'Assigned')
+      .filter(b => b.status === 'Pending' || b.status === 'Assigned' || b.status === 'Confirmed' || b.status === 'Conflict')
       .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
+  }, [bookings]);
+
+  const conflictCount = useMemo(() => {
+    return bookings.filter(b => b.status === 'Conflict').length;
   }, [bookings]);
 
   const filteredBookings = useMemo(() => {
@@ -227,12 +231,31 @@ const AdminDashboard: React.FC = () => {
         </button>
       </div>
 
+      {/* Conflict Alert Banner for Admin */}
+      {conflictCount > 0 && (
+        <div className="mb-6 p-4 bg-rose-50 border border-rose-200 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-start sm:items-center space-x-3">
+            <span className="text-2xl">⚠️</span>
+            <div>
+              <p className="font-bold text-rose-900">Perhatian Admin Ain: {conflictCount} Tempahan Berstatus KONFLIK</p>
+              <p className="text-sm text-rose-700">Terdapat tempahan yang bertembung jadual, cuti, atau waktu rehat yang memerlukan penetapan pemandu secara manual.</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setFilters(prev => ({ ...prev, status: prev.status === 'Conflict' ? '' : 'Conflict' }))}
+            className="text-xs bg-rose-600 hover:bg-rose-700 text-white font-semibold py-1.5 px-3 rounded-md shadow-sm transition whitespace-nowrap"
+          >
+            {filters.status === 'Conflict' ? 'Papar Semua' : 'Tapis Tempahan Konflik'}
+          </button>
+        </div>
+      )}
+
       <FilterControls
         filters={filters}
         onFilterChange={setFilters}
         drivers={drivers}
         vehicles={vehicles}
-        statuses={['Pending', 'Assigned']}
+        statuses={['Confirmed', 'Conflict', 'Pending', 'Assigned']}
       />
 
       {/* Search Bar */}

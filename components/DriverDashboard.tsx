@@ -20,7 +20,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
 
   const assignedBookings = useMemo(() => {
     return bookings
-      .filter(b => b.driverId === driver.id && b.status === 'Assigned')
+      .filter(b => b.driverId === driver.id && (b.status === 'Assigned' || b.status === 'Confirmed'))
       .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
   }, [bookings, driver.id]);
 
