@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
+import { parseAsLocal } from '../utils';
 import BookingForm from './BookingForm';
 import BookingCard from './BookingCard';
 import FilterControls from './FilterControls';
@@ -89,7 +90,7 @@ const BookingArchive: React.FC = () => {
     endOfMonth.setHours(23,59,59,999);
 
     return archivedBookings.filter(booking => {
-      const bookingDate = new Date(booking.dateTime);
+      const bookingDate = parseAsLocal(booking.dateTime);
       
       let dateMatch = true;
       if (filters.dateFilter === 'today') {

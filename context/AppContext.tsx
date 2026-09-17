@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode, useCallback, useRef, useEffect } from 'react';
 import type { Booking, FuelLog, OdometerLog, User, Vehicle, BookingHistory, CurrentUser, IssueLog, DriverSchedule } from '../types';
 import { storageService } from '../services/storage';
+import { parseAsLocal } from '../utils';
 import { evaluateBookingAssignment, normalizeDate, normalizeTime, getDriverCalendarColor, type AutoAssignResult } from '../services/bookingEngine';
 
 interface AppContextType {
@@ -207,7 +208,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const recurrenceEndDate = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
       recurrenceEndDate.setHours(23, 59, 59, 999);
 
-      const startDate = new Date(bookingData.dateTime);
+      const startDate = parseAsLocal(bookingData.dateTime);
       const newBookings: Booking[] = [];
       const recurrenceId = `recur-${Date.now()}`;
       let currentDate = new Date(startDate);
@@ -215,7 +216,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       let primaryResult: AutoAssignResult | null = null;
 
       while (currentDate <= recurrenceEndDate) {
-        const finishDateTime = bookingData.finishDateTime ? new Date(bookingData.finishDateTime) : null;
+        const finishDateTime = bookingData.finishDateTime ? parseAsLocal(bookingData.finishDateTime) : null;
         let currentFinishDateTime: Date | undefined;
         if (finishDateTime) {
           const duration = finishDateTime.getTime() - startDate.getTime();

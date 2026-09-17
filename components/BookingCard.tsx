@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import type { Booking, User, Vehicle, PassengerCategory } from '../types';
 import { CalendarIcon, ClockIcon, LocationMarkerIcon, UserGroupIcon, CheckCircleIcon, XCircleIcon, TruckIcon, EditIcon, ArrowUpCircleIcon, PaperClipIcon, RewindIcon, TrashIcon, InformationCircleIcon, UserCircleIcon, RepeatIcon, RouteIcon } from './icons/Icons';
 import { useAppContext } from '../context/AppContext';
+import { parseAsLocal } from '../utils';
 
 interface BookingCardProps {
   booking: Booking;
@@ -80,9 +81,9 @@ const BookingCard: React.FC<BookingCardProps> = ({
     onSelect?.(booking.id);
   };
 
-  const formattedDate = new Date(booking.dateTime).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-  const formattedTime = new Date(booking.dateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-  const formattedFinishTime = booking.finishDateTime ? new Date(booking.finishDateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : null;
+  const formattedDate = parseAsLocal(booking.dateTime).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  const formattedTime = parseAsLocal(booking.dateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  const formattedFinishTime = booking.finishDateTime ? parseAsLocal(booking.finishDateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : null;
 
   const totalPassengers = booking.passengers.reduce((sum, p) => sum + p.count, 0);
   const passengerBreakdown = booking.passengers

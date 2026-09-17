@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useAppContext } from '../context/AppContext';
+import { parseAsLocal } from '../utils';
 // FIX: The type 'Driver' does not exist; 'User' is the correct type for driver data.
 import type { Booking, User, Vehicle } from '../types';
 import { CalendarIcon, ClockIcon, LocationMarkerIcon, UserGroupIcon, TruckIcon, XIcon, ArrowUpCircleIcon } from './icons/Icons';
@@ -69,13 +70,13 @@ const BookingDetailModal: React.FC<{ booking: Booking | null; onClose: () => voi
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
              <div className="flex items-center space-x-2">
                 <CalendarIcon className="h-5 w-5 text-gray-400" />
-                <span>{new Date(booking.dateTime).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                <span>{parseAsLocal(booking.dateTime).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
              </div>
              <div className="flex items-center space-x-2">
                 <ClockIcon className="h-5 w-5 text-gray-400" />
                 <span>
-                    {new Date(booking.dateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
-                    {booking.finishDateTime && ` - ${new Date(booking.finishDateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`}
+                    {parseAsLocal(booking.dateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                    {booking.finishDateTime && ` - ${parseAsLocal(booking.finishDateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`}
                 </span>
              </div>
              <div className="flex items-start space-x-2">
@@ -145,7 +146,7 @@ const CalendarView: React.FC = () => {
     const map = new Map<string, Booking[]>();
     bookings.forEach(booking => {
         if(booking.status === 'Cancelled') return;
-        const dateKey = new Date(booking.dateTime).toDateString();
+        const dateKey = parseAsLocal(booking.dateTime).toDateString();
         if (!map.has(dateKey)) {
             map.set(dateKey, []);
         }
@@ -230,7 +231,7 @@ const CalendarView: React.FC = () => {
                         title={booking.calendarEventTitle || `${booking.destination} (${dName})`}
                       >
                         <p className="font-semibold flex items-center justify-between">
-                          <span>{new Date(booking.dateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</span>
+                          <span>{parseAsLocal(booking.dateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</span>
                           {isConflict && <span className="text-xs font-bold text-rose-700">⚠️</span>}
                         </p>
                         <p className="font-medium truncate">{booking.destination}</p>

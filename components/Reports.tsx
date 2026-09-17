@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
+import { parseAsLocal } from '../utils';
 import type { Booking, FuelLog, User, Vehicle, OdometerLog } from '../types';
 import { PaperClipIcon, EditIcon, TrashIcon, XIcon, TruckIcon, RouteIcon, FuelIcon, PrinterIcon, DocumentDownloadIcon, GaugeIcon, UserCircleIcon } from './icons/Icons';
 import OdometerLogEditForm from './OdometerLogEditForm';
@@ -295,7 +296,7 @@ const getDriverNameOdo = (id: string) => users.find(u => u.id === id)?.name || '
         const vehicle = vehicles.find(v => v.id === booking.vehicleId);
         const driver = users.find(u => u.id === booking.driverId);
         const bookingData = [
-            new Date(booking.dateTime).toLocaleDateString('en-GB'),
+            parseAsLocal(booking.dateTime).toLocaleDateString('en-GB'),
             vehicle?.plateNumber || 'N/A',
             driver?.name || 'N/A',
             booking.destination,
@@ -506,7 +507,7 @@ const getDriverNameOdo = (id: string) => users.find(u => u.id === id)?.name || '
     // 1. Calculate trip counts from all completed bookings
     const completedBookings = bookings.filter(b => b.status === 'Completed');
     for (const booking of completedBookings) {
-        const month = new Date(booking.dateTime).toLocaleString('default', { month: 'long', year: 'numeric' });
+        const month = parseAsLocal(booking.dateTime).toLocaleString('default', { month: 'long', year: 'numeric' });
         const vehicleId = booking.vehicleId;
         if (!vehicleId) continue;
         if (!summary[month]) summary[month] = {};
@@ -786,7 +787,7 @@ const getDriverNameOdo = (id: string) => users.find(u => u.id === id)?.name || '
                                 const vehicle = vehicles.find(v => v.id === booking.vehicleId);
                                 return (
                                     <tr key={booking.id}>
-                                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-700">{new Date(booking.dateTime).toLocaleDateString('en-GB')}</td>
+                                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-700">{parseAsLocal(booking.dateTime).toLocaleDateString('en-GB')}</td>
                                         <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-700">{vehicle?.plateNumber || 'N/A'}</td>
                                         <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-700">{getDriverName(booking.driverId)}</td>
                                         <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-800">{booking.destination}</td>
