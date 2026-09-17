@@ -77,7 +77,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const hasLoadedOnceRef = useRef(false);
 
-  // ---- Initial load (dan reload) dari Google Sheet API ----
+  // ---- Initial load (dan reload) dari Supabase ----
   useEffect(() => {
     let cancelled = false;
     // Full-screen spinner hanya untuk load PERTAMA. Refresh latar belakang

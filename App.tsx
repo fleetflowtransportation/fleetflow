@@ -22,7 +22,7 @@ const App: React.FC = () => {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin h-10 w-10 border-4 border-gray-300 border-t-gray-800 rounded-full mx-auto mb-4"></div>
-          <p className="text-gray-600">Memuatkan data dari Google Sheet...</p>
+          <p className="text-gray-600">Memuatkan data dari pangkalan data...</p>
         </div>
       </div>
     );
