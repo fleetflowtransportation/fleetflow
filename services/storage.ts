@@ -166,6 +166,8 @@ const toDbOdometerLog = (o: Partial<OdometerLog>) => ({
   ...(o.startOdometer !== undefined && { start_odometer: o.startOdometer }),
   ...(o.distance !== undefined && { distance: o.distance }),
   ...(o.remarks !== undefined && { remarks: o.remarks }),
+  ...(o.bookingId !== undefined && { booking_id: o.bookingId }),
+  ...(o.bookingIds !== undefined && { booking_ids: o.bookingIds }),
 });
 
 const fromDbOdometerLog = (row: any): OdometerLog => ({
@@ -180,6 +182,8 @@ const fromDbOdometerLog = (row: any): OdometerLog => ({
   startOdometer: row.start_odometer ? Number(row.start_odometer) : undefined,
   distance: row.distance ? Number(row.distance) : undefined,
   remarks: row.remarks || undefined,
+  bookingId: row.booking_id || undefined,
+  bookingIds: row.booking_ids || undefined,
 });
 
 // Helper: Convert IssueLog TS to DB

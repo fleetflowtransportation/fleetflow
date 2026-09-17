@@ -579,7 +579,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         alert('Gagal simpan odometer log: ' + err.message);
         setOdometerLogs(prev => prev.filter(l => l.id !== newLog.id));
       });
-  }, []);
+
+    // Sekiranya ada tempahan yang dipautkan, kemaskini maklumat odometer & status tempahan tersebut kepada Completed
+    if (logData.bookingId) {
+      updateBooking(logData.bookingId, {
+        startOdometer: logData.startOdometer,
+        endOdometer: logData.odometer,
+        distance: logData.distance,
+        status: 'Completed'
+      });
+    }
+
+    if (logData.bookingIds && logData.bookingIds.length > 0) {
+      logData.bookingIds.forEach(id => {
+        updateBooking(id, {
+          startOdometer: logData.startOdometer,
+          endOdometer: logData.odometer,
+          distance: logData.distance,
+          status: 'Completed'
+        });
+      });
+    }
+  }, [updateBooking]);
 
   const updateOdometerLog = useCallback((logId: string, updatedData: Partial<Omit<OdometerLog, 'id'>>) => {
     setOdometerLogs(prev => prev.map(log => (log.id === logId ? { ...log, ...updatedData } : log))

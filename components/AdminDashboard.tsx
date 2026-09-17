@@ -1,365 +1,331 @@
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { parseAsLocal } from '../utils';
+import { 
+  FuelIcon, 
+  GaugeIcon, 
+  TruckIcon, 
+  CheckCircleIcon, 
+  ClockIcon, 
+  UserGroupIcon, 
+  ExclamationIcon, 
+  PlusIcon,
+  RouteIcon
+} from './icons/Icons';
 import BookingForm from './BookingForm';
-import BookingCard from './BookingCard';
-import FilterControls from './FilterControls';
-import { PlusIcon, CheckCircleIcon, XCircleIcon, XIcon, InformationCircleIcon, SearchIcon } from './icons/Icons';
-import type { Booking, User } from '../types';
-
-// --- Confirmation Modal Component ---
-interface ConfirmationModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  title: string;
-  message: string;
-  confirmText?: string;
-  confirmColor?: string;
-}
-
-const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, onClose, onConfirm, title, message, confirmText = 'Confirm', confirmColor = 'bg-indigo-600 hover:bg-indigo-700' }) => {
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4" aria-modal="true" role="dialog">
-      <div className="bg-white rounded-lg shadow-2xl w-full max-w-md flex flex-col" role="document">
-        <div className="flex justify-between items-center p-4 border-b">
-          <h2 className="text-xl font-bold text-gray-800">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600" aria-label="Close"><XIcon className="h-6 w-6" /></button>
-        </div>
-        <div className="p-6">
-          <div className="flex items-start space-x-3">
-            <InformationCircleIcon className="h-6 w-6 text-yellow-500 flex-shrink-0" />
-            <p className="text-gray-700">{message}</p>
-          </div>
-        </div>
-        <div className="p-4 bg-gray-50 flex justify-end space-x-3 rounded-b-lg">
-          <button type="button" onClick={onClose} className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
-          <button 
-            type="button" 
-            onClick={onConfirm}
-            className={`${confirmColor} text-white font-bold py-2 px-4 rounded-lg shadow-md`}
-          >
-            {confirmText}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 
 const AdminDashboard: React.FC = () => {
+  const { bookings, users, vehicles, fuelLogs, odometerLogs } = useAppContext();
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
-  const { bookings, users, vehicles, assignToBooking, updateBookingStatus } = useAppContext();
-  const [filters, setFilters] = useState({
-    status: '',
-    driverId: '',
-    vehicleId: '',
-    dateFilter: 'all',
-    startDate: '',
-    endDate: '',
-  });
-  const [searchQuery, setSearchQuery] = useState('');
 
+  // Filter out drivers
   const drivers = useMemo(() => users.filter(u => u.role === 'driver' || u.id === 'driver-aziz'), [users]);
-  const activeDrivers = useMemo(() => users.filter(u => (u.role === 'driver' || u.id === 'driver-aziz') && u.status === 'active'), [users]);
 
+  // Statistics calculation
+  const stats = useMemo(() => {
+    const active = bookings.filter(b => b.status === 'Pending' || b.status === 'Assigned' || b.status === 'Confirmed').length;
+    const completed = bookings.filter(b => b.status === 'Completed').length;
+    const conflicts = bookings.filter(b => b.status === 'Conflict').length;
+    const totalMileage = odometerLogs.reduce((sum, o) => sum + (o.distance || 0), 0);
+    const totalFuelCost = fuelLogs.reduce((sum, f) => sum + f.cost, 0);
+    const totalFuelLiters = fuelLogs.reduce((sum, f) => sum + f.liters, 0);
 
-  // New state for bulk actions
-  const [selectedBookings, setSelectedBookings] = useState<string[]>([]);
-  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-  const [bulkAction, setBulkAction] = useState<'complete' | 'cancel' | null>(null);
+    return { active, completed, conflicts, totalMileage, totalFuelCost, totalFuelLiters };
+  }, [bookings, fuelLogs, odometerLogs]);
 
-  const activeBookings = useMemo(() => {
-    return bookings
-      .filter(b => b.status === 'Pending' || b.status === 'Assigned' || b.status === 'Confirmed' || b.status === 'Conflict')
-      .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
-  }, [bookings]);
-
-  const conflictCount = useMemo(() => {
-    return bookings.filter(b => b.status === 'Conflict').length;
-  }, [bookings]);
-
-  const filteredBookings = useMemo(() => {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-    // Week starts on Monday
-    const dayOfWeek = today.getDay(); // 0 (Sun) to 6 (Sat)
-    const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // adjust when day is Sunday
-    const startOfWeek = new Date(today.getFullYear(), today.getMonth(), diff);
-    
-    const endOfWeek = new Date(startOfWeek);
-    endOfWeek.setDate(startOfWeek.getDate() + 6);
-    endOfWeek.setHours(23, 59, 59, 999);
-
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    endOfMonth.setHours(23,59,59,999);
-
-
-    return activeBookings.filter(booking => {
-      const bookingDate = parseAsLocal(booking.dateTime);
+  // Vehicle Statistics Mapper
+  const vehicleStats = useMemo(() => {
+    return vehicles.map(v => {
+      // Find latest odometer log for this vehicle
+      const vOdoLogs = odometerLogs.filter(log => log.vehicleId === v.id);
+      const latestOdo = vOdoLogs.length > 0 ? Math.max(...vOdoLogs.map(log => log.odometer)) : 0;
       
-      let dateMatch = true;
-      if (filters.dateFilter === 'today') {
-        dateMatch = bookingDate.toDateString() === today.toDateString();
-      } else if (filters.dateFilter === 'week') {
-        dateMatch = bookingDate >= startOfWeek && bookingDate <= endOfWeek;
-      } else if (filters.dateFilter === 'month') {
-        dateMatch = bookingDate >= startOfMonth && bookingDate <= endOfMonth;
-      } else if (filters.dateFilter === 'custom' && filters.startDate && filters.endDate) {
-        const start = new Date(filters.startDate);
-        start.setHours(0, 0, 0, 0);
-        const end = new Date(filters.endDate);
-        end.setHours(23, 59, 59, 999);
-        dateMatch = bookingDate >= start && bookingDate <= end;
-      }
-      
-      const statusMatch = !filters.status || booking.status === filters.status;
-      const driverMatch = !filters.driverId || booking.driverId === filters.driverId;
-      const vehicleMatch = !filters.vehicleId || booking.vehicleId === filters.vehicleId;
+      // Calculate total mileage from logs
+      const mileage = vOdoLogs.reduce((sum, log) => sum + (log.distance || 0), 0);
 
-      const searchLower = searchQuery.toLowerCase();
-      const searchMatch = !searchQuery || 
-        (booking.destination || '').toLowerCase().includes(searchLower) ||
-        (booking.purpose || '').toLowerCase().includes(searchLower) ||
-        (booking.requesterName || '').toLowerCase().includes(searchLower) ||
-        (booking.escort || '').toLowerCase().includes(searchLower);
+      // Calculate fuel cost and liters
+      const vFuelLogs = fuelLogs.filter(log => log.vehicleId === v.id);
+      const fuelCost = vFuelLogs.reduce((sum, log) => sum + log.cost, 0);
+      const fuelLiters = vFuelLogs.reduce((sum, log) => sum + log.liters, 0);
 
-      return dateMatch && statusMatch && driverMatch && vehicleMatch && searchMatch;
+      // Fuel economy: KM / L
+      const economy = fuelLiters > 0 && mileage > 0 ? (mileage / fuelLiters).toFixed(1) : null;
+      // Cost per KM: RM / KM
+      const costPerKm = mileage > 0 && fuelCost > 0 ? (fuelCost / mileage).toFixed(2) : null;
+
+      return {
+        ...v,
+        latestOdo,
+        mileage,
+        fuelCost,
+        fuelLiters,
+        economy,
+        costPerKm
+      };
     });
-  }, [activeBookings, filters, searchQuery]);
+  }, [vehicles, odometerLogs, fuelLogs]);
+
+  // Driver workload statistics
+  const driverStats = useMemo(() => {
+    return drivers.map(d => {
+      const dBookings = bookings.filter(b => b.driverId === d.id);
+      const completed = dBookings.filter(b => b.status === 'Completed').length;
+      const assigned = dBookings.filter(b => b.status === 'Assigned' || b.status === 'Confirmed').length;
+      
+      const dOdoLogs = odometerLogs.filter(log => log.driverId === d.id);
+      const mileage = dOdoLogs.reduce((sum, log) => sum + (log.distance || 0), 0);
+
+      return {
+        ...d,
+        completed,
+        assigned,
+        mileage
+      };
+    });
+  }, [drivers, bookings, odometerLogs]);
+
+  const recentOdoLogs = useMemo(() => {
+    return odometerLogs.slice(0, 5);
+  }, [odometerLogs]);
+
+  const recentFuelLogs = useMemo(() => {
+    return fuelLogs.slice(0, 5);
+  }, [fuelLogs]);
 
   const handleCreateBooking = () => {
-    setEditingBooking(null);
     setIsFormOpen(true);
   };
-
-  const handleEditBooking = (booking: Booking) => {
-    setEditingBooking(booking);
-    setIsFormOpen(true);
-  };
-
-  const handleCloseForm = () => {
-    setIsFormOpen(false);
-    setEditingBooking(null);
-  };
-
-  // Handlers for selection
-  const handleToggleSelection = (bookingId: string) => {
-    setSelectedBookings(prev =>
-      prev.includes(bookingId)
-        ? prev.filter(id => id !== bookingId)
-        : [...prev, bookingId]
-    );
-  };
-
-  const handleToggleSelectAll = () => {
-    const allFilteredIds = filteredBookings.map(b => b.id);
-    const allVisibleSelected = allFilteredIds.length > 0 && allFilteredIds.every(id => selectedBookings.includes(id));
-
-    if (allVisibleSelected) {
-      setSelectedBookings(prev => prev.filter(id => !allFilteredIds.includes(id)));
-    } else {
-      setSelectedBookings(prev => [...new Set([...prev, ...allFilteredIds])]);
-    }
-  };
-
-  // Handlers for bulk actions
-  const handleBulkActionRequest = (action: 'complete' | 'cancel') => {
-    if (selectedBookings.length > 0) {
-      setBulkAction(action);
-      setIsConfirmModalOpen(true);
-    }
-  };
-
-  const handleConfirmBulkAction = () => {
-    if (bulkAction && selectedBookings.length > 0) {
-      const newStatus = bulkAction === 'complete' ? 'Completed' : 'Cancelled';
-      selectedBookings.forEach(bookingId => {
-        updateBookingStatus(bookingId, newStatus);
-      });
-      setSelectedBookings([]);
-    }
-    setIsConfirmModalOpen(false);
-    setBulkAction(null);
-  };
-
-  const handleCloseModal = () => {
-    setIsConfirmModalOpen(false);
-    setBulkAction(null);
-  };
-  
-  const allVisibleSelected = useMemo(() => 
-    filteredBookings.length > 0 && filteredBookings.every(b => selectedBookings.includes(b.id)),
-    [filteredBookings, selectedBookings]
-  );
-  
-  const modalContent = useMemo(() => {
-    if (!bulkAction) return { title: '', message: '', confirmText: '', confirmColor: '' };
-    const count = selectedBookings.length;
-    if (bulkAction === 'complete') {
-        return {
-            title: 'Confirm Completion',
-            message: `Are you sure you want to mark ${count} booking(s) as completed?`,
-            confirmText: 'Complete',
-            confirmColor: 'bg-green-600 hover:bg-green-700'
-        };
-    }
-    return {
-        title: 'Confirm Cancellation',
-        message: `Are you sure you want to cancel ${count} booking(s)?`,
-        confirmText: 'Cancel Bookings',
-        confirmColor: 'bg-red-600 hover:bg-red-700'
-    };
-  }, [bulkAction, selectedBookings.length]);
-
 
   return (
-    <div className="max-w-7xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Admin Dashboard</h2>
+    <div className="max-w-7xl mx-auto space-y-6">
+      
+      {/* HEADER SECTION */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <div>
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">Fleet Flow Analytics</h2>
+          <p className="text-xs sm:text-sm text-gray-500 font-medium mt-1">Sistem Pemantauan Prestasi, Penggunaan Bahan Api & Rekod Odometer Van</p>
+        </div>
         <button
           onClick={handleCreateBooking}
-          className="flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105"
+          className="flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-md transition duration-200"
         >
           <PlusIcon className="h-5 w-5 mr-2" />
-          New Booking
+          Tambah Tempahan Baru
         </button>
       </div>
 
-      {/* Conflict Alert Banner for Admin */}
-      {conflictCount > 0 && (
-        <div className="mb-6 p-4 bg-rose-50 border border-rose-200 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      {/* CONFLICT WARNING BANNER */}
+      {stats.conflicts > 0 && (
+        <div className="p-4 bg-rose-50 border-2 border-rose-100 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
           <div className="flex items-start sm:items-center space-x-3">
-            <span className="text-2xl">⚠️</span>
+            <span className="text-2xl flex-shrink-0">⚠️</span>
             <div>
-              <p className="font-bold text-rose-900">Perhatian Admin Ain: {conflictCount} Tempahan Berstatus KONFLIK</p>
-              <p className="text-sm text-rose-700">Terdapat tempahan yang bertembung jadual, cuti, atau waktu rehat yang memerlukan penetapan pemandu secara manual.</p>
+              <p className="font-extrabold text-rose-900">Perhatian: {stats.conflicts} Tempahan Berstatus KONFLIK</p>
+              <p className="text-xs text-rose-700 font-medium">Terdapat pertembungan jadual pemandu atau waktu rehat yang memerlukan tindakan manual.</p>
             </div>
           </div>
-          <button
-            onClick={() => setFilters(prev => ({ ...prev, status: prev.status === 'Conflict' ? '' : 'Conflict' }))}
-            className="text-xs bg-rose-600 hover:bg-rose-700 text-white font-semibold py-1.5 px-3 rounded-md shadow-sm transition whitespace-nowrap"
-          >
-            {filters.status === 'Conflict' ? 'Papar Semua' : 'Tapis Tempahan Konflik'}
-          </button>
+          <p className="text-xs font-bold text-rose-800 bg-rose-100/60 px-3 py-1.5 rounded-xl border border-rose-200">
+            Sila semak di menu "Calendar"
+          </p>
         </div>
       )}
 
-      <FilterControls
-        filters={filters}
-        onFilterChange={setFilters}
-        drivers={drivers}
-        vehicles={vehicles}
-        statuses={['Confirmed', 'Conflict', 'Pending', 'Assigned']}
-      />
+      {/* HERO STATS KPI CARDS */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        
+        {/* Card 1 */}
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center space-x-4">
+          <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+            <ClockIcon className="h-6 w-6" />
+          </div>
+          <div>
+            <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Perjalanan Aktif</p>
+            <h4 className="text-xl sm:text-2xl font-extrabold text-gray-900 mt-0.5">{stats.active} <span className="text-xs font-medium text-gray-400">trip</span></h4>
+          </div>
+        </div>
 
-      {/* Search Bar */}
-      <div className="mt-4">
-        <label htmlFor="search-bookings" className="sr-only">Search Bookings</label>
-        <div className="relative rounded-md shadow-sm">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <SearchIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
-            </div>
-            <input
-                type="search"
-                name="search-bookings"
-                id="search-bookings"
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder="Search by destination, purpose, requester, or escort..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-            />
+        {/* Card 2 */}
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center space-x-4">
+          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+            <CheckCircleIcon className="h-6 w-6" />
+          </div>
+          <div>
+            <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Perjalanan Selesai</p>
+            <h4 className="text-xl sm:text-2xl font-extrabold text-gray-900 mt-0.5">{stats.completed} <span className="text-xs font-medium text-gray-400">trip</span></h4>
+          </div>
+        </div>
+
+        {/* Card 3 */}
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center space-x-4">
+          <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+            <GaugeIcon className="h-6 w-6" />
+          </div>
+          <div>
+            <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Jumlah Mileage</p>
+            <h4 className="text-xl sm:text-2xl font-extrabold text-gray-900 mt-0.5">{stats.totalMileage.toLocaleString()} <span className="text-xs font-medium text-gray-400">km</span></h4>
+          </div>
+        </div>
+
+        {/* Card 4 */}
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center space-x-4">
+          <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
+            <FuelIcon className="h-6 w-6" />
+          </div>
+          <div>
+            <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Belanja Bahan Api</p>
+            <h4 className="text-xl sm:text-2xl font-extrabold text-gray-900 mt-0.5">RM {stats.totalFuelCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h4>
+          </div>
+        </div>
+
+      </div>
+
+      {/* VEHICLE FLEET ANALYTICS TABLE */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+          <h3 className="font-extrabold text-gray-800 text-sm sm:text-base flex items-center">
+            <TruckIcon className="h-5 w-5 mr-2 text-indigo-600" />
+            Prestasi & Penggunaan Mengikut Kenderaan (Van)
+          </h3>
+          <span className="text-xs font-semibold text-gray-400">Analisis Odometer & Minyak</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
+            <thead className="bg-gray-50 text-xs text-gray-400 uppercase font-bold tracking-wider">
+              <tr>
+                <th className="py-3 px-5">Nama Kenderaan</th>
+                <th className="py-3 px-4">No. Pendaftaran</th>
+                <th className="py-3 px-4 text-right">Odometer Semasa</th>
+                <th className="py-3 px-4 text-right">Jumlah Jarak (KM)</th>
+                <th className="py-3 px-4 text-right">Bahan Api (L)</th>
+                <th className="py-3 px-4 text-right">Jumlah Kos</th>
+                <th className="py-3 px-4 text-right text-indigo-600 font-bold">Kecekapan (KM/L)</th>
+                <th className="py-3 px-4 text-right text-indigo-600 font-bold">Kos Per KM (RM)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-150 text-gray-700">
+              {vehicleStats.map(v => (
+                <tr key={v.id} className="hover:bg-gray-50/60 transition">
+                  <td className="py-3.5 px-5 font-bold text-gray-900">{v.name}</td>
+                  <td className="py-3.5 px-4"><span className="bg-gray-100 text-gray-800 font-mono text-xs font-bold px-2.5 py-1 rounded-md border">{v.plateNumber}</span></td>
+                  <td className="py-3.5 px-4 text-right font-semibold">{v.latestOdo > 0 ? `${v.latestOdo.toLocaleString()} km` : 'Tiada Rekod'}</td>
+                  <td className="py-3.5 px-4 text-right font-medium text-blue-600">{v.mileage.toLocaleString()} km</td>
+                  <td className="py-3.5 px-4 text-right">{v.fuelLiters > 0 ? `${v.fuelLiters.toLocaleString()} L` : '0 L'}</td>
+                  <td className="py-3.5 px-4 text-right font-semibold">RM {v.fuelCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td className="py-3.5 px-4 text-right font-bold text-emerald-600">
+                    {v.economy ? `${v.economy} km/L` : <span className="text-gray-300 font-medium text-xs">Kurang Data</span>}
+                  </td>
+                  <td className="py-3.5 px-4 text-right font-bold text-indigo-600">
+                    {v.costPerKm ? `RM ${v.costPerKm}/km` : <span className="text-gray-300 font-medium text-xs">Kurang Data</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* Bulk Actions UI */}
-      <div className="mt-4 flex items-center gap-4">
-        <div className="flex items-center">
-            <input
-                id="select-all-dashboard-checkbox"
-                type="checkbox"
-                className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-                checked={allVisibleSelected}
-                onChange={handleToggleSelectAll}
-                disabled={filteredBookings.length === 0}
-                aria-label="Select all visible bookings"
-            />
-            <label htmlFor="select-all-dashboard-checkbox" className="ml-2 text-sm text-gray-700">
-                Select All
-            </label>
-        </div>
-
-        {selectedBookings.length > 0 && (
-            <div className="flex-grow flex items-center justify-between p-2.5 bg-indigo-50 border border-indigo-200 rounded-lg">
-                <p className="text-sm font-medium text-indigo-800">
-                    {selectedBookings.length} booking(s) selected.
-                </p>
-                <div className="flex items-center space-x-2">
-                    <button
-                        onClick={() => handleBulkActionRequest('complete')}
-                        className="flex items-center bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 px-3 rounded-md text-sm transition-colors"
-                    >
-                        <CheckCircleIcon className="h-4 w-4 mr-1.5" />
-                        Complete
-                    </button>
-                     <button
-                        onClick={() => handleBulkActionRequest('cancel')}
-                        className="flex items-center bg-red-600 hover:bg-red-700 text-white font-bold py-1.5 px-3 rounded-md text-sm transition-colors"
-                    >
-                        <XCircleIcon className="h-4 w-4 mr-1.5" />
-                        Cancel
-                    </button>
+      {/* DRIVER ACTIVITY & WORKLOAD METRICS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        {/* DRIVERS SUMMARY */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
+          <div className="p-4 border-b border-gray-100 flex items-center bg-gray-50/50">
+            <UserGroupIcon className="h-5 w-5 mr-2 text-indigo-600" />
+            <h3 className="font-extrabold text-gray-800 text-sm">Prestasi & Tugasan Pemandu</h3>
+          </div>
+          <div className="p-4 flex-grow divide-y divide-gray-100">
+            {driverStats.map(d => (
+              <div key={d.id} className="py-3 flex items-center justify-between">
+                <div>
+                  <p className="font-bold text-gray-900">{d.name}</p>
+                  <p className="text-xs text-gray-400 font-semibold uppercase">{d.phone || 'Tiada No. Telefon'}</p>
                 </div>
-            </div>
-        )}
-      </div>
+                <div className="text-right space-y-1">
+                  <div className="flex items-center space-x-1 justify-end">
+                    <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full">{d.completed} Selesai</span>
+                    {d.assigned > 0 && (
+                      <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full">{d.assigned} Aktif</span>
+                    )}
+                  </div>
+                  <p className="text-xs font-bold text-gray-500">Jumlah Jarak: <strong className="text-gray-800">{d.mileage.toLocaleString()} km</strong></p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
 
-      <ConfirmationModal
-        isOpen={isConfirmModalOpen}
-        onClose={handleCloseModal}
-        onConfirm={handleConfirmBulkAction}
-        title={modalContent.title}
-        message={modalContent.message}
-        confirmText={modalContent.confirmText}
-        confirmColor={modalContent.confirmColor}
-      />
+        {/* RECENT ACTIVITY FEEDS (ODOMETER + FUEL LOGS) */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
+          <div className="p-4 border-b border-gray-100 flex items-center bg-gray-50/50 justify-between">
+            <span className="flex items-center font-extrabold text-gray-800 text-sm">
+              <RouteIcon className="h-5 w-5 mr-2 text-indigo-600" />
+              Laporan Terkini Pemandu (Live Feed)
+            </span>
+          </div>
+          <div className="p-4 flex-grow overflow-y-auto max-h-[320px] space-y-3.5">
+            
+            {/* ODOMETER RECENT FEED */}
+            {recentOdoLogs.length > 0 ? (
+              recentOdoLogs.map((log) => {
+                const driverName = users.find(u => u.id === log.driverId)?.name || 'Driver';
+                const vehicleName = vehicles.find(v => v.id === log.vehicleId)?.name || 'Van';
+
+                return (
+                  <div key={log.id} className="p-3 bg-indigo-50/40 rounded-xl border border-indigo-50 flex items-start justify-between text-xs">
+                    <div className="space-y-1">
+                      <p className="font-bold text-indigo-950 flex items-center">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 mr-2"></span>
+                        {driverName} ({vehicleName})
+                      </p>
+                      <p className="text-gray-600 font-medium">Laluan: <strong className="text-gray-800">{log.fromLocation} → {log.toLocation}</strong></p>
+                      <p className="text-gray-500 font-semibold">Tujuan: {log.purpose}</p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <span className="block font-extrabold text-indigo-700 bg-indigo-100/80 px-2 py-0.5 rounded-lg text-[11px]">+{log.distance} KM</span>
+                      <span className="block text-[10px] text-gray-400 mt-1 font-medium">Odo: {log.odometer.toLocaleString()} km</span>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="text-center py-6 text-gray-400 text-xs font-semibold">Tiada rekod perjalanan dihantar lagi.</div>
+            )}
+
+            {/* FUEL LOG RECENT FEED */}
+            {recentFuelLogs.length > 0 && (
+              <div className="pt-2 border-t border-dashed">
+                <span className="block text-[10px] uppercase font-extrabold text-gray-400 tracking-wider mb-2">Resit Bahan Api Terkini</span>
+                <div className="space-y-2">
+                  {recentFuelLogs.map(log => {
+                    const driverName = users.find(u => u.id === log.driverId)?.name || 'Driver';
+                    const vehicleName = vehicles.find(v => v.id === log.vehicleId)?.name || 'Van';
+
+                    return (
+                      <div key={log.id} className="p-2.5 bg-amber-50/40 rounded-xl border border-amber-50 flex items-center justify-between text-xs">
+                        <div>
+                          <p className="font-bold text-amber-950">{driverName} ({vehicleName})</p>
+                          <p className="text-gray-500 font-semibold">{log.liters} Liter @ RM {log.pricePerLiter}/L</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-lg text-[11px]">RM {log.cost.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+          </div>
+        </div>
+
+      </div>
 
       <BookingForm 
         isOpen={isFormOpen} 
-        onClose={handleCloseForm} 
-        bookingToEdit={editingBooking} 
+        onClose={() => setIsFormOpen(false)} 
       />
-      
-      <div className="mt-6 space-y-4">
-        {filteredBookings.length > 0 ? (
-          filteredBookings.map((booking: Booking) => (
-            <BookingCard 
-              key={booking.id} 
-              booking={booking} 
-              drivers={activeDrivers} 
-              vehicles={vehicles}
-              onAssign={assignToBooking}
-              onEdit={handleEditBooking}
-              isAdminView={true}
-              view="dashboard"
-              isSelectable={true}
-              isSelected={selectedBookings.includes(booking.id)}
-              onSelect={handleToggleSelection}
-            />
-          ))
-        ) : (
-          <div className="text-center py-12 bg-white rounded-lg shadow">
-            <p className="text-gray-500">{activeBookings.length > 0 ? "No bookings match the current filters." : "No active bookings found."}</p>
-            {activeBookings.length === 0 && <p className="text-gray-400 text-sm mt-1">Create a new booking to get started.</p>}
-          </div>
-        )}
-      </div>
+
     </div>
   );
 };

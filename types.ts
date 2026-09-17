@@ -98,6 +98,8 @@ export interface OdometerLog {
   startOdometer?: number; // Odometer Mula
   distance?: number; // Auto: odometer (Tamat) - startOdometer
   remarks?: string; // Catatan Tambahan
+  bookingId?: string; // ID tempahan yang diselesaikan
+  bookingIds?: string[]; // Senarai ID tempahan yang diselesaikan serentak
 }
 
 export interface IssueLog {
