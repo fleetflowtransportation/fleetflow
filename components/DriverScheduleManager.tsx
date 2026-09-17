@@ -71,7 +71,7 @@ type ModalState =
   | null;
 
 const DriverScheduleManager: React.FC = () => {
-  const { users, driverSchedules, addDriverSchedule, updateDriverSchedule, deleteDriverSchedule } = useAppContext();
+  const { users, driverSchedules, addDriverSchedule, updateDriverSchedule, deleteDriverSchedule, deleteDriverSchedulesBulk } = useAppContext();
 
   const drivers = useMemo(
     () => users.filter(u => (u.role === 'driver' || u.id === 'driver-aziz') && u.status === 'active'),
@@ -260,11 +260,36 @@ const DriverScheduleManager: React.FC = () => {
 
       {/* Floating bar bila bulk mode ada selection */}
       {bulkMode && selectedDates.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white rounded-full shadow-lg px-5 py-3 flex items-center gap-4 z-40">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white rounded-full shadow-lg px-5 py-3 flex items-center gap-4 z-40 animate-fadeIn">
           <span className="text-sm font-medium">{selectedDates.size} tarikh dipilih</span>
           <button onClick={openBulkAddModal} className="bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-semibold px-4 py-1.5 rounded-full transition">
             Tetapkan Shift
           </button>
+          
+          <button
+            type="button"
+            onClick={() => {
+              const selectedDatesArr = Array.from(selectedDates);
+              const schedIdsToDelete = driverSchedules
+                .filter(s => selectedDatesArr.includes(parseDateKeyLoose(s.Date)))
+                .map(s => s.id);
+                
+              if (schedIdsToDelete.length === 0) {
+                alert("Tiada jadual pemandu pada tarikh-tarikh yang dipilih.");
+                return;
+              }
+              
+              if (window.confirm(`Adakah anda pasti mahu memadamkan semua jadual pemandu (${schedIdsToDelete.length} jadual) pada tarikh-tarikh yang dipilih?`)) {
+                deleteDriverSchedulesBulk(schedIdsToDelete);
+                setSelectedDates(new Set());
+                setBulkMode(false);
+              }
+            }}
+            className="bg-red-600 hover:bg-red-500 text-white text-sm font-semibold px-4 py-1.5 rounded-full transition"
+          >
+            Padam Jadual Pukal
+          </button>
+
           <button onClick={() => setSelectedDates(new Set())} className="text-gray-300 hover:text-white text-sm">
             Kosongkan
           </button>

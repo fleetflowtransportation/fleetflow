@@ -36,6 +36,7 @@ interface AppContextType {
   addDriverSchedule: (sched: Omit<DriverSchedule, 'id'>) => void;
   updateDriverSchedule: (schedId: string, updatedData: Partial<Omit<DriverSchedule, 'id'>>) => void;
   deleteDriverSchedule: (schedId: string) => void;
+  deleteDriverSchedulesBulk: (schedIds: string[]) => void;
   lastBookingChange: BookingHistory | null;
   undoLastBookingChange: () => void;
   addUser: (user: Omit<User, 'id'>) => void;
@@ -412,7 +413,42 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setBookings(prev => {
       const bookingToDelete = prev.find(b => b.id === bookingId);
       if (bookingToDelete?.attachmentUrl) {
-        URL.revokeObjectURL(bookingToDelete.attachmentUrl);
+        if (bookingToDelete.attachmentUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(bookingToDelete.attachmentUrl);
+        } else {
+          const driveUrl = import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL;
+          if (driveUrl) {
+            const url = bookingToDelete.attachmentUrl;
+            let fileId: string | null = null;
+            const dMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+            if (dMatch && dMatch[1]) fileId = dMatch[1];
+            const idMatch = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+            if (idMatch && idMatch[1]) fileId = idMatch[1];
+
+            if (fileId) {
+              console.log("Memadam lampiran Google Drive:", fileId);
+              fetch(driveUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'text/plain;charset=utf-8'
+                },
+                body: JSON.stringify({
+                  action: 'delete',
+                  fileId: fileId
+                })
+              }).then(res => res.json())
+                .then(resJson => {
+                  if (resJson.success) {
+                    console.log("Lampiran Google Drive berjaya dipadamkan.");
+                  } else {
+                    console.warn("Gagal memadam fail dari Google Drive:", resJson.error);
+                  }
+                }).catch(err => {
+                  console.error("Ralat komunikasi Google Drive:", err);
+                });
+            }
+          }
+        }
       }
       return prev.filter(b => b.id !== bookingId);
     });
@@ -622,6 +658,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   }, []);
 
+  const deleteDriverSchedulesBulk = useCallback((schedIds: string[]) => {
+    setDriverSchedules(prev => prev.filter(s => !schedIds.includes(s.id)));
+    storageService.deleteDriverSchedulesBulk(schedIds).catch(err => {
+      alert('Gagal padam jadual secara pukal: ' + err.message);
+    });
+  }, []);
+
   // ---- Users ----
   const addUser = useCallback((userData: Omit<User, 'id'>) => {
     const newUser: User = { ...userData, id: tempId(userData.role) };
@@ -737,6 +780,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addDriverSchedule,
       updateDriverSchedule,
       deleteDriverSchedule,
+      deleteDriverSchedulesBulk,
       lastBookingChange,
       undoLastBookingChange,
       addUser,

@@ -486,11 +486,24 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
 {`function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents);
+    
+    // Tindakan: Padam fail jika parameter action disediakan
+    if (data.action === 'delete') {
+      var fileId = data.fileId;
+      if (!fileId) throw new Error("ID fail tidak dibekalkan.");
+      var file = DriveApp.getFileById(fileId);
+      file.setTrashed(true); // Memindahkan fail ke Tong Sampah Google Drive
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        message: "Fail berjaya dipindahkan ke Tong Sampah."
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // Tindakan: Muat naik fail secara lalai
     var base64Data = data.base64;
     var fileName = data.fileName;
     var mimeType = data.mimeType;
     
-    // Nyahkod Base64 dan simpan ke folder spesifik yang ditetapkan
     var decoded = Utilities.base64Decode(base64Data);
     var blob = Utilities.newBlob(decoded, mimeType, fileName);
     
@@ -498,7 +511,6 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
     var folder = DriveApp.getFolderById(folderId);
     var file = folder.createFile(blob);
     
-    // Set agar sesiapa yang mempunyai pautan boleh melihat fail tersebut
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     
     return ContentService.createTextOutput(JSON.stringify({

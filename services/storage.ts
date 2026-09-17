@@ -237,8 +237,17 @@ export const storageService = {
   getUsers: async (): Promise<User[]> => {
     try {
       const { data, error } = await supabase.from('fleet_users').select('*').order('created_at', { ascending: true });
-      if (error || !data || data.length === 0) {
-        if (error) console.warn('[Supabase] getUsers fallback to defaults:', error.message);
+      if (error) {
+        console.warn('[Supabase] getUsers query error, falling back to defaults:', error.message);
+        return USERS;
+      }
+      if (!data || data.length === 0) {
+        console.log('[Supabase] Seeding initial users into fleet_users table...');
+        const dbRows = USERS.map(toDbUser);
+        const { error: insertError } = await supabase.from('fleet_users').insert(dbRows);
+        if (insertError) {
+          console.error('[Supabase] Failed to seed initial users:', insertError.message);
+        }
         return USERS;
       }
       return data.map(fromDbUser);
@@ -251,8 +260,17 @@ export const storageService = {
   getVehicles: async (): Promise<Vehicle[]> => {
     try {
       const { data, error } = await supabase.from('vehicles').select('*').order('created_at', { ascending: true });
-      if (error || !data || data.length === 0) {
-        if (error) console.warn('[Supabase] getVehicles fallback to defaults:', error.message);
+      if (error) {
+        console.warn('[Supabase] getVehicles query error, falling back to defaults:', error.message);
+        return VEHICLES;
+      }
+      if (!data || data.length === 0) {
+        console.log('[Supabase] Seeding initial vehicles into vehicles table...');
+        const dbRows = VEHICLES.map(toDbVehicle);
+        const { error: insertError } = await supabase.from('vehicles').insert(dbRows);
+        if (insertError) {
+          console.error('[Supabase] Failed to seed initial vehicles:', insertError.message);
+        }
         return VEHICLES;
       }
       return data.map(fromDbVehicle);
@@ -324,13 +342,14 @@ export const storageService = {
   getDriverSchedules: async (): Promise<DriverSchedule[]> => {
     try {
       const { data, error } = await supabase.from('driver_schedules').select('*').order('date', { ascending: true });
-      if (error || !data || data.length === 0) {
-        return INITIAL_DRIVER_SCHEDULES;
+      if (error) {
+        console.warn('[Supabase] getDriverSchedules query error:', error.message);
+        return [];
       }
-      return data.map(fromDbDriverSchedule);
+      return (data || []).map(fromDbDriverSchedule);
     } catch (err: any) {
       console.warn('[Supabase] getDriverSchedules exception:', err.message);
-      return INITIAL_DRIVER_SCHEDULES;
+      return [];
     }
   },
 
@@ -569,5 +588,14 @@ export const storageService = {
       console.error('[Supabase] deleteDriverSchedule exception:', err.message);
     }
     return { id };
+  },
+
+  deleteDriverSchedulesBulk: async (ids: string[]): Promise<void> => {
+    try {
+      const { error } = await supabase.from('driver_schedules').delete().in('id', ids);
+      if (error) console.error('[Supabase] deleteDriverSchedulesBulk error:', error.message);
+    } catch (err: any) {
+      console.error('[Supabase] deleteDriverSchedulesBulk exception:', err.message);
+    }
   },
 };
