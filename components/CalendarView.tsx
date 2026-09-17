@@ -230,7 +230,7 @@ const CalendarView: React.FC = () => {
                         title={booking.calendarEventTitle || `${booking.destination} (${dName})`}
                       >
                         <p className="font-semibold flex items-center justify-between">
-                          <span>{new Date(booking.dateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}</span>
+                          <span>{new Date(booking.dateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</span>
                           {isConflict && <span className="text-xs font-bold text-rose-700">⚠️</span>}
                         </p>
                         <p className="font-medium truncate">{booking.destination}</p>

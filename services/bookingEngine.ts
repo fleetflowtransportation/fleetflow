@@ -60,12 +60,21 @@ export const normalizeDate = (raw: string | Date | undefined): string => {
   if (raw instanceof Date) {
     return `${raw.getFullYear()}-${pad2(raw.getMonth() + 1)}-${pad2(raw.getDate())}`;
   }
-  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
-  const d = new Date(raw);
+  const rawStr = String(raw).trim();
+  // Check if it's yyyy-mm-dd
+  if (/^\d{4}-\d{2}-\d{2}/.test(rawStr)) {
+    return rawStr.slice(0, 10);
+  }
+  // Check if it's dd/mm/yyyy or d/m/yyyy
+  const dmyMatch = rawStr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (dmyMatch) {
+    return `${dmyMatch[3]}-${pad2(Number(dmyMatch[2]))}-${pad2(Number(dmyMatch[1]))}`;
+  }
+  const d = new Date(rawStr);
   if (!isNaN(d.getTime())) {
     return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
   }
-  return String(raw).slice(0, 10);
+  return rawStr.slice(0, 10);
 };
 
 export const normalizeTime = (raw: string | Date | undefined): string => {
@@ -84,6 +93,22 @@ export const normalizeTime = (raw: string | Date | undefined): string => {
     return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
   }
   return '00:00';
+};
+
+export const formatTime12H = (time24: string): string => {
+  if (!time24) return '';
+  const parts = time24.split(':');
+  if (parts.length >= 2) {
+    let h = Number(parts[0]);
+    const m = parts[1];
+    if (!isNaN(h)) {
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      h = h % 12;
+      if (h === 0) h = 12;
+      return `${h}:${m} ${ampm}`;
+    }
+  }
+  return time24;
 };
 
 // Check if two time intervals overlap on the same day: [startA, endA] and [startB, endB]
@@ -152,6 +177,9 @@ export function evaluateBookingAssignment({
     endTime = `${pad2(Math.min(h + 2, 23))}:${pad2(m)}`;
   }
 
+  const startTime12 = formatTime12H(startTime);
+  const endTime12 = formatTime12H(endTime);
+
   const dateObj = new Date(bookingDate + 'T' + startTime);
   const dayOfWeek = isNaN(dateObj.getTime()) ? new Date().getDay() : dateObj.getDay();
 
@@ -174,7 +202,7 @@ export function evaluateBookingAssignment({
   const startsDuringLunch = startTime >= lunchStart && startTime < lunchEnd;
 
   if (startsDuringLunch) {
-    const reason = `Waktu mula tempahan (${startTime}) bertindih dengan waktu rehat ${isFriday ? 'Jumaat' : 'kakitangan'} (${lunchStart} - ${lunchEnd}).`;
+    const reason = `Waktu mula tempahan (${startTime12}) bertindih dengan waktu rehat ${isFriday ? 'Jumaat' : 'kakitangan'} (${formatTime12H(lunchStart)} - ${formatTime12H(lunchEnd)}).`;
     return {
       status: 'Conflict',
       driverId: null,
@@ -188,12 +216,12 @@ export function evaluateBookingAssignment({
         requester: {
           to: requesterEmail,
           subject: `[CONFLICT] Tempahan Van FleetFlow: ${destination} (${bookingDate})`,
-          body: `Salam ${requesterName},\n\nTempahan anda ke ${destination} pada ${bookingDate} (${startTime} - ${endTime}) TIDAK DAPAT DISAHKAN kerana bertindih dengan waktu rehat rasmi (${lunchStart} - ${lunchEnd}).\n\nSila pilih masa sebelum ${lunchStart} atau selepas ${lunchEnd}, atau hubungi Admin (${adminAin.name} di ${adminAin.email}) untuk bantuan manual.\n\nTerima kasih,\nFleetFlow System`,
+          body: `Salam ${requesterName},\n\nTempahan anda ke ${destination} pada ${bookingDate} (${startTime12} - ${endTime12}) TIDAK DAPAT DISAHKAN kerana bertindih dengan waktu rehat rasmi (${formatTime12H(lunchStart)} - ${formatTime12H(lunchEnd)}).\n\nSila pilih masa sebelum ${formatTime12H(lunchStart)} atau selepas ${formatTime12H(lunchEnd)}, atau hubungi Admin (${adminAin.name} di ${adminAin.email}) untuk bantuan manual.\n\nTerima kasih,\nFleetFlow System`,
         },
         admin: {
           to: adminAin.email,
           subject: `[PERLU TINDAKAN MANUAL] Konflik Waktu Rehat: ${requesterName} - ${destination}`,
-          body: `Perhatian Admin,\n\nTempahan baru dari ${requesterName} (${department}) ke ${destination} pada ${bookingDate} (${startTime} - ${endTime}) telah ditandakan sebagai CONFLICT kerana masa mula berada dalam waktu rehat (${lunchStart} - ${lunchEnd}).\n\nSila semak di dashboard untuk tindakan lanjut.`,
+          body: `Perhatian Admin,\n\nTempahan baru dari ${requesterName} (${department}) ke ${destination} pada ${bookingDate} (${startTime12} - ${endTime12}) telah ditandakan sebagai CONFLICT kerana masa mula berada dalam waktu rehat (${formatTime12H(lunchStart)} - ${formatTime12H(lunchEnd)}).\n\nSila semak di dashboard untuk tindakan lanjut.`,
         },
       },
     };
@@ -226,7 +254,7 @@ export function evaluateBookingAssignment({
     });
 
     if (vehicleClash) {
-      const reason = `Kenderaan Perodua Alza telah ditempah oleh pemohon lain (${vehicleClash.requesterName}) pada slot masa ini (${startTime} - ${endTime}).`;
+      const reason = `Kenderaan Perodua Alza telah ditempah oleh pemohon lain (${vehicleClash.requesterName}) pada slot masa ini (${startTime12} - ${endTime12}).`;
       return {
         status: 'Conflict',
         driverId: null,
@@ -240,12 +268,12 @@ export function evaluateBookingAssignment({
           requester: {
             to: requesterEmail,
             subject: `[CONFLICT] Tempahan Self-Drive Alza: ${destination} (${bookingDate})`,
-            body: `Salam ${requesterName},\n\nTempahan Self-Drive anda ke ${destination} pada ${bookingDate} (${startTime} - ${endTime}) TIDAK DAPAT DISAHKAN kerana Perodua Alza telah ditempah pada slot ini.\n\nSila hubungi Admin (${adminAin.name} di ${adminAin.email}) untuk semakan kenderaan lain atau pertukaran masa.\n\nFleetFlow`,
+            body: `Salam ${requesterName},\n\nTempahan Self-Drive anda ke ${destination} pada ${bookingDate} (${startTime12} - ${endTime12}) TIDAK DAPAT DISAHKAN kerana Perodua Alza telah ditempah pada slot ini.\n\nSila hubungi Admin (${adminAin.name} di ${adminAin.email}) untuk semakan kenderaan lain atau pertukaran masa.\n\nFleetFlow`,
           },
           admin: {
             to: adminAin.email,
             subject: `[PERLU TINDAKAN MANUAL] Alza Clash: Self-Drive ${requesterName}`,
-            body: `Admin Ain,\n\nTempahan Self-Drive oleh ${requesterName} pada ${bookingDate} (${startTime} - ${endTime}) bertindih dengan tempahan Alza sedia ada.\nSila uruskan kenderaan alternatif jika ada.`,
+            body: `Admin Ain,\n\nTempahan Self-Drive oleh ${requesterName} pada ${bookingDate} (${startTime12} - ${endTime12}) bertindih dengan tempahan Alza sedia ada.\nSila uruskan kenderaan alternatif jika ada.`,
           },
         },
       };
@@ -266,7 +294,7 @@ export function evaluateBookingAssignment({
         requester: {
           to: requesterEmail,
           subject: `[CONFIRMED] Tempahan Self-Drive Disahkan: ${destination}`,
-          body: `Salam ${requesterName},\n\nTempahan Self-Drive anda BERJAYA DISAHKAN!\n\n📅 Tarikh: ${bookingDate}\n⏰ Masa: ${startTime} - ${endTime}\n📍 Lokasi Pickup: ${pickupPoint} ${address ? '(' + address + ')' : ''}\n🎯 Destinasi: ${destination}\n🚗 Kenderaan: ${alzaVehicle.name} (${alzaVehicle.plateNumber})\n👤 Servis: Self-Drive\n\nSila ambil kunci kenderaan di pejabat pentadbiran sebelum bertolak.\n\nFleetFlow`,
+          body: `Salam ${requesterName},\n\nTempahan Self-Drive anda BERJAYA DISAHKAN!\n\n📅 Tarikh: ${bookingDate}\n⏰ Masa: ${startTime12} - ${endTime12}\n📍 Lokasi Pickup: ${pickupPoint} ${address ? '(' + address + ')' : ''}\n🎯 Destinasi: ${destination}\n🚗 Kenderaan: ${alzaVehicle.name} (${alzaVehicle.plateNumber})\n👤 Servis: Self-Drive\n\nSila ambil kunci kenderaan di pejabat pentadbiran sebelum bertolak.\n\nFleetFlow`,
         },
       },
     };
@@ -365,7 +393,7 @@ export function evaluateBookingAssignment({
 
   // d. Kalau tiada satu pun driver available → CONFLICT ("semua driver ada booking lain")
   if (availableDrivers.length === 0) {
-    const reason = `Semua pemandu yang bertugas mempunyai tempahan lain pada slot masa ini (${startTime} - ${endTime}).`;
+    const reason = `Semua pemandu yang bertugas mempunyai tempahan lain pada slot masa ini (${startTime12} - ${endTime12}).`;
     return {
       status: 'Conflict',
       driverId: null,
@@ -379,12 +407,12 @@ export function evaluateBookingAssignment({
         requester: {
           to: requesterEmail,
           subject: `[CONFLICT] Semua Pemandu Sibuk: ${destination} (${bookingDate})`,
-          body: `Salam ${requesterName},\n\nSemua pemandu bertugas mempunyai jadual perjalanan lain pada slot ${startTime} - ${endTime} pada ${bookingDate}.\n\nPermohonan anda telah dihantar kepada Admin (${adminAin.name} di ${adminAin.email}) untuk penyelarasan manual.\n\nFleetFlow`,
+          body: `Salam ${requesterName},\n\nSemua pemandu bertugas mempunyai jadual perjalanan lain pada slot ${startTime12} - ${endTime12} pada ${bookingDate}.\n\nPermohonan anda telah dihantar kepada Admin (${adminAin.name} di ${adminAin.email}) untuk penyelarasan manual.\n\nFleetFlow`,
         },
         admin: {
           to: adminAin.email,
           subject: `[PERLU TINDAKAN MANUAL] Pertindihan Tempahan Pemandu: ${requesterName}`,
-          body: `Admin Ain,\n\nSemua pemandu bertugas pada ${bookingDate} (${startTime} - ${endTime}) sibuk dengan tempahan sedia ada. Sila semak jadual untuk membuat penyesuaian atau carpooling.`,
+          body: `Admin Ain,\n\nSemua pemandu bertugas pada ${bookingDate} (${startTime12} - ${endTime12}) sibuk dengan tempahan sedia ada. Sila semak jadual untuk membuat penyesuaian atau carpooling.`,
         },
       },
     };
@@ -447,7 +475,7 @@ export function evaluateBookingAssignment({
     : '';
 
   const adminNotes = isPreWorkingHour
-    ? `CONFIRMED (Pre-working-hour): Auto-assigned kepada ${chosen.driver.name} (Shift paling awal mula: ${chosen.shiftStart}). ${preWorkingWarning}`
+    ? `CONFIRMED (Pre-working-hour): Auto-assigned kepada ${chosen.driver.name} (Shift paling awal mula: ${formatTime12H(chosen.shiftStart)}). ${preWorkingWarning}`
     : `CONFIRMED: Auto-assigned kepada ${chosen.driver.name} melalui kaedah ${availableDrivers.length > 1 ? 'Round-Robin' : 'Pemandu Tunggal Berkelayakan'}. Kenderaan: ${freeVehicle.name} (${freeVehicle.plateNumber}).`;
 
   const totalPassengers = staffCount + kidsCount;
@@ -469,12 +497,12 @@ export function evaluateBookingAssignment({
       requester: {
         to: requesterEmail,
         subject: `[CONFIRMED] Tempahan Pengangkutan Disahkan: ${destination}`,
-        body: `Salam ${requesterName},\n\nTempahan pengangkutan anda telah BERJAYA DISAHKAN!\n\n📅 Tarikh: ${bookingDate}\n⏰ Masa: ${startTime} - ${endTime}\n📍 Lokasi Pickup: ${pickupPoint} ${address ? '(' + address + ')' : ''}\n🎯 Destinasi: ${destination}\n👥 Penumpang: ${totalPassengers} orang (Staff: ${staffCount}, Kanak-kanak: ${kidsCount})\n👤 Pemandu Ditugaskan: ${chosen.driver.name} (No Tel: ${chosen.driver.phone})\n🚐 Kenderaan: ${freeVehicle.name} (${freeVehicle.plateNumber})\n${remarks ? '📝 Nota: ' + remarks + '\n' : ''}\n${isPreWorkingHour ? '\n' + preWorkingWarning + '\n' : ''}\nEvent telah dimasukkan ke dalam Google Calendar YCK dan emel anda dijemput sebagai tetamu.\n\nFleetFlow`,
+        body: `Salam ${requesterName},\n\nTempahan pengangkutan anda telah BERJAYA DISAHKAN!\n\n📅 Tarikh: ${bookingDate}\n⏰ Masa: ${startTime12} - ${endTime12}\n📍 Lokasi Pickup: ${pickupPoint} ${address ? '(' + address + ')' : ''}\n🎯 Destinasi: ${destination}\n👥 Penumpang: ${totalPassengers} orang (Staff: ${staffCount}, Kanak-kanak: ${kidsCount})\n👤 Pemandu Ditugaskan: ${chosen.driver.name} (No Tel: ${chosen.driver.phone})\n🚐 Kenderaan: ${freeVehicle.name} (${freeVehicle.plateNumber})\n${remarks ? '📝 Nota: ' + remarks + '\n' : ''}\n${isPreWorkingHour ? '\n' + preWorkingWarning + '\n' : ''}\nEvent telah dimasukkan ke dalam Google Calendar YCK dan emel anda dijemput sebagai tetamu.\n\nFleetFlow`,
       },
       driver: {
         to: chosen.driver.email,
         subject: `[TUGASAN BARU] Perjalanan ke ${destination} (${bookingDate})`,
-        body: `Salam ${chosen.driver.name},\n\nAnda telah ditugaskan untuk perjalanan berikut:\n\n📅 Tarikh: ${bookingDate}\n⏰ Masa: ${startTime} - ${endTime}\n👤 Pemohon: ${requesterName} (${department})\n📞 Emel Pemohon: ${requesterEmail}\n📍 Pickup: ${pickupPoint} ${address ? '(' + address + ')' : ''}\n🎯 Destinasi: ${destination}\n👥 Bilangan Penumpang: ${totalPassengers}\n🚐 Kenderaan: ${freeVehicle.name} (${freeVehicle.plateNumber})\n${remarks ? '📝 Nota: ' + remarks : ''}\n${isPreWorkingHour ? '\n' + preWorkingWarning : ''}\n\nSila pastikan kenderaan berada dalam keadaan baik sebelum bertolak.\n\nFleetFlow`,
+        body: `Salam ${chosen.driver.name},\n\nAnda telah ditugaskan untuk perjalanan berikut:\n\n📅 Tarikh: ${bookingDate}\n⏰ Masa: ${startTime12} - ${endTime12}\n👤 Pemohon: ${requesterName} (${department})\n📞 Emel Pemohon: ${requesterEmail}\n📍 Pickup: ${pickupPoint} ${address ? '(' + address + ')' : ''}\n🎯 Destinasi: ${destination}\n👥 Bilangan Penumpang: ${totalPassengers}\n🚐 Kenderaan: ${freeVehicle.name} (${freeVehicle.plateNumber})\n${remarks ? '📝 Nota: ' + remarks : ''}\n${isPreWorkingHour ? '\n' + preWorkingWarning : ''}\n\nSila pastikan kenderaan berada dalam keadaan baik sebelum bertolak.\n\nFleetFlow`,
       },
     },
   };

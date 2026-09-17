@@ -32,6 +32,39 @@ const toTimeHHMM = (raw: string) => {
   return raw;
 };
 
+const toTime12H = (raw: string) => {
+  if (!raw) return '';
+  let hhmm = '';
+  if (/^\d{1,2}:\d{2}$/.test(raw)) {
+    hhmm = raw;
+  } else {
+    const match = raw.match(/T(\d{2}):(\d{2})/);
+    if (match) {
+      hhmm = `${match[1]}:${match[2]}`;
+    } else {
+      const d = new Date(raw);
+      if (!isNaN(d.getTime())) {
+        hhmm = `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
+      } else {
+        hhmm = raw;
+      }
+    }
+  }
+
+  const parts = hhmm.split(':');
+  if (parts.length === 2) {
+    let h = Number(parts[0]);
+    const m = parts[1];
+    if (!isNaN(h)) {
+      const ampm = h >= 12 ? 'pm' : 'am';
+      h = h % 12;
+      if (h === 0) h = 12;
+      return `${h}:${m}${ampm}`;
+    }
+  }
+  return raw;
+};
+
 const parseDateKeyLoose = (raw: string) => {
   // Handle 'yyyy-MM-dd', full ISO string, atau 'dd/MM/yyyy' — semua di-normalize ke 'yyyy-MM-dd'
   if (!raw) return '';
@@ -243,9 +276,9 @@ const DriverScheduleManager: React.FC = () => {
                         key={sched.id}
                         onClick={(e) => { e.stopPropagation(); if (!bulkMode) setModal({ mode: 'edit', schedule: sched }); }}
                         className={`w-full text-left text-[11px] leading-tight px-1.5 py-0.5 rounded ${color.bg} ${color.text} truncate hover:opacity-75 transition`}
-                        title={`${driverName(sched.DriverId)}: ${toTimeHHMM(sched.Mula)} - ${toTimeHHMM(sched.Tamat)}`}
+                        title={`${driverName(sched.DriverId)}: ${toTime12H(sched.Mula)} - ${toTime12H(sched.Tamat)}`}
                       >
-                        <span className="font-semibold">{driverName(sched.DriverId).split(' ')[0]}</span> {toTimeHHMM(sched.Mula)}-{toTimeHHMM(sched.Tamat)}
+                        <span className="font-semibold">{driverName(sched.DriverId).split(' ')[0]}</span> {toTime12H(sched.Mula)} - {toTime12H(sched.Tamat)}
                       </button>
                     );
                   })}
