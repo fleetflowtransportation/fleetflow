@@ -5,18 +5,23 @@ import { googleCalendarService, getDiagnosticLogs, clearDiagnosticLogs, Calendar
 export const SettingsView: React.FC = () => {
   const { activeTenant, updateGoogleCalendarId, updateGoogleDriveId } = useAppContext();
   
+  // Real values in state
   const [calendarId, setCalendarId] = useState('');
   const [driveId, setDriveId] = useState('');
   const [appsScriptUrl, setAppsScriptUrl] = useState('');
-  
-  const [calendarLoading, setCalendarLoading] = useState(false);
-  const [driveLoading, setDriveLoading] = useState(false);
-  const [scriptLoading, setScriptLoading] = useState(false);
-  
-  const [calendarSuccess, setCalendarSuccess] = useState(false);
-  const [driveSuccess, setDriveSuccess] = useState(false);
-  const [scriptSuccess, setScriptSuccess] = useState(false);
-  
+
+  // Temp values when editing in modal
+  const [tempCalendarId, setTempCalendarId] = useState('');
+  const [tempDriveId, setTempDriveId] = useState('');
+  const [tempAppsScriptUrl, setTempAppsScriptUrl] = useState('');
+
+  // Modal & Lock State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLocked, setIsLocked] = useState(true);
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Copy helpers
   const [copied, setCopied] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const [showCodeGuide, setShowCodeGuide] = useState(false);
@@ -28,11 +33,16 @@ export const SettingsView: React.FC = () => {
 
   useEffect(() => {
     if (activeTenant) {
-      setCalendarId(activeTenant.googleCalendarId || '');
-      setDriveId(activeTenant.googleDriveId || '');
+      const cal = activeTenant.googleCalendarId || '';
+      const drv = activeTenant.googleDriveId || '';
+      setCalendarId(cal);
+      setDriveId(drv);
+      setTempCalendarId(cal);
+      setTempDriveId(drv);
     }
     const savedScriptUrl = localStorage.getItem('fleetflow_google_script_url') || import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL || '';
     setAppsScriptUrl(savedScriptUrl);
+    setTempAppsScriptUrl(savedScriptUrl);
     setDiagnosticLogs(getDiagnosticLogs());
   }, [activeTenant]);
 
@@ -45,39 +55,52 @@ export const SettingsView: React.FC = () => {
     setDiagnosticLogs([]);
   };
 
-  const handleSaveCalendar = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setCalendarLoading(true);
-    setCalendarSuccess(false);
-    const success = await updateGoogleCalendarId(calendarId.trim());
-    setCalendarLoading(false);
-    if (success) {
-      setCalendarSuccess(true);
-      setTimeout(() => setCalendarSuccess(false), 3000);
-    }
+  const openModal = () => {
+    setTempCalendarId(calendarId);
+    setTempDriveId(driveId);
+    setTempAppsScriptUrl(appsScriptUrl);
+    setIsLocked(true); // Default to locked mode for safety
+    setTestResult(null);
+    setIsModalOpen(true);
   };
 
-  const handleSaveDrive = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setDriveLoading(true);
-    setDriveSuccess(false);
-    const success = await updateGoogleDriveId(driveId.trim());
-    setDriveLoading(false);
-    if (success) {
-      setDriveSuccess(true);
-      setTimeout(() => setDriveSuccess(false), 3000);
-    }
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setIsLocked(true);
   };
 
-  const handleSaveAppsScriptUrl = (e: React.FormEvent) => {
-    e.preventDefault();
-    setScriptLoading(true);
+  const handleSaveAllIntegrations = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setSaveLoading(true);
+    setSaveSuccess(false);
+
     try {
-      localStorage.setItem('fleetflow_google_script_url', appsScriptUrl.trim());
-      setScriptSuccess(true);
-      setTimeout(() => setScriptSuccess(false), 3000);
+      const cleanCal = tempCalendarId.trim();
+      const cleanDrv = tempDriveId.trim();
+      const cleanUrl = tempAppsScriptUrl.trim();
+
+      // Save to tenant / backend storage
+      if (cleanCal !== calendarId) {
+        await updateGoogleCalendarId(cleanCal);
+        setCalendarId(cleanCal);
+      }
+      if (cleanDrv !== driveId) {
+        await updateGoogleDriveId(cleanDrv);
+        setDriveId(cleanDrv);
+      }
+
+      // Save Apps Script URL to local persistence
+      localStorage.setItem('fleetflow_google_script_url', cleanUrl);
+      setAppsScriptUrl(cleanUrl);
+
+      setSaveSuccess(true);
+      setIsLocked(true); // Auto-lock after saving
+      setTimeout(() => setSaveSuccess(false), 3000);
+      refreshLogs();
+    } catch (err) {
+      console.error('Error saving integrations:', err);
     } finally {
-      setScriptLoading(false);
+      setSaveLoading(false);
     }
   };
 
@@ -86,7 +109,8 @@ export const SettingsView: React.FC = () => {
     setTestingConnection(true);
     setTestResult(null);
     try {
-      const res = await googleCalendarService.testConnection(activeTenant, appsScriptUrl.trim());
+      const targetUrl = isLocked ? appsScriptUrl : tempAppsScriptUrl;
+      const res = await googleCalendarService.testConnection(activeTenant, targetUrl.trim());
       setTestResult(res);
       refreshLogs();
     } catch (err: any) {
@@ -202,207 +226,390 @@ function doPost(e) {
     setTimeout(() => setCodeCopied(false), 2000);
   };
 
+  const isConfigured = Boolean(appsScriptUrl || calendarId || driveId);
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       
       {/* Header */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight">Tetapan Organisasi</h2>
-        <p className="text-sm text-gray-500 font-medium mt-1">Urus integrasi awan Google Calendar, Google Drive Apps Script, serta log diagnostik untuk organisasi {activeTenant?.name || ''}.</p>
+        <p className="text-sm text-gray-500 font-medium mt-1">
+          Urus pautan tempahan staf, integrasi selamat Google Calendar & Drive, serta semak rekod diagnostik untuk {activeTenant?.name || 'Organisasi'}.
+        </p>
       </div>
 
-      {/* Quick Test Bar */}
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h3 className="text-base font-bold text-gray-950 flex items-center space-x-2">
-            <span>⚡</span>
-            <span>Ujian Sambungan Google Apps Script & Calendar</span>
-          </h3>
-          <p className="text-xs text-gray-500 mt-1">
-            Uji sama ada URL Web App Google Apps Script anda sedia menerima tempahan dan mencipta acara di Google Calendar.
-          </p>
+      {/* Main Single Integration Hub Card */}
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-gray-100">
+          <div className="flex items-start space-x-3.5">
+            <div className="p-3 bg-indigo-50 text-indigo-700 rounded-xl text-2xl flex-shrink-0">
+              🔒
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <h3 className="text-lg font-bold text-gray-950">Integrasi Google Workspace & Apps Script</h3>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold tracking-wide uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  Terkunci & Dilindungi
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1 max-w-xl leading-relaxed">
+                Tetapan sensitif untuk penyelarasan Google Calendar (Auto-Sync) dan storan dokumen Google Drive. Semua konfigurasi dilindungi dan dikunci untuk mengelakkan perubahan tidak sengaja.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={openModal}
+            className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs shadow-sm transition flex items-center justify-center space-x-2 flex-shrink-0 cursor-pointer"
+          >
+            <span>⚙️</span>
+            <span>Urus 3 Pautan Integrasi</span>
+          </button>
         </div>
-        <button
-          onClick={handleTestConnection}
-          disabled={testingConnection}
-          className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-sm transition cursor-pointer disabled:bg-indigo-300 flex-shrink-0 flex items-center space-x-2"
-        >
-          {testingConnection ? (
-            <>
-              <div className="animate-spin h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full" />
-              <span>Menguji...</span>
-            </>
-          ) : (
-            <>
-              <span>🧪</span>
-              <span>Uji Sambungan Sekarang</span>
-            </>
-          )}
-        </button>
+
+        {/* Overview Status Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-5">
+          {/* 1. Apps Script URL */}
+          <div className="p-4 rounded-xl bg-gray-50 border border-gray-200/70 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500">1. Web App URL (Code.gs)</span>
+              <span className={`h-2 w-2 rounded-full ${appsScriptUrl ? 'bg-emerald-500' : 'bg-amber-400'}`} />
+            </div>
+            <div className="text-xs font-mono text-gray-800 truncate font-semibold">
+              {appsScriptUrl ? `${appsScriptUrl.substring(0, 32)}...` : 'Belum Ditetapkan'}
+            </div>
+            <p className="text-[11px] text-gray-400">Jambatan auto-sync kalendar & fail</p>
+          </div>
+
+          {/* 2. Calendar ID */}
+          <div className="p-4 rounded-xl bg-gray-50 border border-gray-200/70 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500">2. Calendar ID</span>
+              <span className={`h-2 w-2 rounded-full ${calendarId ? 'bg-emerald-500' : 'bg-blue-400'}`} />
+            </div>
+            <div className="text-xs font-mono text-gray-800 truncate font-semibold">
+              {calendarId || 'primary (Kalendar Utama)'}
+            </div>
+            <p className="text-[11px] text-gray-400">Sasaran acara kalendar tempahan</p>
+          </div>
+
+          {/* 3. Drive Folder ID */}
+          <div className="p-4 rounded-xl bg-gray-50 border border-gray-200/70 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500">3. Drive Folder ID</span>
+              <span className={`h-2 w-2 rounded-full ${driveId ? 'bg-emerald-500' : 'bg-gray-400'}`} />
+            </div>
+            <div className="text-xs font-mono text-gray-800 truncate font-semibold">
+              {driveId || 'Root Folder (Folder Utama)'}
+            </div>
+            <p className="text-[11px] text-gray-400">Folder muat naik dokumen/resit</p>
+          </div>
+        </div>
+
+        {/* Quick Test Bar inside settings */}
+        <div className="mt-5 pt-4 border-t border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="text-xs text-gray-500 flex items-center space-x-2">
+            <span>💡</span>
+            <span>Uji komunikasi sistem dengan Google Apps Script pada bila-bila masa:</span>
+          </div>
+          <button
+            onClick={handleTestConnection}
+            disabled={testingConnection || !isConfigured}
+            className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl text-xs transition cursor-pointer disabled:opacity-50 flex items-center space-x-2"
+          >
+            {testingConnection ? (
+              <>
+                <div className="animate-spin h-3.5 w-3.5 border-2 border-indigo-700 border-t-transparent rounded-full" />
+                <span>Menguji...</span>
+              </>
+            ) : (
+              <>
+                <span>🧪</span>
+                <span>Uji Sambungan Google Calendar</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {testResult && (
+          <div className={`mt-4 p-3.5 rounded-xl border text-xs font-medium ${testResult.success ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-rose-50 border-rose-200 text-rose-900'}`}>
+            <div className="flex items-start space-x-2">
+              <span className="text-base flex-shrink-0">{testResult.success ? '✅' : '❌'}</span>
+              <span className="leading-relaxed">{testResult.message}</span>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Test Result Message */}
-      {testResult && (
-        <div className={`p-4 rounded-2xl border text-xs font-semibold ${testResult.success ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-rose-50 border-rose-200 text-rose-900'}`}>
-          <div className="flex items-center space-x-2">
-            <span className="text-base">{testResult.success ? '✅' : '❌'}</span>
-            <span className="font-bold">{testResult.message}</span>
+      {/* MODAL: SENSITIVE INTEGRATION LINKS */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col max-h-[90vh]">
+            
+            {/* Modal Header */}
+            <div className="p-6 bg-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-white/10 rounded-xl text-xl">
+                  {isLocked ? '🔒' : '✏️'}
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <h3 className="text-lg font-bold">Tetapan Integrasi Google Workspace</h3>
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider ${
+                      isLocked ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                    }`}>
+                      {isLocked ? 'Terkunci (Read-Only)' : 'Mod Suntingan (Edit)'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-0.5">
+                    {isLocked 
+                      ? 'Pautan dilindungi dari sebarang perubahan. Tekan butang Edit untuk mengemas kini.' 
+                      : 'Sila masukkan maklumat integrasi dengan teliti.'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={closeModal}
+                className="text-slate-400 hover:text-white p-2 rounded-xl transition cursor-pointer text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body (Scrollable) */}
+            <div className="p-6 overflow-y-auto space-y-5 flex-1 text-xs">
+              
+              {saveSuccess && (
+                <div className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl font-bold flex items-center space-x-2">
+                  <span>✓</span>
+                  <span>Semua tetapan integrasi berjaya disimpan dan dikunci semula!</span>
+                </div>
+              )}
+
+              {/* Security Banner when locked */}
+              {isLocked ? (
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between gap-3">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-lg">🛡️</span>
+                    <div>
+                      <p className="font-bold text-slate-900">Tetapan Sedang Dikunci</p>
+                      <p className="text-slate-500 text-[11px]">Bagi memastikan penyelarasan kalendar kekal stabil dan tidak terjejas.</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsLocked(false)}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-sm transition flex items-center space-x-1.5 cursor-pointer flex-shrink-0"
+                  >
+                    <span>✏️</span>
+                    <span>Buka Kunci untuk Edit</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="p-4 bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl flex items-center justify-between gap-3">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-lg">⚠️</span>
+                    <div>
+                      <p className="font-bold">Mod Suntingan Aktif</p>
+                      <p className="text-[11px] text-amber-800">Pastikan URL dan ID yang dimasukkan adalah tepat sebelum menekan simpan.</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTempCalendarId(calendarId);
+                      setTempDriveId(driveId);
+                      setTempAppsScriptUrl(appsScriptUrl);
+                      setIsLocked(true);
+                    }}
+                    className="px-3.5 py-1.5 bg-amber-200 hover:bg-amber-300 text-amber-950 font-bold rounded-xl text-xs transition cursor-pointer flex-shrink-0"
+                  >
+                    Batal Edit
+                  </button>
+                </div>
+              )}
+
+              {/* Form Fields */}
+              <form onSubmit={handleSaveAllIntegrations} className="space-y-4">
+                
+                {/* 1. Google Apps Script Web App URL */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-gray-700 uppercase tracking-wider text-[11px] flex items-center space-x-1.5">
+                      <span>1. Google Apps Script Web App URL</span>
+                      <span className="text-rose-500">*</span>
+                    </label>
+                    {isLocked && <span className="text-[11px] text-gray-400 font-mono">🔒 Read-Only</span>}
+                  </div>
+                  <input
+                    type="text"
+                    disabled={isLocked}
+                    value={tempAppsScriptUrl}
+                    onChange={(e) => setTempAppsScriptUrl(e.target.value)}
+                    placeholder="https://script.google.com/macros/s/AKfycbx.../exec"
+                    className={`w-full rounded-xl p-3 text-xs font-mono border transition outline-none ${
+                      isLocked 
+                        ? 'bg-gray-100/80 border-gray-200 text-gray-600 cursor-not-allowed select-all' 
+                        : 'bg-white border-indigo-300 text-gray-900 focus:ring-2 focus:ring-indigo-500 shadow-sm'
+                    }`}
+                  />
+                  <p className="text-[11px] text-gray-500 leading-normal">
+                    URL Web App dari Google Apps Script (berakhir dengan <code>/exec</code>) untuk auto-sync kalendar & muat naik fail.
+                  </p>
+                </div>
+
+                {/* 2. Google Calendar ID */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-gray-700 uppercase tracking-wider text-[11px] flex items-center space-x-1.5">
+                      <span>2. Google Calendar ID / E-mel Kalendar</span>
+                    </label>
+                    {isLocked && <span className="text-[11px] text-gray-400 font-mono">🔒 Read-Only</span>}
+                  </div>
+                  <input
+                    type="text"
+                    disabled={isLocked}
+                    value={tempCalendarId}
+                    onChange={(e) => setTempCalendarId(e.target.value)}
+                    placeholder="primary atau cth: organization@group.calendar.google.com"
+                    className={`w-full rounded-xl p-3 text-xs font-mono border transition outline-none ${
+                      isLocked 
+                        ? 'bg-gray-100/80 border-gray-200 text-gray-600 cursor-not-allowed select-all' 
+                        : 'bg-white border-indigo-300 text-gray-900 focus:ring-2 focus:ring-indigo-500 shadow-sm'
+                    }`}
+                  />
+                  <p className="text-[11px] text-gray-500 leading-normal">
+                    Masukkan <code>primary</code> untuk kalendar utama pemilik skrip, atau e-mel kalendar organisasi.
+                  </p>
+                </div>
+
+                {/* 3. Google Drive Folder ID */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-gray-700 uppercase tracking-wider text-[11px] flex items-center space-x-1.5">
+                      <span>3. Google Drive Folder ID</span>
+                    </label>
+                    {isLocked && <span className="text-[11px] text-gray-400 font-mono">🔒 Read-Only</span>}
+                  </div>
+                  <input
+                    type="text"
+                    disabled={isLocked}
+                    value={tempDriveId}
+                    onChange={(e) => setTempDriveId(e.target.value)}
+                    placeholder="cth: 1aBcDeFgHiJkLmNoPqRsTuVwXyZ (Folder ID dari URL Google Drive)"
+                    className={`w-full rounded-xl p-3 text-xs font-mono border transition outline-none ${
+                      isLocked 
+                        ? 'bg-gray-100/80 border-gray-200 text-gray-600 cursor-not-allowed select-all' 
+                        : 'bg-white border-indigo-300 text-gray-900 focus:ring-2 focus:ring-indigo-500 shadow-sm'
+                    }`}
+                  />
+                  <p className="text-[11px] text-gray-500 leading-normal">
+                    ID Folder Google Drive untuk menyimpan lampiran borang program, resit, dan dokumen.
+                  </p>
+                </div>
+
+                {/* Save Button when in edit mode */}
+                {!isLocked && (
+                  <div className="pt-3 flex items-center justify-end space-x-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTempCalendarId(calendarId);
+                        setTempDriveId(driveId);
+                        setTempAppsScriptUrl(appsScriptUrl);
+                        setIsLocked(true);
+                      }}
+                      className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition cursor-pointer"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={saveLoading}
+                      className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold rounded-xl shadow-md transition flex items-center space-x-2 cursor-pointer disabled:bg-slate-300"
+                    >
+                      {saveLoading ? (
+                        <>
+                          <div className="animate-spin h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full" />
+                          <span>Menyimpan...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>💾</span>
+                          <span>Simpan Semua & Kunci Semula</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </form>
+
+              {/* Code.gs Script Helper Accordion */}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCodeGuide(!showCodeGuide)}
+                  className="w-full flex items-center justify-between p-3.5 bg-slate-900 text-white rounded-2xl hover:bg-slate-800 transition cursor-pointer"
+                >
+                  <div className="flex items-center space-x-2 font-bold">
+                    <span>📄</span>
+                    <span>Lihat & Salin Kod Google Apps Script (Code.gs)</span>
+                  </div>
+                  <span className="text-xs text-slate-300">{showCodeGuide ? '▲ Tutup' : '▼ Buka'}</span>
+                </button>
+
+                {showCodeGuide && (
+                  <div className="mt-3 p-4 bg-slate-950 text-white rounded-2xl border border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-300 text-[11px]">Skrip Lengkap Google Apps Script:</span>
+                      <button
+                        onClick={handleCopyCodeGs}
+                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg transition cursor-pointer"
+                      >
+                        {codeCopied ? '✓ Berjaya Disalin!' : '📋 Salin Kod Code.gs'}
+                      </button>
+                    </div>
+                    <div className="text-[11px] text-slate-400 space-y-1 bg-slate-900/90 p-3 rounded-xl border border-slate-800">
+                      <p><strong>Langkah Pantas Setup:</strong></p>
+                      <p>1. Buka <code>script.google.com</code> &gt; Cipta projek baru.</p>
+                      <p>2. Salin kod di bawah dan tampal ke dalam <code>Code.gs</code>.</p>
+                      <p>3. Klik <strong>Deploy &gt; New deployment &gt; Web app</strong>.</p>
+                      <p>4. Tetapkan <em>Execute as:</em> <strong>Me</strong> dan <em>Who has access:</em> <strong>Anyone</strong>.</p>
+                      <p>5. Salin Web App URL dan tampal ke dalam ruangan di atas.</p>
+                    </div>
+                    <pre className="text-[10px] font-mono bg-black/70 p-3 rounded-xl overflow-x-auto max-h-52 text-emerald-400 border border-slate-800">
+                      {fullCodeGs}
+                    </pre>
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={handleTestConnection}
+                disabled={testingConnection}
+                className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl text-xs transition cursor-pointer flex items-center space-x-1.5"
+              >
+                {testingConnection ? 'Menguji...' : '🧪 Uji Sambungan Sekarang'}
+              </button>
+
+              <button
+                type="button"
+                onClick={closeModal}
+                className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs transition cursor-pointer"
+              >
+                Tutup
+              </button>
+            </div>
+
           </div>
         </div>
       )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        
-        {/* Google Apps Script Web App URL Setting Card */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between md:col-span-2">
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-2.5">
-                <span className="text-xl">🚀</span>
-                <h3 className="text-lg font-bold text-gray-950">Google Apps Script Web App URL (Code.gs)</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowCodeGuide(!showCodeGuide)}
-                className="text-xs text-indigo-600 hover:text-indigo-800 font-bold underline cursor-pointer"
-              >
-                {showCodeGuide ? 'Tutup Panduan Code.gs' : 'Lihat / Salin Kod Code.gs'}
-              </button>
-            </div>
-            <p className="text-xs text-gray-500 mb-4 leading-relaxed">
-              URL Web App dari skrip Google Apps Script anda (berakhir dengan <code>/exec</code>). Skrip ini membolehkan sistem mencipta acara kalendar secara automatik serta memuat naik dokumen ke Google Drive tanpa meminta kebenaran pop-up daripada pemohon.
-            </p>
-            
-            {scriptSuccess && (
-              <div className="mb-4 p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-xs text-emerald-800 font-bold">
-                ✓ URL Google Apps Script berjaya disimpan!
-              </div>
-            )}
-
-            <form onSubmit={handleSaveAppsScriptUrl} className="space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Web App Exec URL</label>
-                <input
-                  type="text"
-                  value={appsScriptUrl}
-                  onChange={(e) => setAppsScriptUrl(e.target.value)}
-                  className="w-full border border-gray-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition font-mono text-xs"
-                  placeholder="https://script.google.com/macros/s/AKfycbx.../exec"
-                />
-              </div>
-              <div className="flex justify-end">
-                <button
-                  type="submit"
-                  disabled={scriptLoading}
-                  className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-6 py-2.5 rounded-xl text-xs transition cursor-pointer disabled:bg-slate-300"
-                >
-                  {scriptLoading ? 'Menyimpan...' : 'Simpan URL Apps Script'}
-                </button>
-              </div>
-            </form>
-          </div>
-
-          {/* Collapsible Code.gs Guide */}
-          {showCodeGuide && (
-            <div className="mt-5 p-4 bg-slate-900 text-white rounded-xl border border-slate-800 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-300">📄 Skrip Lengkap: Google Apps Script (Code.gs)</span>
-                <button
-                  onClick={handleCopyCodeGs}
-                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg transition cursor-pointer"
-                >
-                  {codeCopied ? 'Berjaya Disalin!' : '📋 Salin Kod Code.gs'}
-                </button>
-              </div>
-              <p className="text-xs text-slate-400">
-                Buka <strong>script.google.com</strong> &gt; Buka projek anda &gt; Tampal kod ini di dalam <strong>Code.gs</strong> &gt; Klik <strong>Deploy &gt; Manage deployments &gt; New version</strong> (pastikan <em>Who has access</em> ditetapkan kepada <strong>Anyone</strong>).
-              </p>
-              <pre className="text-[11px] font-mono bg-slate-950 p-3 rounded-lg overflow-x-auto max-h-60 text-slate-200">
-                {fullCodeGs}
-              </pre>
-            </div>
-          )}
-        </div>
-        
-        {/* Google Calendar ID Setting Card */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center space-x-2.5 mb-4">
-              <span className="text-xl">📅</span>
-              <h3 className="text-lg font-bold text-gray-950">Google Calendar ID</h3>
-            </div>
-            <p className="text-xs text-gray-500 mb-4 leading-relaxed">
-              Masukkan ID Google Calendar rasmi organisasi (contohnya e-mel kalendar organisasi atau <code>primary</code>). Semua acara tempahan akan diselaraskan ke kalendar ini.
-            </p>
-            
-            {calendarSuccess && (
-              <div className="mb-4 p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-xs text-emerald-800 font-bold">
-                ✓ ID Kalendar berjaya disimpan!
-              </div>
-            )}
-
-            <form onSubmit={handleSaveCalendar} className="space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Calendar ID / Email</label>
-                <input
-                  type="text"
-                  value={calendarId}
-                  onChange={(e) => setCalendarId(e.target.value)}
-                  className="w-full border border-gray-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition"
-                  placeholder="cth: organization@group.calendar.google.com atau primary"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={calendarLoading}
-                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl text-xs transition cursor-pointer disabled:bg-slate-300"
-              >
-                {calendarLoading ? 'Menyimpan...' : 'Simpan Kalendar ID'}
-              </button>
-            </form>
-          </div>
-        </div>
-
-        {/* Google Drive Folder ID Setting Card */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center space-x-2.5 mb-4">
-              <span className="text-xl">📁</span>
-              <h3 className="text-lg font-bold text-gray-950">Google Drive Folder ID</h3>
-            </div>
-            <p className="text-xs text-gray-500 mb-4 leading-relaxed">
-              Masukkan ID Folder Google Drive organisasi anda. Semua lampiran dokumen (resit minyak, borang program, gambar isu) akan disimpan ke dalam folder ini.
-            </p>
-            
-            {driveSuccess && (
-              <div className="mb-4 p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-xs text-emerald-800 font-bold">
-                ✓ ID Folder Drive berjaya disimpan!
-              </div>
-            )}
-
-            <form onSubmit={handleSaveDrive} className="space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Folder ID</label>
-                <input
-                  type="text"
-                  value={driveId}
-                  onChange={(e) => setDriveId(e.target.value)}
-                  className="w-full border border-gray-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition"
-                  placeholder="cth: 1aBcDeFgHiJkLmNoPqRsTuVwXyZ"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={driveLoading}
-                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl text-xs transition cursor-pointer disabled:bg-slate-300"
-              >
-                {driveLoading ? 'Menyimpan...' : 'Simpan Drive ID'}
-              </button>
-            </form>
-          </div>
-        </div>
-
-      </div>
 
       {/* Diagnostic Logs Panel */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
@@ -434,7 +641,7 @@ function doPost(e) {
 
         {diagnosticLogs.length === 0 ? (
           <div className="p-8 text-center text-gray-400 text-xs bg-gray-50 rounded-xl border border-dashed border-gray-200">
-            Tiada log diagnostik direkodkan setakat ini. Klik butang &quot;Uji Sambungan Sekarang&quot; atau buat tempahan baru untuk menjana log.
+            Tiada log diagnostik direkodkan setakat ini. Klik butang &quot;Uji Sambungan&quot; atau buat tempahan baru untuk menjana log.
           </div>
         ) : (
           <div className="space-y-3 max-h-96 overflow-y-auto pr-1">

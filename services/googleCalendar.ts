@@ -142,25 +142,37 @@ export const googleCalendarService = {
         // text response
       }
 
+      const isHtmlResponse = resText.trim().startsWith('<!DOCTYPE html') || resText.trim().startsWith('<html');
+      const errorMessage = resJson?.error || resJson?.message || (!res.ok ? `HTTP ${res.status}` : undefined);
+      const isScriptError = isHtmlResponse || !res.ok || (resJson && (resJson.status === 'error' || resJson.success === false || !!resJson.error)) || (!resJson && !resText.includes('success'));
+      
+      let specificError = errorMessage;
+      if (isHtmlResponse) {
+        specificError = "Google meminta Log Masuk (Google Login Redirect). Akses Web App disekat. Sila buka script.google.com > Deploy > Manage deployments > Edit > Tetapkan 'Who has access' kepada 'Anyone' (Sesiapa Sahaja) & 'Execute as' kepada 'Me'.";
+      }
+
       addDiagnosticLog({
         endpointUrl: scriptUrl,
         payload: testPayload,
-        status: res.ok ? 'SUCCESS' : 'ERROR',
+        status: isScriptError ? 'ERROR' : 'SUCCESS',
         httpStatus: res.status,
-        responseBody: resText,
+        responseBody: isHtmlResponse ? 'HTML Google Login Page (Akses disekat: Who has access bukan "Anyone")' : resText.substring(0, 300),
+        errorMessage: isScriptError ? (specificError || 'Ralat dari Apps Script') : undefined
       });
 
-      if (res.ok) {
+      if (!isScriptError) {
         return {
           success: true,
-          message: 'Berjaya menyambung ke Google Apps Script! Respon: ' + (resJson?.status || resJson?.message || resText.substring(0, 100)),
+          message: 'Berjaya! Google Apps Script telah mencipta acara ujian kalendar. ID: ' + (resJson?.eventId || resJson?.id || 'OK'),
           response: resJson || resText
         };
       } else {
         return {
           success: false,
-          message: `Ralat HTTP ${res.status} dari Apps Script: ${resText.substring(0, 150)}`,
-          response: resText
+          message: isHtmlResponse
+            ? specificError!
+            : `Sambungan ke Web App berjaya, tetapi Apps Script mengembalikan ralat: "${errorMessage || 'Sila semak kebenaran CalendarApp di Google Apps Script anda'}".`,
+          response: resJson || resText
         };
       }
     } catch (err: any) {
@@ -172,7 +184,7 @@ export const googleCalendarService = {
       });
       return {
         success: false,
-        message: `Gagal memanggil Web App: ${err.message || 'Sila semak CORS atau kebenaran Web App (Anyone)'}`
+        message: `Gagal memanggil Web App: ${err.message || 'Sila semak URL atau kebenaran Web App (Anyone)'}`
       };
     }
   },
