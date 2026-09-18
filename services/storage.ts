@@ -1,4 +1,4 @@
-import type { Booking, FuelLog, OdometerLog, User, Vehicle, IssueLog, DriverSchedule } from '../types';
+import type { Booking, FuelLog, OdometerLog, User, Vehicle, IssueLog, DriverSchedule, Tenant } from '../types';
 import { USERS, VEHICLES, INITIAL_BOOKINGS, INITIAL_DRIVER_SCHEDULES } from '../constants';
 import { supabase } from './supabaseClient';
 
@@ -258,6 +258,26 @@ const fromDbDriverSchedule = (row: any): DriverSchedule => ({
 });
 
 export const storageService = {
+  getTenantId,
+  setTenantId,
+  getUserByEmailGlobal: async (email: string): Promise<User | null> => {
+    try {
+      const { data, error } = await supabase
+        .from('fleet_users')
+        .select('*')
+        .eq('email', email.trim().toLowerCase())
+        .maybeSingle();
+      if (error) {
+        console.warn('[Supabase] getUserByEmailGlobal query error:', error.message);
+        return null;
+      }
+      if (!data) return null;
+      return fromDbUser(data);
+    } catch (err: any) {
+      console.warn('[Supabase] getUserByEmailGlobal exception:', err.message);
+      return null;
+    }
+  },
   // ---- READ ----
   getUsers: async (): Promise<User[]> => {
     try {
@@ -621,6 +641,131 @@ export const storageService = {
       if (error) console.error('[Supabase] deleteDriverSchedulesBulk error:', error.message);
     } catch (err: any) {
       console.error('[Supabase] deleteDriverSchedulesBulk exception:', err.message);
+    }
+  },
+
+  // ---- TENANTS & MULTITENANCY ----
+  getTenant: async (id: string): Promise<Tenant | null> => {
+    try {
+      const { data, error } = await supabase.from('tenants').select('*').eq('id', id).maybeSingle();
+      if (error) {
+        console.warn('[Supabase] getTenant error:', error.message);
+        return null;
+      }
+      if (!data) return null;
+      
+      let calendarId = data.google_calendar_id || '';
+      let driveId = '';
+      if (calendarId.includes(':::')) {
+        const parts = calendarId.split(':::');
+        calendarId = parts[0] || '';
+        driveId = parts[1] || '';
+      }
+
+      return {
+        id: data.id,
+        name: data.name,
+        status: data.status,
+        googleCalendarId: calendarId,
+        googleDriveId: driveId,
+      };
+    } catch (err: any) {
+      console.warn('[Supabase] getTenant exception:', err.message);
+      return null;
+    }
+  },
+
+  updateTenant: async (id: string, updatedData: Partial<Omit<Tenant, 'id'>>): Promise<boolean> => {
+    try {
+      const dbRow: any = {};
+      if (updatedData.name !== undefined) dbRow.name = updatedData.name;
+      if (updatedData.status !== undefined) dbRow.status = updatedData.status;
+      
+      if (updatedData.googleCalendarId !== undefined || updatedData.googleDriveId !== undefined) {
+        // Fetch current to merge
+        const existing = await storageService.getTenant(id);
+        const cal = updatedData.googleCalendarId !== undefined ? updatedData.googleCalendarId : (existing?.googleCalendarId || '');
+        const drv = updatedData.googleDriveId !== undefined ? updatedData.googleDriveId : (existing?.googleDriveId || '');
+        dbRow.google_calendar_id = `${cal}:::${drv}`;
+      }
+
+      const { error } = await supabase.from('tenants').update(dbRow).eq('id', id);
+      if (error) {
+        console.error('[Supabase] updateTenant error:', error.message);
+        return false;
+      }
+      return true;
+    } catch (err: any) {
+      console.error('[Supabase] updateTenant exception:', err.message);
+      return false;
+    }
+  },
+
+  createTenant: async (data: Tenant): Promise<Tenant | null> => {
+    try {
+      const cal = data.googleCalendarId || '';
+      const drv = data.googleDriveId || '';
+      const dbRow = {
+        id: data.id,
+        name: data.name,
+        status: data.status,
+        google_calendar_id: `${cal}:::${drv}`,
+      };
+      const { error } = await supabase.from('tenants').insert([dbRow]);
+      if (error) {
+        console.error('[Supabase] createTenant error:', error.message);
+        return null;
+      }
+      return data;
+    } catch (err: any) {
+      console.error('[Supabase] createTenant exception:', err.message);
+      return null;
+    }
+  },
+
+  signUpTenant: async (tenantId: string, tenantName: string, adminName: string, adminEmail: string, adminPassword?: string): Promise<boolean> => {
+    try {
+      // Check if tenant ID is already taken
+      const existingTenant = await storageService.getTenant(tenantId);
+      if (existingTenant) {
+        console.warn('[Supabase] Tenant ID already exists:', tenantId);
+        return false;
+      }
+
+      // Check if user email is already taken
+      const existingUser = await storageService.getUserByEmailGlobal(adminEmail);
+      if (existingUser) {
+        console.warn('[Supabase] Admin email already exists globally:', adminEmail);
+        return false;
+      }
+
+      // 1. Create the tenant
+      const tenant = await storageService.createTenant({
+        id: tenantId,
+        name: tenantName,
+        status: 'active'
+      });
+      if (!tenant) return false;
+
+      // 2. Create the admin user for the tenant
+      const adminUser: User = {
+        id: `user-${Date.now()}`,
+        name: adminName,
+        email: adminEmail,
+        phone: '',
+        joiningDate: new Date().toISOString().split('T')[0],
+        address: '',
+        role: 'admin',
+        status: 'active',
+        password: adminPassword || '123456',
+        tenantId: tenantId
+      };
+      
+      const savedUser = await storageService.createUser(adminUser);
+      return !!savedUser;
+    } catch (err: any) {
+      console.error('[Supabase] signUpTenant exception:', err.message);
+      return false;
     }
   },
 };

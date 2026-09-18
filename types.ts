@@ -140,6 +140,14 @@ export type CurrentUser = {
   tenantId?: string;
 };
 
+export interface Tenant {
+  id: string;
+  name: string;
+  status: 'active' | 'inactive';
+  googleCalendarId?: string;
+  googleDriveId?: string;
+}
+
 export interface BookingHistory {
   bookingId: string;
   previousState: Booking;

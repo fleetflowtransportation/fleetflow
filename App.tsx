@@ -8,14 +8,25 @@ import UndoToast from './components/UndoToast';
 import BookingArchive from './components/BookingArchive';
 import VehicleManagement from './components/VehicleManagement';
 import UserManagement from './components/UserManagement';
-import StaffDashboard from './components/StaffDashboard';
 import CalendarView from './components/CalendarView';
 import IssueManagement from './components/IssueManagement';
 import DriverScheduleManager from './components/DriverScheduleManager';
+import { AuthPage } from './components/AuthPage';
+import { PublicBookingPage } from './components/PublicBookingPage';
+import { SettingsView } from './components/SettingsView';
 
 const App: React.FC = () => {
   const { currentUser, isLoading, loadError, reload } = useAppContext();
-  const [activeView, setActiveView] = useState<'dashboard' | 'reports' | 'logs' | 'archive' | 'vehicles' | 'users' | 'calendar' | 'issues' | 'schedule'>('dashboard');
+  const [activeView, setActiveView] = useState<'dashboard' | 'reports' | 'logs' | 'archive' | 'vehicles' | 'users' | 'calendar' | 'issues' | 'schedule' | 'settings'>('dashboard');
+
+  // Cek pautan borang tempahan awam (tanpa log masuk)
+  const urlParams = new URLSearchParams(window.location.search);
+  const isPublicBooking = urlParams.get('action') === 'book';
+  const publicTenantId = urlParams.get('tenant_id');
+
+  if (isPublicBooking && publicTenantId) {
+    return <PublicBookingPage tenantId={publicTenantId} />;
+  }
 
   if (isLoading) {
     return (
@@ -45,6 +56,10 @@ const App: React.FC = () => {
     );
   }
 
+  if (!currentUser) {
+    return <AuthPage />;
+  }
+
   const renderAdminContent = () => {
     switch (activeView) {
       case 'dashboard':
@@ -69,22 +84,21 @@ const App: React.FC = () => {
         return <IssueManagement />;
       case 'schedule':
         return <DriverScheduleManager />;
+      case 'settings':
+        return <SettingsView />;
       default:
         return <AdminDashboard />;
     }
   };
 
   const renderContent = () => {
-    if (!currentUser) {
-      return <StaffDashboard />;
-    }
     switch (currentUser.role) {
       case 'admin':
         return renderAdminContent();
       case 'driver':
         return <DriverDashboard driver={currentUser} />;
       default:
-        return <StaffDashboard />; // Fallback to public view
+        return <AuthPage />;
     }
   };
 

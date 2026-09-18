@@ -1,8 +1,9 @@
 import React, { createContext, useState, useContext, ReactNode, useCallback, useRef, useEffect } from 'react';
-import type { Booking, FuelLog, OdometerLog, User, Vehicle, BookingHistory, CurrentUser, IssueLog, DriverSchedule } from '../types';
+import type { Booking, FuelLog, OdometerLog, User, Vehicle, BookingHistory, CurrentUser, IssueLog, DriverSchedule, Tenant } from '../types';
 import { storageService } from '../services/storage';
 import { parseAsLocal } from '../utils';
 import { evaluateBookingAssignment, normalizeDate, normalizeTime, getDriverCalendarColor, type AutoAssignResult } from '../services/bookingEngine';
+import { googleCalendarService } from '../services/googleCalendar';
 
 interface AppContextType {
   users: User[];
@@ -13,11 +14,12 @@ interface AppContextType {
   issueLogs: IssueLog[];
   driverSchedules: DriverSchedule[];
   currentUser: CurrentUser | null;
+  activeTenant: Tenant | null;
   isLoading: boolean;
   loadError: string | null;
   lastDriverAssignedId: string | null;
   reload: () => void;
-  login: (name: string, password: string) => boolean;
+  login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   addBooking: (booking: Omit<Booking, 'id'>) => AutoAssignResult;
   updateBooking: (bookingId: string, updatedData: Partial<Omit<Booking, 'id'>>) => void;
@@ -46,6 +48,9 @@ interface AppContextType {
   addVehicle: (vehicle: Omit<Vehicle, 'id'>) => void;
   updateVehicle: (vehicleId: string, updatedData: Partial<Omit<Vehicle, 'id'>>) => void;
   deleteVehicle: (vehicleId: string) => void;
+  updateGoogleCalendarId: (calendarId: string) => Promise<boolean>;
+  updateGoogleDriveId: (driveId: string) => Promise<boolean>;
+  registerOrganization: (tenantId: string, tenantName: string, adminName: string, adminEmail: string, adminPassword?: string) => Promise<boolean>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -62,6 +67,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [users, setUsers] = useState<User[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [activeTenant, setActiveTenant] = useState<Tenant | null>(null);
+  const [tenantInitialized, setTenantInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadTick, setReloadTick] = useState(0);
@@ -79,11 +86,44 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const hasLoadedOnceRef = useRef(false);
 
+  // ---- Load session and active tenant on startup ----
+  useEffect(() => {
+    const savedTenantId = localStorage.getItem('fleetflow_tenant_id') || 'yayasan-chow-kit';
+    const savedUserData = localStorage.getItem('fleetflow_user_data');
+    
+    storageService.setTenantId(savedTenantId);
+    
+    if (savedUserData) {
+      try {
+        const parsed = JSON.parse(savedUserData);
+        setCurrentUser(parsed);
+      } catch {
+        // ignore
+      }
+    }
+    
+    storageService.getTenant(savedTenantId).then(tenant => {
+      setActiveTenant(tenant);
+      setTenantInitialized(true);
+    });
+  }, []);
+
+  // Sync activeTenant when currentUser changes or reloadTick occurs
+  useEffect(() => {
+    if (!tenantInitialized) return;
+    const currentTenantId = currentUser?.tenantId || storageService.getTenantId();
+    if (currentTenantId) {
+      storageService.getTenant(currentTenantId).then(tenant => {
+        setActiveTenant(tenant);
+      });
+    }
+  }, [currentUser, reloadTick, tenantInitialized]);
+
   // ---- Initial load (dan reload) dari Supabase ----
   useEffect(() => {
+    if (!tenantInitialized) return;
+
     let cancelled = false;
-    // Full-screen spinner hanya untuk load PERTAMA. Refresh latar belakang
-    // (polling/reload manual selepas itu) tak patut ganggu UI sedia ada.
     if (!hasLoadedOnceRef.current) {
       setIsLoading(true);
     }
@@ -120,7 +160,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       });
 
     return () => { cancelled = true; };
-  }, [reloadTick]);
+  }, [reloadTick, tenantInitialized]);
 
   const reload = useCallback(() => setReloadTick(t => t + 1), []);
 
@@ -130,24 +170,63 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => clearInterval(interval);
   }, [reload]);
 
-  const login = useCallback((name: string, password: string): boolean => {
-    const user = users.find(u =>
-        u.name.trim().toLowerCase() === name.trim().toLowerCase() &&
-        String(u.password).trim() === String(password).trim() &&
-        String(u.status).trim().toLowerCase() === 'active'
-    );
-
-    if (user) {
-      setCurrentUser({ id: user.id, name: user.name, role: user.role });
-      return true;
+  const login = useCallback(async (email: string, password: string): Promise<boolean> => {
+    try {
+      const user = await storageService.getUserByEmailGlobal(email);
+      if (user && String(user.password).trim() === String(password).trim() && String(user.status).trim().toLowerCase() === 'active') {
+        const tenantId = user.tenantId;
+        storageService.setTenantId(tenantId);
+        localStorage.setItem('fleetflow_tenant_id', tenantId);
+        localStorage.setItem('fleetflow_user_data', JSON.stringify({ id: user.id, name: user.name, role: user.role, tenantId }));
+        
+        setCurrentUser({ id: user.id, name: user.name, role: user.role, tenantId });
+        reload();
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Login error:', err);
+      return false;
     }
-
-    return false;
-  }, [users]);
+  }, [reload]);
 
   const logout = useCallback(() => {
+    localStorage.removeItem('fleetflow_tenant_id');
+    localStorage.removeItem('fleetflow_user_data');
+    storageService.setTenantId('yayasan-chow-kit');
     setCurrentUser(null);
-  }, []);
+    reload();
+  }, [reload]);
+
+  const updateGoogleCalendarId = useCallback(async (calendarId: string): Promise<boolean> => {
+    const currentTenantId = currentUser?.tenantId || storageService.getTenantId();
+    if (!currentTenantId) return false;
+    const success = await storageService.updateTenant(currentTenantId, { googleCalendarId: calendarId });
+    if (success) {
+      setActiveTenant(prev => prev ? { ...prev, googleCalendarId: calendarId } : null);
+      return true;
+    }
+    return false;
+  }, [currentUser]);
+
+  const updateGoogleDriveId = useCallback(async (driveId: string): Promise<boolean> => {
+    const currentTenantId = currentUser?.tenantId || storageService.getTenantId();
+    if (!currentTenantId) return false;
+    const success = await storageService.updateTenant(currentTenantId, { googleDriveId: driveId });
+    if (success) {
+      setActiveTenant(prev => prev ? { ...prev, googleDriveId: driveId } : null);
+      return true;
+    }
+    return false;
+  }, [currentUser]);
+
+  const registerOrganization = useCallback(async (tenantId: string, tenantName: string, adminName: string, adminEmail: string, adminPassword?: string): Promise<boolean> => {
+    const success = await storageService.signUpTenant(tenantId, tenantName, adminName, adminEmail, adminPassword);
+    if (success) {
+      reload();
+    }
+    return success;
+  }, [reload]);
 
   const clearUndoState = useCallback(() => {
     if (undoTimeoutRef.current) {
@@ -774,6 +853,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       issueLogs,
       driverSchedules,
       currentUser,
+      activeTenant,
       isLoading,
       loadError,
       lastDriverAssignedId,
@@ -807,6 +887,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addVehicle,
       updateVehicle,
       deleteVehicle,
+      updateGoogleCalendarId,
+      updateGoogleDriveId,
+      registerOrganization,
     }}>
       {children}
     </AppContext.Provider>
