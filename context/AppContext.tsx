@@ -405,7 +405,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setBookings(prev => [...newBookings, ...prev]);
       if (activeTenant) {
         newBookings.forEach(b => {
-          googleCalendarService.createEvent(activeTenant, b).catch(() => {});
+          googleCalendarService.createEvent(activeTenant, b).then(eventId => {
+            if (eventId) {
+              setBookings(prev => prev.map(x => (x.id === b.id ? { ...x, calendarEventId: eventId } : x)));
+              storageService.updateBooking({ id: b.id, calendarEventId: eventId }).catch(() => {});
+            }
+          }).catch(() => {});
         });
       }
       newBookings.forEach(b => {
@@ -469,6 +474,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         googleCalendarService.createEvent(activeTenant, newBooking).then(eventId => {
           if (eventId) {
             newBooking.calendarEventId = eventId;
+            setBookings(prev => prev.map(b => (b.id === newBooking.id ? { ...b, calendarEventId: eventId } : b)));
+            storageService.updateBooking({ id: newBooking.id, calendarEventId: eventId }).catch(() => {});
           }
         }).catch(() => {});
       }
@@ -482,22 +489,37 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       return result;
     }
-  }, [bookings, driverSchedules, users, vehicles, lastDriverAssignedId]);
+  }, [bookings, driverSchedules, users, vehicles, lastDriverAssignedId, activeTenant]);
 
   const updateBooking = useCallback((bookingId: string, updatedData: Partial<Omit<Booking, 'id'>>) => {
+    let updatedFullBooking: Booking | undefined;
     setBookings(prev => {
       setUndoableAction(bookingId, prev);
-      return prev.map(b => (b.id === bookingId ? { ...b, ...updatedData } : b));
+      return prev.map(b => {
+        if (b.id === bookingId) {
+          updatedFullBooking = { ...b, ...updatedData };
+          return updatedFullBooking;
+        }
+        return b;
+      });
     });
+
+    if (activeTenant && updatedFullBooking) {
+      googleCalendarService.updateEvent(activeTenant, updatedFullBooking).catch(err => {
+        console.warn('Gagal sync kemaskini kalendar:', err);
+      });
+    }
+
     storageService.updateBooking({ id: bookingId, ...updatedData }).catch(err => {
       alert('Gagal kemaskini booking: ' + err.message);
     });
-  }, [setUndoableAction]);
+  }, [setUndoableAction, activeTenant]);
 
   const deleteBooking = useCallback((bookingId: string) => {
     clearUndoState();
+    let bookingToDelete: Booking | undefined;
     setBookings(prev => {
-      const bookingToDelete = prev.find(b => b.id === bookingId);
+      bookingToDelete = prev.find(b => b.id === bookingId);
       if (bookingToDelete?.attachmentUrl) {
         if (bookingToDelete.attachmentUrl.startsWith('blob:')) {
           URL.revokeObjectURL(bookingToDelete.attachmentUrl);
@@ -538,25 +560,45 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
       return prev.filter(b => b.id !== bookingId);
     });
+
+    if (activeTenant && bookingToDelete) {
+      googleCalendarService.deleteEvent(activeTenant, (bookingToDelete as Booking).calendarEventId, bookingToDelete).catch(err => {
+        console.warn('Gagal memadam acara kalendar Google:', err);
+      });
+    }
+
     storageService.deleteBooking(bookingId).catch(err => {
       alert('Gagal padam booking: ' + err.message);
     });
-  }, [clearUndoState]);
+  }, [clearUndoState, activeTenant]);
 
   const restoreBooking = useCallback((bookingId: string) => {
+    let restoredBooking: Booking | undefined;
     setBookings(prev => {
       setUndoableAction(bookingId, prev);
-      return prev.map(b => (b.id === bookingId ? { ...b, status: 'Pending' as Booking['status'] } : b));
+      return prev.map(b => {
+        if (b.id === bookingId) {
+          restoredBooking = { ...b, status: 'Pending' as Booking['status'] };
+          return restoredBooking;
+        }
+        return b;
+      });
     });
+
+    if (activeTenant && restoredBooking) {
+      googleCalendarService.updateEvent(activeTenant, restoredBooking).catch(() => {});
+    }
+
     storageService.updateBooking({ id: bookingId, status: 'Pending' }).catch(err => {
       alert('Gagal restore booking: ' + err.message);
     });
-  }, [setUndoableAction]);
+  }, [setUndoableAction, activeTenant]);
 
   const assignToBooking = useCallback((bookingId: string, driverId: string, vehicleId: string) => {
     const driver = users.find(u => u.id === driverId);
     const vehicle = vehicles.find(v => v.id === vehicleId);
     const driverName = driver?.name || 'Driver';
+    let assignedBooking: Booking | undefined;
 
     setBookings(prev => {
       setUndoableAction(bookingId, prev);
@@ -564,7 +606,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (b.id !== bookingId) return b;
         const calTitle = `(${driverName}) ${b.requesterName} → ${b.destination}`;
         const calColor = getDriverCalendarColor(driverName, b.serviceType);
-        return {
+        assignedBooking = {
           ...b,
           driverId,
           vehicleId,
@@ -574,8 +616,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           adminNotes: `Pengendalian Manual: Disahkan oleh Admin Ain. Pemandu: ${driverName}, Kenderaan: ${vehicle?.name || vehicleId} (${vehicle?.plateNumber || ''}).`,
           conflictReason: undefined,
         };
+        return assignedBooking;
       });
     });
+
+    if (activeTenant && assignedBooking) {
+      googleCalendarService.updateEvent(activeTenant, assignedBooking).catch(() => {});
+    }
+
     storageService.updateBooking({
       id: bookingId,
       driverId,
@@ -584,27 +632,39 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }).catch(err => {
       alert('Gagal assign booking: ' + err.message);
     });
-  }, [setUndoableAction, users, vehicles]);
+  }, [setUndoableAction, users, vehicles, activeTenant]);
 
   const updateBookingStatus = useCallback((bookingId: string, status: Booking['status'], cancellationReason?: string) => {
     let mergedRemarks: string | undefined;
+    let updatedBooking: Booking | undefined;
     setBookings(prev => {
       setUndoableAction(bookingId, prev);
       return prev.map(b => {
         if (b.id !== bookingId) return b;
         if (status === 'Cancelled' && cancellationReason) {
           mergedRemarks = (b.remarks ? b.remarks + ' | ' : '') + 'Dibatalkan: ' + cancellationReason;
-          return { ...b, status, remarks: mergedRemarks };
+          updatedBooking = { ...b, status, remarks: mergedRemarks };
+          return updatedBooking;
         }
-        return { ...b, status };
+        updatedBooking = { ...b, status };
+        return updatedBooking;
       });
     });
+
+    if (activeTenant && updatedBooking) {
+      if (status === 'Cancelled') {
+        googleCalendarService.deleteEvent(activeTenant, (updatedBooking as Booking).calendarEventId, updatedBooking).catch(() => {});
+      } else {
+        googleCalendarService.updateEvent(activeTenant, updatedBooking).catch(() => {});
+      }
+    }
+
     const payload: Partial<Booking> & { id: string } = { id: bookingId, status };
     if (mergedRemarks !== undefined) payload.remarks = mergedRemarks;
     storageService.updateBooking(payload).catch(err => {
       alert('Gagal kemaskini status booking: ' + err.message);
     });
-  }, [setUndoableAction]);
+  }, [setUndoableAction, activeTenant]);
 
   const undoLastBookingChange = useCallback(() => {
     if (lastBookingChange) {

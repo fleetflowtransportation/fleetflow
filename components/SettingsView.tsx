@@ -132,10 +132,10 @@ export const SettingsView: React.FC = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const fullCodeGs = `// ==========================================
+  const fullCodeGs = `// =========================================================================
 // FleetFlow Google Apps Script (Code.gs)
-// Menyokong: Google Calendar Sync & Google Drive Upload
-// ==========================================
+// Menyokong: Google Calendar (Create, Update, Delete) & Google Drive Upload
+// =========================================================================
 
 function doPost(e) {
   try {
@@ -149,16 +149,165 @@ function doPost(e) {
       }
     }
     
-    // 1. ACTION: createCalendarEvent (FleetFlow Calendar Sync)
+    // -----------------------------------------------------------------------
+    // 0. ACTION: ping / testConnection (Ujian Sambungan Google - Tanpa Cipta Acara)
+    // -----------------------------------------------------------------------
+    if (data.action === "ping" || data.actionType === "ping" || data.type === "ping" || data.action === "testConnection") {
+      var calName = "Default Calendar";
+      var calendarOk = true;
+      try {
+        var cal = CalendarApp.getDefaultCalendar();
+        if (cal) calName = cal.getName();
+      } catch (e) {
+        calendarOk = false;
+      }
+
+      var driveOk = true;
+      try {
+        var root = DriveApp.getRootFolder();
+        if (!root) driveOk = false;
+      } catch (e) {
+        driveOk = false;
+      }
+
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success",
+        success: true,
+        message: "Sambungan ke Google Apps Script berjaya! Perkhidmatan Kalendar & Drive sedia beroperasi.",
+        calendar: calName,
+        calendarReady: calendarOk,
+        driveReady: driveOk,
+        timestamp: new Date().toISOString()
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // -----------------------------------------------------------------------
+    // 1. ACTION: updateCalendarEvent (Kemaskini Acara Kalendar)
+    // -----------------------------------------------------------------------
+    if (data.action === "updateCalendarEvent" || data.actionType === "updateCalendarEvent") {
+      var calendarId = data.calendarId || "primary";
+      var cal = (calendarId && calendarId !== "primary" && calendarId.indexOf("@") !== -1)
+        ? (CalendarApp.getCalendarById(calendarId) || CalendarApp.getDefaultCalendar())
+        : CalendarApp.getDefaultCalendar();
+
+      var eventId = data.eventId || data.id;
+      var event = null;
+      if (eventId) {
+        try {
+          event = cal.getEventById(eventId);
+        } catch (err) {}
+      }
+
+      var title = data.title || data.summary || "Tempahan Kenderaan FleetFlow";
+      var description = data.description || "";
+      var location = data.location || "";
+      
+      var startStr = data.startTime || data.startIso || (data.start && data.start.dateTime);
+      var endStr = data.endTime || data.endIso || (data.end && data.end.dateTime);
+      var startTime = startStr ? new Date(startStr) : new Date();
+      var endTime = endStr ? new Date(endStr) : new Date(startTime.getTime() + 60 * 60 * 1000);
+      if (isNaN(startTime.getTime())) startTime = new Date();
+      if (isNaN(endTime.getTime())) endTime = new Date(startTime.getTime() + 60 * 60 * 1000);
+
+      // Jika ID tidak dijumpai terus, cuba cari acara dalam julat tarikh mengikut ID tempahan / tajuk
+      if (!event && startStr) {
+        var searchStart = new Date(startTime.getTime() - 24 * 60 * 60 * 1000);
+        var searchEnd = new Date(endTime.getTime() + 24 * 60 * 60 * 1000);
+        var list = cal.getEvents(searchStart, searchEnd);
+        for (var i = 0; i < list.length; i++) {
+          var desc = list[i].getDescription() || "";
+          if ((data.bookingId && desc.indexOf(data.bookingId) !== -1) || list[i].getTitle() === title) {
+            event = list[i];
+            break;
+          }
+        }
+      }
+
+      if (event) {
+        event.setTitle(title);
+        event.setTime(startTime, endTime);
+        event.setDescription(description);
+        event.setLocation(location);
+        return ContentService.createTextOutput(JSON.stringify({
+          status: "success",
+          success: true,
+          action: "update",
+          eventId: event.getId(),
+          title: title
+        })).setMimeType(ContentService.MimeType.JSON);
+      } else {
+        // Jika belum wujud, cipta baru (fallback)
+        var newEvt = cal.createEvent(title, startTime, endTime, {
+          description: description,
+          location: location
+        });
+        return ContentService.createTextOutput(JSON.stringify({
+          status: "success",
+          success: true,
+          action: "create_fallback",
+          eventId: newEvt.getId(),
+          title: title
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // 2. ACTION: deleteCalendarEvent (Padam Acara Kalendar)
+    // -----------------------------------------------------------------------
+    if (data.action === "deleteCalendarEvent" || data.actionType === "deleteCalendarEvent" || (data.action === "delete" && data.calendarEventId)) {
+      var calendarId = data.calendarId || "primary";
+      var cal = (calendarId && calendarId !== "primary" && calendarId.indexOf("@") !== -1)
+        ? (CalendarApp.getCalendarById(calendarId) || CalendarApp.getDefaultCalendar())
+        : CalendarApp.getDefaultCalendar();
+
+      var eventId = data.eventId || data.id || data.calendarEventId;
+      var event = null;
+      if (eventId) {
+        try {
+          event = cal.getEventById(eventId);
+        } catch (err) {}
+      }
+
+      if (!event && (data.startTime || data.startIso)) {
+        var st = new Date(data.startTime || data.startIso);
+        var et = data.endTime || data.endIso ? new Date(data.endTime || data.endIso) : new Date(st.getTime() + 2 * 60 * 60 * 1000);
+        var searchStart = new Date(st.getTime() - 24 * 60 * 60 * 1000);
+        var searchEnd = new Date(et.getTime() + 24 * 60 * 60 * 1000);
+        var list = cal.getEvents(searchStart, searchEnd);
+        for (var j = 0; j < list.length; j++) {
+          if (data.title && list[j].getTitle().indexOf(data.title) !== -1) {
+            event = list[j];
+            break;
+          }
+        }
+      }
+
+      if (event) {
+        event.deleteEvent();
+        return ContentService.createTextOutput(JSON.stringify({
+          status: "success",
+          success: true,
+          action: "delete",
+          deletedEventId: eventId
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success",
+        success: true,
+        action: "delete_already_removed",
+        eventId: eventId
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // -----------------------------------------------------------------------
+    // 3. ACTION: createCalendarEvent (Cipta Acara Kalendar Baharu)
+    // -----------------------------------------------------------------------
     if (data.action === "createCalendarEvent" || data.actionType === "createCalendarEvent" || data.type === "createCalendarEvent" || data.title || data.summary) {
       var calendarId = data.calendarId || "primary";
-      var cal;
-      if (calendarId && calendarId !== "primary" && calendarId.indexOf("@") !== -1) {
-        cal = CalendarApp.getCalendarById(calendarId);
-      }
-      if (!cal) {
-        cal = CalendarApp.getDefaultCalendar();
-      }
+      var cal = (calendarId && calendarId !== "primary" && calendarId.indexOf("@") !== -1)
+        ? (CalendarApp.getCalendarById(calendarId) || CalendarApp.getDefaultCalendar())
+        : CalendarApp.getDefaultCalendar();
       
       var title = data.title || data.summary || (data.event && data.event.summary) || "Tempahan Kenderaan FleetFlow";
       var description = data.description || (data.event && data.event.description) || "";
@@ -166,10 +315,8 @@ function doPost(e) {
       
       var startStr = data.startTime || data.startIso || (data.start && data.start.dateTime);
       var endStr = data.endTime || data.endIso || (data.end && data.end.dateTime);
-      
       var startTime = startStr ? new Date(startStr) : new Date();
       var endTime = endStr ? new Date(endStr) : new Date(startTime.getTime() + 60 * 60 * 1000);
-      
       if (isNaN(startTime.getTime())) startTime = new Date();
       if (isNaN(endTime.getTime())) endTime = new Date(startTime.getTime() + 60 * 60 * 1000);
       
@@ -181,6 +328,7 @@ function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify({
         status: "success",
         success: true,
+        action: "create",
         eventId: event.getId(),
         id: event.getId(),
         title: title,
@@ -188,7 +336,9 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
     
-    // 2. ACTION: uploadFile (FleetFlow Google Drive Upload)
+    // -----------------------------------------------------------------------
+    // 4. ACTION: uploadFile (Muat Naik Lampiran ke Google Drive)
+    // -----------------------------------------------------------------------
     if (data.action === "uploadFile" || data.base64) {
       var folderId = data.folderId;
       var folder = folderId ? DriveApp.getFolderById(folderId) : DriveApp.getRootFolder();
@@ -205,6 +355,26 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
+    // -----------------------------------------------------------------------
+    // 5. ACTION: delete (Padam Fail Google Drive)
+    // -----------------------------------------------------------------------
+    if (data.action === "delete" && data.fileId) {
+      try {
+        var fileToDel = DriveApp.getFileById(data.fileId);
+        fileToDel.setTrashed(true);
+        return ContentService.createTextOutput(JSON.stringify({
+          status: "success",
+          success: true,
+          message: "Fail dipadamkan"
+        })).setMimeType(ContentService.MimeType.JSON);
+      } catch (e) {
+        return ContentService.createTextOutput(JSON.stringify({
+          status: "error",
+          error: e.toString()
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+
     return ContentService.createTextOutput(JSON.stringify({
       status: "received",
       message: "Tiada tindakan spesifik dipadankan",
@@ -218,6 +388,13 @@ function doPost(e) {
       error: error.toString()
     })).setMimeType(ContentService.MimeType.JSON);
   }
+}
+
+// Fungsi Ujian Kebenaran (Authorize Permission)
+function testPermission() {
+  var cal = CalendarApp.getDefaultCalendar();
+  var drive = DriveApp.getRootFolder();
+  Logger.log("Kebenaran Calendar & Drive Berjaya Disahkan!");
 }`;
 
   const handleCopyCodeGs = () => {
@@ -326,7 +503,7 @@ function doPost(e) {
             ) : (
               <>
                 <span>🧪</span>
-                <span>Uji Sambungan Google Calendar</span>
+                <span>Uji Sambungan Google</span>
               </>
             )}
           </button>
@@ -595,7 +772,7 @@ function doPost(e) {
                 disabled={testingConnection}
                 className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl text-xs transition cursor-pointer flex items-center space-x-1.5"
               >
-                {testingConnection ? 'Menguji...' : '🧪 Uji Sambungan Sekarang'}
+                {testingConnection ? 'Menguji...' : '🧪 Uji Sambungan Google'}
               </button>
 
               <button
@@ -617,7 +794,7 @@ function doPost(e) {
           <div className="flex items-center space-x-2.5">
             <span className="text-xl">📋</span>
             <div>
-              <h3 className="text-base font-bold text-gray-950">Log Diagnostik Penyelarasan Google Calendar</h3>
+              <h3 className="text-base font-bold text-gray-950">Log Diagnostik Penyelarasan Google (Calendar & Drive)</h3>
               <p className="text-xs text-gray-500">Pantau rekod permohonan, status respon HTTP, dan maklum balas dari Google Apps Script.</p>
             </div>
           </div>

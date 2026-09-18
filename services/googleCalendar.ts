@@ -115,16 +115,11 @@ export const googleCalendarService = {
     }
 
     const testPayload = {
-      action: 'createCalendarEvent',
-      actionType: 'createCalendarEvent',
-      type: 'createCalendarEvent',
-      calendarId: tenant?.googleCalendarId || 'primary',
-      title: '[TEST] FleetFlow Calendar Integration Check',
-      summary: '[TEST] FleetFlow Calendar Integration Check',
-      description: 'Ujian sambungan automatik dari sistem FleetFlow ke Google Calendar.',
-      location: 'HQ',
-      startTime: new Date().toISOString(),
-      endTime: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      action: 'ping',
+      actionType: 'ping',
+      type: 'ping',
+      calendarId: tenant?.googleCalendarId && !tenant.googleCalendarId.startsWith('http') ? tenant.googleCalendarId : 'primary',
+      timestamp: new Date().toISOString(),
     };
 
     try {
@@ -144,7 +139,7 @@ export const googleCalendarService = {
 
       const isHtmlResponse = resText.trim().startsWith('<!DOCTYPE html') || resText.trim().startsWith('<html');
       const errorMessage = resJson?.error || resJson?.message || (!res.ok ? `HTTP ${res.status}` : undefined);
-      const isScriptError = isHtmlResponse || !res.ok || (resJson && (resJson.status === 'error' || resJson.success === false || !!resJson.error)) || (!resJson && !resText.includes('success'));
+      const isScriptError = isHtmlResponse || !res.ok || (resJson && (resJson.status === 'error' || resJson.success === false || !!resJson.error)) || (!resJson && !resText.includes('success') && !resText.includes('received'));
       
       let specificError = errorMessage;
       if (isHtmlResponse) {
@@ -152,6 +147,7 @@ export const googleCalendarService = {
       }
 
       addDiagnosticLog({
+        bookingTitle: '[UJIAN SAMBUNGAN GOOGLE]',
         endpointUrl: scriptUrl,
         payload: testPayload,
         status: isScriptError ? 'ERROR' : 'SUCCESS',
@@ -163,7 +159,7 @@ export const googleCalendarService = {
       if (!isScriptError) {
         return {
           success: true,
-          message: 'Berjaya! Google Apps Script telah mencipta acara ujian kalendar. ID: ' + (resJson?.eventId || resJson?.id || 'OK'),
+          message: resJson?.message || 'Berjaya! Sambungan ke Google Apps Script (Calendar & Drive) beroperasi dengan cemerlang (tanpa mencipta acara dummy).',
           response: resJson || resText
         };
       } else {
@@ -171,12 +167,13 @@ export const googleCalendarService = {
           success: false,
           message: isHtmlResponse
             ? specificError!
-            : `Sambungan ke Web App berjaya, tetapi Apps Script mengembalikan ralat: "${errorMessage || 'Sila semak kebenaran CalendarApp di Google Apps Script anda'}".`,
+            : `Sambungan ke Web App berjaya, tetapi Apps Script mengembalikan ralat: "${errorMessage || 'Sila semak kebenaran skrip di Google Apps Script anda'}".`,
           response: resJson || resText
         };
       }
     } catch (err: any) {
       addDiagnosticLog({
+        bookingTitle: '[UJIAN SAMBUNGAN GOOGLE]',
         endpointUrl: scriptUrl,
         payload: testPayload,
         status: 'ERROR',
@@ -184,7 +181,7 @@ export const googleCalendarService = {
       });
       return {
         success: false,
-        message: `Gagal memanggil Web App: ${err.message || 'Sila semak URL atau kebenaran Web App (Anyone)'}`
+        message: `Gagal memanggil Web App Google: ${err.message || 'Sila semak URL atau kebenaran Web App (Anyone)'}`
       };
     }
   },
@@ -342,67 +339,185 @@ export const googleCalendarService = {
   },
 
   updateEvent: async (tenant: Tenant, booking: Booking): Promise<boolean> => {
-    if (!tenant.googleCalendarId || !booking.calendarEventId) return false;
-    if (!cachedToken) return false;
+    const startLocal = parseAsLocal(booking.dateTime);
+    const endLocal = booking.finishDateTime ? parseAsLocal(booking.finishDateTime) : new Date(startLocal.getTime() + 60 * 60 * 1000);
 
-    try {
-      const event = {
-        summary: booking.calendarEventTitle || `${booking.requesterName} - ${booking.destination}`,
-        description: `Requester: ${booking.requesterName} (${booking.requesterEmail || 'Tiada E-mel'})\nDestinasi: ${booking.destination}\nTujuan: ${booking.purpose}\nPenumpang: ${booking.passengers?.map(p => `${p.category}: ${p.count}`).join(', ')}\nCatatan: ${booking.remarks || 'Tiada'}`,
-        start: {
-          dateTime: booking.dateTime,
-          timeZone: 'Asia/Kuala_Lumpur',
-        },
-        end: {
-          dateTime: booking.finishDateTime || booking.dateTime,
-          timeZone: 'Asia/Kuala_Lumpur',
-        },
-      };
+    const title = booking.calendarEventTitle || `${booking.requesterName} - ${booking.destination}`;
+    const description = `Pemohon: ${booking.requesterName} (${booking.requesterEmail || 'Tiada E-mel'})\nDestinasi: ${booking.destination}\nTujuan: ${booking.purpose}\nStatus: ${booking.status}\nCatatan: ${booking.remarks || 'Tiada'}\nID Tempahan: ${booking.id}`;
+    const location = booking.destination || '';
+    const startIso = startLocal.toISOString();
+    const endIso = endLocal.toISOString();
 
-      const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(tenant.googleCalendarId)}/events/${booking.calendarEventId}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${cachedToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(event),
-      });
+    const customLocalUrl = localStorage.getItem('fleetflow_google_script_url');
+    const possibleScriptUrls = [
+      customLocalUrl,
+      tenant?.googleDriveId?.startsWith('http') ? tenant.googleDriveId : null,
+      tenant?.googleCalendarId?.startsWith('http') ? tenant.googleCalendarId : null,
+      import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL,
+    ].filter(Boolean) as string[];
 
-      if (!res.ok) {
-        const errText = await res.text();
-        console.warn('[Google Calendar] Gagal mengemaskini acara di Google Calendar:', errText);
-        return false;
+    const uniqueScriptUrls = Array.from(new Set(possibleScriptUrls));
+
+    // Try via Apps Script Web App
+    for (const scriptUrl of uniqueScriptUrls) {
+      try {
+        const payload = {
+          action: 'updateCalendarEvent',
+          actionType: 'updateCalendarEvent',
+          type: 'updateCalendarEvent',
+          eventId: booking.calendarEventId,
+          bookingId: booking.id,
+          calendarId: tenant?.googleCalendarId && !tenant.googleCalendarId.startsWith('http') ? tenant.googleCalendarId : 'primary',
+          title: title,
+          summary: title,
+          description: description,
+          location: location,
+          startTime: startIso,
+          endTime: endIso,
+          start: { dateTime: startIso, timeZone: 'Asia/Kuala_Lumpur' },
+          end: { dateTime: endIso, timeZone: 'Asia/Kuala_Lumpur' },
+        };
+
+        const res = await fetch(scriptUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload),
+        });
+
+        const resText = await res.text();
+        let resJson: any = null;
+        try { resJson = JSON.parse(resText); } catch {}
+
+        const isSuccess = res.ok && (!resJson || resJson.status === 'success' || resJson.success === true || resText.includes('success'));
+
+        addDiagnosticLog({
+          bookingTitle: `[KEMASKINI] ${title}`,
+          endpointUrl: scriptUrl,
+          payload: { action: 'updateCalendarEvent', eventId: booking.calendarEventId, title },
+          status: isSuccess ? 'SUCCESS' : 'ERROR',
+          httpStatus: res.status,
+          responseBody: resText.substring(0, 300),
+        });
+
+        if (isSuccess) {
+          console.log('[Google Calendar] Event updated via Apps Script URL:', booking.calendarEventId);
+          return true;
+        }
+      } catch (err: any) {
+        console.warn('[Google Calendar] Error updateEvent via Apps Script:', err.message);
       }
-
-      return true;
-    } catch (err: any) {
-      console.error('[Google Calendar] Error updateEvent:', err.message);
-      return false;
     }
+
+    // Fallback: Try REST API if cached OAuth token exists
+    if (cachedToken && tenant?.googleCalendarId && booking.calendarEventId && !tenant.googleCalendarId.startsWith('http')) {
+      try {
+        const eventPayload = {
+          summary: title,
+          description: description,
+          location: location,
+          start: { dateTime: startIso, timeZone: 'Asia/Kuala_Lumpur' },
+          end: { dateTime: endIso, timeZone: 'Asia/Kuala_Lumpur' },
+        };
+
+        const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(tenant.googleCalendarId)}/events/${encodeURIComponent(booking.calendarEventId)}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${cachedToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(eventPayload),
+        });
+
+        if (res.ok) {
+          return true;
+        }
+      } catch (err: any) {
+        console.error('[Google Calendar] Error updateEvent REST API:', err.message);
+      }
+    }
+
+    return false;
   },
 
-  deleteEvent: async (tenant: Tenant, eventId: string): Promise<boolean> => {
-    if (!tenant.googleCalendarId || !eventId) return false;
-    if (!cachedToken) return false;
+  deleteEvent: async (tenant: Tenant, eventId?: string, bookingInfo?: Partial<Booking>): Promise<boolean> => {
+    const title = bookingInfo?.calendarEventTitle || (bookingInfo?.requesterName ? `${bookingInfo.requesterName} - ${bookingInfo?.destination || ''}` : '');
+    const startIso = bookingInfo?.dateTime ? parseAsLocal(bookingInfo.dateTime).toISOString() : undefined;
+    const endIso = bookingInfo?.finishDateTime ? parseAsLocal(bookingInfo.finishDateTime).toISOString() : undefined;
 
-    try {
-      const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(tenant.googleCalendarId)}/events/${eventId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${cachedToken}`,
-        },
-      });
+    const customLocalUrl = localStorage.getItem('fleetflow_google_script_url');
+    const possibleScriptUrls = [
+      customLocalUrl,
+      tenant?.googleDriveId?.startsWith('http') ? tenant.googleDriveId : null,
+      tenant?.googleCalendarId?.startsWith('http') ? tenant.googleCalendarId : null,
+      import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL,
+    ].filter(Boolean) as string[];
 
-      if (!res.ok) {
-        const errText = await res.text();
-        console.warn('[Google Calendar] Gagal memadam acara di Google Calendar:', errText);
-        return false;
+    const uniqueScriptUrls = Array.from(new Set(possibleScriptUrls));
+
+    // Try via Apps Script Web App
+    for (const scriptUrl of uniqueScriptUrls) {
+      try {
+        const payload = {
+          action: 'deleteCalendarEvent',
+          actionType: 'deleteCalendarEvent',
+          type: 'deleteCalendarEvent',
+          eventId: eventId,
+          calendarEventId: eventId,
+          id: eventId,
+          title: title,
+          startTime: startIso,
+          endTime: endIso,
+          calendarId: tenant?.googleCalendarId && !tenant.googleCalendarId.startsWith('http') ? tenant.googleCalendarId : 'primary',
+        };
+
+        const res = await fetch(scriptUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload),
+        });
+
+        const resText = await res.text();
+        let resJson: any = null;
+        try { resJson = JSON.parse(resText); } catch {}
+
+        const isSuccess = res.ok && (!resJson || resJson.status === 'success' || resJson.success === true || resText.includes('success'));
+
+        addDiagnosticLog({
+          bookingTitle: `[PADAM] ${title || eventId || 'Acara Kalendar'}`,
+          endpointUrl: scriptUrl,
+          payload: { action: 'deleteCalendarEvent', eventId, title },
+          status: isSuccess ? 'SUCCESS' : 'ERROR',
+          httpStatus: res.status,
+          responseBody: resText.substring(0, 300),
+        });
+
+        if (isSuccess) {
+          console.log('[Google Calendar] Event deleted via Apps Script URL:', eventId);
+          return true;
+        }
+      } catch (err: any) {
+        console.warn('[Google Calendar] Error deleteEvent via Apps Script:', err.message);
       }
-
-      return true;
-    } catch (err: any) {
-      console.error('[Google Calendar] Error deleteEvent:', err.message);
-      return false;
     }
+
+    // Fallback: Try REST API if cached OAuth token exists
+    if (cachedToken && tenant?.googleCalendarId && eventId && !tenant.googleCalendarId.startsWith('http')) {
+      try {
+        const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(tenant.googleCalendarId)}/events/${encodeURIComponent(eventId)}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${cachedToken}`,
+          },
+        });
+
+        if (res.ok) {
+          return true;
+        }
+      } catch (err: any) {
+        console.error('[Google Calendar] Error deleteEvent REST API:', err.message);
+      }
+    }
+
+    return false;
   }
 };
