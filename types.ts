@@ -144,6 +144,7 @@ export interface Tenant {
   id: string;
   name: string;
   status: 'active' | 'inactive';
+  googleAppsScriptUrl?: string;
   googleCalendarId?: string;
   googleDriveId?: string;
 }

@@ -50,6 +50,8 @@ interface AppContextType {
   deleteVehicle: (vehicleId: string) => void;
   updateGoogleCalendarId: (calendarId: string) => Promise<boolean>;
   updateGoogleDriveId: (driveId: string) => Promise<boolean>;
+  updateGoogleAppsScriptUrl: (url: string) => Promise<boolean>;
+  updateTenantGoogleIntegrations: (settings: { googleAppsScriptUrl?: string; googleCalendarId?: string; googleDriveId?: string }) => Promise<boolean>;
   registerOrganization: (tenantId: string, tenantName: string, adminName: string, adminEmail: string, adminPassword?: string) => Promise<boolean>;
 }
 
@@ -215,6 +217,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const success = await storageService.updateTenant(currentTenantId, { googleDriveId: driveId });
     if (success) {
       setActiveTenant(prev => prev ? { ...prev, googleDriveId: driveId } : null);
+      return true;
+    }
+    return false;
+  }, [currentUser]);
+
+  const updateGoogleAppsScriptUrl = useCallback(async (url: string): Promise<boolean> => {
+    const currentTenantId = currentUser?.tenantId || storageService.getTenantId();
+    if (!currentTenantId) return false;
+    const success = await storageService.updateTenant(currentTenantId, { googleAppsScriptUrl: url });
+    if (success) {
+      setActiveTenant(prev => prev ? { ...prev, googleAppsScriptUrl: url } : null);
+      return true;
+    }
+    return false;
+  }, [currentUser]);
+
+  const updateTenantGoogleIntegrations = useCallback(async (settings: { googleAppsScriptUrl?: string; googleCalendarId?: string; googleDriveId?: string }): Promise<boolean> => {
+    const currentTenantId = currentUser?.tenantId || storageService.getTenantId();
+    if (!currentTenantId) return false;
+    const success = await storageService.updateTenant(currentTenantId, settings);
+    if (success) {
+      setActiveTenant(prev => prev ? { ...prev, ...settings } : null);
       return true;
     }
     return false;
@@ -961,6 +985,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       deleteVehicle,
       updateGoogleCalendarId,
       updateGoogleDriveId,
+      updateGoogleAppsScriptUrl,
+      updateTenantGoogleIntegrations,
       registerOrganization,
     }}>
       {children}

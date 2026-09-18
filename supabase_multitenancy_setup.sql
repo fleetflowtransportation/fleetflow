@@ -14,12 +14,14 @@ CREATE TABLE IF NOT EXISTS tenants (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   status TEXT DEFAULT 'active',
+  google_apps_script_url TEXT,
   google_calendar_id TEXT,
   google_drive_id TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 -- Pastikan kolum integrasi wujud jika jadual tenants sudah lama dicipta:
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS google_apps_script_url TEXT;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS google_calendar_id TEXT;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS google_drive_id TEXT;
 

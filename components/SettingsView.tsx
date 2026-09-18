@@ -10,7 +10,7 @@ import {
 } from '../services/googleCalendar';
 
 export const SettingsView: React.FC = () => {
-  const { activeTenant, updateGoogleCalendarId, updateGoogleDriveId } = useAppContext();
+  const { activeTenant, updateTenantGoogleIntegrations } = useAppContext();
   
   // Real values in state
   const [calendarId, setCalendarId] = useState('');
@@ -42,14 +42,18 @@ export const SettingsView: React.FC = () => {
     if (activeTenant) {
       const cal = activeTenant.googleCalendarId || '';
       const drv = activeTenant.googleDriveId || '';
+      const script = activeTenant.googleAppsScriptUrl || localStorage.getItem('fleetflow_google_script_url') || import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL || '';
       setCalendarId(cal);
       setDriveId(drv);
+      setAppsScriptUrl(script);
       setTempCalendarId(cal);
       setTempDriveId(drv);
+      setTempAppsScriptUrl(script);
+    } else {
+      const savedScriptUrl = localStorage.getItem('fleetflow_google_script_url') || import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL || '';
+      setAppsScriptUrl(savedScriptUrl);
+      setTempAppsScriptUrl(savedScriptUrl);
     }
-    const savedScriptUrl = localStorage.getItem('fleetflow_google_script_url') || import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL || '';
-    setAppsScriptUrl(savedScriptUrl);
-    setTempAppsScriptUrl(savedScriptUrl);
     setDiagnosticLogs(getDiagnosticLogs());
   }, [activeTenant]);
 
@@ -86,18 +90,15 @@ export const SettingsView: React.FC = () => {
       const cleanDrv = tempDriveId.trim();
       const cleanUrl = cleanGoogleScriptUrl(tempAppsScriptUrl);
 
-      // Save to tenant / backend storage
-      if (cleanCal !== calendarId) {
-        await updateGoogleCalendarId(cleanCal);
-        setCalendarId(cleanCal);
-      }
-      if (cleanDrv !== driveId) {
-        await updateGoogleDriveId(cleanDrv);
-        setDriveId(cleanDrv);
-      }
+      // Save all 3 to Supabase database for the active tenant
+      await updateTenantGoogleIntegrations({
+        googleAppsScriptUrl: cleanUrl,
+        googleCalendarId: cleanCal,
+        googleDriveId: cleanDrv,
+      });
 
-      // Save Apps Script URL to local persistence
-      localStorage.setItem('fleetflow_google_script_url', cleanUrl);
+      setCalendarId(cleanCal);
+      setDriveId(cleanDrv);
       setAppsScriptUrl(cleanUrl);
       setTempAppsScriptUrl(cleanUrl);
 

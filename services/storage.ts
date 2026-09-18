@@ -650,7 +650,7 @@ export const storageService = {
       const { data, error } = await supabase.from('tenants').select('*').eq('id', id).maybeSingle();
       
       // Load local tenant settings fallback
-      let localConfig: { googleCalendarId?: string; googleDriveId?: string } = {};
+      let localConfig: { googleAppsScriptUrl?: string; googleCalendarId?: string; googleDriveId?: string } = {};
       try {
         const saved = localStorage.getItem(`fleetflow_tenant_config_${id}`);
         if (saved) localConfig = JSON.parse(saved);
@@ -658,13 +658,16 @@ export const storageService = {
         // ignore
       }
 
+      const globalSavedScriptUrl = localStorage.getItem('fleetflow_google_script_url') || '';
+
       if (error || !data) {
         // If not found in DB but exists in local storage or is default
-        if (id === 'yayasan-chow-kit' || localConfig.googleCalendarId || localConfig.googleDriveId) {
+        if (id === 'yayasan-chow-kit' || localConfig.googleAppsScriptUrl || localConfig.googleCalendarId || localConfig.googleDriveId || globalSavedScriptUrl) {
           return {
             id,
             name: data?.name || 'Yayasan Chow Kit',
             status: data?.status || 'active',
+            googleAppsScriptUrl: localConfig.googleAppsScriptUrl || globalSavedScriptUrl || '',
             googleCalendarId: localConfig.googleCalendarId || '',
             googleDriveId: localConfig.googleDriveId || '',
           };
@@ -672,8 +675,10 @@ export const storageService = {
         return null;
       }
       
+      let scriptUrl = data.google_apps_script_url || localConfig.googleAppsScriptUrl || globalSavedScriptUrl || '';
       let calendarId = data.google_calendar_id || localConfig.googleCalendarId || '';
       let driveId = data.google_drive_id || localConfig.googleDriveId || '';
+      
       if (typeof calendarId === 'string' && calendarId.includes(':::')) {
         const parts = calendarId.split(':::');
         calendarId = parts[0] || '';
@@ -684,6 +689,7 @@ export const storageService = {
         id: data.id,
         name: data.name,
         status: data.status,
+        googleAppsScriptUrl: scriptUrl,
         googleCalendarId: calendarId,
         googleDriveId: driveId,
       };
@@ -701,10 +707,14 @@ export const storageService = {
         const currentConfig = currentSaved ? JSON.parse(currentSaved) : {};
         const newConfig = {
           ...currentConfig,
+          ...(updatedData.googleAppsScriptUrl !== undefined && { googleAppsScriptUrl: updatedData.googleAppsScriptUrl }),
           ...(updatedData.googleCalendarId !== undefined && { googleCalendarId: updatedData.googleCalendarId }),
           ...(updatedData.googleDriveId !== undefined && { googleDriveId: updatedData.googleDriveId }),
         };
         localStorage.setItem(`fleetflow_tenant_config_${id}`, JSON.stringify(newConfig));
+        if (updatedData.googleAppsScriptUrl !== undefined) {
+          localStorage.setItem('fleetflow_google_script_url', updatedData.googleAppsScriptUrl);
+        }
       } catch (e) {
         console.warn('Failed to write tenant config to localStorage:', e);
       }
@@ -713,20 +723,27 @@ export const storageService = {
       const dbRow: any = {};
       if (updatedData.name !== undefined) dbRow.name = updatedData.name;
       if (updatedData.status !== undefined) dbRow.status = updatedData.status;
+      if (updatedData.googleAppsScriptUrl !== undefined) dbRow.google_apps_script_url = updatedData.googleAppsScriptUrl;
       if (updatedData.googleCalendarId !== undefined) dbRow.google_calendar_id = updatedData.googleCalendarId;
       if (updatedData.googleDriveId !== undefined) dbRow.google_drive_id = updatedData.googleDriveId;
 
-      // Try updating Supabase database
+      // Try updating Supabase database with all columns
       if (Object.keys(dbRow).length > 0) {
         const { error } = await supabase.from('tenants').update(dbRow).eq('id', id);
         if (error) {
-          // If columns don't exist yet in Supabase, fallback to basic update
-          console.warn('[Supabase] updateTenant warning:', error.message);
+          console.warn('[Supabase] updateTenant primary attempt warning (retrying without google_apps_script_url column):', error.message);
+          // If google_apps_script_url column does not exist yet in table, fallback to existing columns
           const fallbackRow: any = {};
           if (updatedData.name !== undefined) fallbackRow.name = updatedData.name;
           if (updatedData.status !== undefined) fallbackRow.status = updatedData.status;
+          if (updatedData.googleCalendarId !== undefined) fallbackRow.google_calendar_id = updatedData.googleCalendarId;
+          if (updatedData.googleDriveId !== undefined) fallbackRow.google_drive_id = updatedData.googleDriveId;
+          
           if (Object.keys(fallbackRow).length > 0) {
-            await supabase.from('tenants').update(fallbackRow).eq('id', id);
+            const { error: err2 } = await supabase.from('tenants').update(fallbackRow).eq('id', id);
+            if (err2) {
+              console.warn('[Supabase] updateTenant fallback warning:', err2.message);
+            }
           }
         }
       }

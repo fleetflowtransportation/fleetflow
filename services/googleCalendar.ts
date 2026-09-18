@@ -86,6 +86,7 @@ export const getValidGoogleScriptUrls = (tenant?: Tenant | null, overrideUrl?: s
 
   const candidates = [
     overrideUrl,
+    tenant?.googleAppsScriptUrl,
     customLocalUrl,
     envUrl,
     // Only consider tenant fields if they are actually Google Script URLs
