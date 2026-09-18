@@ -177,9 +177,9 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
         return;
     }
 
-    const dateTime = new Date(`${formData.bookingDate}T${formData.startTime}`).toISOString();
+    const dateTime = `${formData.bookingDate}T${formData.startTime}:00`;
     const finishDateTime = formData.endTime
-        ? new Date(`${formData.bookingDate}T${formData.endTime}`).toISOString()
+        ? `${formData.bookingDate}T${formData.endTime}:00`
         : undefined;
 
     const processedData: Partial<Booking> = {

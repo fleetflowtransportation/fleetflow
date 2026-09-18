@@ -403,6 +403,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
 
       setBookings(prev => [...newBookings, ...prev]);
+      if (activeTenant) {
+        newBookings.forEach(b => {
+          googleCalendarService.createEvent(activeTenant, b).catch(() => {});
+        });
+      }
       newBookings.forEach(b => {
         storageService.createBooking(b)
           .then(saved => {
@@ -460,6 +465,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       };
 
       setBookings(prev => [newBooking, ...prev]);
+      if (activeTenant) {
+        googleCalendarService.createEvent(activeTenant, newBooking).then(eventId => {
+          if (eventId) {
+            newBooking.calendarEventId = eventId;
+          }
+        }).catch(() => {});
+      }
       storageService.createBooking(newBooking)
         .then(saved => {
           setBookings(prev => prev.map(b => (b.id === newBooking.id ? { ...newBooking, ...saved } : b)));

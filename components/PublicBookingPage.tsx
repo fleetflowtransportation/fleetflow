@@ -169,9 +169,9 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId }
       return;
     }
 
-    const dateTime = new Date(`${formData.bookingDate}T${formData.startTime}`).toISOString();
+    const dateTime = `${formData.bookingDate}T${formData.startTime}:00`;
     const finishDateTime = formData.endTime
-      ? new Date(`${formData.bookingDate}T${formData.endTime}`).toISOString()
+      ? `${formData.bookingDate}T${formData.endTime}:00`
       : undefined;
 
     const newBooking: Booking = {
@@ -234,7 +234,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId }
     }
 
     // Google Calendar Sync
-    if (tenant && googleCalendarService.getToken()) {
+    if (tenant) {
       try {
         const calEventId = await googleCalendarService.createEvent(tenant, newBooking);
         if (calEventId) {

@@ -160,10 +160,10 @@ export const BookingResultModal: React.FC<BookingResultModalProps> = ({ isOpen, 
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-gray-50 border-t flex justify-end">
+        <div className="p-4 bg-gray-50 border-t flex items-center justify-end">
           <button
             onClick={onClose}
-            className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow-sm transition"
+            className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-medium rounded-lg shadow-sm transition text-xs cursor-pointer"
           >
             Faham & Tutup
           </button>
