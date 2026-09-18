@@ -9,6 +9,7 @@ export interface User {
   role: 'admin' | 'driver';
   status: 'active' | 'inactive';
   password?: string;
+  tenantId?: string;
 }
 
 export interface Vehicle {
@@ -17,6 +18,7 @@ export interface Vehicle {
   plateNumber: string;
   photoUrl?: string;
   specifications?: string;
+  tenantId?: string;
 }
 
 export type PassengerCategory = 'Staff' | 'Kids' | 'Teenagers' | 'Adults' | 'Others';
@@ -71,6 +73,7 @@ export interface Booking {
   conflictReason?: string;
   isPreWorkingHour?: boolean;
   warningNotes?: string;
+  tenantId?: string;
 }
 
 export interface FuelLog {
@@ -84,6 +87,7 @@ export interface FuelLog {
   pricePerLiter: number;
   receiptAttachmentName?: string;
   receiptAttachmentUrl?: string;
+  tenantId?: string;
 }
 
 export interface OdometerLog {
@@ -100,6 +104,7 @@ export interface OdometerLog {
   remarks?: string; // Catatan Tambahan
   bookingId?: string; // ID tempahan yang diselesaikan
   bookingIds?: string[]; // Senarai ID tempahan yang diselesaikan serentak
+  tenantId?: string;
 }
 
 export interface IssueLog {
@@ -116,6 +121,7 @@ export interface IssueLog {
   priority: 'Low' | 'Medium' | 'High';
   isVehicleOutOfService: boolean;
   status: 'Open' | 'In Progress' | 'Resolved';
+  tenantId?: string;
 }
 
 export interface DriverSchedule {
@@ -124,12 +130,14 @@ export interface DriverSchedule {
   DriverId: string;
   Mula: string;     // 'HH:mm'
   Tamat: string;    // 'HH:mm'
+  tenantId?: string;
 }
 
 export type CurrentUser = {
   id: string;
   name: string;
   role: 'admin' | 'driver' | 'staff';
+  tenantId?: string;
 };
 
 export interface BookingHistory {

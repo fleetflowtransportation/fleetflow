@@ -2,6 +2,13 @@ import type { Booking, FuelLog, OdometerLog, User, Vehicle, IssueLog, DriverSche
 import { USERS, VEHICLES, INITIAL_BOOKINGS, INITIAL_DRIVER_SCHEDULES } from '../constants';
 import { supabase } from './supabaseClient';
 
+let currentTenantId = 'yayasan-chow-kit';
+
+export const getTenantId = () => currentTenantId;
+export const setTenantId = (id: string) => {
+  currentTenantId = id;
+};
+
 // Helper: Convert User TS to DB
 const toDbUser = (u: Partial<User>) => ({
   ...(u.id && { id: u.id }),
@@ -14,6 +21,7 @@ const toDbUser = (u: Partial<User>) => ({
   ...(u.role !== undefined && { role: u.role }),
   ...(u.status !== undefined && { status: u.status }),
   ...(u.password !== undefined && { password: u.password }),
+  tenant_id: u.tenantId || getTenantId(),
 });
 
 // Helper: Convert DB User to TS
@@ -28,6 +36,7 @@ const fromDbUser = (row: any): User => ({
   role: row.role as 'admin' | 'driver',
   status: row.status as 'active' | 'inactive',
   password: row.password || undefined,
+  tenantId: row.tenant_id || getTenantId(),
 });
 
 // Helper: Convert Vehicle TS to DB
@@ -37,6 +46,7 @@ const toDbVehicle = (v: Partial<Vehicle>) => ({
   ...(v.plateNumber !== undefined && { plate_number: v.plateNumber }),
   ...(v.photoUrl !== undefined && { photo_url: v.photoUrl }),
   ...(v.specifications !== undefined && { specifications: v.specifications }),
+  tenant_id: v.tenantId || getTenantId(),
 });
 
 // Helper: Convert DB Vehicle to TS
@@ -46,6 +56,7 @@ const fromDbVehicle = (row: any): Vehicle => ({
   plateNumber: row.plate_number,
   photoUrl: row.photo_url || undefined,
   specifications: row.specifications || undefined,
+  tenantId: row.tenant_id || getTenantId(),
 });
 
 // Helper: Convert Booking TS to DB
@@ -85,6 +96,7 @@ const toDbBooking = (b: Partial<Booking>) => ({
   ...(b.conflictReason !== undefined && { conflict_reason: b.conflictReason }),
   ...(b.isPreWorkingHour !== undefined && { is_pre_working_hour: b.isPreWorkingHour }),
   ...(b.warningNotes !== undefined && { warning_notes: b.warningNotes }),
+  tenant_id: b.tenantId || getTenantId(),
 });
 
 // Helper: Convert DB Booking to TS
@@ -124,6 +136,7 @@ const fromDbBooking = (row: any): Booking => ({
   conflictReason: row.conflict_reason || undefined,
   isPreWorkingHour: Boolean(row.is_pre_working_hour),
   warningNotes: row.warning_notes || undefined,
+  tenantId: row.tenant_id || getTenantId(),
 });
 
 // Helper: Convert FuelLog TS to DB
@@ -138,6 +151,7 @@ const toDbFuelLog = (f: Partial<FuelLog>) => ({
   ...(f.pricePerLiter !== undefined && { price_per_liter: f.pricePerLiter }),
   ...(f.receiptAttachmentName !== undefined && { receipt_attachment_name: f.receiptAttachmentName }),
   ...(f.receiptAttachmentUrl !== undefined && { receipt_attachment_url: f.receiptAttachmentUrl }),
+  tenant_id: f.tenantId || getTenantId(),
 });
 
 const fromDbFuelLog = (row: any): FuelLog => ({
@@ -151,6 +165,7 @@ const fromDbFuelLog = (row: any): FuelLog => ({
   pricePerLiter: Number(row.price_per_liter),
   receiptAttachmentName: row.receipt_attachment_name || undefined,
   receiptAttachmentUrl: row.receipt_attachment_url || undefined,
+  tenantId: row.tenant_id || getTenantId(),
 });
 
 // Helper: Convert OdometerLog TS to DB
@@ -168,6 +183,7 @@ const toDbOdometerLog = (o: Partial<OdometerLog>) => ({
   ...(o.remarks !== undefined && { remarks: o.remarks }),
   ...(o.bookingId !== undefined && { booking_id: o.bookingId }),
   ...(o.bookingIds !== undefined && { booking_ids: o.bookingIds }),
+  tenant_id: o.tenantId || getTenantId(),
 });
 
 const fromDbOdometerLog = (row: any): OdometerLog => ({
@@ -184,6 +200,7 @@ const fromDbOdometerLog = (row: any): OdometerLog => ({
   remarks: row.remarks || undefined,
   bookingId: row.booking_id || undefined,
   bookingIds: row.booking_ids || undefined,
+  tenantId: row.tenant_id || getTenantId(),
 });
 
 // Helper: Convert IssueLog TS to DB
@@ -201,6 +218,7 @@ const toDbIssueLog = (i: Partial<IssueLog>) => ({
   ...(i.priority !== undefined && { priority: i.priority }),
   ...(i.isVehicleOutOfService !== undefined && { is_vehicle_out_of_service: i.isVehicleOutOfService }),
   ...(i.status !== undefined && { status: i.status }),
+  tenant_id: i.tenantId || getTenantId(),
 });
 
 const fromDbIssueLog = (row: any): IssueLog => ({
@@ -217,6 +235,7 @@ const fromDbIssueLog = (row: any): IssueLog => ({
   priority: row.priority as IssueLog['priority'],
   isVehicleOutOfService: Boolean(row.is_vehicle_out_of_service),
   status: row.status as IssueLog['status'],
+  tenantId: row.tenant_id || getTenantId(),
 });
 
 // Helper: Convert DriverSchedule TS to DB
@@ -226,6 +245,7 @@ const toDbDriverSchedule = (s: Partial<DriverSchedule>) => ({
   ...(s.DriverId !== undefined && { driver_id: s.DriverId }),
   ...(s.Mula !== undefined && { mula: s.Mula }),
   ...(s.Tamat !== undefined && { tamat: s.Tamat }),
+  tenant_id: s.tenantId || getTenantId(),
 });
 
 const fromDbDriverSchedule = (row: any): DriverSchedule => ({
@@ -234,13 +254,14 @@ const fromDbDriverSchedule = (row: any): DriverSchedule => ({
   DriverId: row.driver_id,
   Mula: row.mula,
   Tamat: row.tamat,
+  tenantId: row.tenant_id || getTenantId(),
 });
 
 export const storageService = {
   // ---- READ ----
   getUsers: async (): Promise<User[]> => {
     try {
-      const { data, error } = await supabase.from('fleet_users').select('*').order('created_at', { ascending: true });
+      const { data, error } = await supabase.from('fleet_users').select('*').eq('tenant_id', getTenantId()).order('created_at', { ascending: true });
       if (error) {
         console.warn('[Supabase] getUsers query error, falling back to defaults:', error.message);
         return USERS;
@@ -263,7 +284,7 @@ export const storageService = {
 
   getVehicles: async (): Promise<Vehicle[]> => {
     try {
-      const { data, error } = await supabase.from('vehicles').select('*').order('created_at', { ascending: true });
+      const { data, error } = await supabase.from('vehicles').select('*').eq('tenant_id', getTenantId()).order('created_at', { ascending: true });
       if (error) {
         console.warn('[Supabase] getVehicles query error, falling back to defaults:', error.message);
         return VEHICLES;
@@ -286,7 +307,7 @@ export const storageService = {
 
   getBookings: async (): Promise<Booking[]> => {
     try {
-      const { data, error } = await supabase.from('bookings').select('*').order('date_time', { ascending: true });
+      const { data, error } = await supabase.from('bookings').select('*').eq('tenant_id', getTenantId()).order('date_time', { ascending: true });
       if (error) {
         console.warn('[Supabase] getBookings fallback:', error.message);
         return INITIAL_BOOKINGS;
@@ -303,7 +324,7 @@ export const storageService = {
 
   getFuelLogs: async (): Promise<FuelLog[]> => {
     try {
-      const { data, error } = await supabase.from('fuel_logs').select('*').order('date', { ascending: false });
+      const { data, error } = await supabase.from('fuel_logs').select('*').eq('tenant_id', getTenantId()).order('date', { ascending: false });
       if (error) {
         console.warn('[Supabase] getFuelLogs error:', error.message);
         return [];
@@ -317,7 +338,7 @@ export const storageService = {
 
   getOdometerLogs: async (): Promise<OdometerLog[]> => {
     try {
-      const { data, error } = await supabase.from('odometer_logs').select('*').order('date', { ascending: false });
+      const { data, error } = await supabase.from('odometer_logs').select('*').eq('tenant_id', getTenantId()).order('date', { ascending: false });
       if (error) {
         console.warn('[Supabase] getOdometerLogs error:', error.message);
         return [];
@@ -331,7 +352,7 @@ export const storageService = {
 
   getIssueLogs: async (): Promise<IssueLog[]> => {
     try {
-      const { data, error } = await supabase.from('issue_logs').select('*').order('reported_date', { ascending: false });
+      const { data, error } = await supabase.from('issue_logs').select('*').eq('tenant_id', getTenantId()).order('reported_date', { ascending: false });
       if (error) {
         console.warn('[Supabase] getIssueLogs error:', error.message);
         return [];
@@ -345,7 +366,7 @@ export const storageService = {
 
   getDriverSchedules: async (): Promise<DriverSchedule[]> => {
     try {
-      const { data, error } = await supabase.from('driver_schedules').select('*').order('date', { ascending: true });
+      const { data, error } = await supabase.from('driver_schedules').select('*').eq('tenant_id', getTenantId()).order('date', { ascending: true });
       if (error) {
         console.warn('[Supabase] getDriverSchedules query error:', error.message);
         return [];
