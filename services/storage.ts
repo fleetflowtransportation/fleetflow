@@ -727,22 +727,57 @@ export const storageService = {
       if (updatedData.googleCalendarId !== undefined) dbRow.google_calendar_id = updatedData.googleCalendarId;
       if (updatedData.googleDriveId !== undefined) dbRow.google_drive_id = updatedData.googleDriveId;
 
-      // Try updating Supabase database with all columns
+      // Try updating / upserting Supabase database with all columns
       if (Object.keys(dbRow).length > 0) {
-        const { error } = await supabase.from('tenants').update(dbRow).eq('id', id);
-        if (error) {
-          console.warn('[Supabase] updateTenant primary attempt warning (retrying without google_apps_script_url column):', error.message);
-          // If google_apps_script_url column does not exist yet in table, fallback to existing columns
-          const fallbackRow: any = {};
-          if (updatedData.name !== undefined) fallbackRow.name = updatedData.name;
-          if (updatedData.status !== undefined) fallbackRow.status = updatedData.status;
-          if (updatedData.googleCalendarId !== undefined) fallbackRow.google_calendar_id = updatedData.googleCalendarId;
-          if (updatedData.googleDriveId !== undefined) fallbackRow.google_drive_id = updatedData.googleDriveId;
-          
-          if (Object.keys(fallbackRow).length > 0) {
-            const { error: err2 } = await supabase.from('tenants').update(fallbackRow).eq('id', id);
-            if (err2) {
-              console.warn('[Supabase] updateTenant fallback warning:', err2.message);
+        // First check if tenant exists in Supabase table
+        const { data: existingTenant, error: checkErr } = await supabase
+          .from('tenants')
+          .select('id')
+          .eq('id', id)
+          .maybeSingle();
+
+        if (checkErr) {
+          console.warn('[Supabase] check existing tenant error:', checkErr.message);
+        }
+
+        if (!existingTenant) {
+          // Insert the tenant row with ID
+          const insertPayload = {
+            id,
+            name: updatedData.name || (id === 'yayasan-chow-kit' ? 'Yayasan Chow Kit' : id),
+            status: updatedData.status || 'active',
+            ...dbRow,
+          };
+          const { error: insErr } = await supabase.from('tenants').insert([insertPayload]);
+          if (insErr) {
+            console.warn('[Supabase] insertTenant error:', insErr.message);
+            // Fallback without google_apps_script_url
+            const fallbackInsert = {
+              id,
+              name: updatedData.name || (id === 'yayasan-chow-kit' ? 'Yayasan Chow Kit' : id),
+              status: updatedData.status || 'active',
+              google_calendar_id: updatedData.googleCalendarId || '',
+              google_drive_id: updatedData.googleDriveId || '',
+            };
+            await supabase.from('tenants').insert([fallbackInsert]);
+          }
+        } else {
+          // Row exists, perform update
+          const { error: updateErr } = await supabase.from('tenants').update(dbRow).eq('id', id);
+          if (updateErr) {
+            console.warn('[Supabase] updateTenant primary attempt warning (retrying without google_apps_script_url column):', updateErr.message);
+            // If google_apps_script_url column does not exist yet in table, fallback to existing columns
+            const fallbackRow: any = {};
+            if (updatedData.name !== undefined) fallbackRow.name = updatedData.name;
+            if (updatedData.status !== undefined) fallbackRow.status = updatedData.status;
+            if (updatedData.googleCalendarId !== undefined) fallbackRow.google_calendar_id = updatedData.googleCalendarId;
+            if (updatedData.googleDriveId !== undefined) fallbackRow.google_drive_id = updatedData.googleDriveId;
+            
+            if (Object.keys(fallbackRow).length > 0) {
+              const { error: err2 } = await supabase.from('tenants').update(fallbackRow).eq('id', id);
+              if (err2) {
+                console.warn('[Supabase] updateTenant fallback warning:', err2.message);
+              }
             }
           }
         }
