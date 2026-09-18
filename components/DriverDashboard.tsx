@@ -17,9 +17,11 @@ import {
   RouteIcon,
   ExternalLinkIcon,
   SearchIcon,
-  XIcon
+  XIcon,
+  CalendarIcon
 } from './icons/Icons';
 import CalendarView from './CalendarView';
+import DriverScheduleManager from './DriverScheduleManager';
 import { parseAsLocal, getPickupLocationDisplay, isOtherPickup } from '../utils';
 
 interface DriverDashboardProps {
@@ -53,7 +55,8 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
   const [selectedBookingIds, setSelectedBookingIds] = useState<string[]>([]);
   const [driverSearchQuery, setDriverSearchQuery] = useState('');
   
-  const [showCalendar, setShowCalendar] = useState(false);
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [scheduleModalTab, setScheduleModalTab] = useState<'calendar' | 'schedule'>('calendar');
 
   const getVehicleInfo = (vehicleId: string | null, serviceType?: string) => {
     if (!vehicleId) {
@@ -490,7 +493,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
       
       {/* DRIVER COCKPIT PROFILE */}
       <div className="bg-slate-900 text-white p-5 rounded-2xl shadow-md border border-slate-800">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center space-x-3">
             <div className="bg-indigo-600/30 p-2 rounded-xl border border-indigo-500/40 text-indigo-300">
               <UserCircleIcon className="h-6 w-6" />
@@ -506,6 +509,15 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
               <h2 className="text-lg font-extrabold tracking-tight text-white mt-0.5">{driver.name}</h2>
             </div>
           </div>
+
+          <button
+            onClick={() => setIsScheduleModalOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-md transition active:scale-95 border border-indigo-400/40 cursor-pointer"
+            title="Buka Jadual Pemandu & Kalendar"
+          >
+            <CalendarIcon className="h-4 w-4" />
+            <span>Jadual Pemandu</span>
+          </button>
         </div>
 
         {/* DRIVER METRICS STRIP */}
@@ -526,10 +538,20 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
       </div>
 
       {/* REFINED COMPACT QUICK UTILITY ACTIONS */}
-      <div className="grid grid-cols-3 gap-2.5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <button
+          onClick={() => setIsScheduleModalOpen(true)}
+          className="flex flex-col items-center justify-center p-3 bg-white hover:bg-indigo-50/70 border border-indigo-200 rounded-xl shadow-sm transition active:scale-98 text-center group cursor-pointer"
+          title="Lihat jadual bertugas dan kalendar perjalanan"
+        >
+          <div className="p-2 bg-indigo-50 group-hover:bg-indigo-100 rounded-lg text-indigo-600 mb-1.5 border border-indigo-100 transition">
+            <CalendarIcon className="h-4 w-4" />
+          </div>
+          <span className="text-xs font-bold text-indigo-900">Jadual Pemandu</span>
+        </button>
         <button
           onClick={() => setIsFuelLogOpen(true)}
-          className="flex flex-col items-center justify-center p-3 bg-white hover:bg-amber-50/60 border border-slate-200 rounded-xl shadow-sm transition active:scale-98 text-center"
+          className="flex flex-col items-center justify-center p-3 bg-white hover:bg-amber-50/60 border border-slate-200 rounded-xl shadow-sm transition active:scale-98 text-center cursor-pointer"
         >
           <div className="p-2 bg-amber-50 rounded-lg text-amber-600 mb-1.5 border border-amber-100">
             <FuelIcon className="h-4 w-4" />
@@ -538,16 +560,16 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
         </button>
         <button
           onClick={handleOpenGeneralOdometer}
-          className="flex flex-col items-center justify-center p-3 bg-white hover:bg-indigo-50/60 border border-slate-200 rounded-xl shadow-sm transition active:scale-98 text-center"
+          className="flex flex-col items-center justify-center p-3 bg-white hover:bg-emerald-50/60 border border-slate-200 rounded-xl shadow-sm transition active:scale-98 text-center cursor-pointer"
         >
-          <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600 mb-1.5 border border-indigo-100">
+          <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600 mb-1.5 border border-emerald-100">
             <GaugeIcon className="h-4 w-4" />
           </div>
           <span className="text-xs font-bold text-slate-700">Log Odometer</span>
         </button>
         <button
           onClick={() => setIsIssueLogOpen(true)}
-          className="flex flex-col items-center justify-center p-3 bg-white hover:bg-rose-50/60 border border-slate-200 rounded-xl shadow-sm transition active:scale-98 text-center"
+          className="flex flex-col items-center justify-center p-3 bg-white hover:bg-rose-50/60 border border-slate-200 rounded-xl shadow-sm transition active:scale-98 text-center cursor-pointer"
         >
           <div className="p-2 bg-rose-50 rounded-lg text-rose-600 mb-1.5 border border-rose-100">
             <WrenchScrewdriverIcon className="h-4 w-4" />
@@ -824,24 +846,107 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
         </div>
       </div>
 
-      {/* TEAM SCHEDULE CALENDAR ACCORDION */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <button 
-          onClick={() => setShowCalendar(!showCalendar)}
-          className="w-full px-4 py-3 flex items-center justify-between text-left font-bold text-slate-800 focus:outline-none hover:bg-slate-50 transition"
-        >
-          <span className="flex items-center text-xs sm:text-sm font-extrabold text-slate-800">
-            <RouteIcon className="h-4 w-4 mr-2 text-indigo-600" />
-            Jadual Semua Pemandu & Kalendar
-          </span>
-          <span className="text-indigo-600 text-xs font-bold">{showCalendar ? 'Tutup ▲' : 'Papar ▼'}</span>
-        </button>
-        {showCalendar && (
-          <div className="p-3.5 border-t border-slate-100 overflow-x-auto bg-slate-50/50">
-            <CalendarView />
+      {/* DRIVER SCHEDULE & CALENDAR MODAL (ACCESSIBLE FROM TOP BUTTONS) */}
+      {isScheduleModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-sm p-3 sm:p-6 flex items-center justify-center animate-in fade-in duration-150">
+          <div className="bg-white w-full max-w-5xl max-h-[92vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200">
+            {/* Modal Header */}
+            <div className="px-4 sm:px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-100 text-indigo-700 rounded-xl border border-indigo-200">
+                  <CalendarIcon className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-extrabold text-slate-900">Jadual Pemandu & Kalendar</h3>
+                  <p className="text-xs text-slate-500 hidden sm:block">
+                    Semak jadual bertugas, syif dan kalendar perjalanan semua kenderaan
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {/* Switch between Kalendar Tempahan and Jadual Syif on Desktop */}
+                <div className="hidden sm:flex bg-slate-200/80 p-0.5 rounded-xl text-xs font-semibold">
+                  <button
+                    onClick={() => setScheduleModalTab('calendar')}
+                    className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                      scheduleModalTab === 'calendar'
+                        ? 'bg-white text-indigo-700 shadow-sm font-bold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Kalendar Tempahan
+                  </button>
+                  <button
+                    onClick={() => setScheduleModalTab('schedule')}
+                    className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                      scheduleModalTab === 'schedule'
+                        ? 'bg-white text-indigo-700 shadow-sm font-bold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Jadual Syif Pemandu
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => setIsScheduleModalOpen(false)}
+                  className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-xl transition cursor-pointer"
+                  title="Tutup Modal"
+                >
+                  <XIcon className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Switch between Kalendar Tempahan and Jadual Syif on Mobile */}
+            <div className="sm:hidden flex border-b border-slate-200 bg-slate-100 p-1 text-xs font-semibold">
+              <button
+                onClick={() => setScheduleModalTab('calendar')}
+                className={`flex-1 py-2 rounded-lg text-center transition cursor-pointer ${
+                  scheduleModalTab === 'calendar'
+                    ? 'bg-white text-indigo-700 shadow-sm font-bold'
+                    : 'text-slate-600'
+                }`}
+              >
+                Kalendar Tempahan
+              </button>
+              <button
+                onClick={() => setScheduleModalTab('schedule')}
+                className={`flex-1 py-2 rounded-lg text-center transition cursor-pointer ${
+                  scheduleModalTab === 'schedule'
+                    ? 'bg-white text-indigo-700 shadow-sm font-bold'
+                    : 'text-slate-600'
+                }`}
+              >
+                Jadual Syif
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-3 sm:p-5 overflow-y-auto flex-1 bg-slate-50/50 min-h-[350px]">
+              {scheduleModalTab === 'calendar' ? (
+                <CalendarView />
+              ) : (
+                <DriverScheduleManager />
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-4 py-3 bg-white border-t border-slate-200 flex justify-between items-center text-xs text-slate-500">
+              <span className="font-medium">
+                Paparan: <strong className="text-slate-700">{scheduleModalTab === 'calendar' ? 'Kalendar Trip & Tempahan' : 'Jadual Syif / Bertugas Pemandu'}</strong>
+              </span>
+              <button
+                onClick={() => setIsScheduleModalOpen(false)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl shadow-sm transition cursor-pointer"
+              >
+                Tutup
+              </button>
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* FLOATING ACTION BOTTOM BAR FOR MULTI-TRIP (BULK / LUMPSUM) */}
       {selectedBookingIds.length > 0 && (
