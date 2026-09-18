@@ -541,60 +541,63 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const deleteBooking = useCallback((bookingId: string) => {
     clearUndoState();
-    let bookingToDelete: Booking | undefined;
-    setBookings(prev => {
-      bookingToDelete = prev.find(b => b.id === bookingId);
-      if (bookingToDelete?.attachmentUrl) {
-        if (bookingToDelete.attachmentUrl.startsWith('blob:')) {
-          URL.revokeObjectURL(bookingToDelete.attachmentUrl);
-        } else {
-          const driveUrl = import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL;
-          if (driveUrl) {
-            const url = bookingToDelete.attachmentUrl;
-            let fileId: string | null = null;
-            const dMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-            if (dMatch && dMatch[1]) fileId = dMatch[1];
-            const idMatch = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-            if (idMatch && idMatch[1]) fileId = idMatch[1];
+    const bookingToDelete = bookings.find(b => b.id === bookingId);
 
-            if (fileId) {
-              console.log("Memadam lampiran Google Drive:", fileId);
-              fetch(driveUrl, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'text/plain;charset=utf-8'
-                },
-                body: JSON.stringify({
-                  action: 'delete',
-                  fileId: fileId
-                })
-              }).then(res => res.json())
-                .then(resJson => {
-                  if (resJson.success) {
-                    console.log("Lampiran Google Drive berjaya dipadamkan.");
-                  } else {
-                    console.warn("Gagal memadam fail dari Google Drive:", resJson.error);
-                  }
-                }).catch(err => {
-                  console.error("Ralat komunikasi Google Drive:", err);
-                });
-            }
+    // 1. Delete attachment from Google Drive if exists
+    if (bookingToDelete?.attachmentUrl) {
+      if (bookingToDelete.attachmentUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(bookingToDelete.attachmentUrl);
+      } else {
+        const driveUrl = activeTenant?.googleAppsScriptUrl || localStorage.getItem('fleetflow_google_script_url') || import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL;
+        if (driveUrl) {
+          const url = bookingToDelete.attachmentUrl;
+          let fileId: string | null = null;
+          const dMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+          if (dMatch && dMatch[1]) fileId = dMatch[1];
+          const idMatch = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+          if (idMatch && idMatch[1]) fileId = idMatch[1];
+
+          if (fileId) {
+            console.log("Memadam lampiran Google Drive:", fileId);
+            fetch(driveUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'text/plain;charset=utf-8'
+              },
+              body: JSON.stringify({
+                action: 'delete',
+                fileId: fileId
+              })
+            }).then(res => res.json())
+              .then(resJson => {
+                if (resJson.success) {
+                  console.log("Lampiran Google Drive berjaya dipadamkan.");
+                } else {
+                  console.warn("Gagal memadam fail dari Google Drive:", resJson.error);
+                }
+              }).catch(err => {
+                console.error("Ralat komunikasi Google Drive:", err);
+              });
           }
         }
       }
-      return prev.filter(b => b.id !== bookingId);
-    });
+    }
 
+    // 2. Delete event from Google Calendar
     if (activeTenant && bookingToDelete) {
-      googleCalendarService.deleteEvent(activeTenant, (bookingToDelete as Booking).calendarEventId, bookingToDelete).catch(err => {
+      googleCalendarService.deleteEvent(activeTenant, bookingToDelete.calendarEventId, bookingToDelete).catch(err => {
         console.warn('Gagal memadam acara kalendar Google:', err);
       });
     }
 
+    // 3. Update React local state
+    setBookings(prev => prev.filter(b => b.id !== bookingId));
+
+    // 4. Delete from Supabase persistence
     storageService.deleteBooking(bookingId).catch(err => {
       alert('Gagal padam booking: ' + err.message);
     });
-  }, [clearUndoState, activeTenant]);
+  }, [clearUndoState, activeTenant, bookings]);
 
   const restoreBooking = useCallback((bookingId: string) => {
     let restoredBooking: Booking | undefined;

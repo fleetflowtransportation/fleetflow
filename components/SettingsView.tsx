@@ -303,7 +303,9 @@ function doPost(e) {
         var searchEnd = new Date(et.getTime() + 24 * 60 * 60 * 1000);
         var list = cal.getEvents(searchStart, searchEnd);
         for (var j = 0; j < list.length; j++) {
-          if (data.title && list[j].getTitle().indexOf(data.title) !== -1) {
+          var curTitle = list[j].getTitle() || "";
+          var curDesc = list[j].getDescription() || "";
+          if ((data.bookingId && curDesc.indexOf(data.bookingId) !== -1) || (data.title && (curTitle.indexOf(data.title) !== -1 || data.title.indexOf(curTitle) !== -1))) {
             event = list[j];
             break;
           }

@@ -503,8 +503,8 @@ export const googleCalendarService = {
 
   deleteEvent: async (tenant: Tenant, eventId?: string, bookingInfo?: Partial<Booking>): Promise<boolean> => {
     const title = bookingInfo?.calendarEventTitle || (bookingInfo?.requesterName ? `${bookingInfo.requesterName} - ${bookingInfo?.destination || ''}` : '');
-    const startIso = bookingInfo?.dateTime ? parseAsLocal(bookingInfo.dateTime).toISOString() : undefined;
-    const endIso = bookingInfo?.finishDateTime ? parseAsLocal(bookingInfo.finishDateTime).toISOString() : undefined;
+    const startIso = bookingInfo?.dateTime ? formatMalaysiaIso(bookingInfo.dateTime) : undefined;
+    const endIso = bookingInfo?.finishDateTime ? formatMalaysiaIso(bookingInfo.finishDateTime) : undefined;
 
     const uniqueScriptUrls = getValidGoogleScriptUrls(tenant);
 
@@ -518,9 +518,13 @@ export const googleCalendarService = {
           eventId: eventId,
           calendarEventId: eventId,
           id: eventId,
+          bookingId: bookingInfo?.id,
           title: title,
+          summary: title,
           startTime: startIso,
+          startIso: startIso,
           endTime: endIso,
+          endIso: endIso,
           calendarId: tenant?.googleCalendarId && !tenant.googleCalendarId.startsWith('http') ? tenant.googleCalendarId : 'primary',
         };
 
