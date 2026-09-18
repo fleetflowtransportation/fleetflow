@@ -4,7 +4,7 @@ import type { Booking, PassengerCount } from '../types';
 import { DEPARTMENTS, PICKUP_POINTS } from '../types';
 import { XIcon, PaperClipIcon, ClockIcon } from './icons/Icons';
 import { BookingResultModal } from './BookingResultModal';
-import type { AutoAssignResult } from '../services/bookingEngine';
+import { normalizeDate, normalizeTime, type AutoAssignResult } from '../services/bookingEngine';
 
 interface BookingFormProps {
   isOpen: boolean;
@@ -38,15 +38,12 @@ const emptyFormData = {
 
 type FormData = typeof emptyFormData;
 
-// Pisahkan satu ISO datetime string kepada { date, time } untuk isi field date/time berasingan
+// Pisahkan satu ISO/local datetime string kepada { date, time } tanpa sebarang ralat anjakan timezone
 const splitIso = (iso?: string) => {
   if (!iso) return { date: '', time: '' };
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return { date: '', time: '' };
-  const pad = (n: number) => n.toString().padStart(2, '0');
   return {
-    date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
-    time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+    date: normalizeDate(iso),
+    time: normalizeTime(iso),
   };
 };
 

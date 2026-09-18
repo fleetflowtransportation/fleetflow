@@ -1,7 +1,16 @@
 import { Tenant, Booking } from '../types';
 import { parseAsLocal } from '../utils';
+import { normalizeDate, normalizeTime } from './bookingEngine';
 
 let cachedToken: string | null = null;
+
+export const formatMalaysiaIso = (dateStr: string | Date | undefined | null): string => {
+  if (!dateStr) return '';
+  const datePart = normalizeDate(dateStr);
+  const timePart = normalizeTime(dateStr);
+  if (!datePart) return '';
+  return `${datePart}T${timePart}:00+08:00`;
+};
 
 export interface CalendarDiagnosticLog {
   id: string;
@@ -113,11 +122,19 @@ export const generateGoogleCalendarUrl = (booking: Booking): string => {
   const details = encodeURIComponent(`Pemohon: ${booking.requesterName}\nDestinasi: ${booking.destination}\nTujuan: ${booking.purpose}\nPickup: ${booking.pickupPoint}`);
   const location = encodeURIComponent(booking.destination || '');
 
-  const start = parseAsLocal(booking.dateTime);
-  const end = booking.finishDateTime ? parseAsLocal(booking.finishDateTime) : new Date(start.getTime() + 60 * 60 * 1000);
+  const startD = normalizeDate(booking.dateTime).replace(/-/g, '');
+  const startT = normalizeTime(booking.dateTime).replace(/:/g, '') + '00';
+  
+  let endD = booking.finishDateTime ? normalizeDate(booking.finishDateTime).replace(/-/g, '') : startD;
+  let endT = booking.finishDateTime ? normalizeTime(booking.finishDateTime).replace(/:/g, '') + '00' : '';
+  if (!endT) {
+    const s = parseAsLocal(booking.dateTime);
+    const e = new Date(s.getTime() + 60 * 60 * 1000);
+    endD = normalizeDate(e).replace(/-/g, '');
+    endT = normalizeTime(e).replace(/:/g, '') + '00';
+  }
 
-  const formatIso = (d: Date) => d.toISOString().replace(/-|:|\.\d\d\d/g, '');
-  const dates = `${formatIso(start)}/${formatIso(end)}`;
+  const dates = `${startD}T${startT}/${endD}T${endT}&ctz=Asia/Kuala_Lumpur`;
 
   return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}&location=${location}`;
 };
@@ -242,14 +259,17 @@ export const googleCalendarService = {
   },
 
   createEvent: async (tenant: Tenant, booking: Booking): Promise<string | null> => {
-    const startLocal = parseAsLocal(booking.dateTime);
-    const endLocal = booking.finishDateTime ? parseAsLocal(booking.finishDateTime) : new Date(startLocal.getTime() + 60 * 60 * 1000);
+    const startIso = formatMalaysiaIso(booking.dateTime);
+    let endIso = booking.finishDateTime ? formatMalaysiaIso(booking.finishDateTime) : '';
+    if (!endIso) {
+      const startLocal = parseAsLocal(booking.dateTime);
+      const endLocal = new Date(startLocal.getTime() + 60 * 60 * 1000);
+      endIso = formatMalaysiaIso(endLocal);
+    }
 
     const title = booking.calendarEventTitle || `${booking.requesterName} - ${booking.destination}`;
     const description = `Pemohon: ${booking.requesterName} (${booking.requesterEmail || 'Tiada E-mel'})\nDestinasi: ${booking.destination}\nTujuan: ${booking.purpose}\nCatatan: ${booking.remarks || 'Tiada'}`;
     const location = booking.destination || '';
-    const startIso = startLocal.toISOString();
-    const endIso = endLocal.toISOString();
 
     const eventPayload = {
       summary: title,
@@ -386,14 +406,17 @@ export const googleCalendarService = {
   },
 
   updateEvent: async (tenant: Tenant, booking: Booking): Promise<boolean> => {
-    const startLocal = parseAsLocal(booking.dateTime);
-    const endLocal = booking.finishDateTime ? parseAsLocal(booking.finishDateTime) : new Date(startLocal.getTime() + 60 * 60 * 1000);
+    const startIso = formatMalaysiaIso(booking.dateTime);
+    let endIso = booking.finishDateTime ? formatMalaysiaIso(booking.finishDateTime) : '';
+    if (!endIso) {
+      const startLocal = parseAsLocal(booking.dateTime);
+      const endLocal = new Date(startLocal.getTime() + 60 * 60 * 1000);
+      endIso = formatMalaysiaIso(endLocal);
+    }
 
     const title = booking.calendarEventTitle || `${booking.requesterName} - ${booking.destination}`;
     const description = `Pemohon: ${booking.requesterName} (${booking.requesterEmail || 'Tiada E-mel'})\nDestinasi: ${booking.destination}\nTujuan: ${booking.purpose}\nStatus: ${booking.status}\nCatatan: ${booking.remarks || 'Tiada'}\nID Tempahan: ${booking.id}`;
     const location = booking.destination || '';
-    const startIso = startLocal.toISOString();
-    const endIso = endLocal.toISOString();
 
     const uniqueScriptUrls = getValidGoogleScriptUrls(tenant);
 
