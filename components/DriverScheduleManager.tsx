@@ -104,8 +104,14 @@ type ModalState =
   | { mode: 'bulkDelete'; dates: string[] }
   | null;
 
-const DriverScheduleManager: React.FC = () => {
-  const { users, driverSchedules, addDriverSchedule, updateDriverSchedule, deleteDriverSchedule, deleteDriverSchedulesBulk } = useAppContext();
+interface DriverScheduleManagerProps {
+  readOnly?: boolean;
+}
+
+const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly = false }) => {
+  const { users, driverSchedules, addDriverSchedule, updateDriverSchedule, deleteDriverSchedule, deleteDriverSchedulesBulk, currentUser } = useAppContext();
+  
+  const isEditable = !readOnly && currentUser?.role === 'admin';
 
   const drivers = useMemo(
     () => users.filter(u => (u.role === 'driver' || u.id === 'driver-aziz') && u.status === 'active'),
@@ -156,6 +162,7 @@ const DriverScheduleManager: React.FC = () => {
   };
 
   const handleDayClick = (dateKey: string) => {
+    if (!isEditable) return;
     if (bulkMode) {
       setSelectedDates(prev => {
         const next = new Set(prev);
@@ -169,7 +176,7 @@ const DriverScheduleManager: React.FC = () => {
   };
 
   const openBulkAddModal = () => {
-    if (selectedDates.size === 0) return;
+    if (!isEditable || selectedDates.size === 0) return;
     setModal({ mode: 'add', dates: Array.from(selectedDates).sort() });
   };
 
@@ -183,60 +190,66 @@ const DriverScheduleManager: React.FC = () => {
     <div className="max-w-6xl mx-auto">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div>
-          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Jadual Pemandu</h2>
-          <p className="text-gray-600 mt-1 text-sm">Klik mana-mana tarikh untuk tambah shift. Klik shift sedia ada untuk edit/padam.</p>
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Jadual Bertugas & Syif Pemandu</h2>
+          <p className="text-gray-600 mt-0.5 text-xs sm:text-sm">
+            {isEditable 
+              ? 'Klik mana-mana tarikh untuk tambah shift. Klik shift sedia ada untuk edit/padam.' 
+              : 'Paparan jadual syif dan waktu bertugas pemandu (Mod Lihat Sahaja).'}
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="bg-white border border-gray-300 rounded-md overflow-hidden flex text-sm">
+          <div className="bg-white border border-gray-300 rounded-lg overflow-hidden flex text-xs sm:text-sm font-semibold shadow-xs">
             <button
               onClick={() => setViewMode('month')}
-              className={`px-3 py-1.5 font-medium ${viewMode === 'month' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+              className={`px-3 py-1.5 transition ${viewMode === 'month' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
             >Bulan</button>
             <button
               onClick={() => setViewMode('week')}
-              className={`px-3 py-1.5 font-medium border-l border-gray-300 ${viewMode === 'week' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+              className={`px-3 py-1.5 border-l border-gray-300 transition ${viewMode === 'week' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
             >Minggu</button>
           </div>
-          <button
-            onClick={toggleBulkMode}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium border transition ${bulkMode ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
-          >
-            {bulkMode ? 'Batal Pilih Berbilang' : 'Pilih Berbilang Tarikh'}
-          </button>
+          {isEditable && (
+            <button
+              onClick={toggleBulkMode}
+              className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium border transition ${bulkMode ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+            >
+              {bulkMode ? 'Batal Pilih Berbilang' : 'Pilih Berbilang Tarikh'}
+            </button>
+          )}
         </div>
       </div>
 
       {/* Navigasi tarikh */}
-      <div className="flex items-center justify-between mb-3 bg-white border border-gray-200 rounded-lg px-4 py-2">
-        <button onClick={goPrev} className="px-3 py-1 text-gray-600 hover:bg-gray-100 rounded-md font-medium">‹ Sebelum</button>
-        <div className="font-semibold text-gray-800">
+      <div className="flex items-center justify-between mb-3 bg-white border border-gray-200 rounded-xl px-3.5 py-2 shadow-xs">
+        <button onClick={goPrev} className="px-2.5 py-1 text-gray-600 hover:bg-gray-100 rounded-lg font-bold text-xs sm:text-sm">‹ Sebelum</button>
+        <div className="font-bold text-gray-800 text-xs sm:text-sm">
           {viewMode === 'month'
             ? `${MONTH_LABELS[anchor.getMonth()]} ${anchor.getFullYear()}`
             : `${gridDays[0].getDate()} ${MONTH_LABELS[gridDays[0].getMonth()]} - ${gridDays[6].getDate()} ${MONTH_LABELS[gridDays[6].getMonth()]} ${gridDays[6].getFullYear()}`}
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={goToday} className="px-3 py-1 text-sm text-indigo-600 hover:bg-indigo-50 rounded-md font-medium">Hari Ini</button>
-          <button onClick={goNext} className="px-3 py-1 text-gray-600 hover:bg-gray-100 rounded-md font-medium">Selepas ›</button>
+          <button onClick={goToday} className="px-2.5 py-1 text-xs sm:text-sm text-indigo-600 hover:bg-indigo-50 rounded-lg font-bold">Hari Ini</button>
+          <button onClick={goNext} className="px-2.5 py-1 text-gray-600 hover:bg-gray-100 rounded-lg font-bold text-xs sm:text-sm">Selepas ›</button>
         </div>
       </div>
 
       {/* Legend driver */}
       {drivers.length > 0 && (
-        <div className="flex flex-wrap gap-3 mb-3 px-1">
+        <div className="flex flex-wrap gap-2.5 mb-3 px-1">
           {drivers.map((d, idx) => (
-            <div key={d.id} className="flex items-center gap-1.5 text-sm text-gray-600">
+            <div key={d.id} className="flex items-center gap-1.5 text-xs text-gray-700 bg-white border border-gray-200 px-2 py-0.5 rounded-full shadow-2xs">
               <span className={`h-2.5 w-2.5 rounded-full ${DRIVER_COLORS[idx % DRIVER_COLORS.length].dot}`}></span>
-              {d.name}
+              <span className="font-medium">{d.name}</span>
             </div>
           ))}
         </div>
       )}
 
       {/* Grid kalendar */}
-      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-xs">
         <div className="grid grid-cols-7 bg-gray-50 border-b border-gray-200">
           {WEEKDAY_LABELS.map(label => (
-            <div key={label} className="py-2 text-center text-xs font-semibold text-gray-500 uppercase">{label}</div>
+            <div key={label} className="py-2 text-center text-[10px] sm:text-xs font-bold text-gray-500 uppercase tracking-wider">{label}</div>
           ))}
         </div>
         <div className={`grid grid-cols-7 ${viewMode === 'month' ? 'auto-rows-fr' : ''}`}>
@@ -253,37 +266,41 @@ const DriverScheduleManager: React.FC = () => {
               <div
                 key={dateKey}
                 onClick={() => handleDayClick(dateKey)}
-                className={`relative border-b border-r border-gray-100 p-1.5 cursor-pointer transition min-h-[6.5rem] ${viewMode === 'week' ? 'min-h-[16rem]' : ''} ${
-                  isCurrentMonth ? 'bg-white' : 'bg-gray-50'
-                } ${isSelected ? 'ring-2 ring-inset ring-indigo-500 bg-indigo-50' : 'hover:bg-gray-50'}`}
+                className={`relative border-b border-r border-gray-100 p-1.5 transition min-h-[6.5rem] ${viewMode === 'week' ? 'min-h-[16rem]' : ''} ${
+                  isCurrentMonth ? 'bg-white' : 'bg-gray-50/70'
+                } ${isEditable ? 'cursor-pointer hover:bg-gray-50' : ''} ${isSelected ? 'ring-2 ring-inset ring-indigo-500 bg-indigo-50' : ''}`}
               >
                 <div className="flex items-center justify-between mb-1">
-                  <span className={`text-xs font-semibold h-5 w-5 flex items-center justify-center rounded-full ${
+                  <span className={`text-xs font-bold h-5 w-5 flex items-center justify-center rounded-full ${
                     isToday ? 'bg-indigo-600 text-white' : isCurrentMonth ? 'text-gray-700' : 'text-gray-400'
                   }`}>
                     {date.getDate()}
                   </span>
-                  {!bulkMode && (
+                  {isEditable && !bulkMode && (
                     <PlusIcon className="h-3.5 w-3.5 text-gray-300" />
                   )}
                 </div>
 
-                <div className="space-y-0.5">
+                <div className="space-y-1">
                   {visibleSchedules.map(sched => {
                     const color = colorForDriver(sched.DriverId);
                     return (
                       <button
                         key={sched.id}
-                        onClick={(e) => { e.stopPropagation(); if (!bulkMode) setModal({ mode: 'edit', schedule: sched }); }}
-                        className={`w-full text-left text-[11px] leading-tight px-1.5 py-0.5 rounded ${color.bg} ${color.text} truncate hover:opacity-75 transition`}
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          if (isEditable && !bulkMode) setModal({ mode: 'edit', schedule: sched }); 
+                        }}
+                        disabled={!isEditable}
+                        className={`w-full text-left text-[11px] leading-tight px-1.5 py-1 rounded-md ${color.bg} ${color.text} truncate border border-transparent shadow-2xs ${isEditable ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
                         title={`${driverName(sched.DriverId)}: ${toTime12H(sched.Mula)} - ${toTime12H(sched.Tamat)}`}
                       >
-                        <span className="font-semibold">{driverName(sched.DriverId).split(' ')[0]}</span> {toTime12H(sched.Mula)} - {toTime12H(sched.Tamat)}
+                        <span className="font-bold">{driverName(sched.DriverId).split(' ')[0]}</span> {toTime12H(sched.Mula)} - {toTime12H(sched.Tamat)}
                       </button>
                     );
                   })}
                   {hiddenCount > 0 && (
-                    <div className="text-[11px] text-gray-400 px-1.5">+{hiddenCount} lagi</div>
+                    <div className="text-[10px] text-gray-400 font-semibold px-1">+{hiddenCount} lagi</div>
                   )}
                 </div>
               </div>

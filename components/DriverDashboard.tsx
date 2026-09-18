@@ -926,9 +926,9 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
             {/* Modal Body */}
             <div className="p-3 sm:p-5 overflow-y-auto flex-1 bg-slate-50/50 min-h-[350px]">
               {scheduleModalTab === 'calendar' ? (
-                <CalendarView />
+                <CalendarView readOnly={true} />
               ) : (
-                <DriverScheduleManager />
+                <DriverScheduleManager readOnly={true} />
               )}
             </div>
 

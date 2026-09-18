@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { parseAsLocal, getPickupLocationDisplay } from '../utils';
 import type { Booking, User, Vehicle } from '../types';
@@ -13,31 +13,41 @@ import {
   ArrowUpCircleIcon,
   EditIcon,
   TrashIcon,
-  PlusIcon
+  PlusIcon,
+  SearchIcon,
+  ViewGridIcon,
+  ClipboardListIcon
 } from './icons/Icons';
 import BookingForm from './BookingForm';
 
-const getBookingBadgeStyle = (booking: Booking, driverName: string) => {
-  if (booking.status === 'Conflict') {
-    return 'bg-rose-100 text-rose-800 border border-rose-300';
-  }
-  if (booking.serviceType === 'Self-Drive') {
-    return 'bg-slate-200 text-slate-800 border border-slate-300';
-  }
-  if (driverName.toLowerCase().includes('syafiq')) {
-    return 'bg-blue-100 text-blue-900 border border-blue-300';
-  }
-  if (driverName.toLowerCase().includes('saiful')) {
-    return 'bg-emerald-100 text-emerald-900 border border-emerald-300';
-  }
-  if (booking.calendarColor) {
-    return 'bg-indigo-100 text-indigo-900 border border-indigo-200';
-  }
-  if (booking.status === 'Pending') {
-    return 'bg-amber-100 text-amber-800 border border-amber-300';
-  }
-  return 'bg-gray-100 text-gray-800 border border-gray-200';
+export type CalendarViewMode = 'month' | 'week' | 'day' | 'schedule';
+
+const DRIVER_PILL_STYLES: Record<string, { bg: string; text: string; border: string; bar: string }> = {
+  syafiq: { bg: 'bg-blue-50 hover:bg-blue-100', text: 'text-blue-900', border: 'border-blue-200', bar: 'bg-blue-600' },
+  saiful: { bg: 'bg-emerald-50 hover:bg-emerald-100', text: 'text-emerald-900', border: 'border-emerald-200', bar: 'bg-emerald-600' },
+  selfdrive: { bg: 'bg-slate-100 hover:bg-slate-200', text: 'text-slate-800', border: 'border-slate-300', bar: 'bg-slate-600' },
+  conflict: { bg: 'bg-rose-50 hover:bg-rose-100', text: 'text-rose-900', border: 'border-rose-300', bar: 'bg-rose-600' },
+  pending: { bg: 'bg-amber-50 hover:bg-amber-100', text: 'text-amber-900', border: 'border-amber-200', bar: 'bg-amber-500' },
+  default: { bg: 'bg-indigo-50 hover:bg-indigo-100', text: 'text-indigo-900', border: 'border-indigo-200', bar: 'bg-indigo-600' },
 };
+
+const getEventStyleInfo = (booking: Booking, driverName: string) => {
+  if (booking.status === 'Conflict') return DRIVER_PILL_STYLES.conflict;
+  if (booking.serviceType === 'Self-Drive') return DRIVER_PILL_STYLES.selfdrive;
+  const lower = driverName.toLowerCase();
+  if (lower.includes('syafiq')) return DRIVER_PILL_STYLES.syafiq;
+  if (lower.includes('saiful')) return DRIVER_PILL_STYLES.saiful;
+  if (booking.status === 'Pending') return DRIVER_PILL_STYLES.pending;
+  return DRIVER_PILL_STYLES.default;
+};
+
+const MONTH_NAMES_MS = [
+  'Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun',
+  'Julai', 'Ogos', 'September', 'Oktober', 'November', 'Disember'
+];
+
+const DAY_NAMES_FULL = ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'];
+const DAY_NAMES_SHORT = ['Ah', 'Is', 'Se', 'Ra', 'Kh', 'Ju', 'Sa'];
 
 interface BookingDetailModalProps {
   booking: Booking | null;
@@ -53,18 +63,25 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
   const [newDriverId, setNewDriverId] = useState(booking?.driverId || '');
   const [isSavingDriver, setIsSavingDriver] = useState(false);
 
+  useEffect(() => {
+    setNewDriverId(booking?.driverId || '');
+    setIsChangingDriver(false);
+  }, [booking]);
+
   if (!booking) return null;
 
-  const driverName = users.find(d => d.id === booking.driverId)?.name || (booking.serviceType === 'Self-Drive' ? 'Self-Drive (Pandu Sendiri)' : 'Unassigned / Belum Ditentu');
+  const driverName = users.find(d => d.id === booking.driverId)?.name || 
+    (booking.serviceType === 'Self-Drive' ? 'Self-Drive (Pandu Sendiri)' : 'Unassigned / Belum Ditentu');
   const vehicleInfo = vehicles.find(v => v.id === booking.vehicleId) ||
     vehicles.find(v => v.name.toLowerCase() === (booking.vehiclePreference || '').toLowerCase());
-  const totalPassengers = booking.passengers.reduce((sum, p) => sum + p.count, 0);
+  const totalPassengers = booking.passengers ? booking.passengers.reduce((sum, p) => sum + p.count, 0) : 0;
 
   const staffCount = booking.passengers?.find(p => p.category === 'Staff')?.count ?? 0;
   const kidsCount = booking.passengers?.find(p => p.category === 'Kids')?.count ?? 0;
   const teenagersCount = booking.passengers?.find(p => p.category === 'Teenagers')?.count ?? 0;
 
   const handleConfirmDriverChange = async () => {
+    if (!isAdmin) return;
     setIsSavingDriver(true);
     try {
       const chosenDriver = users.find(u => u.id === newDriverId);
@@ -80,7 +97,7 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
         calendarEventTitle: updatedTitle,
         calendarColor: newColor,
         status: newDriverId ? 'Confirmed' : booking.status,
-        adminNotes: `Pemandu dikemaskini kepada ${chosenDriver?.name || 'Tiada Pemandu'} oleh Admin pada ${new Date().toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' })}.`,
+        adminNotes: `Pemandu dikemaskini kepada ${chosenDriver?.name || 'Tiada Pemandu'} pada ${new Date().toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' })}.`,
       });
       setIsChangingDriver(false);
     } catch (e: any) {
@@ -91,6 +108,7 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
   };
 
   const handleDeleteClick = () => {
+    if (!isAdmin) return;
     if (window.confirm(`Adakah anda pasti mahu memadam tempahan ke "${booking.destination}"? Tindakan ini tidak boleh diundur.`)) {
       onDelete(booking.id);
       onClose();
@@ -98,30 +116,47 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
   };
 
   const handleEditClick = () => {
+    if (!isAdmin) return;
     onEdit(booking);
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4 animate-fade-in" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden transform scale-100 transition" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex justify-center items-center p-3 sm:p-4 animate-in fade-in duration-150" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden border border-slate-200" onClick={e => e.stopPropagation()}>
         
-        {/* Header */}
-        <div className="flex justify-between items-center p-5 border-b bg-gray-50">
-          <div>
-            <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${
-              booking.status === 'Conflict' ? 'bg-rose-100 text-rose-800' :
-              booking.status === 'Pending' ? 'bg-amber-100 text-amber-800' : 'bg-indigo-100 text-indigo-800'
-            }`}>
-              {booking.status}
-            </span>
-            <h2 className="text-lg font-bold text-gray-900 mt-1">{booking.destination}</h2>
+        {/* Header - Google Calendar Style */}
+        <div className="flex justify-between items-start p-4 sm:p-5 border-b border-slate-100 bg-slate-50/80">
+          <div className="flex-1 pr-3">
+            <div className="flex items-center gap-2 mb-1">
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
+                booking.status === 'Conflict' ? 'bg-rose-100 text-rose-800 border border-rose-200' :
+                booking.status === 'Pending' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+              }`}>
+                {booking.status}
+              </span>
+              <span className="text-xs text-slate-500 font-medium">
+                {booking.serviceType === 'Self-Drive' ? '🚗 Pandu Sendiri' : '👤 Pemandu Ditugaskan'}
+              </span>
+            </div>
+            <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 leading-snug">{booking.destination}</h2>
+            {booking.requesterName && (
+              <p className="text-xs text-slate-600 mt-0.5">
+                Oleh: <strong className="text-slate-800">{booking.requesterName}</strong> {booking.department ? `(${booking.department})` : ''}
+              </p>
+            )}
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1.5 hover:bg-gray-200 rounded-full transition"><XIcon className="h-6 w-6" /></button>
+          <button 
+            onClick={onClose} 
+            className="text-slate-400 hover:text-slate-700 p-1.5 hover:bg-slate-200 rounded-full transition cursor-pointer"
+            title="Tutup"
+          >
+            <XIcon className="h-5 w-5" />
+          </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-4 text-sm text-gray-700 overflow-y-auto max-h-[70vh]">
+        <div className="p-4 sm:p-6 space-y-4 text-sm text-slate-700 overflow-y-auto max-h-[70vh]">
           {booking.calendarEventTitle && (
             <div className="p-2.5 bg-slate-100 rounded-xl font-mono text-xs font-semibold text-slate-800 border border-slate-200">
               📅 {booking.calendarEventTitle}
@@ -129,268 +164,337 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
           )}
 
           {booking.status === 'Conflict' && (
-            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800">
-              <p className="font-bold">⚠️ STATUS: KONFLIK</p>
-              <p className="mt-1">{booking.conflictReason || 'Bertembung jadual atau waktu rehat.'}</p>
-              <p className="mt-1 text-rose-600 font-semibold">Sila hubungi Admin Ain untuk semakan dan penetapan manual.</p>
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900">
+              <p className="font-extrabold flex items-center gap-1">⚠️ STATUS: KONFLIK JADUAL</p>
+              <p className="mt-1">{booking.conflictReason || 'Bertembung jadual atau waktu rehat kenderaan/pemandu.'}</p>
+              <p className="mt-1 text-rose-700 font-semibold">Sila hubungi Admin untuk semakan dan penetapan semula.</p>
             </div>
           )}
 
           {booking.warningNotes && (
-            <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 font-medium">
+            <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 font-medium">
               ⚠️ {booking.warningNotes}
             </div>
           )}
 
-          <div className="space-y-1">
-            <span className="text-xs font-bold uppercase text-gray-400">Tujuan Perjalanan</span>
-            <p className="text-sm font-semibold text-gray-800">{booking.purpose || 'Tiada tujuan dinyatakan'}</p>
-          </div>
-
-          {/* Driver Waiting Status Banner */}
-          <div className={`flex items-center space-x-3 p-3.5 rounded-xl border ${
+          {/* Waiting Status */}
+          <div className={`flex items-center space-x-3 p-3 rounded-xl border ${
             booking.shouldWait
               ? 'bg-amber-50/90 border-amber-200 text-amber-900'
               : 'bg-emerald-50/90 border-emerald-200 text-emerald-900'
           }`}>
-            <span className="text-2xl">{booking.shouldWait ? '⏳' : '🚗'}</span>
+            <span className="text-xl sm:text-2xl">{booking.shouldWait ? '⏳' : '🚗'}</span>
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wider opacity-80">Status Menunggu Pemandu</p>
-              <p className="text-xs font-bold">
+              <p className="text-xs font-extrabold">
                 {booking.shouldWait
-                  ? 'Pemandu Perlu Menunggu (Tunggu di lokasi sehingga selesai urusan)'
+                  ? 'Pemandu Perlu Menunggu (Tunggu di lokasi sehingga program tamat)'
                   : 'Pemandu Tidak Perlu Menunggu (Hantar / Drop-off sahaja)'}
               </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-gray-100">
-             <div className="flex items-center space-x-2">
-                <CalendarIcon className="h-5 w-5 text-indigo-500" />
-                <div>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase">Tarikh</p>
-                  <span className="font-medium text-gray-800">{parseAsLocal(booking.dateTime).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-                </div>
-             </div>
-             <div className="flex items-center space-x-2">
-                <ClockIcon className="h-5 w-5 text-indigo-500" />
-                <div>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase">Masa (12H AM/PM)</p>
-                  <span className="font-medium text-gray-800">
-                      {parseAsLocal(booking.dateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
-                      {booking.finishDateTime && ` - ${parseAsLocal(booking.finishDateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`}
-                  </span>
-                </div>
-             </div>
-             <div className="flex items-start space-x-2">
-                <ArrowUpCircleIcon className="h-5 w-5 text-indigo-500 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase">Lokasi Pickup</p>
-                  <span className="font-medium text-gray-800">
-                    {getPickupLocationDisplay(booking.pickupPoint, booking.address)}
-                  </span>
-                </div>
-             </div>
-             <div className="flex items-start space-x-2">
-                <LocationMarkerIcon className="h-5 w-5 text-indigo-500 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase">Alamat Drop-off / Destinasi</p>
-                  <span className="font-semibold text-gray-900">{booking.destination}</span>
-                </div>
-             </div>
-             <div className="flex items-start space-x-2 col-span-1 md:col-span-2 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                <UserGroupIcon className="h-5 w-5 text-indigo-500 mt-0.5 flex-shrink-0" />
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <p className="text-[10px] text-gray-400 font-bold uppercase">Jumlah Penumpang</p>
-                    <span className="font-bold text-gray-900 text-xs">{totalPassengers} Orang</span>
-                  </div>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-white border border-slate-200 text-slate-700 shadow-sm">
-                      Staf: <strong className="ml-1 text-indigo-600">{staffCount}</strong>
-                    </span>
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-white border border-slate-200 text-slate-700 shadow-sm">
-                      Kanak-kanak: <strong className="ml-1 text-indigo-600">{kidsCount}</strong>
-                    </span>
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-white border border-slate-200 text-slate-700 shadow-sm">
-                      Remaja: <strong className="ml-1 text-indigo-600">{teenagersCount}</strong>
-                    </span>
-                  </div>
-                </div>
-             </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2">
+            <div className="flex items-start space-x-2.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+              <CalendarIcon className="h-5 w-5 text-indigo-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-[10px] text-slate-400 font-bold uppercase">Tarikh</p>
+                <span className="font-bold text-slate-800 text-xs sm:text-sm">
+                  {parseAsLocal(booking.dateTime).toLocaleDateString('ms-MY', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                </span>
+              </div>
+            </div>
 
-             {/* Driver Assignment with Change Driver button */}
-             <div className="col-span-1 md:col-span-2 bg-indigo-50/40 p-3 rounded-xl border border-indigo-100 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <TruckIcon className="h-5 w-5 text-indigo-500" />
-                    <div>
-                      <p className="text-[10px] text-gray-400 font-bold uppercase">Pemandu Ditugaskan</p>
-                      <span className="font-bold text-gray-900">{driverName}</span>
-                    </div>
+            <div className="flex items-start space-x-2.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+              <ClockIcon className="h-5 w-5 text-indigo-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-[10px] text-slate-400 font-bold uppercase">Masa Perjalanan</p>
+                <span className="font-bold text-slate-800 text-xs sm:text-sm">
+                  {parseAsLocal(booking.dateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                  {booking.finishDateTime && ` – ${parseAsLocal(booking.finishDateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-start space-x-2.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+              <ArrowUpCircleIcon className="h-5 w-5 text-indigo-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-[10px] text-slate-400 font-bold uppercase">Lokasi Pickup</p>
+                <span className="font-medium text-slate-800 text-xs">
+                  {getPickupLocationDisplay(booking.pickupPoint, booking.address)}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-start space-x-2.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+              <LocationMarkerIcon className="h-5 w-5 text-indigo-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-[10px] text-slate-400 font-bold uppercase">Destinasi Drop-off</p>
+                <span className="font-bold text-slate-900 text-xs">{booking.destination}</span>
+              </div>
+            </div>
+
+            {/* Purpose */}
+            {booking.purpose && (
+              <div className="sm:col-span-2 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                <p className="text-[10px] text-slate-400 font-bold uppercase">Tujuan / Urusan</p>
+                <p className="text-xs font-semibold text-slate-800 mt-0.5">{booking.purpose}</p>
+              </div>
+            )}
+
+            {/* Passenger Count */}
+            <div className="sm:col-span-2 bg-slate-50 p-3 rounded-xl border border-slate-100">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center space-x-2">
+                  <UserGroupIcon className="h-4 w-4 text-indigo-600" />
+                  <p className="text-[10px] text-slate-500 font-bold uppercase">Jumlah Penumpang</p>
+                </div>
+                <span className="font-extrabold text-slate-900 text-xs px-2.5 py-0.5 bg-white rounded-full border border-slate-200">{totalPassengers} Orang</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-white border border-slate-200 text-slate-700">
+                  Staf: <strong className="ml-1 text-indigo-600">{staffCount}</strong>
+                </span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-white border border-slate-200 text-slate-700">
+                  Kanak-kanak: <strong className="ml-1 text-indigo-600">{kidsCount}</strong>
+                </span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-white border border-slate-200 text-slate-700">
+                  Remaja: <strong className="ml-1 text-indigo-600">{teenagersCount}</strong>
+                </span>
+              </div>
+            </div>
+
+            {/* Driver & Vehicle */}
+            <div className="sm:col-span-2 bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <TruckIcon className="h-5 w-5 text-indigo-600" />
+                  <div>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase">Pemandu Ditugaskan</p>
+                    <span className="font-extrabold text-slate-900 text-xs sm:text-sm">{driverName}</span>
                   </div>
-                  {isAdmin && (
+                </div>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => setIsChangingDriver(!isChangingDriver)}
+                    className="text-xs px-2.5 py-1.5 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold rounded-lg shadow-xs transition cursor-pointer"
+                  >
+                    {isChangingDriver ? 'Batal Tukar' : 'Tukar Pemandu'}
+                  </button>
+                )}
+              </div>
+
+              {isAdmin && isChangingDriver && (
+                <div className="p-3 bg-white rounded-xl border border-indigo-200 space-y-2 shadow-xs animate-in fade-in">
+                  <label className="block text-xs font-bold text-indigo-900">
+                    Pilih Pemandu Baharu:
+                  </label>
+                  <select
+                    value={newDriverId}
+                    onChange={(e) => setNewDriverId(e.target.value)}
+                    className="w-full text-xs p-2 border border-indigo-200 rounded-lg bg-indigo-50/30 text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:bg-white"
+                  >
+                    <option value="">-- Tiada / Belum Ditentu --</option>
+                    {users.filter(u => u.role === 'driver' || u.role === 'admin').map(u => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} ({u.role === 'admin' ? 'Admin' : 'Pemandu'})
+                      </option>
+                    ))}
+                  </select>
+                  <div className="flex justify-end space-x-2 pt-1">
                     <button
                       type="button"
-                      onClick={() => {
-                        setNewDriverId(booking.driverId || '');
-                        setIsChangingDriver(!isChangingDriver);
-                      }}
-                      className="text-xs px-2.5 py-1.5 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold rounded-lg shadow-sm transition flex items-center space-x-1"
+                      onClick={() => setIsChangingDriver(false)}
+                      className="text-xs px-3 py-1 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 font-semibold cursor-pointer"
                     >
-                      <span>🔄</span>
-                      <span>{isChangingDriver ? 'Batal Tukar' : 'Tukar Pemandu'}</span>
+                      Batal
                     </button>
-                  )}
-                </div>
-
-                {isChangingDriver && (
-                  <div className="p-3 bg-white rounded-xl border border-indigo-200 space-y-2 shadow-sm animate-fade-in mt-2">
-                    <label className="block text-xs font-bold text-indigo-900">
-                      Pilih Pemandu Baharu (Tukar Saat Akhir):
-                    </label>
-                    <select
-                      value={newDriverId}
-                      onChange={(e) => setNewDriverId(e.target.value)}
-                      className="w-full text-xs p-2 border border-indigo-200 rounded-lg bg-indigo-50/30 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:bg-white"
+                    <button
+                      type="button"
+                      disabled={isSavingDriver}
+                      onClick={handleConfirmDriverChange}
+                      className="text-xs px-3.5 py-1 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 shadow-xs cursor-pointer"
                     >
-                      <option value="">-- Tiada / Belum Ditentu --</option>
-                      {users.filter(u => u.role === 'driver' || u.role === 'admin').map(u => (
-                        <option key={u.id} value={u.id}>
-                          {u.name} ({u.role === 'admin' ? 'Admin' : 'Pemandu'})
-                        </option>
-                      ))}
-                    </select>
-                    <div className="flex justify-end space-x-2 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => setIsChangingDriver(false)}
-                        className="text-xs px-3 py-1 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200"
-                      >
-                        Batal
-                      </button>
-                      <button
-                        type="button"
-                        disabled={isSavingDriver}
-                        onClick={handleConfirmDriverChange}
-                        className="text-xs px-3.5 py-1 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 shadow-sm"
-                      >
-                        {isSavingDriver ? 'Menyimpan...' : 'Sahkan Pertukaran'}
-                      </button>
-                    </div>
+                      {isSavingDriver ? 'Menyimpan...' : 'Sahkan Pertukaran'}
+                    </button>
                   </div>
-                )}
-             </div>
+                </div>
+              )}
 
-             <div className="flex items-center space-x-2 col-span-1 md:col-span-2 bg-gray-50 p-2.5 rounded-xl border border-gray-100">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-500 mr-1" viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" /></svg>
-                <span>
-                  <strong>Kenderaan:</strong>{' '}
+              <div className="pt-2 border-t border-indigo-100 flex items-center text-xs text-slate-700">
+                <span className="font-bold text-slate-500 mr-1.5">Kenderaan:</span>
+                <span className="font-semibold text-slate-900">
                   {vehicleInfo
                     ? `${vehicleInfo.name} (${vehicleInfo.plateNumber})`
                     : (booking.serviceType === 'Self-Drive'
                         ? 'Perodua Alza (Pandu Sendiri)'
                         : (booking.vehiclePreference && booking.vehiclePreference !== 'Bebas'
                             ? booking.vehiclePreference
-                            : 'Bebas / Belum Ditentu (Pemandu pilih van semasa trip)'))}
+                            : 'Bebas / Belum Ditentu'))}
                 </span>
-             </div>
-          </div>
-
-          {booking.adminNotes && (
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700">
-              <span className="font-bold block text-slate-500 uppercase text-[9px] tracking-wide mb-0.5">Nota Pentadbiran</span>
-              {booking.adminNotes}
+              </div>
             </div>
-          )}
+
+            {booking.adminNotes && (
+              <div className="sm:col-span-2 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700">
+                <span className="font-bold block text-slate-400 uppercase text-[9px] tracking-wider mb-0.5">Nota Pentadbiran</span>
+                {booking.adminNotes}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Admin action controls */}
-        {isAdmin && (
-          <div className="p-4 bg-gray-50 border-t flex items-center justify-end space-x-3">
-            <button
-              onClick={handleDeleteClick}
-              className="flex items-center text-xs text-red-600 hover:bg-red-50 hover:text-red-700 font-bold py-2 px-3.5 border border-red-200 rounded-xl transition shadow-sm bg-white"
-            >
-              <TrashIcon className="h-4 w-4 mr-1.5" />
-              Padam Tempahan
-            </button>
-            <button
-              onClick={handleEditClick}
-              className="flex items-center text-xs text-white bg-indigo-600 hover:bg-indigo-700 font-bold py-2 px-4 rounded-xl transition shadow-md"
-            >
-              <EditIcon className="h-4 w-4 mr-1.5" />
-              Kemaskini / Edit
-            </button>
-          </div>
-        )}
+        {/* Footer */}
+        <div className="p-3.5 sm:p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+          >
+            Tutup
+          </button>
+
+          {isAdmin ? (
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={handleDeleteClick}
+                className="flex items-center text-xs text-rose-600 hover:bg-rose-50 font-bold py-2 px-3 border border-rose-200 rounded-xl transition shadow-xs bg-white cursor-pointer"
+              >
+                <TrashIcon className="h-4 w-4 mr-1" />
+                Padam
+              </button>
+              <button
+                onClick={handleEditClick}
+                className="flex items-center text-xs text-white bg-indigo-600 hover:bg-indigo-700 font-bold py-2 px-3.5 rounded-xl transition shadow-xs cursor-pointer"
+              >
+                <EditIcon className="h-4 w-4 mr-1" />
+                Edit
+              </button>
+            </div>
+          ) : (
+            <span className="text-[11px] font-semibold text-slate-400 italic">
+              Mod Paparan Pemandu (Lihat Sahaja)
+            </span>
+          )}
+        </div>
 
       </div>
     </div>
   );
 };
 
+interface CalendarViewProps {
+  readOnly?: boolean;
+}
 
-const CalendarView: React.FC = () => {
+const CalendarView: React.FC<CalendarViewProps> = ({ readOnly = false }) => {
   const { bookings, users, currentUser, deleteBooking } = useAppContext();
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [viewMode, setViewMode] = useState<CalendarViewMode>('month');
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
-
-  const selectedBooking = useMemo(() => {
-    return bookings.find(b => b.id === selectedBookingId) || null;
-  }, [bookings, selectedBookingId]);
+  const [driverFilter, setDriverFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   // States for BookingForm
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
 
-  const isAdmin = useMemo(() => currentUser?.role === 'admin', [currentUser]);
+  const isAdmin = useMemo(() => {
+    if (readOnly) return false;
+    return currentUser?.role === 'admin';
+  }, [currentUser, readOnly]);
 
-  const { calendarGrid, monthName, year } = useMemo(() => {
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-    const monthName = currentDate.toLocaleString('default', { month: 'long' });
+  const selectedBooking = useMemo(() => {
+    return bookings.find(b => b.id === selectedBookingId) || null;
+  }, [bookings, selectedBookingId]);
 
-    const firstDayOfMonth = new Date(year, month, 1);
+  const driversList = useMemo(() => {
+    return users.filter(u => u.role === 'driver' || u.id === 'driver-aziz');
+  }, [users]);
 
-    const calendarGrid: { date: Date; isCurrentMonth: boolean }[] = [];
-    const startDate = new Date(firstDayOfMonth);
-    startDate.setDate(startDate.getDate() - firstDayOfMonth.getDay());
+  // Filter bookings
+  const filteredBookings = useMemo(() => {
+    return bookings.filter(b => {
+      if (b.status === 'Cancelled') return false;
 
-    for (let i = 0; i < 42; i++) {
-      const date = new Date(startDate);
-      date.setDate(startDate.getDate() + i);
-      calendarGrid.push({
-        date,
-        isCurrentMonth: date.getMonth() === month,
-      });
-    }
+      // Filter driver
+      if (driverFilter !== 'all') {
+        if (driverFilter === 'self-drive') {
+          if (b.serviceType !== 'Self-Drive') return false;
+        } else if (driverFilter === 'conflict') {
+          if (b.status !== 'Conflict') return false;
+        } else {
+          if (b.driverId !== driverFilter) return false;
+        }
+      }
 
-    return { calendarGrid, monthName, year };
-  }, [currentDate]);
+      // Filter search
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const dest = (b.destination || '').toLowerCase();
+        const req = (b.requesterName || '').toLowerCase();
+        const purp = (b.purpose || '').toLowerCase();
+        const pick = (b.pickupPoint || '').toLowerCase();
+        return dest.includes(q) || req.includes(q) || purp.includes(q) || pick.includes(q);
+      }
 
+      return true;
+    });
+  }, [bookings, driverFilter, searchQuery]);
+
+  // Group by Date string key (YYYY-MM-DD)
   const bookingsByDay = useMemo(() => {
     const map = new Map<string, Booking[]>();
-    bookings.forEach(booking => {
-        if (booking.status === 'Cancelled') return;
-        const dateKey = parseAsLocal(booking.dateTime).toDateString();
-        if (!map.has(dateKey)) {
-            map.set(dateKey, []);
-        }
-        map.get(dateKey)!.push(booking);
+    filteredBookings.forEach(booking => {
+      const d = parseAsLocal(booking.dateTime);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (!map.has(key)) {
+        map.set(key, []);
+      }
+      map.get(key)!.push(booking);
     });
+
     map.forEach(dayBookings => {
-        dayBookings.sort((a, b) => parseAsLocal(a.dateTime).getTime() - parseAsLocal(b.dateTime).getTime());
+      dayBookings.sort((a, b) => parseAsLocal(a.dateTime).getTime() - parseAsLocal(b.dateTime).getTime());
     });
     return map;
-  }, [bookings]);
+  }, [filteredBookings]);
 
-  const changeMonth = (offset: number) => {
+  // Navigation handlers
+  const handlePrev = () => {
     setCurrentDate(prev => {
-      const newDate = new Date(prev);
-      newDate.setMonth(newDate.getMonth() + offset);
-      return newDate;
+      const d = new Date(prev);
+      if (viewMode === 'month') {
+        d.setMonth(d.getMonth() - 1);
+      } else if (viewMode === 'week') {
+        d.setDate(d.getDate() - 7);
+      } else if (viewMode === 'day') {
+        d.setDate(d.getDate() - 1);
+      } else {
+        d.setMonth(d.getMonth() - 1);
+      }
+      return d;
     });
+  };
+
+  const handleNext = () => {
+    setCurrentDate(prev => {
+      const d = new Date(prev);
+      if (viewMode === 'month') {
+        d.setMonth(d.getMonth() + 1);
+      } else if (viewMode === 'week') {
+        d.setDate(d.getDate() + 7);
+      } else if (viewMode === 'day') {
+        d.setDate(d.getDate() + 1);
+      } else {
+        d.setMonth(d.getMonth() + 1);
+      }
+      return d;
+    });
+  };
+
+  const handleToday = () => {
+    setCurrentDate(new Date());
   };
 
   const getDriverName = useCallback((driverId: string | null) => {
@@ -399,14 +503,107 @@ const CalendarView: React.FC = () => {
   }, [users]);
 
   const handleEditBooking = (booking: Booking) => {
+    if (!isAdmin) return;
     setEditingBooking(booking);
     setIsFormOpen(true);
   };
 
   const handleCreateNewBooking = () => {
+    if (!isAdmin) return;
     setEditingBooking(null);
     setIsFormOpen(true);
   };
+
+  // Build Month Grid
+  const { calendarGrid, monthLabel, yearLabel } = useMemo(() => {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const monthLabel = MONTH_NAMES_MS[month];
+    const yearLabel = year;
+
+    const firstDay = new Date(year, month, 1);
+    const startDayOfWeek = firstDay.getDay(); // 0 = Sunday
+
+    const startDate = new Date(firstDay);
+    startDate.setDate(startDate.getDate() - startDayOfWeek);
+
+    const grid: { date: Date; dateKey: string; isCurrentMonth: boolean; isToday: boolean }[] = [];
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(startDate);
+      d.setDate(startDate.getDate() + i);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      grid.push({
+        date: d,
+        dateKey: key,
+        isCurrentMonth: d.getMonth() === month,
+        isToday: d.toDateString() === new Date().toDateString(),
+      });
+    }
+
+    return { calendarGrid: grid, monthLabel, yearLabel };
+  }, [currentDate]);
+
+  // Build Week Grid (7 days of current week, starting Sunday)
+  const weekDays = useMemo(() => {
+    const current = new Date(currentDate);
+    const dayOfWeek = current.getDay();
+    const sunday = new Date(current);
+    sunday.setDate(current.getDate() - dayOfWeek);
+
+    const days: { date: Date; dateKey: string; isToday: boolean }[] = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(sunday);
+      d.setDate(sunday.getDate() + i);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      days.push({
+        date: d,
+        dateKey: key,
+        isToday: d.toDateString() === new Date().toDateString(),
+      });
+    }
+    return days;
+  }, [currentDate]);
+
+  // Hours array for Day and Week timeline (06:00 to 22:00)
+  const timelineHours = useMemo(() => {
+    const hrs: number[] = [];
+    for (let h = 6; h <= 22; h++) {
+      hrs.push(h);
+    }
+    return hrs;
+  }, []);
+
+  // Title display based on view mode
+  const titleDisplay = useMemo(() => {
+    if (viewMode === 'month') {
+      return `${monthLabel} ${yearLabel}`;
+    }
+    if (viewMode === 'week') {
+      const start = weekDays[0].date;
+      const end = weekDays[6].date;
+      if (start.getMonth() === end.getMonth()) {
+        return `${start.getDate()} – ${end.getDate()} ${MONTH_NAMES_MS[start.getMonth()]} ${start.getFullYear()}`;
+      }
+      return `${start.getDate()} ${MONTH_NAMES_MS[start.getMonth()]} – ${end.getDate()} ${MONTH_NAMES_MS[end.getMonth()]} ${end.getFullYear()}`;
+    }
+    if (viewMode === 'day') {
+      return `${DAY_NAMES_FULL[currentDate.getDay()]}, ${currentDate.getDate()} ${MONTH_NAMES_MS[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
+    }
+    return `Jadual Tempahan (${MONTH_NAMES_MS[currentDate.getMonth()]} ${currentDate.getFullYear()})`;
+  }, [viewMode, currentDate, monthLabel, yearLabel, weekDays]);
+
+  // Current time position indicator (0-100% of the 6am-10pm timeline)
+  const currentTimePercentage = useMemo(() => {
+    const now = new Date();
+    const hours = now.getHours();
+    const mins = now.getMinutes();
+    if (hours < 6 || hours > 22) return null;
+    const totalMinutes = (hours - 6) * 60 + mins;
+    const totalDayMinutes = (23 - 6) * 60;
+    return (totalMinutes / totalDayMinutes) * 100;
+  }, []);
 
   return (
     <>
@@ -418,104 +615,588 @@ const CalendarView: React.FC = () => {
         isAdmin={isAdmin}
       />
 
-      <BookingForm
-        isOpen={isFormOpen}
-        onClose={() => {
-          setIsFormOpen(false);
-          setEditingBooking(null);
-        }}
-        bookingToEdit={editingBooking}
-      />
+      {isAdmin && (
+        <BookingForm
+          isOpen={isFormOpen}
+          onClose={() => {
+            setIsFormOpen(false);
+            setEditingBooking(null);
+          }}
+          bookingToEdit={editingBooking}
+        />
+      )}
 
-      <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-md border border-gray-100">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
         
-        {/* Calendar top controls */}
-        <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-          <div className="flex items-center space-x-1 bg-gray-50 border rounded-xl p-1">
-            <button onClick={() => changeMonth(-1)} className="p-2 font-bold hover:bg-white rounded-lg transition-colors text-gray-700">&lt;</button>
-            <h3 className="text-base sm:text-lg font-extrabold text-gray-800 px-3">{monthName} {year}</h3>
-            <button onClick={() => changeMonth(1)} className="p-2 font-bold hover:bg-white rounded-lg transition-colors text-gray-700">&gt;</button>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {isAdmin && (
-              <button
-                onClick={handleCreateNewBooking}
-                className="flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2 px-3.5 rounded-xl shadow-md transition"
-              >
-                <PlusIcon className="h-4 w-4 mr-1.5" />
-                Tambah Booking Baru
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Legend */}
-        <div className="flex flex-wrap items-center gap-2 text-xs mb-4 pb-4 border-b border-gray-100">
-          <span className="text-xs font-bold text-gray-400 uppercase mr-1">Petunjuk Van:</span>
-          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-900 border border-blue-100 font-medium">
-            <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span> Syafiq
-          </span>
-          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-900 border border-emerald-100 font-medium">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span> Saiful
-          </span>
-          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-slate-800 border border-slate-200 font-medium">
-            <span className="w-2.5 h-2.5 rounded-full bg-slate-600"></span> Pandu Sendiri
-          </span>
-          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-50 text-rose-800 border border-rose-100 font-bold">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-600"></span> Konflik
-          </span>
-          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-100 font-medium">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-600"></span> Menunggu
-          </span>
-        </div>
-
-        {/* Grid Calendar */}
-        <div className="grid grid-cols-7 gap-px text-center text-xs font-bold text-gray-500 border-t border-l border-gray-200 bg-gray-200 rounded-xl overflow-hidden">
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-            <div key={day} className="py-2.5 bg-gray-50 border-b border-r border-gray-200 tracking-wider uppercase text-[10px] text-gray-400">{day}</div>
-          ))}
-          {calendarGrid.map(({ date, isCurrentMonth }, idx) => {
-            const dayBookings = bookingsByDay.get(date.toDateString()) || [];
-            const isToday = date.toDateString() === new Date().toDateString();
-
-            return (
-              <div
-                key={idx}
-                className={`relative min-h-[135px] p-1.5 border-b border-r border-gray-200 transition-colors ${
-                  isCurrentMonth ? (isToday ? 'bg-indigo-50/20' : 'bg-white') : 'bg-gray-50/50'
-                }`}
-              >
-                <span className={`absolute top-1.5 right-1.5 text-[10px] font-extrabold ${
-                  isToday ? 'bg-indigo-600 text-white rounded-full h-5.5 w-5.5 flex items-center justify-center shadow-sm' : ''
-                } ${!isCurrentMonth ? 'text-gray-300' : 'text-gray-700'}`}>
-                  {date.getDate()}
-                </span>
-                <div className="mt-7 space-y-1">
-                  {dayBookings.map(booking => {
-                    const dName = getDriverName(booking.driverId);
-                    const isConflict = booking.status === 'Conflict';
-                    return (
-                      <button
-                        key={booking.id}
-                        onClick={() => setSelectedBookingId(booking.id)}
-                        className={`w-full text-left p-1.5 rounded-xl text-[11px] truncate cursor-pointer transition shadow-xs hover:shadow-md hover:scale-102 flex flex-col ${getBookingBadgeStyle(booking, dName)}`}
-                        title={booking.calendarEventTitle || `${booking.destination} (${dName})`}
-                      >
-                        <p className="font-extrabold text-[9px] tracking-tight flex items-center justify-between w-full opacity-90">
-                          <span>{parseAsLocal(booking.dateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</span>
-                          {isConflict && <span className="text-xs font-bold text-rose-700 animate-pulse">⚠️</span>}
-                        </p>
-                        <p className="font-bold truncate w-full mt-0.5 text-gray-900">{booking.destination}</p>
-                        <p className="opacity-80 truncate text-[9px] w-full">{booking.serviceType === 'Self-Drive' ? '🚗 Self-Drive' : `👤 ${dName.split(' ')[0]}`}</p>
-                      </button>
-                    );
-                  })}
+        {/* GOOGLE CALENDAR STYLE TOOLBAR */}
+        <div className="p-3 sm:p-4 border-b border-slate-200 bg-white">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            
+            {/* Left: Today, Prev/Next, Date Title */}
+            <div className="flex items-center justify-between sm:justify-start gap-2 sm:gap-4">
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={handleToday}
+                  className="px-3 py-1.5 text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-xl shadow-2xs transition active:scale-95 cursor-pointer"
+                >
+                  Hari Ini
+                </button>
+                <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+                  <button
+                    onClick={handlePrev}
+                    className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-white rounded-lg transition active:scale-95 cursor-pointer"
+                    title="Sebelum"
+                  >
+                    <span className="text-sm font-bold block px-1">‹</span>
+                  </button>
+                  <button
+                    onClick={handleNext}
+                    className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-white rounded-lg transition active:scale-95 cursor-pointer"
+                    title="Selepas"
+                  >
+                    <span className="text-sm font-bold block px-1">›</span>
+                  </button>
                 </div>
               </div>
-            );
-          })}
+
+              <h2 className="text-sm sm:text-lg font-extrabold text-slate-900 tracking-tight">
+                {titleDisplay}
+              </h2>
+            </div>
+
+            {/* Right: View Switcher (Month, Week, Day, Schedule) & Admin Add */}
+            <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2">
+              
+              {/* Segmented View Switcher */}
+              <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold shadow-2xs">
+                <button
+                  onClick={() => setViewMode('month')}
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                    viewMode === 'month'
+                      ? 'bg-white text-indigo-600 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Bulan
+                </button>
+                <button
+                  onClick={() => setViewMode('week')}
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                    viewMode === 'week'
+                      ? 'bg-white text-indigo-600 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Minggu
+                </button>
+                <button
+                  onClick={() => setViewMode('day')}
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                    viewMode === 'day'
+                      ? 'bg-white text-indigo-600 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Hari
+                </button>
+                <button
+                  onClick={() => setViewMode('schedule')}
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                    viewMode === 'schedule'
+                      ? 'bg-white text-indigo-600 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Jadual
+                </button>
+              </div>
+
+              {/* Admin Button */}
+              {isAdmin && (
+                <button
+                  onClick={handleCreateNewBooking}
+                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2 px-3.5 rounded-xl shadow-xs transition active:scale-95 cursor-pointer ml-auto sm:ml-0"
+                >
+                  <PlusIcon className="h-4 w-4" />
+                  <span className="hidden sm:inline">Tambah Tempahan</span>
+                  <span className="sm:hidden">Tambah</span>
+                </button>
+              )}
+            </div>
+
+          </div>
+
+          {/* Quick Filters Strip (Google Calendar Chips) */}
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-3 pt-3 border-t border-slate-100">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Penapis:</span>
+            
+            <button
+              onClick={() => setDriverFilter('all')}
+              className={`px-2.5 py-1 rounded-full text-xs font-semibold transition border cursor-pointer ${
+                driverFilter === 'all'
+                  ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
+                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              Semua
+            </button>
+
+            {driversList.map(driver => (
+              <button
+                key={driver.id}
+                onClick={() => setDriverFilter(driver.id)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition border cursor-pointer ${
+                  driverFilter === driver.id
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${
+                  driver.name.toLowerCase().includes('syafiq') ? 'bg-blue-500' :
+                  driver.name.toLowerCase().includes('saiful') ? 'bg-emerald-500' : 'bg-indigo-500'
+                }`} />
+                {driver.name.split(' ')[0]}
+              </button>
+            ))}
+
+            <button
+              onClick={() => setDriverFilter('self-drive')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition border cursor-pointer ${
+                driverFilter === 'self-drive'
+                  ? 'bg-slate-800 text-white border-slate-800 shadow-2xs'
+                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-slate-500" />
+              Self-Drive
+            </button>
+
+            <button
+              onClick={() => setDriverFilter('conflict')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition border cursor-pointer ${
+                driverFilter === 'conflict'
+                  ? 'bg-rose-600 text-white border-rose-600 shadow-2xs'
+                  : 'bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-rose-500" />
+              Konflik
+            </button>
+          </div>
         </div>
+
+        {/* ========================================================
+            VIEW 1: MONTH VIEW (BULAN)
+            ======================================================== */}
+        {viewMode === 'month' && (
+          <div className="overflow-x-auto">
+            <div className="min-w-[320px]">
+              {/* Weekday Header */}
+              <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50/70 text-center">
+                {DAY_NAMES_FULL.map((name, i) => (
+                  <div key={name} className="py-2.5 text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    <span className="hidden sm:inline">{name}</span>
+                    <span className="sm:hidden">{DAY_NAMES_SHORT[i]}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* 7x6 Grid Calendar */}
+              <div className="grid grid-cols-7 border-b border-l border-slate-200 bg-slate-200 gap-px">
+                {calendarGrid.map(({ date, dateKey, isCurrentMonth, isToday }, idx) => {
+                  const dayBookings = bookingsByDay.get(dateKey) || [];
+
+                  return (
+                    <div
+                      key={idx}
+                      onClick={() => {
+                        // On mobile or when user taps empty day, quick switch to Day view
+                        if (window.innerWidth < 640) {
+                          setCurrentDate(date);
+                          setViewMode('day');
+                        }
+                      }}
+                      className={`relative p-1 sm:p-1.5 min-h-[90px] sm:min-h-[125px] transition ${
+                        isCurrentMonth ? (isToday ? 'bg-indigo-50/25' : 'bg-white') : 'bg-slate-50/70'
+                      }`}
+                    >
+                      {/* Date Bubble */}
+                      <div className="flex items-center justify-between mb-1">
+                        <span
+                          className={`text-[10px] sm:text-xs font-extrabold h-5 w-5 sm:h-6 sm:w-6 flex items-center justify-center rounded-full transition ${
+                            isToday
+                              ? 'bg-indigo-600 text-white shadow-2xs'
+                              : isCurrentMonth
+                              ? 'text-slate-800'
+                              : 'text-slate-400'
+                          }`}
+                        >
+                          {date.getDate()}
+                        </span>
+
+                        {dayBookings.length > 0 && (
+                          <span className="sm:hidden text-[9px] font-extrabold px-1.5 py-0.2 bg-indigo-100 text-indigo-800 rounded-full">
+                            {dayBookings.length}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Events List */}
+                      <div className="space-y-1">
+                        {dayBookings.slice(0, 3).map(booking => {
+                          const dName = getDriverName(booking.driverId);
+                          const style = getEventStyleInfo(booking, dName);
+                          const timeStr = parseAsLocal(booking.dateTime).toLocaleTimeString('en-US', {
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true,
+                          });
+
+                          return (
+                            <button
+                              key={booking.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedBookingId(booking.id);
+                              }}
+                              className={`w-full text-left p-1 sm:p-1.5 rounded-md text-[10px] sm:text-[11px] leading-tight border transition truncate shadow-2xs hover:shadow-xs flex items-center gap-1 cursor-pointer ${style.bg} ${style.text} ${style.border}`}
+                              title={`${timeStr} - ${booking.destination} (${dName})`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${style.bar}`} />
+                              <span className="font-bold shrink-0">{timeStr}</span>
+                              <span className="truncate font-medium">{booking.destination}</span>
+                            </button>
+                          );
+                        })}
+
+                        {dayBookings.length > 3 && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCurrentDate(date);
+                              setViewMode('day');
+                            }}
+                            className="w-full text-left text-[10px] font-bold text-indigo-600 hover:text-indigo-800 px-1 py-0.5 rounded transition cursor-pointer"
+                          >
+                            +{dayBookings.length - 3} lagi...
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================
+            VIEW 2: WEEK VIEW (MINGGU) - GOOGLE CALENDAR TIMELINE
+            ======================================================== */}
+        {viewMode === 'week' && (
+          <div className="overflow-x-auto">
+            <div className="min-w-[680px]">
+              {/* Week Day Header */}
+              <div className="grid grid-cols-8 border-b border-slate-200 bg-slate-50 sticky top-0 z-10">
+                <div className="py-3 px-2 text-center text-[10px] font-bold text-slate-400 uppercase border-r border-slate-200">
+                  Masa
+                </div>
+                {weekDays.map(({ date, isToday }, i) => (
+                  <div
+                    key={i}
+                    className={`py-2 px-1 text-center border-r border-slate-200 ${isToday ? 'bg-indigo-50/40' : ''}`}
+                  >
+                    <p className="text-[10px] font-bold text-slate-500 uppercase">{DAY_NAMES_SHORT[date.getDay()]}</p>
+                    <span
+                      className={`inline-flex items-center justify-center h-6 w-6 rounded-full text-xs font-extrabold mt-0.5 ${
+                        isToday ? 'bg-indigo-600 text-white shadow-2xs' : 'text-slate-800'
+                      }`}
+                    >
+                      {date.getDate()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Hourly Grid Rows */}
+              <div className="relative">
+                {timelineHours.map(hour => {
+                  const hourLabel = `${hour % 12 === 0 ? 12 : hour % 12} ${hour >= 12 ? 'PM' : 'AM'}`;
+
+                  return (
+                    <div key={hour} className="grid grid-cols-8 border-b border-slate-100 min-h-[56px]">
+                      {/* Hour Axis */}
+                      <div className="text-[10px] font-bold text-slate-400 text-center pt-1 border-r border-slate-200 bg-slate-50/40 select-none">
+                        {hourLabel}
+                      </div>
+
+                      {/* 7 Days Columns */}
+                      {weekDays.map(({ date, dateKey, isToday }, dayIdx) => {
+                        const dayBookings = bookingsByDay.get(dateKey) || [];
+                        const hourBookings = dayBookings.filter(b => {
+                          const dt = parseAsLocal(b.dateTime);
+                          return dt.getHours() === hour;
+                        });
+
+                        return (
+                          <div
+                            key={dayIdx}
+                            onClick={() => {
+                              setCurrentDate(date);
+                              setViewMode('day');
+                            }}
+                            className={`relative border-r border-slate-100 p-0.5 transition hover:bg-slate-50/60 cursor-pointer ${
+                              isToday ? 'bg-indigo-50/10' : ''
+                            }`}
+                          >
+                            {hourBookings.map(booking => {
+                              const dName = getDriverName(booking.driverId);
+                              const style = getEventStyleInfo(booking, dName);
+                              const timeStr = parseAsLocal(booking.dateTime).toLocaleTimeString('en-US', {
+                                hour: 'numeric',
+                                minute: '2-digit',
+                                hour12: true,
+                              });
+
+                              return (
+                                <button
+                                  key={booking.id}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedBookingId(booking.id);
+                                  }}
+                                  className={`w-full text-left p-1.5 rounded-md text-[10px] font-semibold border shadow-2xs mb-1 cursor-pointer transition hover:scale-101 ${style.bg} ${style.text} ${style.border}`}
+                                >
+                                  <div className="font-extrabold flex items-center justify-between">
+                                    <span>{timeStr}</span>
+                                    {booking.status === 'Conflict' && <span>⚠️</span>}
+                                  </div>
+                                  <p className="font-bold truncate mt-0.5">{booking.destination}</p>
+                                  <p className="opacity-80 truncate text-[9px]">{dName.split(' ')[0]}</p>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================
+            VIEW 3: DAY VIEW (HARI) - DETAILED HOURLY TIMELINE
+            ======================================================== */}
+        {viewMode === 'day' && (
+          <div className="p-3 sm:p-5">
+            {/* Day Header Banner */}
+            <div className="bg-gradient-to-r from-slate-900 to-indigo-950 text-white p-4 rounded-2xl shadow-sm mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold text-indigo-300 uppercase tracking-wider">Jadual Hari Terpilih</p>
+                <h3 className="text-base sm:text-xl font-extrabold text-white mt-0.5">
+                  {DAY_NAMES_FULL[currentDate.getDay()]}, {currentDate.getDate()} {MONTH_NAMES_MS[currentDate.getMonth()]} {currentDate.getFullYear()}
+                </h3>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold px-3 py-1 bg-white/10 rounded-xl border border-white/20">
+                  {(() => {
+                    const key = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+                    const count = (bookingsByDay.get(key) || []).length;
+                    return `${count} Perjalanan Terjadual`;
+                  })()}
+                </span>
+              </div>
+            </div>
+
+            {/* Hourly Grid for Day */}
+            <div className="space-y-2">
+              {(() => {
+                const key = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+                const dayBookings = bookingsByDay.get(key) || [];
+
+                if (dayBookings.length === 0) {
+                  return (
+                    <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200">
+                      <CalendarIcon className="h-10 w-10 text-slate-300 mx-auto mb-2" />
+                      <p className="font-bold text-slate-700 text-sm">Tiada Tempahan Pada Tarikh Ini</p>
+                      <p className="text-xs text-slate-400 mt-1">Gunakan butang navigasi atau tukar ke paparan Bulan untuk tarikh lain.</p>
+                    </div>
+                  );
+                }
+
+                return dayBookings.map(booking => {
+                  const dName = getDriverName(booking.driverId);
+                  const style = getEventStyleInfo(booking, dName);
+                  const startDt = parseAsLocal(booking.dateTime);
+                  const finishDt = booking.finishDateTime ? parseAsLocal(booking.finishDateTime) : null;
+                  const totalPassengers = booking.passengers ? booking.passengers.reduce((sum, p) => sum + p.count, 0) : 0;
+
+                  return (
+                    <div
+                      key={booking.id}
+                      onClick={() => setSelectedBookingId(booking.id)}
+                      className={`p-3.5 sm:p-4 rounded-2xl border shadow-2xs hover:shadow-md transition cursor-pointer bg-white ${style.border}`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2.5 mb-2.5">
+                        <div className="flex items-center gap-2">
+                          <span className={`w-3 h-3 rounded-full ${style.bar}`} />
+                          <span className="font-mono text-xs sm:text-sm font-extrabold text-slate-900">
+                            {startDt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                            {finishDt && ` – ${finishDt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`}
+                          </span>
+                          <span className={`px-2 py-0.5 text-[10px] font-extrabold rounded-full ${
+                            booking.status === 'Conflict' ? 'bg-rose-100 text-rose-800' : 'bg-indigo-100 text-indigo-800'
+                          }`}>
+                            {booking.status}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">
+                            {booking.serviceType === 'Self-Drive' ? '🚗 Pandu Sendiri' : `👤 ${dName}`}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase">Destinasi</p>
+                          <p className="text-sm font-extrabold text-slate-900">{booking.destination}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase">Pickup</p>
+                          <p className="text-xs font-semibold text-slate-700">{getPickupLocationDisplay(booking.pickupPoint, booking.address)}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 mt-3 pt-2.5 border-t border-slate-100 text-xs text-slate-500">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-slate-700">Pemohon: {booking.requesterName} {booking.department ? `(${booking.department})` : ''}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="font-bold text-slate-800">👥 {totalPassengers} Orang</span>
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${booking.shouldWait ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                            {booking.shouldWait ? '⏳ Perlu Menunggu' : '🚗 Drop-off Sahaja'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================
+            VIEW 4: SCHEDULE / AGENDA VIEW (JADUAL TERPERINCI)
+            ======================================================== */}
+        {viewMode === 'schedule' && (
+          <div className="p-3 sm:p-5 space-y-4 max-h-[65vh] overflow-y-auto">
+            {/* Search Bar in Schedule View */}
+            <div className="relative">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Cari destinasi, nama pemohon, atau tujuan..."
+                className="w-full pl-9 pr-4 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-900 placeholder:text-slate-400"
+              />
+              <SearchIcon className="h-4 w-4 text-slate-400 absolute left-3 top-2.5 sm:top-3" />
+            </div>
+
+            {Array.from(bookingsByDay.entries()).length === 0 ? (
+              <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200">
+                <CalendarIcon className="h-10 w-10 text-slate-300 mx-auto mb-2" />
+                <p className="font-bold text-slate-700 text-sm">Tiada Tempahan Dijumpai</p>
+                <p className="text-xs text-slate-400 mt-1">Cuba bersihkan carian atau tukar penapis pemandu.</p>
+              </div>
+            ) : (
+              Array.from(bookingsByDay.entries()).map(([dateKey, dayBookings]) => {
+                const sampleDate = parseAsLocal(dayBookings[0].dateTime);
+                const isToday = sampleDate.toDateString() === new Date().toDateString();
+
+                return (
+                  <div key={dateKey} className="space-y-2">
+                    {/* Date Section Header */}
+                    <div className="flex items-center gap-2 pt-2">
+                      <div className={`px-3 py-1 rounded-xl text-xs font-extrabold uppercase tracking-wider ${
+                        isToday ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700'
+                      }`}>
+                        {isToday ? 'HARI INI • ' : ''}
+                        {DAY_NAMES_FULL[sampleDate.getDay()]}, {sampleDate.getDate()} {MONTH_NAMES_MS[sampleDate.getMonth()]}
+                      </div>
+                      <div className="h-px bg-slate-200 flex-1" />
+                    </div>
+
+                    {/* Bookings under this date */}
+                    <div className="space-y-2">
+                      {dayBookings.map(booking => {
+                        const dName = getDriverName(booking.driverId);
+                        const style = getEventStyleInfo(booking, dName);
+                        const startDt = parseAsLocal(booking.dateTime);
+                        const finishDt = booking.finishDateTime ? parseAsLocal(booking.finishDateTime) : null;
+                        const totalPassengers = booking.passengers ? booking.passengers.reduce((sum, p) => sum + p.count, 0) : 0;
+
+                        return (
+                          <div
+                            key={booking.id}
+                            onClick={() => setSelectedBookingId(booking.id)}
+                            className="p-3 bg-white hover:bg-slate-50/80 rounded-xl border border-slate-200 shadow-2xs hover:shadow-xs transition cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                          >
+                            <div className="flex items-start gap-3 flex-1 min-w-0">
+                              <div className="p-2 bg-slate-100 rounded-xl text-center shrink-0 border border-slate-200 min-w-[65px]">
+                                <span className="block text-[11px] font-extrabold text-slate-900 leading-tight">
+                                  {startDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                                </span>
+                                {finishDt && (
+                                  <span className="block text-[9px] text-slate-500 mt-0.5">
+                                    hingga {finishDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 truncate">{booking.destination}</h4>
+                                  <span className={`px-2 py-0.2 rounded-full text-[9px] font-extrabold uppercase ${
+                                    booking.status === 'Conflict' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-700'
+                                  }`}>
+                                    {booking.status}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-slate-500 truncate mt-0.5">
+                                  Dari: {getPickupLocationDisplay(booking.pickupPoint, booking.address)}
+                                </p>
+                                <p className="text-[11px] text-slate-600 truncate mt-0.5">
+                                  Pemohon: <strong>{booking.requesterName}</strong> {booking.department ? `(${booking.department})` : ''}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100">
+                              <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border ${style.bg} ${style.text} ${style.border}`}>
+                                {booking.serviceType === 'Self-Drive' ? '🚗 Self-Drive' : `👤 ${dName.split(' ')[0]}`}
+                              </span>
+                              <span className="text-[11px] font-extrabold text-slate-700 bg-slate-100 px-2 py-1 rounded-lg">
+                                👥 {totalPassengers}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+
       </div>
     </>
   );
