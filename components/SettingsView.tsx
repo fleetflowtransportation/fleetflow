@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { googleCalendarService, getDiagnosticLogs, clearDiagnosticLogs, CalendarDiagnosticLog } from '../services/googleCalendar';
+import { 
+  googleCalendarService, 
+  getDiagnosticLogs, 
+  clearDiagnosticLogs, 
+  CalendarDiagnosticLog,
+  cleanGoogleScriptUrl,
+  isGoogleScriptUrl 
+} from '../services/googleCalendar';
 
 export const SettingsView: React.FC = () => {
   const { activeTenant, updateGoogleCalendarId, updateGoogleDriveId } = useAppContext();
@@ -77,7 +84,7 @@ export const SettingsView: React.FC = () => {
     try {
       const cleanCal = tempCalendarId.trim();
       const cleanDrv = tempDriveId.trim();
-      const cleanUrl = tempAppsScriptUrl.trim();
+      const cleanUrl = cleanGoogleScriptUrl(tempAppsScriptUrl);
 
       // Save to tenant / backend storage
       if (cleanCal !== calendarId) {
@@ -92,6 +99,7 @@ export const SettingsView: React.FC = () => {
       // Save Apps Script URL to local persistence
       localStorage.setItem('fleetflow_google_script_url', cleanUrl);
       setAppsScriptUrl(cleanUrl);
+      setTempAppsScriptUrl(cleanUrl);
 
       setSaveSuccess(true);
       setIsLocked(true); // Auto-lock after saving
@@ -643,8 +651,18 @@ function testPermission() {
                         : 'bg-white border-indigo-300 text-gray-900 focus:ring-2 focus:ring-indigo-500 shadow-sm'
                     }`}
                   />
+                  {!isLocked && tempAppsScriptUrl.includes('drive.google.com') && (
+                    <p className="text-[11px] text-rose-600 font-semibold">
+                      ⚠️ Ini adalah pautan Google Drive, bukan Google Apps Script Web App. Sila masukkan pautan Web App dari script.google.com.
+                    </p>
+                  )}
+                  {!isLocked && tempAppsScriptUrl.trim().endsWith('/dev') && (
+                    <p className="text-[11px] text-amber-600 font-semibold">
+                      💡 Sistem akan menukar akhiran <code>/dev</code> kepada <code>/exec</code> secara automatik semasa disimpan.
+                    </p>
+                  )}
                   <p className="text-[11px] text-gray-500 leading-normal">
-                    URL Web App dari Google Apps Script (berakhir dengan <code>/exec</code>) untuk auto-sync kalendar & muat naik fail.
+                    URL Web App dari Google Apps Script (mesti berakhir dengan <code>/exec</code>) untuk auto-sync kalendar & muat naik fail.
                   </p>
                 </div>
 

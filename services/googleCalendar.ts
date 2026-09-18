@@ -60,6 +60,53 @@ export const clearDiagnosticLogs = () => {
   }
 };
 
+export const cleanGoogleScriptUrl = (url?: string | null): string => {
+  if (!url) return '';
+  let cleaned = url.trim();
+  // If user pasted a /dev URL, automatically convert to /exec
+  if (cleaned.includes('/macros/s/') && cleaned.endsWith('/dev')) {
+    cleaned = cleaned.substring(0, cleaned.length - 4) + '/exec';
+  }
+  return cleaned;
+};
+
+export const isGoogleScriptUrl = (url?: string | null): boolean => {
+  if (!url) return false;
+  const lower = url.toLowerCase().trim();
+  return (
+    (lower.includes('script.google.com') || lower.includes('script.googleusercontent.com')) &&
+    !lower.includes('drive.google.com') &&
+    !lower.includes('calendar.google.com')
+  );
+};
+
+export const getValidGoogleScriptUrls = (tenant?: Tenant | null, overrideUrl?: string | null): string[] => {
+  const customLocalUrl = localStorage.getItem('fleetflow_google_script_url');
+  const envUrl = import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL;
+
+  const candidates = [
+    overrideUrl,
+    customLocalUrl,
+    envUrl,
+    // Only consider tenant fields if they are actually Google Script URLs
+    isGoogleScriptUrl(tenant?.googleCalendarId) ? tenant?.googleCalendarId : null,
+    isGoogleScriptUrl(tenant?.googleDriveId) ? tenant?.googleDriveId : null,
+  ];
+
+  const validUrls: string[] = [];
+  for (const c of candidates) {
+    if (!c) continue;
+    const cleaned = cleanGoogleScriptUrl(c);
+    if (cleaned && (isGoogleScriptUrl(cleaned) || cleaned.startsWith('http')) && !cleaned.includes('drive.google.com') && !cleaned.includes('calendar.google.com')) {
+      if (!validUrls.includes(cleaned)) {
+        validUrls.push(cleaned);
+      }
+    }
+  }
+
+  return validUrls;
+};
+
 export const generateGoogleCalendarUrl = (booking: Booking): string => {
   const title = encodeURIComponent(booking.calendarEventTitle || `${booking.requesterName} - ${booking.destination}`);
   const details = encodeURIComponent(`Pemohon: ${booking.requesterName}\nDestinasi: ${booking.destination}\nTujuan: ${booking.purpose}\nPickup: ${booking.pickupPoint}`);
@@ -96,18 +143,15 @@ export const googleCalendarService = {
   },
 
   testConnection: async (tenant: Tenant, scriptUrlOverride?: string): Promise<{ success: boolean; message: string; response?: any }> => {
-    const scriptUrl = (scriptUrlOverride || 
-      (tenant?.googleDriveId?.startsWith('http') ? tenant.googleDriveId : null) ||
-      (tenant?.googleCalendarId?.startsWith('http') ? tenant.googleCalendarId : null) ||
-      localStorage.getItem('fleetflow_google_script_url') ||
-      import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL || 
-      '').trim();
+    const urls = getValidGoogleScriptUrls(tenant, scriptUrlOverride);
+    const scriptUrl = urls[0];
 
     if (!scriptUrl) {
-      const msg = 'Tiada URL Google Apps Script Web App dikonfigurasi. Sila masukkan URL Web App dalam ruangan tetapan.';
+      const msg = 'Tiada URL Google Apps Script Web App yang sah dikonfigurasi. Sila masukkan URL Web App (berakhir dengan /exec) dalam Tetapan.';
       addDiagnosticLog({
+        bookingTitle: '[UJIAN SAMBUNGAN GOOGLE]',
         endpointUrl: 'N/A',
-        payload: { action: 'ping / test' },
+        payload: { action: 'ping' },
         status: 'ERROR',
         errorMessage: msg
       });
@@ -137,7 +181,7 @@ export const googleCalendarService = {
         // text response
       }
 
-      const isHtmlResponse = resText.trim().startsWith('<!DOCTYPE html') || resText.trim().startsWith('<html');
+      const isHtmlResponse = resText.trim().startsWith('<!DOCTYPE html') || resText.trim().startsWith('<html') || resText.includes('<title>Google Accounts</title>');
       const isExplicitError = Boolean(
         !res.ok ||
         (resJson && (resJson.status === 'error' || resJson.success === false || !!resJson.error))
@@ -147,7 +191,11 @@ export const googleCalendarService = {
       
       let specificError = errorMessage;
       if (isHtmlResponse) {
-        specificError = "Google meminta Log Masuk (Google Login Redirect). Sila buka script.google.com > Deploy > Manage deployments > Edit > Pastikan 'Who has access' = 'Anyone' (Sesiapa Sahaja), 'Execute as' = 'Me', dan pilih Version: 'New version' sebelum klik Deploy.";
+        if (scriptUrl.endsWith('/dev')) {
+          specificError = "URL Google Apps Script anda menggunakan '/dev'. Sila buka script.google.com > Deploy > Manage deployments dan salin URL Web App rasmi yang berakhir dengan '/exec'.";
+        } else {
+          specificError = "Google meminta Log Masuk (Google Login Redirect). Sila semak: (1) Di script.google.com > Deploy > Manage deployments > Edit > Pastikan 'Who has access' = 'Anyone' (bukan Anyone with Google Account / Within domain) & 'Execute as' = 'Me' > Deploy (New version). (2) Jika menggunakan e-mel organisasi (Google Workspace), pastikan admin organisasi membenarkan perkongsian Web App luaran.";
+        }
       } else if (errorMessage && (errorMessage.toLowerCase().includes('permission') || errorMessage.toLowerCase().includes('authorization') || errorMessage.toLowerCase().includes('kebenaran'))) {
         specificError = `Kebenaran Google diperlukan (${errorMessage}). Sila buka script.google.com, pilih fungsi testPermission(), tekan 'Run (Jalankan)' sekali dan klik 'Allow' untuk memberi kebenaran Calendar & Drive.`;
       }
@@ -219,17 +267,7 @@ export const googleCalendarService = {
       endTime: endIso,
     };
 
-    // Find all possible Apps Script Endpoint URLs
-    const customLocalUrl = localStorage.getItem('fleetflow_google_script_url');
-    const possibleScriptUrls = [
-      customLocalUrl,
-      tenant?.googleDriveId?.startsWith('http') ? tenant.googleDriveId : null,
-      tenant?.googleCalendarId?.startsWith('http') ? tenant.googleCalendarId : null,
-      import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL,
-    ].filter(Boolean) as string[];
-
-    // Remove duplicates
-    const uniqueScriptUrls = Array.from(new Set(possibleScriptUrls));
+    const uniqueScriptUrls = getValidGoogleScriptUrls(tenant);
 
     if (uniqueScriptUrls.length === 0 && !cachedToken) {
       addDiagnosticLog({
@@ -274,17 +312,19 @@ export const googleCalendarService = {
           // ignore non-json response
         }
 
+        const isSuccess = res.ok && (!data.error && data.status !== 'error' && data.success !== false);
+
         addDiagnosticLog({
           bookingTitle: title,
           endpointUrl: scriptUrl,
           payload: { action: 'createCalendarEvent', title, startIso, endIso },
-          status: res.ok ? 'SUCCESS' : 'ERROR',
+          status: isSuccess ? 'SUCCESS' : 'ERROR',
           httpStatus: res.status,
           responseBody: resText.substring(0, 300),
-          errorMessage: !res.ok ? `HTTP ${res.status}` : undefined
+          errorMessage: !isSuccess ? (data.error || `HTTP ${res.status}`) : undefined
         });
 
-        if (res.ok) {
+        if (isSuccess) {
           const eventId = data.eventId || data.id || data.event_id || `evt-apps-script-${Date.now()}`;
           console.log('[Google Calendar] Created event via Apps Script URL:', eventId);
           return eventId;
@@ -354,15 +394,7 @@ export const googleCalendarService = {
     const startIso = startLocal.toISOString();
     const endIso = endLocal.toISOString();
 
-    const customLocalUrl = localStorage.getItem('fleetflow_google_script_url');
-    const possibleScriptUrls = [
-      customLocalUrl,
-      tenant?.googleDriveId?.startsWith('http') ? tenant.googleDriveId : null,
-      tenant?.googleCalendarId?.startsWith('http') ? tenant.googleCalendarId : null,
-      import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL,
-    ].filter(Boolean) as string[];
-
-    const uniqueScriptUrls = Array.from(new Set(possibleScriptUrls));
+    const uniqueScriptUrls = getValidGoogleScriptUrls(tenant);
 
     // Try via Apps Script Web App
     for (const scriptUrl of uniqueScriptUrls) {
@@ -450,15 +482,7 @@ export const googleCalendarService = {
     const startIso = bookingInfo?.dateTime ? parseAsLocal(bookingInfo.dateTime).toISOString() : undefined;
     const endIso = bookingInfo?.finishDateTime ? parseAsLocal(bookingInfo.finishDateTime).toISOString() : undefined;
 
-    const customLocalUrl = localStorage.getItem('fleetflow_google_script_url');
-    const possibleScriptUrls = [
-      customLocalUrl,
-      tenant?.googleDriveId?.startsWith('http') ? tenant.googleDriveId : null,
-      tenant?.googleCalendarId?.startsWith('http') ? tenant.googleCalendarId : null,
-      import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL,
-    ].filter(Boolean) as string[];
-
-    const uniqueScriptUrls = Array.from(new Set(possibleScriptUrls));
+    const uniqueScriptUrls = getValidGoogleScriptUrls(tenant);
 
     // Try via Apps Script Web App
     for (const scriptUrl of uniqueScriptUrls) {
@@ -525,5 +549,5 @@ export const googleCalendarService = {
     }
 
     return false;
-  }
+  },
 };
