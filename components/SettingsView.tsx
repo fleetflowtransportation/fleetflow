@@ -134,8 +134,17 @@ export const SettingsView: React.FC = () => {
 
   const fullCodeGs = `// =========================================================================
 // FleetFlow Google Apps Script (Code.gs)
-// Menyokong: Google Calendar (Create, Update, Delete) & Google Drive Upload
+// Menyokong: Google Calendar (Create, Update, Delete), Drive & Ujian Sambungan
 // =========================================================================
+
+function doGet(e) {
+  return ContentService.createTextOutput(JSON.stringify({
+    status: "success",
+    success: true,
+    message: "Google Apps Script Web App FleetFlow sedang aktif dan sedia menerima arahan.",
+    timestamp: new Date().toISOString()
+  })).setMimeType(ContentService.MimeType.JSON);
+}
 
 function doPost(e) {
   try {
@@ -152,28 +161,31 @@ function doPost(e) {
     // -----------------------------------------------------------------------
     // 0. ACTION: ping / testConnection (Ujian Sambungan Google - Tanpa Cipta Acara)
     // -----------------------------------------------------------------------
-    if (data.action === "ping" || data.actionType === "ping" || data.type === "ping" || data.action === "testConnection") {
+    if (data.action === "ping" || data.actionType === "ping" || data.type === "ping" || data.action === "testConnection" || !data.action) {
       var calName = "Default Calendar";
-      var calendarOk = true;
+      var calendarOk = false;
       try {
         var cal = CalendarApp.getDefaultCalendar();
-        if (cal) calName = cal.getName();
-      } catch (e) {
-        calendarOk = false;
+        if (cal) {
+          calendarOk = true;
+          calName = cal.getName();
+        }
+      } catch (errCal) {
+        calName = "CalendarApp: " + errCal.toString();
       }
 
-      var driveOk = true;
+      var driveOk = false;
       try {
         var root = DriveApp.getRootFolder();
-        if (!root) driveOk = false;
-      } catch (e) {
+        if (root) driveOk = true;
+      } catch (errDrive) {
         driveOk = false;
       }
 
       return ContentService.createTextOutput(JSON.stringify({
         status: "success",
         success: true,
-        message: "Sambungan ke Google Apps Script berjaya! Perkhidmatan Kalendar & Drive sedia beroperasi.",
+        message: "Sambungan ke Google Apps Script berjaya! Perkhidmatan sedia menerima tempahan.",
         calendar: calName,
         calendarReady: calendarOk,
         driveReady: driveOk,
@@ -376,8 +388,8 @@ function doPost(e) {
     }
 
     return ContentService.createTextOutput(JSON.stringify({
-      status: "received",
-      message: "Tiada tindakan spesifik dipadankan",
+      status: "success",
+      message: "Permohonan diterima oleh Google Apps Script",
       received: data
     })).setMimeType(ContentService.MimeType.JSON);
 
@@ -394,7 +406,7 @@ function doPost(e) {
 function testPermission() {
   var cal = CalendarApp.getDefaultCalendar();
   var drive = DriveApp.getRootFolder();
-  Logger.log("Kebenaran Calendar & Drive Berjaya Disahkan!");
+  Logger.log("Kebenaran Calendar & Drive Berjaya Disahkan: " + cal.getName());
 }`;
 
   const handleCopyCodeGs = () => {

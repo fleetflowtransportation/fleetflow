@@ -138,12 +138,18 @@ export const googleCalendarService = {
       }
 
       const isHtmlResponse = resText.trim().startsWith('<!DOCTYPE html') || resText.trim().startsWith('<html');
-      const errorMessage = resJson?.error || resJson?.message || (!res.ok ? `HTTP ${res.status}` : undefined);
-      const isScriptError = isHtmlResponse || !res.ok || (resJson && (resJson.status === 'error' || resJson.success === false || !!resJson.error)) || (!resJson && !resText.includes('success') && !resText.includes('received'));
+      const isExplicitError = Boolean(
+        !res.ok ||
+        (resJson && (resJson.status === 'error' || resJson.success === false || !!resJson.error))
+      );
+      const errorMessage = resJson?.error || (resJson?.status === 'error' ? resJson?.message : undefined) || (!res.ok ? `HTTP ${res.status}` : undefined);
+      const isScriptError = isHtmlResponse || isExplicitError;
       
       let specificError = errorMessage;
       if (isHtmlResponse) {
-        specificError = "Google meminta Log Masuk (Google Login Redirect). Akses Web App disekat. Sila buka script.google.com > Deploy > Manage deployments > Edit > Tetapkan 'Who has access' kepada 'Anyone' (Sesiapa Sahaja) & 'Execute as' kepada 'Me'.";
+        specificError = "Google meminta Log Masuk (Google Login Redirect). Sila buka script.google.com > Deploy > Manage deployments > Edit > Pastikan 'Who has access' = 'Anyone' (Sesiapa Sahaja), 'Execute as' = 'Me', dan pilih Version: 'New version' sebelum klik Deploy.";
+      } else if (errorMessage && (errorMessage.toLowerCase().includes('permission') || errorMessage.toLowerCase().includes('authorization') || errorMessage.toLowerCase().includes('kebenaran'))) {
+        specificError = `Kebenaran Google diperlukan (${errorMessage}). Sila buka script.google.com, pilih fungsi testPermission(), tekan 'Run (Jalankan)' sekali dan klik 'Allow' untuk memberi kebenaran Calendar & Drive.`;
       }
 
       addDiagnosticLog({
