@@ -10,10 +10,11 @@ import {
     UsersIcon, 
     ExclamationIcon,
     ViewGridIcon,
-    ClockIcon
+    ClockIcon,
+    ClipboardListIcon
 } from './icons/Icons';
 
-type NavView = 'dashboard' | 'reports' | 'logs' | 'archive' | 'vehicles' | 'users' | 'calendar' | 'issues' | 'schedule' | 'settings';
+type NavView = 'dashboard' | 'bookings' | 'reports' | 'logs' | 'archive' | 'vehicles' | 'users' | 'calendar' | 'issues' | 'schedule' | 'settings';
 
 interface HeaderProps {
   activeView: NavView;
@@ -45,6 +46,7 @@ const Header: React.FC<HeaderProps> = ({ activeView, setActiveView }) => {
     
     const adminNavItems = [
         { view: 'dashboard', label: 'Dashboard', icon: <ViewGridIcon className="h-5 w-5" /> },
+        { view: 'bookings', label: 'Senarai Booking', icon: <ClipboardListIcon className="h-5 w-5" /> },
         { view: 'calendar', label: 'Calendar', icon: <CalendarIcon className="h-5 w-5" /> },
         { view: 'schedule', label: 'Jadual Pemandu', icon: <ClockIcon className="h-5 w-5" /> },
         { view: 'reports', label: 'Logs', icon: <DocumentReportIcon className="h-5 w-5" /> },

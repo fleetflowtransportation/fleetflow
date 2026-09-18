@@ -439,6 +439,34 @@ export const storageService = {
     return { id };
   },
 
+  deleteBookingsBulk: async (ids: string[]): Promise<string[]> => {
+    if (!ids || ids.length === 0) return [];
+    try {
+      const { error } = await supabase.from('bookings').delete().in('id', ids);
+      if (error) {
+        console.error('[Supabase] deleteBookingsBulk error:', error.message);
+      }
+    } catch (err: any) {
+      console.error('[Supabase] deleteBookingsBulk exception:', err.message);
+    }
+    return ids;
+  },
+
+  updateBookingsBulk: async (ids: string[], data: Partial<Booking>): Promise<void> => {
+    if (!ids || ids.length === 0) return;
+    try {
+      const dbRow: any = toDbBooking(data as any);
+      delete dbRow.id;
+      delete dbRow.created_at;
+      const { error } = await supabase.from('bookings').update(dbRow).in('id', ids);
+      if (error) {
+        console.error('[Supabase] updateBookingsBulk error:', error.message);
+      }
+    } catch (err: any) {
+      console.error('[Supabase] updateBookingsBulk exception:', err.message);
+    }
+  },
+
   // ---- WRITE (FUEL LOGS) ----
   createFuelLog: async (data: FuelLog): Promise<FuelLog> => {
     try {

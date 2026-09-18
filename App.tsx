@@ -11,13 +11,14 @@ import UserManagement from './components/UserManagement';
 import CalendarView from './components/CalendarView';
 import IssueManagement from './components/IssueManagement';
 import DriverScheduleManager from './components/DriverScheduleManager';
+import BookingManagementList from './components/BookingManagementList';
 import { AuthPage } from './components/AuthPage';
 import { PublicBookingPage } from './components/PublicBookingPage';
 import { SettingsView } from './components/SettingsView';
 
 const App: React.FC = () => {
   const { currentUser, isLoading, loadError, reload } = useAppContext();
-  const [activeView, setActiveView] = useState<'dashboard' | 'reports' | 'logs' | 'archive' | 'vehicles' | 'users' | 'calendar' | 'issues' | 'schedule' | 'settings'>('dashboard');
+  const [activeView, setActiveView] = useState<'dashboard' | 'bookings' | 'reports' | 'logs' | 'archive' | 'vehicles' | 'users' | 'calendar' | 'issues' | 'schedule' | 'settings'>('dashboard');
 
   // Cek pautan borang tempahan awam (tanpa log masuk)
   const urlParams = new URLSearchParams(window.location.search);
@@ -64,6 +65,8 @@ const App: React.FC = () => {
     switch (activeView) {
       case 'dashboard':
         return <AdminDashboard />;
+      case 'bookings':
+        return <BookingManagementList />;
       case 'calendar':
         return (
           <div className="max-w-7xl mx-auto">

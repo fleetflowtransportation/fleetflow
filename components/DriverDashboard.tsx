@@ -15,7 +15,9 @@ import {
   CheckCircleIcon,
   UserCircleIcon,
   RouteIcon,
-  ExternalLinkIcon
+  ExternalLinkIcon,
+  SearchIcon,
+  XIcon
 } from './icons/Icons';
 import CalendarView from './CalendarView';
 import { parseAsLocal, getPickupLocationDisplay, isOtherPickup } from '../utils';
@@ -49,29 +51,99 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
   
   // Multiple booking selection states
   const [selectedBookingIds, setSelectedBookingIds] = useState<string[]>([]);
+  const [driverSearchQuery, setDriverSearchQuery] = useState('');
   
   const [showCalendar, setShowCalendar] = useState(false);
+
+  const getVehicleInfo = (vehicleId: string | null, serviceType?: string) => {
+    if (!vehicleId) {
+      if (serviceType === 'Self-Drive') return { name: 'Self-Drive (Alza)', plate: 'Pandu Sendiri' };
+      return { name: 'Bebas (Belum Ditetapkan)', plate: 'Pemandu Tentukan' };
+    }
+    const vehicle = vehicles.find(v => v.id === vehicleId);
+    if (vehicle) return { name: vehicle.name, plate: vehicle.plateNumber };
+    return { name: `Kenderaan #${vehicleId.slice(-4).toUpperCase()}`, plate: '-' };
+  };
+
+  // Helper search predicate for driver
+  const matchesSearch = (b: Booking, query: string) => {
+    if (!query) return true;
+    const q = query.trim().toLowerCase();
+    const dt = parseAsLocal(b.dateTime);
+    const dateStr = dt.toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' }).toLowerCase();
+    const dayStr = dt.toLocaleDateString('ms-MY', { weekday: 'long' }).toLowerCase();
+    const pickupDisp = getPickupLocationDisplay(b.pickupPoint, b.address).toLowerCase();
+    const vInfo = getVehicleInfo(b.vehicleId, b.serviceType);
+
+    return (
+      (b.requesterName && b.requesterName.toLowerCase().includes(q)) ||
+      (b.destination && b.destination.toLowerCase().includes(q)) ||
+      (b.purpose && b.purpose.toLowerCase().includes(q)) ||
+      (b.department && b.department.toLowerCase().includes(q)) ||
+      (b.address && b.address.toLowerCase().includes(q)) ||
+      pickupDisp.includes(q) ||
+      (b.requesterEmail && b.requesterEmail.toLowerCase().includes(q)) ||
+      (b.id && b.id.toLowerCase().includes(q)) ||
+      (vInfo.name && vInfo.name.toLowerCase().includes(q)) ||
+      (vInfo.plate && vInfo.plate.toLowerCase().includes(q)) ||
+      dateStr.includes(q) ||
+      dayStr.includes(q)
+    );
+  };
 
   // 1. Current / Upcoming bookings (Today or Future, status Assigned or Confirmed)
   const currentBookings = useMemo(() => {
     return bookings
       .filter(b => b.driverId === driver.id && (b.status === 'Assigned' || b.status === 'Confirmed') && !isPastTrip(b.dateTime))
+      .filter(b => matchesSearch(b, driverSearchQuery))
       .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
-  }, [bookings, driver.id]);
+  }, [bookings, driver.id, driverSearchQuery]);
 
   // 2. Pending Odometer bookings from past days (Past date, but not completed yet)
   const pendingOdometerBookings = useMemo(() => {
     return bookings
       .filter(b => b.driverId === driver.id && (b.status === 'Assigned' || b.status === 'Confirmed') && isPastTrip(b.dateTime))
+      .filter(b => matchesSearch(b, driverSearchQuery))
       .sort((a, b) => new Date(b.dateTime).getTime() - new Date(a.dateTime).getTime()); // Most recent first
-  }, [bookings, driver.id]);
+  }, [bookings, driver.id, driverSearchQuery]);
 
   // 3. History bookings (Completed with odometer or Cancelled)
   const historyBookings = useMemo(() => {
     return bookings
       .filter(b => b.driverId === driver.id && (b.status === 'Completed' || b.status === 'Cancelled'))
+      .filter(b => matchesSearch(b, driverSearchQuery))
       .sort((a, b) => new Date(b.dateTime).getTime() - new Date(a.dateTime).getTime());
-  }, [bookings, driver.id]);
+  }, [bookings, driver.id, driverSearchQuery]);
+
+  // Active items based on current tab
+  const activeList = useMemo(() => {
+    if (activeTab === 'today') return currentBookings;
+    if (activeTab === 'pending') return pendingOdometerBookings;
+    return historyBookings;
+  }, [activeTab, currentBookings, pendingOdometerBookings, historyBookings]);
+
+  // Bulk selection status in active tab
+  const allActiveSelected = useMemo(() => {
+    if (activeList.length === 0) return false;
+    return activeList.every(b => selectedBookingIds.includes(b.id));
+  }, [activeList, selectedBookingIds]);
+
+  const handleToggleSelectAllActive = () => {
+    if (allActiveSelected) {
+      const activeIds = new Set(activeList.map(b => b.id));
+      setSelectedBookingIds(prev => prev.filter(id => !activeIds.has(id)));
+    } else {
+      const combined = new Set([...selectedBookingIds, ...activeList.map(b => b.id)]);
+      setSelectedBookingIds(Array.from(combined));
+    }
+  };
+
+  const selectedAssignedCount = useMemo(() => {
+    return selectedBookingIds.filter(id => {
+      const b = bookings.find(x => x.id === id);
+      return b?.status === 'Assigned';
+    }).length;
+  }, [selectedBookingIds, bookings]);
 
   // Statistics
   const completedTripsCount = useMemo(() => {
@@ -89,6 +161,23 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
 
   const handleAcceptJob = (bookingId: string) => {
     updateBookingStatus(bookingId, 'Confirmed');
+  };
+
+  const handleBulkAcceptJobs = () => {
+    const assignedIds = selectedBookingIds.filter(id => {
+      const b = bookings.find(x => x.id === id);
+      return b?.status === 'Assigned';
+    });
+    if (assignedIds.length === 0) return;
+    assignedIds.forEach(id => updateBookingStatus(id, 'Confirmed'));
+  };
+
+  const handleBulkCompleteJobs = () => {
+    if (selectedBookingIds.length === 0) return;
+    if (confirm(`Tandakan ${selectedBookingIds.length} trip terpilih sebagai 'Selesai'?`)) {
+      selectedBookingIds.forEach(id => updateBookingStatus(id, 'Completed'));
+      setSelectedBookingIds([]);
+    }
   };
 
   const handleToggleSelectBooking = (id: string) => {
@@ -110,16 +199,6 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
   const handleOpenGeneralOdometer = () => {
     setSelectedBookingIds([]);
     setIsOdometerLogOpen(true);
-  };
-
-  const getVehicleInfo = (vehicleId: string | null, serviceType?: string) => {
-    if (!vehicleId) {
-      if (serviceType === 'Self-Drive') return { name: 'Self-Drive (Alza)', plate: 'Pandu Sendiri' };
-      return { name: 'Bebas (Belum Ditetapkan)', plate: 'Pemandu Tentukan' };
-    }
-    const vehicle = vehicles.find(v => v.id === vehicleId);
-    if (vehicle) return { name: vehicle.name, plate: vehicle.plateNumber };
-    return { name: `Kenderaan #${vehicleId.slice(-4).toUpperCase()}`, plate: '-' };
   };
 
   const formatTripDateTime = (dateTimeStr: string, finishDateTimeStr?: string) => {
@@ -195,11 +274,9 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
         {/* CARD HEADER BAR */}
         <div 
           onClick={() => {
-            if (isConfirmed) handleToggleSelectBooking(booking.id);
+            handleToggleSelectBooking(booking.id);
           }}
-          className={`px-3.5 py-2.5 border-b flex items-center justify-between text-xs transition-colors ${
-            isConfirmed ? 'cursor-pointer select-none' : ''
-          } ${
+          className={`px-3.5 py-2.5 border-b flex items-center justify-between text-xs transition-colors cursor-pointer select-none ${
             isChecked 
               ? 'bg-indigo-50/90 border-indigo-200 text-indigo-950'
               : isPastPending
@@ -210,19 +287,17 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
           }`}
         >
           <div className="flex items-center gap-2">
-            {isConfirmed && (
-              <input 
-                type="checkbox"
-                checked={isChecked}
-                onChange={(e) => {
-                  e.stopPropagation();
-                  handleToggleSelectBooking(booking.id);
-                }}
-                onClick={(e) => e.stopPropagation()}
-                className="h-4 w-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer"
-                title="Pilih untuk selesai sekali gus"
-              />
-            )}
+            <input 
+              type="checkbox"
+              checked={isChecked}
+              onChange={(e) => {
+                e.stopPropagation();
+                handleToggleSelectBooking(booking.id);
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="h-4 w-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer"
+              title="Pilih untuk tindakan lumpsum"
+            />
             <div className="flex items-center gap-1.5">
               <span className={`inline-block w-2 h-2 rounded-full ${
                 isPastPending ? 'bg-amber-600 animate-pulse' : isAssigned ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'
@@ -481,6 +556,44 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
         </button>
       </div>
 
+      {/* DRIVER SEARCH BAR */}
+      <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+            <SearchIcon className="h-4 w-4" />
+          </div>
+          <input
+            type="text"
+            value={driverSearchQuery}
+            onChange={(e) => setDriverSearchQuery(e.target.value)}
+            placeholder="Cari booking (nama pemohon, destinasi, pickup, tujuan, tarikh, kenderaan)..."
+            className="w-full pl-10 pr-9 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition font-medium"
+          />
+          {driverSearchQuery && (
+            <button
+              onClick={() => setDriverSearchQuery('')}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
+              title="Kosongkan carian"
+            >
+              <XIcon className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        {driverSearchQuery && (
+          <div className="flex items-center justify-between text-[11px] text-slate-500 px-1 pt-1">
+            <span>
+              Menunjukkan <strong>{activeList.length}</strong> padanan dalam tab ini
+            </span>
+            <button
+              onClick={() => setDriverSearchQuery('')}
+              className="text-indigo-600 font-bold hover:underline"
+            >
+              Kosongkan Carian
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* TABBED INTERFACE (TUGASAN SEMASA, PERLU LAPOR METER, SEJARAH) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         {/* TABS HEADER */}
@@ -550,7 +663,35 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
           </button>
         </div>
 
-        <div className="p-3.5 sm:p-5">
+        <div className="p-3.5 sm:p-5 space-y-4">
+          {/* BULK SELECT TOOLBAR (PILIH SEMUA / LUMPSUM) */}
+          {activeList.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs">
+              <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-700 select-none">
+                <input
+                  type="checkbox"
+                  checked={allActiveSelected}
+                  onChange={handleToggleSelectAllActive}
+                  className="h-4 w-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                />
+                <span>Pilih Semua ({activeList.length} trip dalam tab ini)</span>
+              </label>
+
+              {selectedBookingIds.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="font-extrabold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full text-[11px] border border-indigo-200">
+                    {selectedBookingIds.length} Dipilih
+                  </span>
+                  <button
+                    onClick={() => setSelectedBookingIds([])}
+                    className="text-slate-500 hover:text-slate-800 font-bold text-[11px] hover:underline"
+                  >
+                    Batal Pilihan
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           {/* TAB 1: CURRENT & UPCOMING BOOKINGS */}
           {activeTab === 'today' && (
             <div className="space-y-4">
@@ -702,33 +843,54 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
         )}
       </div>
 
-      {/* FLOATING ACTION BOTTOM BAR FOR MULTI-TRIP LOGGING */}
+      {/* FLOATING ACTION BOTTOM BAR FOR MULTI-TRIP (BULK / LUMPSUM) */}
       {selectedBookingIds.length > 0 && (
-        <div className="fixed bottom-6 left-4 right-4 md:left-auto md:right-auto md:w-[768px] bg-slate-900 text-white p-3.5 rounded-2xl shadow-2xl border border-slate-700 flex items-center justify-between z-40 backdrop-blur-md">
+        <div className="fixed bottom-6 left-4 right-4 md:left-auto md:right-auto md:w-[768px] bg-slate-900 text-white p-3.5 rounded-2xl shadow-2xl border border-slate-700 flex flex-wrap items-center justify-between gap-3 z-40 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2">
           <div className="flex items-center space-x-3">
             <div className="bg-indigo-600 text-white font-extrabold h-8 w-8 rounded-full flex items-center justify-center text-xs shadow-sm border border-indigo-400">
               {selectedBookingIds.length}
             </div>
             <div>
               <p className="text-xs font-bold text-slate-200">{selectedBookingIds.length} Trip Dipilih</p>
-              <p className="text-[11px] text-slate-400 truncate max-w-[160px] sm:max-w-[320px]">
-                Sedia untuk dilaporkan sekali gus
+              <p className="text-[11px] text-slate-400 truncate max-w-[140px] sm:max-w-[220px]">
+                Tindakan lumpsum untuk pemandu
               </p>
             </div>
           </div>
-          <div className="flex items-center space-x-2">
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {selectedAssignedCount > 0 && (
+              <button
+                onClick={handleBulkAcceptJobs}
+                className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-3 rounded-xl shadow-md transition active:scale-95 text-xs flex items-center gap-1"
+                title="Terima dan sahkan tugasan yang dipilih"
+              >
+                <span>Terima Tugasan ({selectedAssignedCount})</span>
+              </button>
+            )}
+
+            <button
+              onClick={handleOpenOdometerForSelected}
+              className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 px-3.5 rounded-xl shadow-md transition active:scale-95 text-xs uppercase tracking-wide flex items-center gap-1"
+              title="Isi rekod odometer sekali gus untuk trip terpilih"
+            >
+              <GaugeIcon className="w-3.5 h-3.5" />
+              <span>Hantar Meter ({selectedBookingIds.length})</span>
+            </button>
+
+            <button
+              onClick={handleBulkCompleteJobs}
+              className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-3 rounded-xl shadow-md transition active:scale-95 text-xs"
+              title="Tanda selesai semua trip yang dipilih secara langsung"
+            >
+              Direct Selesai
+            </button>
+
             <button
               onClick={() => setSelectedBookingIds([])}
               className="text-xs font-bold text-slate-400 hover:text-white px-2.5 py-1.5 rounded-lg"
             >
               Batal
-            </button>
-            <button
-              onClick={handleOpenOdometerForSelected}
-              className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 px-3.5 rounded-xl shadow-md transition active:scale-95 text-xs uppercase tracking-wide flex items-center gap-1"
-            >
-              <GaugeIcon className="w-3.5 h-3.5" />
-              <span>Hantar Meter ({selectedBookingIds.length})</span>
             </button>
           </div>
         </div>

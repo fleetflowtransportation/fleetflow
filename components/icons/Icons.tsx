@@ -207,3 +207,15 @@ export const ExternalLinkIcon: React.FC<IconProps> = ({ className }) => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
   </svg>
 );
+
+export const ClipboardListIcon: React.FC<IconProps> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+  </svg>
+);
+
+export const TableIcon: React.FC<IconProps> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625a1.125 1.125 0 001.125-1.125V5.625m-1.125 12.75h-7.5A1.125 1.125 0 0112 18.375m9.75 0v-1.5c0-.621-.504-1.125-1.125-1.125M12 18.375v-1.5c0-.621.504-1.125 1.125-1.125H21M12 18.375v-1.5c0-.621-.504-1.125-1.125-1.125H3.375m17.25-6.75H3.375m17.25 0A1.125 1.125 0 0021.75 9V5.625a1.125 1.125 0 00-1.125-1.125H3.375A1.125 1.125 0 002.25 5.625V9a1.125 1.125 0 001.125 1.125m17.25 0h-7.5A1.125 1.125 0 0112 9V4.5" />
+  </svg>
+);

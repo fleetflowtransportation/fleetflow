@@ -27,6 +27,9 @@ interface AppContextType {
   restoreBooking: (bookingId: string) => void;
   assignToBooking: (bookingId: string, driverId: string, vehicleId: string) => void;
   updateBookingStatus: (bookingId: string, status: Booking['status'], cancellationReason?: string) => void;
+  deleteBookingsBulk: (bookingIds: string[]) => Promise<void>;
+  updateBookingsStatusBulk: (bookingIds: string[], status: Booking['status']) => Promise<void>;
+  assignBookingsBulk: (bookingIds: string[], driverId: string, vehicleId: string) => Promise<void>;
   addFuelLog: (log: Omit<FuelLog, 'id'>) => void;
   updateFuelLog: (logId: string, updatedData: Partial<Omit<FuelLog, 'id'>>) => void;
   deleteFuelLog: (logId: string) => void;
@@ -696,6 +699,107 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   }, [setUndoableAction, activeTenant]);
 
+  const deleteBookingsBulk = useCallback(async (bookingIds: string[]) => {
+    if (!bookingIds || bookingIds.length === 0) return;
+    clearUndoState();
+
+    // 1. Revoke any blob attachments
+    bookings.filter(b => bookingIds.includes(b.id)).forEach(b => {
+      if (b.attachmentUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(b.attachmentUrl);
+      }
+    });
+
+    // 2. Remove from local state
+    setBookings(prev => prev.filter(b => !bookingIds.includes(b.id)));
+
+    // 3. Delete Google Calendar events
+    if (activeTenant) {
+      const toDelete = bookings.filter(b => bookingIds.includes(b.id) && b.calendarEventId);
+      toDelete.forEach(b => {
+        googleCalendarService.deleteEvent(activeTenant, b.calendarEventId, b).catch(() => {});
+      });
+    }
+
+    // 4. Delete from Supabase
+    try {
+      await storageService.deleteBookingsBulk(bookingIds);
+    } catch (err: any) {
+      console.error('Gagal memadam tempahan secara pukal:', err);
+    }
+  }, [bookings, clearUndoState, activeTenant]);
+
+  const updateBookingsStatusBulk = useCallback(async (bookingIds: string[], status: Booking['status']) => {
+    if (!bookingIds || bookingIds.length === 0) return;
+
+    setBookings(prev => prev.map(b => {
+      if (!bookingIds.includes(b.id)) return b;
+      return { ...b, status };
+    }));
+
+    if (activeTenant) {
+      const affected = bookings.filter(b => bookingIds.includes(b.id));
+      affected.forEach(b => {
+        const updated = { ...b, status };
+        if (status === 'Cancelled' && b.calendarEventId) {
+          googleCalendarService.deleteEvent(activeTenant, b.calendarEventId, updated).catch(() => {});
+        } else {
+          googleCalendarService.updateEvent(activeTenant, updated).catch(() => {});
+        }
+      });
+    }
+
+    try {
+      await storageService.updateBookingsBulk(bookingIds, { status });
+    } catch (err: any) {
+      console.error('Gagal kemaskini status pukal:', err);
+    }
+  }, [bookings, activeTenant]);
+
+  const assignBookingsBulk = useCallback(async (bookingIds: string[], driverId: string, vehicleId: string) => {
+    if (!bookingIds || bookingIds.length === 0) return;
+    const driver = users.find(u => u.id === driverId);
+    const vehicle = vehicles.find(v => v.id === vehicleId);
+    const driverName = driver?.name || 'Driver';
+
+    const updatedList: Booking[] = [];
+
+    setBookings(prev => prev.map(b => {
+      if (!bookingIds.includes(b.id)) return b;
+      const deptStr = b.department ? ` (${b.department})` : '';
+      const calTitle = `(${driverName}) ${b.requesterName}${deptStr} → ${b.destination}`;
+      const calColor = getDriverCalendarColor(driverName, b.serviceType);
+      const updated: Booking = {
+        ...b,
+        driverId,
+        vehicleId,
+        status: 'Confirmed',
+        calendarEventTitle: calTitle,
+        calendarColor: calColor,
+        adminNotes: `Pengendalian Manual: Disahkan pukal oleh Admin. Pemandu: ${driverName}, Kenderaan: ${vehicle?.name || vehicleId} (${vehicle?.plateNumber || ''}).`,
+        conflictReason: undefined,
+      };
+      updatedList.push(updated);
+      return updated;
+    }));
+
+    if (activeTenant) {
+      updatedList.forEach(b => {
+        googleCalendarService.updateEvent(activeTenant, b, vehicles).catch(() => {});
+      });
+    }
+
+    try {
+      await storageService.updateBookingsBulk(bookingIds, {
+        driverId,
+        vehicleId,
+        status: 'Confirmed',
+      });
+    } catch (err: any) {
+      console.error('Gagal tugasan pukal:', err);
+    }
+  }, [users, vehicles, activeTenant]);
+
   const undoLastBookingChange = useCallback(() => {
     if (lastBookingChange) {
       setBookings(prev => prev.map(b => (b.id === lastBookingChange.bookingId ? lastBookingChange.previousState : b)));
@@ -968,6 +1072,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       restoreBooking,
       assignToBooking,
       updateBookingStatus,
+      deleteBookingsBulk,
+      updateBookingsStatusBulk,
+      assignBookingsBulk,
       addFuelLog,
       updateFuelLog,
       deleteFuelLog,
