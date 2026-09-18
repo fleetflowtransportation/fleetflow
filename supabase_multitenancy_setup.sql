@@ -25,6 +25,10 @@ ALTER TABLE tenants ADD COLUMN IF NOT EXISTS google_apps_script_url TEXT;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS google_calendar_id TEXT;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS google_drive_id TEXT;
 
+-- Pastikan hak akses dibuka untuk client anon Supabase (PENTING untuk simpanan tetapan):
+ALTER TABLE tenants DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON TABLE tenants TO anon, authenticated, service_role;
+
 -- MASUKKAN YAYASAN CHOW KIT SEBAGAI DEFAULT TENANT
 INSERT INTO tenants (id, name, status)
 VALUES ('yayasan-chow-kit', 'Yayasan Chow Kit', 'active')

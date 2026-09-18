@@ -27,6 +27,7 @@ export const SettingsView: React.FC = () => {
   const [isLocked, setIsLocked] = useState(true);
   const [saveLoading, setSaveLoading] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Copy helpers
   const [copied, setCopied] = useState(false);
@@ -84,6 +85,7 @@ export const SettingsView: React.FC = () => {
     if (e) e.preventDefault();
     setSaveLoading(true);
     setSaveSuccess(false);
+    setSaveError(null);
 
     try {
       const cleanCal = tempCalendarId.trim();
@@ -91,23 +93,28 @@ export const SettingsView: React.FC = () => {
       const cleanUrl = cleanGoogleScriptUrl(tempAppsScriptUrl);
 
       // Save all 3 to Supabase database for the active tenant
-      await updateTenantGoogleIntegrations({
+      const success = await updateTenantGoogleIntegrations({
         googleAppsScriptUrl: cleanUrl,
         googleCalendarId: cleanCal,
         googleDriveId: cleanDrv,
       });
 
-      setCalendarId(cleanCal);
-      setDriveId(cleanDrv);
-      setAppsScriptUrl(cleanUrl);
-      setTempAppsScriptUrl(cleanUrl);
-
-      setSaveSuccess(true);
-      setIsLocked(true); // Auto-lock after saving
-      setTimeout(() => setSaveSuccess(false), 3000);
+      if (success) {
+        setCalendarId(cleanCal);
+        setDriveId(cleanDrv);
+        setAppsScriptUrl(cleanUrl);
+        setTempAppsScriptUrl(cleanUrl);
+        setSaveSuccess(true);
+        setSaveError(null);
+        setIsLocked(true); // Auto-lock after saving
+        setTimeout(() => setSaveSuccess(false), 4000);
+      } else {
+        setSaveError('Gagal menyimpan ke pangkalan data Supabase. Sila pastikan anda telah menjalankan "ALTER TABLE tenants DISABLE ROW LEVEL SECURITY;" di Supabase SQL Editor.');
+      }
       refreshLogs();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error saving integrations:', err);
+      setSaveError(err.message || 'Ralat semasa menyimpan tetapan ke Supabase.');
     } finally {
       setSaveLoading(false);
     }
@@ -581,7 +588,17 @@ function testPermission() {
               {saveSuccess && (
                 <div className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl font-bold flex items-center space-x-2">
                   <span>✓</span>
-                  <span>Semua tetapan integrasi berjaya disimpan dan dikunci semula!</span>
+                  <span>Semua tetapan integrasi berjaya disimpan ke Supabase dan dikunci semula!</span>
+                </div>
+              )}
+
+              {saveError && (
+                <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-900 rounded-xl font-medium flex items-start space-x-2">
+                  <span className="text-base flex-shrink-0">⚠️</span>
+                  <div>
+                    <p className="font-bold">Gagal Menyimpan ke Supabase</p>
+                    <p className="text-[11px] leading-relaxed mt-0.5">{saveError}</p>
+                  </div>
                 </div>
               )}
 
