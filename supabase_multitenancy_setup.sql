@@ -15,8 +15,13 @@ CREATE TABLE IF NOT EXISTS tenants (
   name TEXT NOT NULL,
   status TEXT DEFAULT 'active',
   google_calendar_id TEXT,
+  google_drive_id TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- Pastikan kolum integrasi wujud jika jadual tenants sudah lama dicipta:
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS google_calendar_id TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS google_drive_id TEXT;
 
 -- MASUKKAN YAYASAN CHOW KIT SEBAGAI DEFAULT TENANT
 INSERT INTO tenants (id, name, status)
