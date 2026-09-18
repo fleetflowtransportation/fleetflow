@@ -5,6 +5,7 @@ import { DEPARTMENTS, PICKUP_POINTS } from '../types';
 import { XIcon, PaperClipIcon, ClockIcon } from './icons/Icons';
 import { BookingResultModal } from './BookingResultModal';
 import { normalizeDate, normalizeTime, type AutoAssignResult } from '../services/bookingEngine';
+import { isOtherPickup } from '../utils';
 
 interface BookingFormProps {
   isOpen: boolean;
@@ -101,8 +102,8 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
         startTime,
         endTime,
         destination: bookingToEdit.destination || '',
-        pickupPoint: bookingToEdit.pickupPoint || '',
-        address: bookingToEdit.pickupPoint === OTHER_PICKUP ? (bookingToEdit.address || '') : '',
+        pickupPoint: isOtherPickup(bookingToEdit.pickupPoint) ? OTHER_PICKUP : (bookingToEdit.pickupPoint || ''),
+        address: (isOtherPickup(bookingToEdit.pickupPoint) || (bookingToEdit.address && bookingToEdit.address !== bookingToEdit.destination)) ? (bookingToEdit.address || '') : '',
         staffCount: staffCount === '' ? '' : String(staffCount),
         kidsCount: kidsCount === '' ? '' : String(kidsCount),
         teenagersCount: teenagersCount === '' ? '' : String(teenagersCount),
@@ -162,7 +163,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
         return;
     }
 
-    if (formData.pickupPoint === OTHER_PICKUP && !formData.address.trim()) {
+    if (isOtherPickup(formData.pickupPoint) && !formData.address.trim()) {
         alert('Sila nyatakan alamat pickup.');
         return;
     }
@@ -191,7 +192,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
         finishDateTime,
         destination: formData.destination.trim(),
         pickupPoint: formData.pickupPoint,
-        address: formData.pickupPoint === OTHER_PICKUP ? formData.address.trim() : formData.destination.trim(),
+        address: isOtherPickup(formData.pickupPoint) ? formData.address.trim() : '',
         passengers,
         serviceType: formData.serviceType,
         vehiclePreference: formData.serviceType === 'Perlu Driver' ? formData.vehiclePreference : undefined,
@@ -405,10 +406,10 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
                         {PICKUP_POINTS.map(p => <option key={p} value={p}>{p}</option>)}
                     </select>
                 </div>
-                {formData.pickupPoint === OTHER_PICKUP && (
+                {isOtherPickup(formData.pickupPoint) && (
                     <div>
                         <label className={labelClass}>Alamat Pickup</label>
-                        <input type="text" name="address" value={formData.address} onChange={handleChange} required className={inputClass}/>
+                        <input type="text" name="address" value={formData.address} onChange={handleChange} required className={inputClass} placeholder="Contoh: 16, Lorong Tiong Nam 5, Chow Kit"/>
                     </div>
                 )}
             </div>

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { parseAsLocal } from '../utils';
+import { parseAsLocal, getPickupLocationDisplay } from '../utils';
 import type { Booking, User, Vehicle } from '../types';
 import { getDriverCalendarColor } from '../services/bookingEngine';
 import { 
@@ -187,8 +187,7 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
                 <div>
                   <p className="text-[10px] text-gray-400 font-bold uppercase">Lokasi Pickup</p>
                   <span className="font-medium text-gray-800">
-                    {booking.pickupPoint}
-                    {booking.pickupPoint === 'Lain-lain' && booking.address && booking.address !== booking.destination ? ` (${booking.address})` : ''}
+                    {getPickupLocationDisplay(booking.pickupPoint, booking.address)}
                   </span>
                 </div>
              </div>
@@ -381,7 +380,7 @@ const CalendarView: React.FC = () => {
         map.get(dateKey)!.push(booking);
     });
     map.forEach(dayBookings => {
-        dayBookings.sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
+        dayBookings.sort((a, b) => parseAsLocal(a.dateTime).getTime() - parseAsLocal(b.dateTime).getTime());
     });
     return map;
   }, [bookings]);

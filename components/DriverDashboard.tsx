@@ -18,7 +18,7 @@ import {
   ExternalLinkIcon
 } from './icons/Icons';
 import CalendarView from './CalendarView';
-import { parseAsLocal } from '../utils';
+import { parseAsLocal, getPickupLocationDisplay, isOtherPickup } from '../utils';
 
 interface DriverDashboardProps {
   driver: CurrentUser;
@@ -266,7 +266,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Lokasi Ambil (Pickup)</span>
-                  <p className="text-xs sm:text-sm font-bold text-slate-900 leading-tight truncate">{booking.pickupPoint}</p>
+                  <p className="text-xs sm:text-sm font-bold text-slate-900 leading-tight">{getPickupLocationDisplay(booking.pickupPoint, booking.address)}</p>
                 </div>
               </div>
 
@@ -278,14 +278,14 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
                 <div className="flex-1 min-w-0">
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Lokasi Hantar (Destinasi)</span>
                   <p className="text-xs sm:text-sm font-extrabold text-slate-900 leading-tight">{booking.destination}</p>
-                  {booking.address && (
+                  {booking.address && !isOtherPickup(booking.pickupPoint) && booking.address !== booking.destination && (
                     <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{booking.address}</p>
                   )}
                   
                   {/* QUICK NAVIGATION BUTTON FOR DRIVER */}
                   <div className="mt-1.5">
                     <a
-                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((booking.address ? booking.address + ', ' : '') + booking.destination)}`}
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(booking.destination)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-indigo-50 text-indigo-700 hover:text-indigo-800 rounded-lg text-[11px] font-bold border border-slate-200 shadow-2xs transition"
@@ -646,7 +646,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
                       {/* HISTORY ROUTE & PURPOSE */}
                       <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 space-y-1">
                         <div className="flex items-center gap-1.5 font-bold text-slate-900">
-                          <span>{booking.pickupPoint}</span>
+                          <span>{getPickupLocationDisplay(booking.pickupPoint, booking.address)}</span>
                           <span className="text-slate-400">➡️</span>
                           <span className="text-indigo-900">{booking.destination}</span>
                         </div>

@@ -1,4 +1,5 @@
 import type { Booking, DriverSchedule, User, Vehicle } from '../types';
+import { getPickupLocationDisplay } from '../utils';
 
 export interface AutoAssignResult {
   status: 'Confirmed' | 'Conflict';
@@ -299,7 +300,7 @@ export function evaluateBookingAssignment({
         requester: {
           to: requesterEmail,
           subject: `[CONFIRMED] Tempahan Self-Drive Disahkan: ${destination}`,
-          body: `Salam ${requesterName},\n\nTempahan Self-Drive anda BERJAYA DISAHKAN!\n\n📅 Tarikh: ${bookingDate}\n⏰ Masa: ${startTime12} - ${endTime12}\n📍 Lokasi Pickup: ${pickupPoint} ${address ? '(' + address + ')' : ''}\n🎯 Destinasi: ${destination}\n🚗 Kenderaan: ${alzaVehicle.name} (${alzaVehicle.plateNumber})\n👤 Servis: Self-Drive\n\nSila ambil kunci kenderaan di pejabat pentadbiran sebelum bertolak.\n\nFleetFlow`,
+          body: `Salam ${requesterName},\n\nTempahan Self-Drive anda BERJAYA DISAHKAN!\n\n📅 Tarikh: ${bookingDate}\n⏰ Masa: ${startTime12} - ${endTime12}\n📍 Lokasi Pickup: ${getPickupLocationDisplay(pickupPoint, address)}\n🎯 Destinasi: ${destination}\n🚗 Kenderaan: ${alzaVehicle.name} (${alzaVehicle.plateNumber})\n👤 Servis: Self-Drive\n\nSila ambil kunci kenderaan di pejabat pentadbiran sebelum bertolak.\n\nFleetFlow`,
         },
       },
     };
@@ -514,12 +515,12 @@ export function evaluateBookingAssignment({
       requester: {
         to: requesterEmail,
         subject: `[CONFIRMED] Tempahan Pengangkutan Disahkan: ${destination}`,
-        body: `Salam ${requesterName},\n\nTempahan pengangkutan anda telah BERJAYA DISAHKAN!\n\n📅 Tarikh: ${bookingDate}\n⏰ Masa: ${startTime12} - ${endTime12}\n📍 Lokasi Pickup: ${pickupPoint} ${address ? '(' + address + ')' : ''}\n🎯 Destinasi: ${destination}\n👥 Penumpang: ${totalPassengers} orang (${passengerDetails})\n👤 Pemandu Ditugaskan: ${chosen.driver.name} (No Tel: ${chosen.driver.phone})\n🚐 Kenderaan: ${vehicleDisplay}\n${shouldWait ? '⏳ Status: Pemandu dikehendaki menunggu di destinasi\n' : ''}${remarks ? '📝 Nota: ' + remarks + '\n' : ''}${isPreWorkingHour ? '\n' + preWorkingWarning + '\n' : ''}\nEvent telah dimasukkan ke dalam Google Calendar YCK dan emel anda dijemput sebagai tetamu.\n\nFleetFlow`,
+        body: `Salam ${requesterName},\n\nTempahan pengangkutan anda telah BERJAYA DISAHKAN!\n\n📅 Tarikh: ${bookingDate}\n⏰ Masa: ${startTime12} - ${endTime12}\n📍 Lokasi Pickup: ${getPickupLocationDisplay(pickupPoint, address)}\n🎯 Destinasi: ${destination}\n👥 Penumpang: ${totalPassengers} orang (${passengerDetails})\n👤 Pemandu Ditugaskan: ${chosen.driver.name} (No Tel: ${chosen.driver.phone})\n🚐 Kenderaan: ${vehicleDisplay}\n${shouldWait ? '⏳ Status: Pemandu dikehendaki menunggu di destinasi\n' : ''}${remarks ? '📝 Nota: ' + remarks + '\n' : ''}${isPreWorkingHour ? '\n' + preWorkingWarning + '\n' : ''}\nEvent telah dimasukkan ke dalam Google Calendar YCK dan emel anda dijemput sebagai tetamu.\n\nFleetFlow`,
       },
       driver: {
         to: chosen.driver.email,
         subject: `[TUGASAN BARU] Perjalanan ke ${destination} (${bookingDate})`,
-        body: `Salam ${chosen.driver.name},\n\nAnda telah ditugaskan untuk perjalanan berikut:\n\n📅 Tarikh: ${bookingDate}\n⏰ Masa: ${startTime12} - ${endTime12}\n👤 Pemohon: ${requesterName} (${department})\n📞 Emel Pemohon: ${requesterEmail}\n📍 Pickup: ${pickupPoint} ${address ? '(' + address + ')' : ''}\n🎯 Destinasi: ${destination}\n👥 Bilangan Penumpang: ${totalPassengers} (${passengerDetails})\n🚐 Kenderaan: ${vehicleDisplay}\n${shouldWait ? '⏳ Perlu Tunggu: YA (Sila tunggu penumpang sehingga urusan selesai)\n' : ''}${remarks ? '📝 Nota: ' + remarks : ''}\n${isPreWorkingHour ? '\n' + preWorkingWarning : ''}\n\nSila pastikan kenderaan berada dalam keadaan baik sebelum bertolak.\n\nFleetFlow`,
+        body: `Salam ${chosen.driver.name},\n\nAnda telah ditugaskan untuk perjalanan berikut:\n\n📅 Tarikh: ${bookingDate}\n⏰ Masa: ${startTime12} - ${endTime12}\n👤 Pemohon: ${requesterName} (${department})\n📞 Emel Pemohon: ${requesterEmail}\n📍 Pickup: ${getPickupLocationDisplay(pickupPoint, address)}\n🎯 Destinasi: ${destination}\n👥 Bilangan Penumpang: ${totalPassengers} (${passengerDetails})\n🚐 Kenderaan: ${vehicleDisplay}\n${shouldWait ? '⏳ Perlu Tunggu: YA (Sila tunggu penumpang sehingga urusan selesai)\n' : ''}${remarks ? '📝 Nota: ' + remarks : ''}\n${isPreWorkingHour ? '\n' + preWorkingWarning : ''}\n\nSila pastikan kenderaan berada dalam keadaan baik sebelum bertolak.\n\nFleetFlow`,
       },
     },
   };

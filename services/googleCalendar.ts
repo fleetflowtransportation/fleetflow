@@ -1,5 +1,5 @@
 import { Tenant, Booking, Vehicle } from '../types';
-import { parseAsLocal } from '../utils';
+import { parseAsLocal, getPickupLocationDisplay } from '../utils';
 import { normalizeDate, normalizeTime } from './bookingEngine';
 
 let cachedToken: string | null = null;
@@ -56,9 +56,7 @@ export const buildCalendarDescription = (booking: Booking, vehicles?: Vehicle[])
             ? booking.vehiclePreference
             : 'Bebas / Belum Ditentu (Pemandu akan pilih kenderaan semasa trip)'));
 
-  const pickupText = booking.pickupPoint === 'Lain-lain' && booking.address
-    ? `Lain-lain (${booking.address})`
-    : (booking.pickupPoint || 'Tidak Dinyatakan');
+  const pickupText = getPickupLocationDisplay(booking.pickupPoint, booking.address);
 
   return [
     `Pemohon: ${booking.requesterName} (${booking.requesterEmail || 'Tiada E-mel'})`,

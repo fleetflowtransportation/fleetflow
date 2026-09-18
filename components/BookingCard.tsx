@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import type { Booking, User, Vehicle, PassengerCategory } from '../types';
 import { CalendarIcon, ClockIcon, LocationMarkerIcon, UserGroupIcon, CheckCircleIcon, XCircleIcon, TruckIcon, EditIcon, ArrowUpCircleIcon, PaperClipIcon, RewindIcon, TrashIcon, InformationCircleIcon, UserCircleIcon, RepeatIcon, RouteIcon } from './icons/Icons';
 import { useAppContext } from '../context/AppContext';
-import { parseAsLocal } from '../utils';
+import { parseAsLocal, getPickupLocationDisplay } from '../utils';
 
 interface BookingCardProps {
   booking: Booking;
@@ -134,8 +134,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
           <div className="flex items-start space-x-2">
             <ArrowUpCircleIcon className="h-5 w-5 text-gray-400 flex-shrink-0 mt-0.5" />
             <span className="flex-1">
-              <b>Pickup:</b> {booking.pickupPoint}
-              {booking.pickupPoint === 'Lain-lain' && booking.address && booking.address !== booking.destination ? ` (${booking.address})` : ''}
+              <b>Pickup:</b> {getPickupLocationDisplay(booking.pickupPoint, booking.address)}
             </span>
           </div>
           <div className="flex items-start space-x-2">

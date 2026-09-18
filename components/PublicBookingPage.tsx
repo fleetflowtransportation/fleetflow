@@ -3,6 +3,7 @@ import { storageService } from '../services/storage';
 import { googleCalendarService } from '../services/googleCalendar';
 import { DEPARTMENTS, PICKUP_POINTS, Tenant, Booking, PassengerCount } from '../types';
 import { evaluateBookingAssignment, normalizeDate, normalizeTime, getDriverCalendarColor, type AutoAssignResult } from '../services/bookingEngine';
+import { isOtherPickup, getPickupLocationDisplay } from '../utils';
 import { ClockIcon, PaperClipIcon, CheckCircleIcon, CalendarIcon } from './icons/Icons';
 
 interface PublicBookingPageProps {
@@ -120,7 +121,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId }
       return;
     }
 
-    if (formData.pickupPoint === OTHER_PICKUP && !formData.address.trim()) {
+    if (isOtherPickup(formData.pickupPoint) && !formData.address.trim()) {
       alert('Sila nyatakan alamat pickup.');
       return;
     }
@@ -142,7 +143,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId }
       purpose: formData.purpose,
       destination: formData.destination,
       pickupPoint: formData.pickupPoint,
-      address: formData.pickupPoint === OTHER_PICKUP ? formData.address.trim() : '',
+      address: isOtherPickup(formData.pickupPoint) ? formData.address.trim() : '',
       staffCount: Number(formData.staffCount) || 0,
       kidsCount: Number(formData.kidsCount) || 0,
       teenagersCount: Number(formData.teenagersCount) || 0,
@@ -184,7 +185,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId }
       finishDateTime,
       destination: formData.destination,
       pickupPoint: formData.pickupPoint,
-      address: formData.pickupPoint === OTHER_PICKUP ? formData.address.trim() : '',
+      address: isOtherPickup(formData.pickupPoint) ? formData.address.trim() : '',
       passengers,
       serviceType: formData.serviceType,
       vehiclePreference: formData.serviceType === 'Perlu Driver' ? formData.vehiclePreference : undefined,
@@ -332,6 +333,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId }
             <div className="my-6 p-4 bg-slate-50 rounded-xl text-left border border-slate-200 space-y-2">
               <p className="text-sm text-gray-700"><b>Pemohon:</b> {formData.requesterName}</p>
               <p className="text-sm text-gray-700"><b>Tujuan:</b> {formData.purpose}</p>
+              <p className="text-sm text-gray-700"><b>Lokasi Pickup:</b> {getPickupLocationDisplay(formData.pickupPoint, formData.address)}</p>
               <p className="text-sm text-gray-700"><b>Destinasi:</b> {formData.destination}</p>
               <p className="text-sm text-gray-700"><b>Tarikh & Masa:</b> {formData.bookingDate} ({formData.startTime} - {formData.endTime || 'Selesai'})</p>
               <p className="text-sm text-gray-700"><b>Status Tempahan:</b> 
@@ -525,7 +527,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId }
                     {PICKUP_POINTS.map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
                 </div>
-                {formData.pickupPoint === OTHER_PICKUP && (
+                {isOtherPickup(formData.pickupPoint) && (
                   <div>
                     <label className="block text-sm font-semibold text-gray-800">Nyatakan Alamat Pickup</label>
                     <input
