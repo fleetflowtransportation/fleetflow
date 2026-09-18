@@ -284,7 +284,8 @@ export function evaluateBookingAssignment({
     }
 
     // Alza Free! Confirmed!
-    const calendarTitle = `[ALZA] (SELF-DRIVE) ${requesterName} → ${destination}`;
+    const deptStr = department ? ` (${department})` : '';
+    const calendarTitle = `[ALZA] (SELF-DRIVE) ${requesterName}${deptStr} → ${destination}`;
     return {
       status: 'Confirmed',
       driverId: null,
@@ -468,8 +469,9 @@ export function evaluateBookingAssignment({
   }
 
   // STEP 7: Google Calendar Event formatting
-  // Title format: (NamaDriver) Pemohon → Destinasi
-  const calendarEventTitle = `(${chosen.driver.name}) ${requesterName} → ${destination}`;
+  // Title format: (NamaDriver) Pemohon (Jabatan) → Destinasi
+  const deptStr = department ? ` (${department})` : '';
+  const calendarEventTitle = `(${chosen.driver.name}) ${requesterName}${deptStr} → ${destination}`;
   const calendarColor = getDriverCalendarColor(chosen.driver.name);
 
   const preWorkingWarning = isPreWorkingHour

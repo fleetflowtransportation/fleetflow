@@ -495,7 +495,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       setBookings(prev => [newBooking, ...prev]);
       if (activeTenant) {
-        googleCalendarService.createEvent(activeTenant, newBooking).then(eventId => {
+        googleCalendarService.createEvent(activeTenant, newBooking, vehicles).then(eventId => {
           if (eventId) {
             newBooking.calendarEventId = eventId;
             setBookings(prev => prev.map(b => (b.id === newBooking.id ? { ...b, calendarEventId: eventId } : b)));
@@ -530,7 +530,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
 
     if (activeTenant) {
-      googleCalendarService.updateEvent(activeTenant, updatedFullBooking).catch(err => {
+      googleCalendarService.updateEvent(activeTenant, updatedFullBooking, vehicles).catch(err => {
         console.warn('Gagal sync kemaskini kalendar:', err);
       });
     }
@@ -539,7 +539,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       console.error('Gagal kemaskini booking di pangkalan data:', err);
       alert('Gagal kemaskini booking: ' + err.message);
     });
-  }, [bookings, setUndoableAction, activeTenant]);
+  }, [bookings, vehicles, setUndoableAction, activeTenant]);
 
   const deleteBooking = useCallback((bookingId: string) => {
     clearUndoState();
@@ -633,7 +633,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setUndoableAction(bookingId, prev);
       return prev.map(b => {
         if (b.id !== bookingId) return b;
-        const calTitle = `(${driverName}) ${b.requesterName} → ${b.destination}`;
+        const deptStr = b.department ? ` (${b.department})` : '';
+        const calTitle = `(${driverName}) ${b.requesterName}${deptStr} → ${b.destination}`;
         const calColor = getDriverCalendarColor(driverName, b.serviceType);
         assignedBooking = {
           ...b,
@@ -650,7 +651,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
 
     if (activeTenant && assignedBooking) {
-      googleCalendarService.updateEvent(activeTenant, assignedBooking).catch(() => {});
+      googleCalendarService.updateEvent(activeTenant, assignedBooking, vehicles).catch(() => {});
     }
 
     storageService.updateBooking({

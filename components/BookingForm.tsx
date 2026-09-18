@@ -89,6 +89,9 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
       const kidsCount = bookingToEdit.passengers?.find(p => p.category === 'Kids')?.count ?? '';
       const teenagersCount = bookingToEdit.passengers?.find(p => p.category === 'Teenagers')?.count ?? '';
 
+      const existingVehicle = vehicles.find(v => v.id === bookingToEdit.vehicleId);
+      const initialVehiclePref = bookingToEdit.vehiclePreference || existingVehicle?.name || FREE_VEHICLE_CHOICE;
+
       setFormData({
         requesterName: bookingToEdit.requesterName || '',
         requesterEmail: bookingToEdit.requesterEmail || '',
@@ -99,12 +102,12 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
         endTime,
         destination: bookingToEdit.destination || '',
         pickupPoint: bookingToEdit.pickupPoint || '',
-        address: bookingToEdit.address || '',
+        address: bookingToEdit.pickupPoint === OTHER_PICKUP ? (bookingToEdit.address || '') : '',
         staffCount: staffCount === '' ? '' : String(staffCount),
         kidsCount: kidsCount === '' ? '' : String(kidsCount),
         teenagersCount: teenagersCount === '' ? '' : String(teenagersCount),
         serviceType: bookingToEdit.serviceType || '',
-        vehiclePreference: bookingToEdit.vehiclePreference || FREE_VEHICLE_CHOICE,
+        vehiclePreference: initialVehiclePref,
         shouldWait: Boolean(bookingToEdit.shouldWait),
         icNumber: bookingToEdit.icNumber || '',
         remarks: bookingToEdit.remarks || '',
@@ -188,7 +191,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
         finishDateTime,
         destination: formData.destination.trim(),
         pickupPoint: formData.pickupPoint,
-        address: formData.pickupPoint === OTHER_PICKUP ? formData.address.trim() : (formData.address?.trim() || bookingToEdit?.address || formData.destination.trim()),
+        address: formData.pickupPoint === OTHER_PICKUP ? formData.address.trim() : formData.destination.trim(),
         passengers,
         serviceType: formData.serviceType,
         vehiclePreference: formData.serviceType === 'Perlu Driver' ? formData.vehiclePreference : undefined,
@@ -280,14 +283,26 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
     }
 
     if (bookingToEdit) {
-        // Kemaskini tajuk kalendar sekiranya pemohon, destinasi, atau jenis perkhidmatan bertukar
+        // Kemaskini tajuk kalendar sekiranya pemohon, destinasi, jabatan, atau jenis perkhidmatan bertukar
         const driverName = bookingToEdit.driverId
             ? (users.find(u => u.id === bookingToEdit.driverId)?.name || '')
             : (formData.serviceType === 'Self-Drive' ? 'Self-Drive' : '');
+        const deptStr = formData.department ? ` (${formData.department})` : '';
         const updatedTitle = driverName
-            ? `(${driverName}) ${formData.requesterName.trim()} → ${formData.destination.trim()}`
-            : `${formData.requesterName.trim()} → ${formData.destination.trim()}`;
+            ? `(${driverName}) ${formData.requesterName.trim()}${deptStr} → ${formData.destination.trim()}`
+            : `${formData.requesterName.trim()}${deptStr} → ${formData.destination.trim()}`;
         processedData.calendarEventTitle = updatedTitle;
+
+        // Padankan kenderaan berdasarkan preference
+        if (formData.serviceType === 'Self-Drive') {
+            const alza = vehicles.find(v => v.name.toLowerCase().includes('alza'));
+            if (alza) processedData.vehicleId = alza.id;
+        } else if (formData.vehiclePreference && formData.vehiclePreference !== FREE_VEHICLE_CHOICE) {
+            const matchedVehicle = vehicles.find(v => v.name.toLowerCase() === formData.vehiclePreference.toLowerCase());
+            if (matchedVehicle) {
+                processedData.vehicleId = matchedVehicle.id;
+            }
+        }
 
         updateBooking(bookingToEdit.id, processedData);
         onClose();

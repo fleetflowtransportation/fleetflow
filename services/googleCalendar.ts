@@ -1,4 +1,4 @@
-import { Tenant, Booking } from '../types';
+import { Tenant, Booking, Vehicle } from '../types';
 import { parseAsLocal } from '../utils';
 import { normalizeDate, normalizeTime } from './bookingEngine';
 
@@ -10,6 +10,69 @@ export const formatMalaysiaIso = (dateStr: string | Date | undefined | null): st
   const timePart = normalizeTime(dateStr);
   if (!datePart) return '';
   return `${datePart}T${timePart}:00+08:00`;
+};
+
+export const buildCalendarEventTitle = (booking: Booking): string => {
+  let baseTitle = booking.calendarEventTitle || '';
+  const deptStr = booking.department ? ` (${booking.department})` : '';
+
+  if (baseTitle) {
+    if (booking.department && !baseTitle.includes(`(${booking.department})`)) {
+      if (baseTitle.includes('→')) {
+        const parts = baseTitle.split('→');
+        const left = parts[0].trim();
+        const right = parts.slice(1).join('→').trim();
+        return `${left}${deptStr} → ${right}`;
+      }
+    }
+    return baseTitle;
+  }
+
+  return `${booking.requesterName}${deptStr} → ${booking.destination}`;
+};
+
+export const buildCalendarDescription = (booking: Booking, vehicles?: Vehicle[]): string => {
+  const totalPassengers = (booking.passengers || []).reduce((sum, p) => sum + (p.count || 0), 0);
+  const staffCount = booking.passengers?.find(p => p.category === 'Staff')?.count ?? 0;
+  const kidsCount = booking.passengers?.find(p => p.category === 'Kids')?.count ?? 0;
+  const teenagersCount = booking.passengers?.find(p => p.category === 'Teenagers')?.count ?? 0;
+  const passengerBreakdown = [
+    staffCount > 0 ? `Staff: ${staffCount}` : '',
+    kidsCount > 0 ? `Kids: ${kidsCount}` : '',
+    teenagersCount > 0 ? `Teenagers: ${teenagersCount}` : ''
+  ].filter(Boolean).join(', ') || 'Tiada pecahan';
+
+  const waitStatus = booking.shouldWait
+    ? 'Ya (Pemandu perlu menunggu sehingga urusan selesai)'
+    : 'Tidak (Pemandu tidak perlu menunggu / Drop-off sahaja)';
+
+  const matchedV = vehicles?.find(v => v.id === booking.vehicleId) ||
+    vehicles?.find(v => v.name.toLowerCase() === (booking.vehiclePreference || '').toLowerCase());
+  const vehicleText = matchedV
+    ? `${matchedV.name} (${matchedV.plateNumber})`
+    : (booking.serviceType === 'Self-Drive'
+        ? 'Perodua Alza (Pandu Sendiri)'
+        : (booking.vehiclePreference && booking.vehiclePreference !== 'Bebas'
+            ? booking.vehiclePreference
+            : 'Bebas / Belum Ditentu (Pemandu akan pilih kenderaan semasa trip)'));
+
+  const pickupText = booking.pickupPoint === 'Lain-lain' && booking.address
+    ? `Lain-lain (${booking.address})`
+    : (booking.pickupPoint || 'Tidak Dinyatakan');
+
+  return [
+    `Pemohon: ${booking.requesterName} (${booking.requesterEmail || 'Tiada E-mel'})`,
+    `Jabatan: ${booking.department || 'Tiada'}`,
+    `Destinasi: ${booking.destination}`,
+    `Lokasi Pickup: ${pickupText}`,
+    `Tujuan: ${booking.purpose}`,
+    `Bilangan Penumpang: ${totalPassengers} Orang (${passengerBreakdown})`,
+    `Pemandu Perlu Menunggu: ${waitStatus}`,
+    `Kenderaan: ${vehicleText}`,
+    `Status: ${booking.status}`,
+    `Catatan: ${booking.remarks || 'Tiada'}`,
+    `ID Tempahan: ${booking.id}`,
+  ].join('\n');
 };
 
 export interface CalendarDiagnosticLog {
@@ -258,7 +321,7 @@ export const googleCalendarService = {
     }
   },
 
-  createEvent: async (tenant: Tenant, booking: Booking): Promise<string | null> => {
+  createEvent: async (tenant: Tenant, booking: Booking, vehicles?: Vehicle[]): Promise<string | null> => {
     const startIso = formatMalaysiaIso(booking.dateTime);
     let endIso = booking.finishDateTime ? formatMalaysiaIso(booking.finishDateTime) : '';
     if (!endIso) {
@@ -267,8 +330,8 @@ export const googleCalendarService = {
       endIso = formatMalaysiaIso(endLocal);
     }
 
-    const title = booking.calendarEventTitle || `${booking.requesterName} - ${booking.destination}`;
-    const description = `Pemohon: ${booking.requesterName} (${booking.requesterEmail || 'Tiada E-mel'})\nDestinasi: ${booking.destination}\nTujuan: ${booking.purpose}\nStatus: ${booking.status}\nCatatan: ${booking.remarks || 'Tiada'}\nID Tempahan: ${booking.id}`;
+    const title = buildCalendarEventTitle(booking);
+    const description = buildCalendarDescription(booking, vehicles);
     const location = booking.destination || '';
 
     const eventPayload = {
@@ -405,7 +468,7 @@ export const googleCalendarService = {
     return null;
   },
 
-  updateEvent: async (tenant: Tenant, booking: Booking): Promise<boolean> => {
+  updateEvent: async (tenant: Tenant, booking: Booking, vehicles?: Vehicle[]): Promise<boolean> => {
     const startIso = formatMalaysiaIso(booking.dateTime);
     let endIso = booking.finishDateTime ? formatMalaysiaIso(booking.finishDateTime) : '';
     if (!endIso) {
@@ -414,8 +477,8 @@ export const googleCalendarService = {
       endIso = formatMalaysiaIso(endLocal);
     }
 
-    const title = booking.calendarEventTitle || `${booking.requesterName} - ${booking.destination}`;
-    const description = `Pemohon: ${booking.requesterName} (${booking.requesterEmail || 'Tiada E-mel'})\nDestinasi: ${booking.destination}\nTujuan: ${booking.purpose}\nStatus: ${booking.status}\nCatatan: ${booking.remarks || 'Tiada'}\nID Tempahan: ${booking.id}`;
+    const title = buildCalendarEventTitle(booking);
+    const description = buildCalendarDescription(booking, vehicles);
     const location = booking.destination || '';
 
     const uniqueScriptUrls = getValidGoogleScriptUrls(tenant);

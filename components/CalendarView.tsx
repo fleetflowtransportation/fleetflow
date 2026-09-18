@@ -2,6 +2,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { parseAsLocal } from '../utils';
 import type { Booking, User, Vehicle } from '../types';
+import { getDriverCalendarColor } from '../services/bookingEngine';
 import { 
   CalendarIcon, 
   ClockIcon, 
@@ -47,13 +48,47 @@ interface BookingDetailModalProps {
 }
 
 const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClose, onEdit, onDelete, isAdmin }) => {
-  const { users, vehicles } = useAppContext();
+  const { users, vehicles, updateBooking } = useAppContext();
+  const [isChangingDriver, setIsChangingDriver] = useState(false);
+  const [newDriverId, setNewDriverId] = useState(booking?.driverId || '');
+  const [isSavingDriver, setIsSavingDriver] = useState(false);
 
   if (!booking) return null;
 
-  const driverName = users.find(d => d.id === booking.driverId)?.name || 'Unassigned';
-  const vehicleInfo = vehicles.find(v => v.id === booking.vehicleId);
+  const driverName = users.find(d => d.id === booking.driverId)?.name || (booking.serviceType === 'Self-Drive' ? 'Self-Drive (Pandu Sendiri)' : 'Unassigned / Belum Ditentu');
+  const vehicleInfo = vehicles.find(v => v.id === booking.vehicleId) ||
+    vehicles.find(v => v.name.toLowerCase() === (booking.vehiclePreference || '').toLowerCase());
   const totalPassengers = booking.passengers.reduce((sum, p) => sum + p.count, 0);
+
+  const staffCount = booking.passengers?.find(p => p.category === 'Staff')?.count ?? 0;
+  const kidsCount = booking.passengers?.find(p => p.category === 'Kids')?.count ?? 0;
+  const teenagersCount = booking.passengers?.find(p => p.category === 'Teenagers')?.count ?? 0;
+
+  const handleConfirmDriverChange = async () => {
+    setIsSavingDriver(true);
+    try {
+      const chosenDriver = users.find(u => u.id === newDriverId);
+      const chosenDriverName = chosenDriver?.name || (booking.serviceType === 'Self-Drive' ? 'Self-Drive' : '');
+      const deptStr = booking.department ? ` (${booking.department})` : '';
+      const updatedTitle = chosenDriverName
+        ? `(${chosenDriverName}) ${booking.requesterName}${deptStr} → ${booking.destination}`
+        : `${booking.requesterName}${deptStr} → ${booking.destination}`;
+      const newColor = chosenDriver ? getDriverCalendarColor(chosenDriver.name) : 'grey';
+
+      updateBooking(booking.id, {
+        driverId: newDriverId || null,
+        calendarEventTitle: updatedTitle,
+        calendarColor: newColor,
+        status: newDriverId ? 'Confirmed' : booking.status,
+        adminNotes: `Pemandu dikemaskini kepada ${chosenDriver?.name || 'Tiada Pemandu'} oleh Admin pada ${new Date().toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' })}.`,
+      });
+      setIsChangingDriver(false);
+    } catch (e: any) {
+      alert('Ralat kemaskini pemandu: ' + (e.message || e));
+    } finally {
+      setIsSavingDriver(false);
+    }
+  };
 
   const handleDeleteClick = () => {
     if (window.confirm(`Adakah anda pasti mahu memadam tempahan ke "${booking.destination}"? Tindakan ini tidak boleh diundur.`)) {
@@ -109,7 +144,24 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
 
           <div className="space-y-1">
             <span className="text-xs font-bold uppercase text-gray-400">Tujuan Perjalanan</span>
-            <p className="text-sm font-semibold text-gray-800">{booking.purpose}</p>
+            <p className="text-sm font-semibold text-gray-800">{booking.purpose || 'Tiada tujuan dinyatakan'}</p>
+          </div>
+
+          {/* Driver Waiting Status Banner */}
+          <div className={`flex items-center space-x-3 p-3.5 rounded-xl border ${
+            booking.shouldWait
+              ? 'bg-amber-50/90 border-amber-200 text-amber-900'
+              : 'bg-emerald-50/90 border-emerald-200 text-emerald-900'
+          }`}>
+            <span className="text-2xl">{booking.shouldWait ? '⏳' : '🚗'}</span>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider opacity-80">Status Menunggu Pemandu</p>
+              <p className="text-xs font-bold">
+                {booking.shouldWait
+                  ? 'Pemandu Perlu Menunggu (Tunggu di lokasi sehingga selesai urusan)'
+                  : 'Pemandu Tidak Perlu Menunggu (Hantar / Drop-off sahaja)'}
+              </p>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-gray-100">
@@ -133,34 +185,116 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
              <div className="flex items-start space-x-2">
                 <ArrowUpCircleIcon className="h-5 w-5 text-indigo-500 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase">Pickup Point</p>
-                  <span className="font-medium text-gray-800">{booking.pickupPoint}</span>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase">Lokasi Pickup</p>
+                  <span className="font-medium text-gray-800">
+                    {booking.pickupPoint}
+                    {booking.pickupPoint === 'Lain-lain' && booking.address && booking.address !== booking.destination ? ` (${booking.address})` : ''}
+                  </span>
                 </div>
              </div>
              <div className="flex items-start space-x-2">
                 <LocationMarkerIcon className="h-5 w-5 text-indigo-500 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase">Alamat Drop-off</p>
-                  <span className="font-medium text-gray-800">{booking.address}</span>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase">Alamat Drop-off / Destinasi</p>
+                  <span className="font-semibold text-gray-900">{booking.destination}</span>
                 </div>
              </div>
-             <div className="flex items-center space-x-2">
-                <UserGroupIcon className="h-5 w-5 text-indigo-500" />
-                <div>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase">Jumlah Penumpang</p>
-                  <span className="font-medium text-gray-800">{totalPassengers} Orang</span>
+             <div className="flex items-start space-x-2 col-span-1 md:col-span-2 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <UserGroupIcon className="h-5 w-5 text-indigo-500 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] text-gray-400 font-bold uppercase">Jumlah Penumpang</p>
+                    <span className="font-bold text-gray-900 text-xs">{totalPassengers} Orang</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-white border border-slate-200 text-slate-700 shadow-sm">
+                      Staf: <strong className="ml-1 text-indigo-600">{staffCount}</strong>
+                    </span>
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-white border border-slate-200 text-slate-700 shadow-sm">
+                      Kanak-kanak: <strong className="ml-1 text-indigo-600">{kidsCount}</strong>
+                    </span>
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-white border border-slate-200 text-slate-700 shadow-sm">
+                      Remaja: <strong className="ml-1 text-indigo-600">{teenagersCount}</strong>
+                    </span>
+                  </div>
                 </div>
              </div>
-             <div className="flex items-center space-x-2">
-                <TruckIcon className="h-5 w-5 text-indigo-500" />
-                <div>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase">Pemandu Ditugaskan</p>
-                  <span className="font-bold text-gray-900">{driverName}</span>
+
+             {/* Driver Assignment with Change Driver button */}
+             <div className="col-span-1 md:col-span-2 bg-indigo-50/40 p-3 rounded-xl border border-indigo-100 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <TruckIcon className="h-5 w-5 text-indigo-500" />
+                    <div>
+                      <p className="text-[10px] text-gray-400 font-bold uppercase">Pemandu Ditugaskan</p>
+                      <span className="font-bold text-gray-900">{driverName}</span>
+                    </div>
+                  </div>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewDriverId(booking.driverId || '');
+                        setIsChangingDriver(!isChangingDriver);
+                      }}
+                      className="text-xs px-2.5 py-1.5 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold rounded-lg shadow-sm transition flex items-center space-x-1"
+                    >
+                      <span>🔄</span>
+                      <span>{isChangingDriver ? 'Batal Tukar' : 'Tukar Pemandu'}</span>
+                    </button>
+                  )}
                 </div>
+
+                {isChangingDriver && (
+                  <div className="p-3 bg-white rounded-xl border border-indigo-200 space-y-2 shadow-sm animate-fade-in mt-2">
+                    <label className="block text-xs font-bold text-indigo-900">
+                      Pilih Pemandu Baharu (Tukar Saat Akhir):
+                    </label>
+                    <select
+                      value={newDriverId}
+                      onChange={(e) => setNewDriverId(e.target.value)}
+                      className="w-full text-xs p-2 border border-indigo-200 rounded-lg bg-indigo-50/30 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:bg-white"
+                    >
+                      <option value="">-- Tiada / Belum Ditentu --</option>
+                      {users.filter(u => u.role === 'driver' || u.role === 'admin').map(u => (
+                        <option key={u.id} value={u.id}>
+                          {u.name} ({u.role === 'admin' ? 'Admin' : 'Pemandu'})
+                        </option>
+                      ))}
+                    </select>
+                    <div className="flex justify-end space-x-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setIsChangingDriver(false)}
+                        className="text-xs px-3 py-1 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isSavingDriver}
+                        onClick={handleConfirmDriverChange}
+                        className="text-xs px-3.5 py-1 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 shadow-sm"
+                      >
+                        {isSavingDriver ? 'Menyimpan...' : 'Sahkan Pertukaran'}
+                      </button>
+                    </div>
+                  </div>
+                )}
              </div>
+
              <div className="flex items-center space-x-2 col-span-1 md:col-span-2 bg-gray-50 p-2.5 rounded-xl border border-gray-100">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-500 mr-1" viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" /></svg>
-                <span><strong>Kenderaan:</strong> {vehicleInfo ? `${vehicleInfo.name} (${vehicleInfo.plateNumber})` : (booking.serviceType === 'Self-Drive' ? 'Perodua Alza (Pandu Sendiri)' : 'Belum Ditentu')}</span>
+                <span>
+                  <strong>Kenderaan:</strong>{' '}
+                  {vehicleInfo
+                    ? `${vehicleInfo.name} (${vehicleInfo.plateNumber})`
+                    : (booking.serviceType === 'Self-Drive'
+                        ? 'Perodua Alza (Pandu Sendiri)'
+                        : (booking.vehiclePreference && booking.vehiclePreference !== 'Bebas'
+                            ? booking.vehiclePreference
+                            : 'Bebas / Belum Ditentu (Pemandu pilih van semasa trip)'))}
+                </span>
              </div>
           </div>
 

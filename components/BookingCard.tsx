@@ -58,7 +58,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
   const [isReassigning, setIsReassigning] = useState(false);
   
   const driverName = useMemo(() => allUsers.find(d => d.id === booking.driverId)?.name || 'N/A', [booking.driverId, allUsers]);
-  const vehicle = useMemo(() => allVehles.find(v => v.id === booking.vehicleId), [booking.vehicleId, allVehles]);
+  const vehicle = useMemo(() => allVehles.find(v => v.id === booking.vehicleId) || allVehles.find(v => v.name.toLowerCase() === (booking.vehiclePreference || '').toLowerCase()), [booking.vehicleId, booking.vehiclePreference, allVehles]);
   
   useEffect(() => {
     setSelectedDriver(booking.driverId || '');
@@ -86,10 +86,14 @@ const BookingCard: React.FC<BookingCardProps> = ({
   const formattedFinishTime = booking.finishDateTime ? parseAsLocal(booking.finishDateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : null;
 
   const totalPassengers = booking.passengers.reduce((sum, p) => sum + p.count, 0);
-  const passengerBreakdown = booking.passengers
-    .filter(p => p.count > 0)
-    .map(p => `${categoryAbbreviation[p.category] || p.category.charAt(0)}:${p.count}`)
-    .join(', ');
+  const staffCount = booking.passengers.find(p => p.category === 'Staff')?.count ?? 0;
+  const kidsCount = booking.passengers.find(p => p.category === 'Kids')?.count ?? 0;
+  const teenagersCount = booking.passengers.find(p => p.category === 'Teenagers')?.count ?? 0;
+  const passengerBreakdown = [
+    staffCount > 0 ? `Staf: ${staffCount}` : '',
+    kidsCount > 0 ? `Kanak-kanak: ${kidsCount}` : '',
+    teenagersCount > 0 ? `Remaja: ${teenagersCount}` : ''
+  ].filter(Boolean).join(', ') || 'Tiada pecahan';
 
   const style = statusStyles[booking.status];
   
@@ -129,15 +133,26 @@ const BookingCard: React.FC<BookingCardProps> = ({
           </div>
           <div className="flex items-start space-x-2">
             <ArrowUpCircleIcon className="h-5 w-5 text-gray-400 flex-shrink-0 mt-0.5" />
-            <span className="flex-1"><b>Pickup:</b> {booking.pickupPoint}</span>
+            <span className="flex-1">
+              <b>Pickup:</b> {booking.pickupPoint}
+              {booking.pickupPoint === 'Lain-lain' && booking.address && booking.address !== booking.destination ? ` (${booking.address})` : ''}
+            </span>
           </div>
           <div className="flex items-start space-x-2">
             <LocationMarkerIcon className="h-5 w-5 text-gray-400 flex-shrink-0 mt-0.5" />
-            <span className="flex-1"><b>Drop-off:</b> {booking.address}</span>
+            <span className="flex-1"><b>Drop-off:</b> {booking.destination}</span>
           </div>
           <div className="flex items-center space-x-2">
             <UserGroupIcon className="h-5 w-5 text-gray-400" />
-            <span>{totalPassengers} Passengers ({passengerBreakdown})</span>
+            <span>{totalPassengers} Penumpang ({passengerBreakdown})</span>
+          </div>
+          <div className="flex items-center space-x-2 col-span-1 md:col-span-2">
+            <span className="text-sm">
+              <b>Status Menunggu:</b>{' '}
+              <span className={`inline-block font-semibold px-2.5 py-0.5 rounded-full text-xs ${booking.shouldWait ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'}`}>
+                {booking.shouldWait ? '⏳ Pemandu Perlu Menunggu' : '🚗 Pemandu Tidak Perlu Menunggu'}
+              </span>
+            </span>
           </div>
           {typeof booking.distance === 'number' && (
             <div className="flex items-center space-x-2">
