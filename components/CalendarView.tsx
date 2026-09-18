@@ -201,7 +201,11 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
 const CalendarView: React.FC = () => {
   const { bookings, users, currentUser, deleteBooking } = useAppContext();
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
+
+  const selectedBooking = useMemo(() => {
+    return bookings.find(b => b.id === selectedBookingId) || null;
+  }, [bookings, selectedBookingId]);
 
   // States for BookingForm
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -275,7 +279,7 @@ const CalendarView: React.FC = () => {
     <>
       <BookingDetailModal 
         booking={selectedBooking} 
-        onClose={() => setSelectedBooking(null)} 
+        onClose={() => setSelectedBookingId(null)} 
         onEdit={handleEditBooking}
         onDelete={deleteBooking}
         isAdmin={isAdmin}
@@ -361,7 +365,7 @@ const CalendarView: React.FC = () => {
                     return (
                       <button
                         key={booking.id}
-                        onClick={() => setSelectedBooking(booking)}
+                        onClick={() => setSelectedBookingId(booking.id)}
                         className={`w-full text-left p-1.5 rounded-xl text-[11px] truncate cursor-pointer transition shadow-xs hover:shadow-md hover:scale-102 flex flex-col ${getBookingBadgeStyle(booking, dName)}`}
                         title={booking.calendarEventTitle || `${booking.destination} (${dName})`}
                       >

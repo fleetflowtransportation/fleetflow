@@ -60,7 +60,7 @@ const fileToBase64 = (file: File): Promise<string> => {
 };
 
 const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdit }) => {
-  const { addBooking, updateBooking, vehicles } = useAppContext();
+  const { addBooking, updateBooking, vehicles, users } = useAppContext();
   const [formData, setFormData] = useState<FormData>(emptyFormData);
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [existingAttachment, setExistingAttachment] = useState<{ name: string; url: string } | null>(null);
@@ -90,14 +90,14 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
       const teenagersCount = bookingToEdit.passengers?.find(p => p.category === 'Teenagers')?.count ?? '';
 
       setFormData({
-        requesterName: bookingToEdit.requesterName,
+        requesterName: bookingToEdit.requesterName || '',
         requesterEmail: bookingToEdit.requesterEmail || '',
         department: bookingToEdit.department || '',
-        purpose: bookingToEdit.purpose,
+        purpose: bookingToEdit.purpose || '',
         bookingDate: date,
         startTime,
         endTime,
-        destination: bookingToEdit.destination,
+        destination: bookingToEdit.destination || '',
         pickupPoint: bookingToEdit.pickupPoint || '',
         address: bookingToEdit.address || '',
         staffCount: staffCount === '' ? '' : String(staffCount),
@@ -180,15 +180,15 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
         : undefined;
 
     const processedData: Partial<Booking> = {
-        requesterName: formData.requesterName,
-        requesterEmail: formData.requesterEmail,
+        requesterName: formData.requesterName.trim(),
+        requesterEmail: formData.requesterEmail.trim(),
         department: formData.department,
-        purpose: formData.purpose,
+        purpose: formData.purpose.trim(),
         dateTime,
         finishDateTime,
-        destination: formData.destination,
+        destination: formData.destination.trim(),
         pickupPoint: formData.pickupPoint,
-        address: formData.pickupPoint === OTHER_PICKUP ? formData.address.trim() : '',
+        address: formData.pickupPoint === OTHER_PICKUP ? formData.address.trim() : (formData.address?.trim() || bookingToEdit?.address || formData.destination.trim()),
         passengers,
         serviceType: formData.serviceType,
         vehiclePreference: formData.serviceType === 'Perlu Driver' ? formData.vehiclePreference : undefined,
@@ -280,6 +280,15 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
     }
 
     if (bookingToEdit) {
+        // Kemaskini tajuk kalendar sekiranya pemohon, destinasi, atau jenis perkhidmatan bertukar
+        const driverName = bookingToEdit.driverId
+            ? (users.find(u => u.id === bookingToEdit.driverId)?.name || '')
+            : (formData.serviceType === 'Self-Drive' ? 'Self-Drive' : '');
+        const updatedTitle = driverName
+            ? `(${driverName}) ${formData.requesterName.trim()} → ${formData.destination.trim()}`
+            : `${formData.requesterName.trim()} → ${formData.destination.trim()}`;
+        processedData.calendarEventTitle = updatedTitle;
+
         updateBooking(bookingToEdit.id, processedData);
         onClose();
     } else {

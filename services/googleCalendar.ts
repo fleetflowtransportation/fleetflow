@@ -268,7 +268,7 @@ export const googleCalendarService = {
     }
 
     const title = booking.calendarEventTitle || `${booking.requesterName} - ${booking.destination}`;
-    const description = `Pemohon: ${booking.requesterName} (${booking.requesterEmail || 'Tiada E-mel'})\nDestinasi: ${booking.destination}\nTujuan: ${booking.purpose}\nCatatan: ${booking.remarks || 'Tiada'}`;
+    const description = `Pemohon: ${booking.requesterName} (${booking.requesterEmail || 'Tiada E-mel'})\nDestinasi: ${booking.destination}\nTujuan: ${booking.purpose}\nStatus: ${booking.status}\nCatatan: ${booking.remarks || 'Tiada'}\nID Tempahan: ${booking.id}`;
     const location = booking.destination || '';
 
     const eventPayload = {
@@ -429,6 +429,7 @@ export const googleCalendarService = {
           type: 'updateCalendarEvent',
           eventId: booking.calendarEventId,
           bookingId: booking.id,
+          requesterName: booking.requesterName,
           calendarId: tenant?.googleCalendarId && !tenant.googleCalendarId.startsWith('http') ? tenant.googleCalendarId : 'primary',
           title: title,
           summary: title,

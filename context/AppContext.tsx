@@ -516,28 +516,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [bookings, driverSchedules, users, vehicles, lastDriverAssignedId, activeTenant]);
 
   const updateBooking = useCallback((bookingId: string, updatedData: Partial<Omit<Booking, 'id'>>) => {
-    let updatedFullBooking: Booking | undefined;
+    const existingBooking = bookings.find(b => b.id === bookingId);
+    if (!existingBooking) {
+      console.warn('Booking tidak dijumpai untuk dikemaskini:', bookingId);
+      return;
+    }
+
+    const updatedFullBooking: Booking = { ...existingBooking, ...updatedData };
+
     setBookings(prev => {
       setUndoableAction(bookingId, prev);
-      return prev.map(b => {
-        if (b.id === bookingId) {
-          updatedFullBooking = { ...b, ...updatedData };
-          return updatedFullBooking;
-        }
-        return b;
-      });
+      return prev.map(b => (b.id === bookingId ? updatedFullBooking : b));
     });
 
-    if (activeTenant && updatedFullBooking) {
+    if (activeTenant) {
       googleCalendarService.updateEvent(activeTenant, updatedFullBooking).catch(err => {
         console.warn('Gagal sync kemaskini kalendar:', err);
       });
     }
 
     storageService.updateBooking({ id: bookingId, ...updatedData }).catch(err => {
+      console.error('Gagal kemaskini booking di pangkalan data:', err);
       alert('Gagal kemaskini booking: ' + err.message);
     });
-  }, [setUndoableAction, activeTenant]);
+  }, [bookings, setUndoableAction, activeTenant]);
 
   const deleteBooking = useCallback((bookingId: string) => {
     clearUndoState();

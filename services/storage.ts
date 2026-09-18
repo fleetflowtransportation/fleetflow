@@ -96,7 +96,7 @@ const toDbBooking = (b: Partial<Booking>) => ({
   ...(b.conflictReason !== undefined && { conflict_reason: b.conflictReason }),
   ...(b.isPreWorkingHour !== undefined && { is_pre_working_hour: b.isPreWorkingHour }),
   ...(b.warningNotes !== undefined && { warning_notes: b.warningNotes }),
-  tenant_id: b.tenantId || getTenantId(),
+  ...(b.tenantId !== undefined ? { tenant_id: b.tenantId } : (b.id ? {} : { tenant_id: getTenantId() })),
 });
 
 // Helper: Convert DB Booking to TS
@@ -418,9 +418,11 @@ export const storageService = {
       const { error } = await supabase.from('bookings').update(dbRow).eq('id', data.id);
       if (error) {
         console.error('[Supabase] updateBooking error:', error.message);
+        throw new Error(error.message);
       }
     } catch (err: any) {
       console.error('[Supabase] updateBooking exception:', err.message);
+      throw err;
     }
     return data;
   },

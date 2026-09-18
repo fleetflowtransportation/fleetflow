@@ -244,7 +244,8 @@ function doPost(e) {
         var list = cal.getEvents(searchStart, searchEnd);
         for (var i = 0; i < list.length; i++) {
           var desc = list[i].getDescription() || "";
-          if ((data.bookingId && desc.indexOf(data.bookingId) !== -1) || list[i].getTitle() === title) {
+          var curTitle = list[i].getTitle() || "";
+          if ((data.bookingId && desc.indexOf(data.bookingId) !== -1) || curTitle === title || (data.requesterName && (curTitle.indexOf(data.requesterName) !== -1 || desc.indexOf(data.requesterName) !== -1))) {
             event = list[i];
             break;
           }
