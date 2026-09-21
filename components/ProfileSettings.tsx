@@ -15,22 +15,35 @@ import {
 
 export const ProfileSettings: React.FC = () => {
   const { activeTenant, updateTenantProfile } = useAppContext();
+  const isDirtyRef = React.useRef(false);
+  const lastTenantIdRef = React.useRef<string | null>(null);
 
   // Form state
-  const [formData, setFormData] = useState<Partial<Tenant>>({
-    companyName: '',
-    registrationNumber: '',
-    description: '',
-    phone: '',
-    whatsapp: '',
-    email: '',
-    website: '',
-    address: '',
-    postcode: '',
-    city: '',
-    state: '',
-    picName: '',
-    picPhone: '',
+  const [formData, setFormData] = useState<Partial<Tenant>>(() => {
+    const tenantId = activeTenant?.id || 'yayasan-chow-kit';
+    try {
+      const draft = localStorage.getItem(`fleetflow_profile_draft_${tenantId}`);
+      if (draft) {
+        return JSON.parse(draft);
+      }
+    } catch {
+      // ignore
+    }
+    return {
+      companyName: activeTenant?.companyName || activeTenant?.name || '',
+      registrationNumber: activeTenant?.registrationNumber || '',
+      description: activeTenant?.description || '',
+      phone: activeTenant?.phone || '',
+      whatsapp: activeTenant?.whatsapp || '',
+      email: activeTenant?.email || '',
+      website: activeTenant?.website || '',
+      address: activeTenant?.address || '',
+      postcode: activeTenant?.postcode || '',
+      city: activeTenant?.city || '',
+      state: activeTenant?.state || '',
+      picName: activeTenant?.picName || '',
+      picPhone: activeTenant?.picPhone || '',
+    };
   });
 
   const [isSaving, setIsSaving] = useState(false);
@@ -39,32 +52,62 @@ export const ProfileSettings: React.FC = () => {
     message: '',
   });
 
+  // Only initialize from activeTenant on first load or if switching to a completely different tenant,
+  // NEVER overwrite while user is editing/typing!
   useEffect(() => {
-    if (activeTenant) {
+    if (!activeTenant) return;
+
+    const isDifferentTenant = lastTenantIdRef.current !== activeTenant.id;
+    if (isDifferentTenant || !isDirtyRef.current) {
+      lastTenantIdRef.current = activeTenant.id;
+
+      // Check if draft exists first
+      let draftData: Partial<Tenant> | null = null;
+      try {
+        const raw = localStorage.getItem(`fleetflow_profile_draft_${activeTenant.id}`);
+        if (raw) draftData = JSON.parse(raw);
+      } catch {
+        // ignore
+      }
+
       setFormData({
-        companyName: activeTenant.companyName || activeTenant.name || '',
-        registrationNumber: activeTenant.registrationNumber || '',
-        description: activeTenant.description || '',
-        phone: activeTenant.phone || '',
-        whatsapp: activeTenant.whatsapp || '',
-        email: activeTenant.email || '',
-        website: activeTenant.website || '',
-        address: activeTenant.address || '',
-        postcode: activeTenant.postcode || '',
-        city: activeTenant.city || '',
-        state: activeTenant.state || '',
-        picName: activeTenant.picName || '',
-        picPhone: activeTenant.picPhone || '',
+        companyName: draftData?.companyName ?? (activeTenant.companyName || activeTenant.name || ''),
+        registrationNumber: draftData?.registrationNumber ?? (activeTenant.registrationNumber || ''),
+        description: draftData?.description ?? (activeTenant.description || ''),
+        phone: draftData?.phone ?? (activeTenant.phone || ''),
+        whatsapp: draftData?.whatsapp ?? (activeTenant.whatsapp || ''),
+        email: draftData?.email ?? (activeTenant.email || ''),
+        website: draftData?.website ?? (activeTenant.website || ''),
+        address: draftData?.address ?? (activeTenant.address || ''),
+        postcode: draftData?.postcode ?? (activeTenant.postcode || ''),
+        city: draftData?.city ?? (activeTenant.city || ''),
+        state: draftData?.state ?? (activeTenant.state || ''),
+        picName: draftData?.picName ?? (activeTenant.picName || ''),
+        picPhone: draftData?.picPhone ?? (activeTenant.picPhone || ''),
       });
     }
-  }, [activeTenant]);
+  }, [activeTenant?.id]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value,
-    }));
+    isDirtyRef.current = true;
+    
+    setFormData(prev => {
+      const updated = {
+        ...prev,
+        [name]: value,
+      };
+      
+      // Persist draft immediately so no user keystrokes are ever lost
+      try {
+        const currentId = activeTenant?.id || 'yayasan-chow-kit';
+        localStorage.setItem(`fleetflow_profile_draft_${currentId}`, JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+
+      return updated;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -80,6 +123,14 @@ export const ProfileSettings: React.FC = () => {
 
       const success = await updateTenantProfile(payload);
       if (success) {
+        isDirtyRef.current = false;
+        try {
+          const currentId = activeTenant?.id || 'yayasan-chow-kit';
+          localStorage.removeItem(`fleetflow_profile_draft_${currentId}`);
+        } catch {
+          // ignore
+        }
+
         setSaveStatus({
           type: 'success',
           message: 'Maklumat profil syarikat / organisasi telah berjaya disimpan dan dikemaskini!',

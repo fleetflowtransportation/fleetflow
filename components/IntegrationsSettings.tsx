@@ -47,16 +47,20 @@ export const IntegrationsSettings: React.FC = () => {
       setCalendarId(cal);
       setDriveId(drv);
       setAppsScriptUrl(script);
-      setTempCalendarId(cal);
-      setTempDriveId(drv);
-      setTempAppsScriptUrl(script);
+      if (!isModalOpen) {
+        setTempCalendarId(cal);
+        setTempDriveId(drv);
+        setTempAppsScriptUrl(script);
+      }
     } else {
       const savedScriptUrl = localStorage.getItem('fleetflow_google_script_url') || import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL || '';
       setAppsScriptUrl(savedScriptUrl);
-      setTempAppsScriptUrl(savedScriptUrl);
+      if (!isModalOpen) {
+        setTempAppsScriptUrl(savedScriptUrl);
+      }
     }
     setDiagnosticLogs(getDiagnosticLogs());
-  }, [activeTenant]);
+  }, [activeTenant, isModalOpen]);
 
   const refreshLogs = () => {
     setDiagnosticLogs(getDiagnosticLogs());
