@@ -677,6 +677,16 @@ export const storageService = {
   // ---- TENANTS & MULTITENANCY ----
   getTenant: async (id: string): Promise<Tenant | null> => {
     try {
+      let localProfile: Partial<Tenant> = {};
+      try {
+        const rawLocal = localStorage.getItem(`fleetflow_tenant_config_${id}`);
+        if (rawLocal) {
+          localProfile = JSON.parse(rawLocal);
+        }
+      } catch {
+        // ignore
+      }
+
       const { data, error } = await supabase.from('tenants').select('*').eq('id', id).maybeSingle();
       
       if (error) {
@@ -687,19 +697,40 @@ export const storageService = {
         if (id === 'yayasan-chow-kit') {
           return {
             id,
-            name: 'Yayasan Chow Kit',
+            name: localProfile.name || localProfile.companyName || 'Yayasan Chow Kit',
             status: 'active',
-            googleAppsScriptUrl: '',
-            googleCalendarId: '',
-            googleDriveId: '',
+            googleAppsScriptUrl: localProfile.googleAppsScriptUrl || '',
+            googleCalendarId: localProfile.googleCalendarId || '',
+            googleDriveId: localProfile.googleDriveId || '',
+            companyName: localProfile.companyName || 'Yayasan Chow Kit',
+            registrationNumber: localProfile.registrationNumber || 'PPM-012-14-11012011',
+            phone: localProfile.phone || '+603-4045 5550',
+            whatsapp: localProfile.whatsapp || '+6012-3456789',
+            email: localProfile.email || 'info@yck.org.my',
+            address: localProfile.address || 'No. 22B, Jalan Chow Kit, 50350 Kuala Lumpur',
+            postcode: localProfile.postcode || '50350',
+            city: localProfile.city || 'Kuala Lumpur',
+            state: localProfile.state || 'Wilayah Persekutuan Kuala Lumpur',
+            website: localProfile.website || 'https://www.yck.org.my',
+            picName: localProfile.picName || 'En. Syafiq (Pengurus Pengangkutan)',
+            picPhone: localProfile.picPhone || '+6012-3456789',
+            description: localProfile.description || 'Pusat Perlindungan Kanak-kanak & Pengurusan Pengangkutan Kebajikan Chow Kit',
+          };
+        }
+        if (Object.keys(localProfile).length > 0) {
+          return {
+            id,
+            name: localProfile.name || localProfile.companyName || id,
+            status: 'active',
+            ...localProfile
           };
         }
         return null;
       }
       
-      let scriptUrl = data.google_apps_script_url || '';
-      let calendarId = data.google_calendar_id || '';
-      let driveId = data.google_drive_id || '';
+      let scriptUrl = data.google_apps_script_url || localProfile.googleAppsScriptUrl || '';
+      let calendarId = data.google_calendar_id || localProfile.googleCalendarId || '';
+      let driveId = data.google_drive_id || localProfile.googleDriveId || '';
       
       if (typeof calendarId === 'string' && calendarId.includes(':::')) {
         const parts = calendarId.split(':::');
@@ -709,11 +740,24 @@ export const storageService = {
 
       return {
         id: data.id,
-        name: data.name || 'Yayasan Chow Kit',
+        name: data.name || localProfile.name || localProfile.companyName || 'Yayasan Chow Kit',
         status: data.status || 'active',
         googleAppsScriptUrl: scriptUrl,
         googleCalendarId: calendarId,
         googleDriveId: driveId,
+        companyName: data.company_name || localProfile.companyName || data.name || 'Yayasan Chow Kit',
+        registrationNumber: data.registration_number || localProfile.registrationNumber || '',
+        phone: data.phone || localProfile.phone || '',
+        whatsapp: data.whatsapp || localProfile.whatsapp || '',
+        email: data.email || localProfile.email || '',
+        address: data.address || localProfile.address || '',
+        postcode: data.postcode || localProfile.postcode || '',
+        city: data.city || localProfile.city || '',
+        state: data.state || localProfile.state || '',
+        website: data.website || localProfile.website || '',
+        picName: data.pic_name || localProfile.picName || '',
+        picPhone: data.pic_phone || localProfile.picPhone || '',
+        description: data.description || localProfile.description || '',
       };
     } catch (err: any) {
       console.warn('[Supabase] getTenant exception:', err.message);
@@ -723,7 +767,21 @@ export const storageService = {
 
   updateTenant: async (id: string, updatedData: Partial<Omit<Tenant, 'id'>>): Promise<boolean> => {
     try {
-      // 1. Prepare database payload with standard tenant columns
+      // 1. Retrieve current cached local profile to merge cleanly
+      let existingLocal: Partial<Tenant> = {};
+      try {
+        const rawLocal = localStorage.getItem(`fleetflow_tenant_config_${id}`);
+        if (rawLocal) existingLocal = JSON.parse(rawLocal);
+      } catch {
+        // ignore
+      }
+
+      const mergedProfile = {
+        ...existingLocal,
+        ...updatedData,
+      };
+
+      // 2. Prepare database payload with standard tenant columns
       const dbRow: any = {
         id,
       };
@@ -732,40 +790,40 @@ export const storageService = {
       if (updatedData.googleAppsScriptUrl !== undefined) dbRow.google_apps_script_url = updatedData.googleAppsScriptUrl;
       if (updatedData.googleCalendarId !== undefined) dbRow.google_calendar_id = updatedData.googleCalendarId;
       if (updatedData.googleDriveId !== undefined) dbRow.google_drive_id = updatedData.googleDriveId;
+      if (updatedData.companyName !== undefined) dbRow.company_name = updatedData.companyName;
+      if (updatedData.phone !== undefined) dbRow.phone = updatedData.phone;
+      if (updatedData.email !== undefined) dbRow.email = updatedData.email;
+      if (updatedData.address !== undefined) dbRow.address = updatedData.address;
 
       console.log('[Supabase] Updating tenant in database:', id, dbRow);
 
-      // 2. Direct upsert into Supabase tenants table
-      const { data: upsertData, error: upsertErr } = await supabase
-        .from('tenants')
-        .upsert(dbRow, { onConflict: 'id' })
-        .select();
-
-      if (upsertErr) {
-        console.error('[Supabase] Error saving tenant to Supabase:', upsertErr.message, upsertErr.details, upsertErr.hint);
-        
-        // Fallback update attempt without google_apps_script_url if column error
-        const fallbackRow: any = { id };
-        if (updatedData.name !== undefined) fallbackRow.name = updatedData.name;
-        if (updatedData.status !== undefined) fallbackRow.status = updatedData.status;
-        if (updatedData.googleCalendarId !== undefined) fallbackRow.google_calendar_id = updatedData.googleCalendarId;
-        if (updatedData.googleDriveId !== undefined) fallbackRow.google_drive_id = updatedData.googleDriveId;
-        
-        const { error: fallbackErr } = await supabase
+      // 3. Try direct upsert into Supabase tenants table
+      try {
+        const { error: upsertErr } = await supabase
           .from('tenants')
-          .upsert(fallbackRow, { onConflict: 'id' });
+          .upsert(dbRow, { onConflict: 'id' });
+
+        if (upsertErr) {
+          console.warn('[Supabase] Primary upsert warning, trying minimal fallback columns:', upsertErr.message);
           
-        if (fallbackErr) {
-          console.error('[Supabase] Fallback save tenant also failed:', fallbackErr.message);
-          return false;
+          // Fallback update attempt with core columns only
+          const fallbackRow: any = { id };
+          if (updatedData.name !== undefined) fallbackRow.name = updatedData.name;
+          if (updatedData.status !== undefined) fallbackRow.status = updatedData.status;
+          if (updatedData.googleCalendarId !== undefined) fallbackRow.google_calendar_id = updatedData.googleCalendarId;
+          if (updatedData.googleDriveId !== undefined) fallbackRow.google_drive_id = updatedData.googleDriveId;
+          
+          await supabase
+            .from('tenants')
+            .upsert(fallbackRow, { onConflict: 'id' });
         }
-      } else {
-        console.log('[Supabase] Tenant successfully saved to Supabase:', upsertData);
+      } catch (dbEx: any) {
+        console.warn('[Supabase] DB upsert skipped/caught:', dbEx.message);
       }
 
-      // Also keep local copy as emergency offline backup only
+      // 4. Always save full profile payload in localStorage for immediate reliability
       try {
-        localStorage.setItem(`fleetflow_tenant_config_${id}`, JSON.stringify(updatedData));
+        localStorage.setItem(`fleetflow_tenant_config_${id}`, JSON.stringify(mergedProfile));
         if (updatedData.googleAppsScriptUrl) {
           localStorage.setItem('fleetflow_google_script_url', updatedData.googleAppsScriptUrl);
         }

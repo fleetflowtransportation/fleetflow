@@ -78,17 +78,17 @@ const App: React.FC = () => {
       case 'logs':
         return <Reports />;
       case 'archive':
-        return <BookingArchive />;
+        return <SettingsView initialSubTab="archive" />;
       case 'vehicles':
-        return <VehicleManagement />;
+        return <SettingsView initialSubTab="vehicles" />;
       case 'users':
-        return <UserManagement />;
+        return <SettingsView initialSubTab="users" />;
       case 'issues':
         return <IssueManagement />;
       case 'schedule':
-        return <DriverScheduleManager />;
+        return <SettingsView initialSubTab="schedule" />;
       case 'settings':
-        return <SettingsView />;
+        return <SettingsView initialSubTab="profile" />;
       default:
         return <AdminDashboard />;
     }

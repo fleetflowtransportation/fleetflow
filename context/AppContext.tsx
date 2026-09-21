@@ -55,6 +55,7 @@ interface AppContextType {
   updateGoogleDriveId: (driveId: string) => Promise<boolean>;
   updateGoogleAppsScriptUrl: (url: string) => Promise<boolean>;
   updateTenantGoogleIntegrations: (settings: { googleAppsScriptUrl?: string; googleCalendarId?: string; googleDriveId?: string }) => Promise<boolean>;
+  updateTenantProfile: (profileData: Partial<Tenant>) => Promise<boolean>;
   registerOrganization: (tenantId: string, tenantName: string, adminName: string, adminEmail: string, adminPassword?: string) => Promise<boolean>;
 }
 
@@ -242,6 +243,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const success = await storageService.updateTenant(currentTenantId, settings);
     if (success) {
       setActiveTenant(prev => prev ? { ...prev, ...settings } : null);
+      return true;
+    }
+    return false;
+  }, [currentUser]);
+
+  const updateTenantProfile = useCallback(async (profileData: Partial<Tenant>): Promise<boolean> => {
+    const currentTenantId = currentUser?.tenantId || storageService.getTenantId();
+    if (!currentTenantId) return false;
+    const success = await storageService.updateTenant(currentTenantId, profileData);
+    if (success) {
+      setActiveTenant(prev => prev ? { ...prev, ...profileData } : null);
       return true;
     }
     return false;
@@ -1100,6 +1112,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       updateGoogleDriveId,
       updateGoogleAppsScriptUrl,
       updateTenantGoogleIntegrations,
+      updateTenantProfile,
       registerOrganization,
     }}>
       {children}

@@ -147,6 +147,21 @@ export interface Tenant {
   googleAppsScriptUrl?: string;
   googleCalendarId?: string;
   googleDriveId?: string;
+  // Profile fields for company/organization
+  companyName?: string;
+  registrationNumber?: string;
+  phone?: string;
+  whatsapp?: string;
+  email?: string;
+  address?: string;
+  postcode?: string;
+  city?: string;
+  state?: string;
+  website?: string;
+  picName?: string;
+  picPhone?: string;
+  description?: string;
+  logoUrl?: string;
 }
 
 export interface BookingHistory {
