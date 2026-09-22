@@ -90,10 +90,10 @@ const BookingCard: React.FC<BookingCardProps> = ({
   const kidsCount = booking.passengers.find(p => p.category === 'Kids')?.count ?? 0;
   const teenagersCount = booking.passengers.find(p => p.category === 'Teenagers')?.count ?? 0;
   const passengerBreakdown = [
-    staffCount > 0 ? `Staf: ${staffCount}` : '',
-    kidsCount > 0 ? `Kanak-kanak: ${kidsCount}` : '',
-    teenagersCount > 0 ? `Remaja: ${teenagersCount}` : ''
-  ].filter(Boolean).join(', ') || 'Tiada pecahan';
+    staffCount > 0 ? `Staff: ${staffCount}` : '',
+    kidsCount > 0 ? `Kids: ${kidsCount}` : '',
+    teenagersCount > 0 ? `Teenagers: ${teenagersCount}` : ''
+  ].filter(Boolean).join(', ') || 'No breakdown';
 
   const style = statusStyles[booking.status];
   
@@ -143,13 +143,13 @@ const BookingCard: React.FC<BookingCardProps> = ({
           </div>
           <div className="flex items-center space-x-2">
             <UserGroupIcon className="h-5 w-5 text-gray-400" />
-            <span>{totalPassengers} Penumpang ({passengerBreakdown})</span>
+            <span>{totalPassengers} Passengers ({passengerBreakdown})</span>
           </div>
           <div className="flex items-center space-x-2 col-span-1 md:col-span-2">
             <span className="text-sm">
-              <b>Status Menunggu:</b>{' '}
+              <b>Standby Status:</b>{' '}
               <span className={`inline-block font-semibold px-2.5 py-0.5 rounded-full text-xs ${booking.shouldWait ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'}`}>
-                {booking.shouldWait ? '⏳ Pemandu Perlu Menunggu' : '🚗 Pemandu Tidak Perlu Menunggu'}
+                {booking.shouldWait ? '⏳ Driver Must Standby' : '🚗 Driver Drop-off Only'}
               </span>
             </span>
           </div>
@@ -170,9 +170,9 @@ const BookingCard: React.FC<BookingCardProps> = ({
           <div className="mt-4 p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start space-x-2.5">
             <span className="text-rose-600 font-bold text-base">⚠️</span>
             <div className="text-sm flex-1">
-              <p className="font-semibold text-rose-800">Status Konflik Tempahan:</p>
-              <p className="text-rose-700 mt-0.5">{booking.conflictReason || 'Tiada pemandu atau kenderaan yang layak pada slot masa ini, atau bertembung waktu rehat.'}</p>
-              <p className="text-xs text-rose-600 mt-1">Sila rujuk Admin Ain untuk semakan dan penetapan manual jadual pemandu.</p>
+              <p className="font-semibold text-rose-800">Booking Conflict Status:</p>
+              <p className="text-rose-700 mt-0.5">{booking.conflictReason || 'No eligible driver or vehicle available for this time slot, or falls within break hours.'}</p>
+              <p className="text-xs text-rose-600 mt-1">Please review and manually assign a driver or vehicle schedule.</p>
             </div>
           </div>
         )}
@@ -188,7 +188,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
         {/* Admin Notes / Auto-assign info */}
         {booking.adminNotes && (
           <div className="mt-3 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700">
-            <span className="font-semibold text-slate-900">Nota Sistem:</span> {booking.adminNotes}
+            <span className="font-semibold text-slate-900">System Notes:</span> {booking.adminNotes}
           </div>
         )}
 
@@ -212,11 +212,11 @@ const BookingCard: React.FC<BookingCardProps> = ({
               </div>
             )}
             <div className={`flex items-center px-3 py-1 rounded-full text-xs ${booking.shouldWait ? 'bg-amber-100 text-amber-800 font-medium' : 'bg-gray-100 text-gray-800'}`}>
-                Perlu Tunggu: {booking.shouldWait ? 'Ya (Driver Menunggu)' : 'Tidak'}
+                Standby Required: {booking.shouldWait ? 'Yes (Driver Waiting)' : 'No'}
             </div>
             {booking.isPreWorkingHour && (
               <div className="flex items-center px-3 py-1 rounded-full text-xs bg-amber-100 text-amber-800 font-medium">
-                Pra-Waktu Kerja (Awal Pagi)
+                Pre-Working Hours (Early Morning)
               </div>
             )}
             {booking.recurrenceId && (
@@ -262,22 +262,22 @@ const BookingCard: React.FC<BookingCardProps> = ({
                               )}
                             <div>
                                 <span className="font-medium">Vehicle:</span>
-                                <span> {vehicle ? `${vehicle.name} (${vehicle.plateNumber})` : (booking.serviceType === 'Self-Drive' ? 'Self-Drive (Alza)' : 'Bebas (Pemandu Tentukan)')}</span>
+                                <span> {vehicle ? `${vehicle.name} (${vehicle.plateNumber})` : (booking.serviceType === 'Self-Drive' ? 'Self-Drive (Alza)' : 'Any (Driver Dispatches)')}</span>
                             </div>
                         </div>
                     </div>
                  )}
-                 { isReassigning && <div className="flex-grow"><p className="text-sm font-medium text-indigo-700">Tukar pemandu dan/atau kenderaan untuk perjalanan ini.</p></div> }
+                 { isReassigning && <div className="flex-grow"><p className="text-sm font-medium text-indigo-700">Change driver and/or vehicle for this trip.</p></div> }
                  
                  {view === 'dashboard' && booking.status !== 'Completed' && booking.status !== 'Cancelled' && (
                     <div className="flex items-center space-x-2">
                         { (booking.status === 'Assigned' || booking.status === 'Confirmed') && !isReassigning && (
-                           <button onClick={() => setIsReassigning(true)} className="text-gray-600 hover:text-indigo-800 p-1.5 rounded-full hover:bg-indigo-100 transition" title="Tukar Penetapan"><EditIcon className="h-5 w-5" /></button>
+                           <button onClick={() => setIsReassigning(true)} className="text-gray-600 hover:text-indigo-800 p-1.5 rounded-full hover:bg-indigo-100 transition" title="Change Assignment"><EditIcon className="h-5 w-5" /></button>
                         )}
                         <button onClick={() => onEdit?.(booking)} className="text-gray-600 hover:text-indigo-800 p-1.5 rounded-full hover:bg-indigo-100 transition" title="Edit Trip Details"><EditIcon className="h-5 w-5" /></button>
                         <button onClick={() => updateBookingStatus(booking.id, 'Completed')} className="text-green-600 hover:text-green-800 p-1.5 rounded-full hover:bg-green-100 transition" title="Mark as Completed"><CheckCircleIcon className="h-6 w-6" /></button>
                         <button onClick={() => {
-                            const reason = window.prompt('Sebab booking ini dibatalkan? (pemohon akan terima emel dengan sebab ini)');
+                            const reason = window.prompt('Please provide a reason for cancelling this booking (the requester will receive an email with this reason):');
                             if (reason === null) return;
                             updateBookingStatus(booking.id, 'Cancelled', reason || undefined);
                         }} className="text-red-600 hover:text-red-800 p-1.5 rounded-full hover:bg-red-100 transition" title="Cancel Booking"><XCircleIcon className="h-6 w-6"/></button>
@@ -294,18 +294,18 @@ const BookingCard: React.FC<BookingCardProps> = ({
               {view === 'dashboard' && (booking.status === 'Pending' || booking.status === 'Conflict' || isReassigning) && (
                  <div className="mt-4 pt-4 border-t flex flex-col sm:flex-row items-center gap-2">
                     <select value={selectedDriver} onChange={e => setSelectedDriver(e.target.value)} className="w-full sm:w-auto form-select block pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-                      <option value="">Pilih Pemandu</option>
+                      <option value="">Select Driver</option>
                       {drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                     </select>
                     <select value={selectedVehicle} onChange={e => setSelectedVehicle(e.target.value)} className="w-full sm:w-auto form-select block pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-                      <option value="">Pilih Kenderaan</option>
+                      <option value="">Select Vehicle</option>
                       {vehicles.map(v => <option key={v.id} value={v.id}>{v.name} ({v.plateNumber})</option>)}
                     </select>
                     <button onClick={handleAssign} disabled={!selectedDriver || !selectedVehicle} className="w-full sm:w-auto bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 disabled:bg-indigo-300 disabled:cursor-not-allowed">
-                      {isReassigning ? 'Kemas Kini' : (booking.status === 'Conflict' ? 'Selesaikan Konflik & Sahkan' : 'Assign')}
+                      {isReassigning ? 'Update' : (booking.status === 'Conflict' ? 'Resolve Conflict & Confirm' : 'Assign')}
                     </button>
                     {isReassigning && (
-                       <button onClick={() => setIsReassigning(false)} className="w-full sm:w-auto bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">Batal</button>
+                       <button onClick={() => setIsReassigning(false)} className="w-full sm:w-auto bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
                     )}
                 </div>
               )}

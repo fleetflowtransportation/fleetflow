@@ -103,14 +103,14 @@ const AdminDashboard: React.FC = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <div>
           <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">Fleet Flow Analytics</h2>
-          <p className="text-xs sm:text-sm text-gray-500 font-medium mt-1">Sistem Pemantauan Prestasi, Penggunaan Bahan Api & Rekod Odometer Van</p>
+          <p className="text-xs sm:text-sm text-gray-500 font-medium mt-1">Performance Monitoring, Fuel Consumption & Fleet Odometer Tracking</p>
         </div>
         <button
           onClick={handleCreateBooking}
-          className="flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-md transition duration-200"
+          className="flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-md transition duration-200 cursor-pointer"
         >
           <PlusIcon className="h-5 w-5 mr-2" />
-          Tambah Tempahan Baru
+          New Booking
         </button>
       </div>
 
@@ -120,12 +120,12 @@ const AdminDashboard: React.FC = () => {
           <div className="flex items-start sm:items-center space-x-3">
             <span className="text-2xl flex-shrink-0">⚠️</span>
             <div>
-              <p className="font-extrabold text-rose-900">Perhatian: {stats.conflicts} Tempahan Berstatus KONFLIK</p>
-              <p className="text-xs text-rose-700 font-medium">Terdapat pertembungan jadual pemandu atau waktu rehat yang memerlukan tindakan manual.</p>
+              <p className="font-extrabold text-rose-900">Attention: {stats.conflicts} Bookings with CONFLICT status</p>
+              <p className="text-xs text-rose-700 font-medium">Driver schedule or rest period conflicts require manual resolution.</p>
             </div>
           </div>
           <p className="text-xs font-bold text-rose-800 bg-rose-100/60 px-3 py-1.5 rounded-xl border border-rose-200">
-            Sila semak di menu "Calendar"
+            Check via "Calendar" view
           </p>
         </div>
       )}
@@ -139,8 +139,8 @@ const AdminDashboard: React.FC = () => {
             <ClockIcon className="h-6 w-6" />
           </div>
           <div>
-            <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Perjalanan Aktif</p>
-            <h4 className="text-xl sm:text-2xl font-extrabold text-gray-900 mt-0.5">{stats.active} <span className="text-xs font-medium text-gray-400">trip</span></h4>
+            <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Active Trips</p>
+            <h4 className="text-xl sm:text-2xl font-extrabold text-gray-900 mt-0.5">{stats.active} <span className="text-xs font-medium text-gray-400">trips</span></h4>
           </div>
         </div>
 
@@ -150,8 +150,8 @@ const AdminDashboard: React.FC = () => {
             <CheckCircleIcon className="h-6 w-6" />
           </div>
           <div>
-            <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Perjalanan Selesai</p>
-            <h4 className="text-xl sm:text-2xl font-extrabold text-gray-900 mt-0.5">{stats.completed} <span className="text-xs font-medium text-gray-400">trip</span></h4>
+            <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Completed Trips</p>
+            <h4 className="text-xl sm:text-2xl font-extrabold text-gray-900 mt-0.5">{stats.completed} <span className="text-xs font-medium text-gray-400">trips</span></h4>
           </div>
         </div>
 
@@ -161,7 +161,7 @@ const AdminDashboard: React.FC = () => {
             <GaugeIcon className="h-6 w-6" />
           </div>
           <div>
-            <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Jumlah Mileage</p>
+            <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Total Mileage</p>
             <h4 className="text-xl sm:text-2xl font-extrabold text-gray-900 mt-0.5">{stats.totalMileage.toLocaleString()} <span className="text-xs font-medium text-gray-400">km</span></h4>
           </div>
         </div>
@@ -172,7 +172,7 @@ const AdminDashboard: React.FC = () => {
             <FuelIcon className="h-6 w-6" />
           </div>
           <div>
-            <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Belanja Bahan Api</p>
+            <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Fuel Expense</p>
             <h4 className="text-xl sm:text-2xl font-extrabold text-gray-900 mt-0.5">RM {stats.totalFuelCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h4>
           </div>
         </div>
@@ -184,22 +184,22 @@ const AdminDashboard: React.FC = () => {
         <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
           <h3 className="font-extrabold text-gray-800 text-sm sm:text-base flex items-center">
             <TruckIcon className="h-5 w-5 mr-2 text-indigo-600" />
-            Prestasi & Penggunaan Mengikut Kenderaan (Van)
+            Vehicle Performance & Utilization
           </h3>
-          <span className="text-xs font-semibold text-gray-400">Analisis Odometer & Minyak</span>
+          <span className="text-xs font-semibold text-gray-400">Odometer & Fuel Analysis</span>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
             <thead className="bg-gray-50 text-xs text-gray-400 uppercase font-bold tracking-wider">
               <tr>
-                <th className="py-3 px-5">Nama Kenderaan</th>
-                <th className="py-3 px-4">No. Pendaftaran</th>
-                <th className="py-3 px-4 text-right">Odometer Semasa</th>
-                <th className="py-3 px-4 text-right">Jumlah Jarak (KM)</th>
-                <th className="py-3 px-4 text-right">Bahan Api (L)</th>
-                <th className="py-3 px-4 text-right">Jumlah Kos</th>
-                <th className="py-3 px-4 text-right text-indigo-600 font-bold">Kecekapan (KM/L)</th>
-                <th className="py-3 px-4 text-right text-indigo-600 font-bold">Kos Per KM (RM)</th>
+                <th className="py-3 px-5">Vehicle Name</th>
+                <th className="py-3 px-4">Plate Number</th>
+                <th className="py-3 px-4 text-right">Current Odometer</th>
+                <th className="py-3 px-4 text-right">Total Distance (KM)</th>
+                <th className="py-3 px-4 text-right">Fuel (L)</th>
+                <th className="py-3 px-4 text-right">Total Cost</th>
+                <th className="py-3 px-4 text-right text-indigo-600 font-bold">Efficiency (KM/L)</th>
+                <th className="py-3 px-4 text-right text-indigo-600 font-bold">Cost / KM (RM)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-150 text-gray-700">
@@ -207,15 +207,15 @@ const AdminDashboard: React.FC = () => {
                 <tr key={v.id} className="hover:bg-gray-50/60 transition">
                   <td className="py-3.5 px-5 font-bold text-gray-900">{v.name}</td>
                   <td className="py-3.5 px-4"><span className="bg-gray-100 text-gray-800 font-mono text-xs font-bold px-2.5 py-1 rounded-md border">{v.plateNumber}</span></td>
-                  <td className="py-3.5 px-4 text-right font-semibold">{v.latestOdo > 0 ? `${v.latestOdo.toLocaleString()} km` : 'Tiada Rekod'}</td>
+                  <td className="py-3.5 px-4 text-right font-semibold">{v.latestOdo > 0 ? `${v.latestOdo.toLocaleString()} km` : 'No Record'}</td>
                   <td className="py-3.5 px-4 text-right font-medium text-blue-600">{v.mileage.toLocaleString()} km</td>
                   <td className="py-3.5 px-4 text-right">{v.fuelLiters > 0 ? `${v.fuelLiters.toLocaleString()} L` : '0 L'}</td>
                   <td className="py-3.5 px-4 text-right font-semibold">RM {v.fuelCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                   <td className="py-3.5 px-4 text-right font-bold text-emerald-600">
-                    {v.economy ? `${v.economy} km/L` : <span className="text-gray-300 font-medium text-xs">Kurang Data</span>}
+                    {v.economy ? `${v.economy} km/L` : <span className="text-gray-300 font-medium text-xs">Insufficient Data</span>}
                   </td>
                   <td className="py-3.5 px-4 text-right font-bold text-indigo-600">
-                    {v.costPerKm ? `RM ${v.costPerKm}/km` : <span className="text-gray-300 font-medium text-xs">Kurang Data</span>}
+                    {v.costPerKm ? `RM ${v.costPerKm}/km` : <span className="text-gray-300 font-medium text-xs">Insufficient Data</span>}
                   </td>
                 </tr>
               ))}
@@ -231,23 +231,23 @@ const AdminDashboard: React.FC = () => {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
           <div className="p-4 border-b border-gray-100 flex items-center bg-gray-50/50">
             <UserGroupIcon className="h-5 w-5 mr-2 text-indigo-600" />
-            <h3 className="font-extrabold text-gray-800 text-sm">Prestasi & Tugasan Pemandu</h3>
+            <h3 className="font-extrabold text-gray-800 text-sm">Driver Performance & Tasks</h3>
           </div>
           <div className="p-4 flex-grow divide-y divide-gray-100">
             {driverStats.map(d => (
               <div key={d.id} className="py-3 flex items-center justify-between">
                 <div>
                   <p className="font-bold text-gray-900">{d.name}</p>
-                  <p className="text-xs text-gray-400 font-semibold uppercase">{d.phone || 'Tiada No. Telefon'}</p>
+                  <p className="text-xs text-gray-400 font-semibold uppercase">{d.phone || 'No Phone Number'}</p>
                 </div>
                 <div className="text-right space-y-1">
                   <div className="flex items-center space-x-1 justify-end">
-                    <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full">{d.completed} Selesai</span>
+                    <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full">{d.completed} Completed</span>
                     {d.assigned > 0 && (
-                      <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full">{d.assigned} Aktif</span>
+                      <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full">{d.assigned} Active</span>
                     )}
                   </div>
-                  <p className="text-xs font-bold text-gray-500">Jumlah Jarak: <strong className="text-gray-800">{d.mileage.toLocaleString()} km</strong></p>
+                  <p className="text-xs font-bold text-gray-500">Total Distance: <strong className="text-gray-800">{d.mileage.toLocaleString()} km</strong></p>
                 </div>
               </div>
             ))}
@@ -259,7 +259,7 @@ const AdminDashboard: React.FC = () => {
           <div className="p-4 border-b border-gray-100 flex items-center bg-gray-50/50 justify-between">
             <span className="flex items-center font-extrabold text-gray-800 text-sm">
               <RouteIcon className="h-5 w-5 mr-2 text-indigo-600" />
-              Laporan Terkini Pemandu (Live Feed)
+              Recent Driver Logs (Live Feed)
             </span>
           </div>
           <div className="p-4 flex-grow overflow-y-auto max-h-[320px] space-y-3.5">
@@ -277,8 +277,8 @@ const AdminDashboard: React.FC = () => {
                         <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 mr-2"></span>
                         {driverName} ({vehicleName})
                       </p>
-                      <p className="text-gray-600 font-medium">Laluan: <strong className="text-gray-800">{log.fromLocation} → {log.toLocation}</strong></p>
-                      <p className="text-gray-500 font-semibold">Tujuan: {log.purpose}</p>
+                      <p className="text-gray-600 font-medium">Route: <strong className="text-gray-800">{log.fromLocation} → {log.toLocation}</strong></p>
+                      <p className="text-gray-500 font-semibold">Purpose: {log.purpose}</p>
                     </div>
                     <div className="text-right flex-shrink-0">
                       <span className="block font-extrabold text-indigo-700 bg-indigo-100/80 px-2 py-0.5 rounded-lg text-[11px]">+{log.distance} KM</span>
@@ -288,13 +288,13 @@ const AdminDashboard: React.FC = () => {
                 );
               })
             ) : (
-              <div className="text-center py-6 text-gray-400 text-xs font-semibold">Tiada rekod perjalanan dihantar lagi.</div>
+              <div className="text-center py-6 text-gray-400 text-xs font-semibold">No trip records submitted yet.</div>
             )}
 
             {/* FUEL LOG RECENT FEED */}
             {recentFuelLogs.length > 0 && (
               <div className="pt-2 border-t border-dashed">
-                <span className="block text-[10px] uppercase font-extrabold text-gray-400 tracking-wider mb-2">Resit Bahan Api Terkini</span>
+                <span className="block text-[10px] uppercase font-extrabold text-gray-400 tracking-wider mb-2">Recent Fuel Receipts</span>
                 <div className="space-y-2">
                   {recentFuelLogs.map(log => {
                     const driverName = users.find(u => u.id === log.driverId)?.name || 'Driver';
@@ -304,7 +304,7 @@ const AdminDashboard: React.FC = () => {
                       <div key={log.id} className="p-2.5 bg-amber-50/40 rounded-xl border border-amber-50 flex items-center justify-between text-xs">
                         <div>
                           <p className="font-bold text-amber-950">{driverName} ({vehicleName})</p>
-                          <p className="text-gray-500 font-semibold">{log.liters} Liter @ RM {log.pricePerLiter}/L</p>
+                          <p className="text-gray-500 font-semibold">{log.liters} Liters @ RM {log.pricePerLiter}/L</p>
                         </div>
                         <div className="text-right">
                           <span className="font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-lg text-[11px]">RM {log.cost.toFixed(2)}</span>

@@ -13,8 +13,8 @@ interface BookingFormProps {
   bookingToEdit?: Booking | null;
 }
 
-const OTHER_PICKUP = 'Lokasi Lain (Sila Nyatakan)';
-const FREE_VEHICLE_CHOICE = 'Bebas';
+const OTHER_PICKUP = 'Other Location (Please Specify)';
+const FREE_VEHICLE_CHOICE = 'Any / No Preference';
 
 const emptyFormData = {
   requesterName: '',
@@ -39,7 +39,7 @@ const emptyFormData = {
 
 type FormData = typeof emptyFormData;
 
-// Pisahkan satu ISO/local datetime string kepada { date, time } tanpa sebarang ralat anjakan timezone
+// Split ISO/local datetime string into { date, time } without timezone shift
 const splitIso = (iso?: string) => {
   if (!iso) return { date: '', time: '' };
   return {
@@ -119,12 +119,11 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
           setExistingAttachment(null);
       }
       setAttachmentFile(null);
-      setIsRecurring(false); // Recurrence tak boleh diedit
+      setIsRecurring(false);
     } else if (isOpen && !bookingToEdit) {
       resetForm();
     }
-  }, [isOpen, bookingToEdit, resetForm]);
-
+  }, [isOpen, bookingToEdit, resetForm, vehicles]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -154,27 +153,27 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
     if (Number(formData.kidsCount) > 0) passengers.push({ category: 'Kids', count: Number(formData.kidsCount) });
     if (Number(formData.teenagersCount) > 0) passengers.push({ category: 'Teenagers', count: Number(formData.teenagersCount) });
     if (passengers.length === 0) {
-        alert('Sila isi bilangan penumpang (Staff, Kanak-kanak, atau Remaja).');
+        alert('Please specify the passenger count (Staff, Kids, or Teenagers).');
         return;
     }
 
     if (!formData.serviceType) {
-        alert('Sila pilih Jenis Perkhidmatan Diperlukan.');
+        alert('Please select a Service Type.');
         return;
     }
 
     if (isOtherPickup(formData.pickupPoint) && !formData.address.trim()) {
-        alert('Sila nyatakan alamat pickup.');
+        alert('Please enter the specific pickup address.');
         return;
     }
 
     if (formData.serviceType === 'Self-Drive' && !formData.icNumber.trim()) {
-        alert('Sila isi No. IC untuk rekod lesen memandu.');
+        alert('Please provide an IC/ID number for driving license verification.');
         return;
     }
 
     if (isRecurring && !recurrence.endDate) {
-        alert('Sila pilih tarikh tamat untuk booking berulang.');
+        alert('Please select an end date for the recurring booking.');
         return;
     }
 
@@ -230,18 +229,18 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
                 try {
                     resJson = JSON.parse(resText);
                 } catch {
-                    throw new Error("Respon dari Google Apps Script tidak sah (bukan JSON).");
+                    throw new Error("Invalid response format from Google Apps Script endpoint.");
                 }
 
                 if (resJson && resJson.success && resJson.url) {
                     processedData.attachmentUrl = resJson.url;
                 } else {
-                    throw new Error(resJson?.error || 'Pemuatan fail ke Google Drive gagal.');
+                    throw new Error(resJson?.error || 'File upload to Google Drive failed.');
                 }
             } catch (error: any) {
-                console.error("Ralat Google Drive:", error);
+                console.error("Google Drive Upload Error:", error);
                 const confirmFallback = window.confirm(
-                    `Gagal memuat naik lampiran ke Google Drive: ${error.message || 'Sila pastikan URL Google Apps Script adalah betul'}.\n\nAdakah anda mahu meneruskan tempahan menggunakan storan fail tempatan (lokal)?`
+                    `Failed to upload attachment to Google Drive: ${error.message || 'Please verify your Apps Script URL'}.\n\nWould you like to proceed with local attachment storage instead?`
                 );
                 if (!confirmFallback) {
                     setIsUploading(false);
@@ -284,7 +283,6 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
     }
 
     if (bookingToEdit) {
-        // Kemaskini tajuk kalendar sekiranya pemohon, destinasi, jabatan, atau jenis perkhidmatan bertukar
         const driverName = bookingToEdit.driverId
             ? (users.find(u => u.id === bookingToEdit.driverId)?.name || '')
             : (formData.serviceType === 'Self-Drive' ? 'Self-Drive' : '');
@@ -294,7 +292,6 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
             : `${formData.requesterName.trim()}${deptStr} → ${formData.destination.trim()}`;
         processedData.calendarEventTitle = updatedTitle;
 
-        // Padankan kenderaan berdasarkan preference
         if (formData.serviceType === 'Self-Drive') {
             const alza = vehicles.find(v => v.name.toLowerCase().includes('alza'));
             if (alza) processedData.vehicleId = alza.id;
@@ -321,105 +318,105 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
 
   if (!isOpen && !submissionResult) return null;
 
-  const inputClass = "mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500";
-  const labelClass = "block text-sm font-medium text-gray-700";
+  const inputClass = "mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm";
+  const labelClass = "block text-xs font-bold text-gray-700 uppercase tracking-wider";
 
   return (
     <>
       {isOpen && !submissionResult && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
-          <div className="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-            <div className="flex justify-between items-center p-4 border-b">
-              <h2 className="text-xl font-bold text-gray-800">{bookingToEdit ? 'Edit Booking Van' : 'Booking Van Baharu'}</h2>
-              <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><XIcon className="h-6 w-6" /></button>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100 bg-gray-50/70">
+              <h2 className="text-lg font-bold text-gray-800">{bookingToEdit ? 'Edit Vehicle Booking' : 'New Vehicle Booking'}</h2>
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition"><XIcon className="h-5 w-5" /></button>
             </div>
             <form onSubmit={handleSubmit} className="overflow-y-auto p-6 space-y-4">
 
-            {/* 1 & 2: Nama Pemohon & Jabatan */}
+            {/* 1 & 2: Requester Name & Department */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label className={labelClass}>Nama Pemohon</label>
-                    <input type="text" name="requesterName" value={formData.requesterName} onChange={handleChange} required className={inputClass}/>
+                    <label className={labelClass}>Requester Name *</label>
+                    <input type="text" name="requesterName" value={formData.requesterName} onChange={handleChange} required className={inputClass} placeholder="Full Name"/>
                 </div>
                 <div>
-                    <label className={labelClass}>Jabatan</label>
+                    <label className={labelClass}>Department *</label>
                     <select name="department" value={formData.department} onChange={handleChange} required className={inputClass}>
-                        <option value="" disabled>Pilih Jabatan</option>
+                        <option value="" disabled>Select Department</option>
                         {DEPARTMENTS.map(dep => <option key={dep} value={dep}>{dep}</option>)}
                     </select>
                 </div>
             </div>
 
             <div>
-                <label className={labelClass}>Emel Pemohon</label>
-                <input type="email" name="requesterEmail" value={formData.requesterEmail} onChange={handleChange} required className={inputClass} placeholder="anda@yck.org.my"/>
+                <label className={labelClass}>Requester Email *</label>
+                <input type="email" name="requesterEmail" value={formData.requesterEmail} onChange={handleChange} required className={inputClass} placeholder="name@organization.org"/>
             </div>
 
-            {/* 3, 4, 5: Tarikh & Masa */}
+            {/* 3, 4, 5: Date & Time */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                    <label className={labelClass}>Tarikh Penggunaan</label>
+                    <label className={labelClass}>Usage Date *</label>
                     <input type="date" name="bookingDate" value={formData.bookingDate} onChange={handleChange} required className={inputClass}/>
                 </div>
                 <div>
-                    <label className={labelClass}>Masa Mula</label>
+                    <label className={labelClass}>Start Time *</label>
                     <input type="time" name="startTime" value={formData.startTime} onChange={handleChange} required className={inputClass}/>
                 </div>
                 <div>
-                    <label className={labelClass}>Masa Tamat</label>
+                    <label className={labelClass}>End Time *</label>
                     <input type="time" name="endTime" value={formData.endTime} onChange={handleChange} required className={inputClass}/>
                 </div>
             </div>
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3.5 space-y-2">
-              <div className="flex items-center space-x-2 text-amber-800 font-bold text-sm">
-                <ClockIcon className="h-5 w-5 text-amber-600 flex-shrink-0" />
-                <span>Polisi Waktu Rehat Rasmi (Sekatan Tempahan)</span>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 space-y-2">
+              <div className="flex items-center space-x-2 text-amber-800 font-bold text-xs uppercase tracking-wider">
+                <ClockIcon className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                <span>Driver Official Break Hours Policy</span>
               </div>
-              <div className="text-xs text-amber-950 leading-relaxed space-y-1.5 pl-7">
-                <p>• <b>Isnin – Khamis & Ahad:</b> 12:00 tengah hari – 1:00 petang</p>
-                <p>• <b>Jumaat:</b> 12:30 tengah hari – 2:30 petang</p>
-                <div className="pt-2 border-t border-amber-200 mt-1.5 text-amber-900 font-medium flex items-start space-x-1">
+              <div className="text-xs text-amber-950 leading-relaxed space-y-1 pl-6">
+                <p>• <b>Monday – Thursday & Sunday:</b> 12:00 PM – 1:00 PM</p>
+                <p>• <b>Friday:</b> 12:30 PM – 2:30 PM</p>
+                <div className="pt-2 border-t border-amber-200 mt-1 text-amber-900 font-medium flex items-start space-x-1">
                   <span>💡</span>
-                  <span><i>Tempahan yang bermula <b>DI DALAM</b> waktu rehat di atas akan <b>DITOLAK SECARA AUTOMATIK</b> demi memelihara kebajikan waktu rehat pemandu.</i></span>
+                  <span><i>Bookings starting <b>DURING</b> driver break hours will be automatically declined to safeguard driver rest requirements.</i></span>
                 </div>
               </div>
             </div>
 
-            {/* 6: Tujuan Perjalanan */}
+            {/* 6: Purpose */}
             <div>
-                <label className={labelClass}>Tujuan Perjalanan</label>
-                <input type="text" name="purpose" value={formData.purpose} onChange={handleChange} required className={inputClass}/>
+                <label className={labelClass}>Trip Purpose *</label>
+                <input type="text" name="purpose" value={formData.purpose} onChange={handleChange} required className={inputClass} placeholder="e.g. Official meetings, program logistics, patient visits"/>
             </div>
 
-            {/* 7: Destinasi */}
+            {/* 7: Destination */}
             <div>
-                <label className={labelClass}>Destinasi / Alamat Penuh</label>
-                <textarea name="destination" value={formData.destination} onChange={handleChange} required rows={2} className={inputClass}></textarea>
+                <label className={labelClass}>Destination Address *</label>
+                <textarea name="destination" value={formData.destination} onChange={handleChange} required rows={2} className={inputClass} placeholder="Full address or venue name"></textarea>
             </div>
 
-            {/* 8 & 9: Lokasi Pickup & Alamat Pickup Lain */}
+            {/* 8 & 9: Pickup Point & Custom Address */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label className={labelClass}>Lokasi Pickup</label>
+                    <label className={labelClass}>Pickup Point *</label>
                     <select name="pickupPoint" value={formData.pickupPoint} onChange={handleChange} required className={inputClass}>
-                        <option value="" disabled>Pilih Lokasi</option>
+                        <option value="" disabled>Select Location</option>
                         {PICKUP_POINTS.map(p => <option key={p} value={p}>{p}</option>)}
                     </select>
                 </div>
                 {isOtherPickup(formData.pickupPoint) && (
                     <div>
-                        <label className={labelClass}>Alamat Pickup</label>
-                        <input type="text" name="address" value={formData.address} onChange={handleChange} required className={inputClass} placeholder="Contoh: 16, Lorong Tiong Nam 5, Chow Kit"/>
+                        <label className={labelClass}>Custom Pickup Address *</label>
+                        <input type="text" name="address" value={formData.address} onChange={handleChange} required className={inputClass} placeholder="e.g. 16, Lorong Tiong Nam 5, Chow Kit"/>
                     </div>
                 )}
             </div>
 
-            {/* Bilangan Penumpang: Staff, Kanak-kanak, Remaja */}
+            {/* Passenger Count: Staff, Kids, Teenagers */}
             <div>
-                <label className={labelClass}>Bilangan Penumpang</label>
+                <label className={labelClass}>Passenger Count *</label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-1">
                     <div>
-                        <span className="text-xs font-semibold text-gray-600 block mb-1">Staf (Staff)</span>
+                        <span className="text-xs font-semibold text-gray-600 block mb-1">Staff</span>
                         <input
                             type="number"
                             min="0"
@@ -431,7 +428,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
                         />
                     </div>
                     <div>
-                        <span className="text-xs font-semibold text-gray-600 block mb-1">Kanak-kanak (Kids)</span>
+                        <span className="text-xs font-semibold text-gray-600 block mb-1">Kids</span>
                         <input
                             type="number"
                             min="0"
@@ -443,7 +440,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
                         />
                     </div>
                     <div>
-                        <span className="text-xs font-semibold text-gray-600 block mb-1">Remaja (Teenagers)</span>
+                        <span className="text-xs font-semibold text-gray-600 block mb-1">Teenagers</span>
                         <input
                             type="number"
                             min="0"
@@ -457,8 +454,8 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
                 </div>
             </div>
 
-            {/* Keperluan Pemandu Menunggu (shouldWait) */}
-            <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl">
+            {/* Driver Standby Option (shouldWait) */}
+            <div className="p-3.5 bg-amber-50/70 border border-amber-200/80 rounded-xl">
                 <label className="flex items-start space-x-3 cursor-pointer select-none">
                     <input
                         type="checkbox"
@@ -469,69 +466,66 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
                     />
                     <div>
                         <span className="text-sm font-bold text-gray-800 flex items-center gap-1.5">
-                            ⏳ Pemandu Perlu Menunggu di Destinasi?
+                            ⏳ Driver Standby Required at Destination?
                         </span>
                         <p className="text-xs text-gray-600 mt-0.5 leading-relaxed">
-                            Tandakan jika pemandu perlu menunggu di lokasi urusan untuk membawa penumpang balik. Pemohon tidak perlu lagi menaipnya di ruangan catatan.
+                            Check this if the driver is required to wait on-site during the event to return passengers afterwards.
                         </p>
                     </div>
                 </label>
             </div>
 
-            {/* 12: Jenis Perkhidmatan */}
+            {/* Service Type */}
             <div>
-                <label className={labelClass}>Jenis Perkhidmatan Diperlukan</label>
+                <label className={labelClass}>Service Type *</label>
                 <select name="serviceType" value={formData.serviceType} onChange={handleChange} required className={inputClass}>
-                    <option value="" disabled>Pilih Jenis Perkhidmatan</option>
-                    <option value="Perlu Driver">Perlu Driver</option>
-                    <option value="Self-Drive">Self-Drive (Alza sahaja)</option>
+                    <option value="" disabled>Select Service Type</option>
+                    <option value="Perlu Driver">Driver Required</option>
+                    <option value="Self-Drive">Self-Drive</option>
                 </select>
             </div>
 
-            {/* Cabang: Perlu Driver -> pilih kenderaan */}
+            {/* Driver Required -> Vehicle preference */}
             {formData.serviceType === 'Perlu Driver' && (
                 <div>
-                    <label className={labelClass}>Kenderaan Pilihan</label>
+                    <label className={labelClass}>Vehicle Preference</label>
                     <select name="vehiclePreference" value={formData.vehiclePreference} onChange={handleChange} className={inputClass}>
-                        <option value={FREE_VEHICLE_CHOICE}>Bebas (Tiada keutamaan - Pemandu akan pilih kenderaan semasa tugasan)</option>
+                        <option value={FREE_VEHICLE_CHOICE}>Any / No Preference (Assigned automatically based on driver selection)</option>
                         {vehicles.map(v => <option key={v.id} value={v.name}>{v.name}</option>)}
                     </select>
-                    <p className="mt-1 text-xs text-gray-500">
-                        Pilihan "Bebas" tidak akan mengunci mana-mana van terlebih dahulu; kenderaan akan direkodkan berdasarkan van yang dipandu pemandu.
-                    </p>
                 </div>
             )}
 
-            {/* Cabang: Self-Drive -> No. IC */}
+            {/* Self-Drive -> IC number */}
             {formData.serviceType === 'Self-Drive' && (
                 <div>
-                    <label className={labelClass}>No. IC (untuk rekod lesen memandu)</label>
-                    <input type="text" name="icNumber" value={formData.icNumber} onChange={handleChange} required className={inputClass} placeholder="cth: 990101-14-5566"/>
-                    <p className="mt-1 text-xs text-gray-500">Kenderaan Alza akan terus di-assign secara automatik untuk booking self-drive.</p>
+                    <label className={labelClass}>Driver IC / ID Number (for license verification) *</label>
+                    <input type="text" name="icNumber" value={formData.icNumber} onChange={handleChange} required className={inputClass} placeholder="e.g. 990101-14-5566"/>
+                    <p className="mt-1 text-xs text-gray-500">Vehicle will be reserved automatically for self-drive bookings.</p>
                 </div>
             )}
 
-            {/* Nota Tambahan */}
+            {/* Additional Remarks */}
             <div>
-                <label className={labelClass}>Nota Tambahan (Jika Ada)</label>
-                <textarea name="remarks" value={formData.remarks} onChange={handleChange} rows={3} className={inputClass} placeholder="cth: Ambil barang di pejabat, laluan tertentu, atau info lain."></textarea>
+                <label className={labelClass}>Additional Notes (Optional)</label>
+                <textarea name="remarks" value={formData.remarks} onChange={handleChange} rows={2} className={inputClass} placeholder="Special instructions, route notes, or equipment details..."></textarea>
             </div>
 
             <div>
-                <label className={labelClass}>Lampiran (Jika Ada)</label>
+                <label className={labelClass}>File Attachment (Optional)</label>
                 
-                {/* Google Drive Status indicator */}
-                <div className="mt-1 mb-2.5 flex items-center justify-between text-xs bg-slate-50 border border-slate-200 rounded-md p-2">
+                {/* Cloud Drive Status indicator */}
+                <div className="mt-1 mb-2.5 flex items-center justify-between text-xs bg-slate-50 border border-slate-200 rounded-xl p-2.5">
                     <div className="flex items-center space-x-1.5 text-slate-700">
                         <span>☁️</span>
-                        <span className="font-semibold text-slate-800">Penyimpanan Lampiran:</span>
+                        <span className="font-semibold text-slate-800">Attachment Storage:</span>
                         {import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                Google Drive Aktif
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                Cloud Drive Connected
                             </span>
                         ) : (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
-                                Storan Tempatan (Bukan Drive)
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                                Local Storage Mode
                             </span>
                         )}
                     </div>
@@ -542,81 +536,27 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
                             onClick={() => setShowDriveSetup(!showDriveSetup)}
                             className="text-xs text-indigo-600 hover:text-indigo-800 font-medium underline focus:outline-none"
                         >
-                            {showDriveSetup ? "Tutup Cara Setup" : "Cara Setup Google Drive"}
+                            {showDriveSetup ? "Hide Setup Instructions" : "Google Drive Setup Guide"}
                         </button>
                     )}
                 </div>
 
                 {/* Google Drive Setup Instructions Panel */}
                 {showDriveSetup && !import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL && (
-                    <div className="mb-4 bg-slate-50 border border-dashed border-slate-300 rounded-lg p-4 space-y-3">
+                    <div className="mb-4 bg-slate-50 border border-dashed border-slate-300 rounded-xl p-4 space-y-3">
                         <h4 className="text-sm font-bold text-slate-800 flex items-center space-x-1">
                             <span>🛠️</span>
-                            <span>Cara Simpan Lampiran Terus Ke Google Drive Anda (Percuma!)</span>
+                            <span>Direct Google Drive Attachment Storage Setup</span>
                         </h4>
                         <p className="text-xs text-slate-600 leading-relaxed">
-                            Sistem ini menyokong penyimpanan automatik semua fail lampiran tempahan ke dalam akaun Google Drive Workspace anda menggunakan <b>Google Apps Script Web App</b> yang berjalan di akaun Google anda secara selamat tanpa sebarang kos.
+                            This fleet system can automatically store booking document attachments directly into your organization's Google Drive via a <b>Google Apps Script Web App</b>.
                         </p>
                         
                         <div className="text-xs text-slate-700 space-y-2">
-                            <p><b>Langkah 1:</b> Buka <a href="https://script.google.com" target="_blank" rel="noreferrer" className="text-indigo-600 underline font-semibold">script.google.com</a> dan buat projek baharu.</p>
-                            <p><b>Langkah 2:</b> Salin kod berikut dan gantikan semua kod di dalam projek tersebut:</p>
-                            
-                            <div className="relative">
-                                <pre className="bg-slate-900 text-slate-100 text-[11px] p-3 rounded-md overflow-x-auto select-all max-h-48 whitespace-pre font-mono">
-{`function doPost(e) {
-  try {
-    var data = JSON.parse(e.postData.contents);
-    
-    // Tindakan: Padam fail jika parameter action disediakan
-    if (data.action === 'delete') {
-      var fileId = data.fileId;
-      if (!fileId) throw new Error("ID fail tidak dibekalkan.");
-      var file = DriveApp.getFileById(fileId);
-      file.setTrashed(true); // Memindahkan fail ke Tong Sampah Google Drive
-      return ContentService.createTextOutput(JSON.stringify({
-        success: true,
-        message: "Fail berjaya dipindahkan ke Tong Sampah."
-      })).setMimeType(ContentService.MimeType.JSON);
-    }
-    
-    // Tindakan: Muat naik fail secara lalai
-    var base64Data = data.base64;
-    var fileName = data.fileName;
-    var mimeType = data.mimeType;
-    
-    var decoded = Utilities.base64Decode(base64Data);
-    var blob = Utilities.newBlob(decoded, mimeType, fileName);
-    
-    var folderId = "1N2r4Ctwz9qVnAGgoFNQpCWSLPzU7f-29";
-    var folder = DriveApp.getFolderById(folderId);
-    var file = folder.createFile(blob);
-    
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    
-    return ContentService.createTextOutput(JSON.stringify({
-      success: true,
-      url: file.getUrl(),
-      fileId: file.getId()
-    })).setMimeType(ContentService.MimeType.JSON);
-  } catch (error) {
-    return ContentService.createTextOutput(JSON.stringify({
-      success: false,
-      error: error.toString()
-    })).setMimeType(ContentService.MimeType.JSON);
-  }
-}`}
-                                </pre>
-                            </div>
-
-                            <p><b>Langkah 3:</b> Klik betang <b>Deploy &gt; New deployment</b>.</p>
-                            <ul className="list-disc pl-5 space-y-1 text-slate-600">
-                                <li>Pilih jenis deployment: <b>Web app</b>.</li>
-                                <li>Set <i>Execute as:</i> <b>Me</b> (Akaun Google anda).</li>
-                                <li>Set <i>Who has access:</i> <b>Anyone</b> (Penting!).</li>
-                            </ul>
-                            <p><b>Langkah 4:</b> Salin <b>Web app URL</b> yang diberikan (bermula dengan <code className="bg-slate-200 px-1 rounded font-mono font-bold text-slate-800">https://script.google.com/macros/s/...</code>).</p>
-                            <p><b>Langkah 5:</b> Buka bahagian <b>Settings</b> dalam panel AI Studio anda, tambah pembolehubah persekitaran (Environment Variable) dengan nama <b><code className="bg-slate-200 px-1 rounded font-mono font-bold text-slate-800 font-semibold text-slate-900">VITE_GOOGLE_SCRIPT_UPLOAD_URL</code></b> dan tampalkan URL Web App tadi.</p>
+                            <p><b>Step 1:</b> Open <a href="https://script.google.com" target="_blank" rel="noreferrer" className="text-indigo-600 underline font-semibold">script.google.com</a> and create a new project.</p>
+                            <p><b>Step 2:</b> Paste and save the Google Apps Script Web App script handler.</p>
+                            <p><b>Step 3:</b> Deploy as a <b>Web app</b> with access set to <b>Anyone</b>.</p>
+                            <p><b>Step 4:</b> Set the web app URL into <code className="bg-slate-200 px-1 rounded font-mono font-bold text-slate-800">VITE_GOOGLE_SCRIPT_UPLOAD_URL</code> in your environment settings.</p>
                         </div>
                     </div>
                 )}
@@ -629,30 +569,30 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
                             type="file"
                             onChange={handleFileChange}
                             disabled={isUploading}
-                            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100 disabled:opacity-50"
+                            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100 disabled:opacity-50"
                         />
                     </div>
                 ) : (
-                    <div className="mt-2 flex items-center justify-between p-2 pl-3 border rounded-md bg-gray-50">
+                    <div className="mt-2 flex items-center justify-between p-2.5 pl-3 border border-slate-200 rounded-xl bg-gray-50">
                         <div className="flex items-center space-x-2 truncate">
-                            <PaperClipIcon className="h-5 w-5 text-gray-500 flex-shrink-0"/>
-                            <span className="text-sm text-gray-700 truncate">{attachmentFile?.name || existingAttachment?.name}</span>
+                            <PaperClipIcon className="h-4 w-4 text-gray-500 flex-shrink-0"/>
+                            <span className="text-xs font-medium text-gray-700 truncate">{attachmentFile?.name || existingAttachment?.name}</span>
                         </div>
                         <button
                             type="button"
                             onClick={removeAttachment}
                             disabled={isUploading}
-                            className="text-sm font-medium text-red-600 hover:text-red-800 ml-2 disabled:opacity-50"
+                            className="text-xs font-semibold text-red-600 hover:text-red-800 ml-2 disabled:opacity-50"
                         >
-                            Buang
+                            Remove
                         </button>
                     </div>
                 )}
             </div>
 
-            {/* Recurrence - hanya untuk booking baru */}
+            {/* Recurrence - new booking only */}
             {!bookingToEdit && (
-                <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
+                <div className="p-4 border border-gray-200 rounded-xl bg-gray-50">
                     <div className="flex items-center">
                         <input
                             type="checkbox"
@@ -660,29 +600,29 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
                             name="isRecurring"
                             checked={isRecurring}
                             onChange={(e) => setIsRecurring(e.target.checked)}
-                            className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                            className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer"
                         />
-                        <label htmlFor="isRecurring" className="ml-2 block text-sm font-medium text-gray-900">Jadikan booking berulang</label>
+                        <label htmlFor="isRecurring" className="ml-2 block text-xs font-bold text-gray-800 cursor-pointer uppercase tracking-wider">Set as recurring booking</label>
                     </div>
 
                     {isRecurring && (
                         <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label htmlFor="frequency" className="block text-sm font-medium text-gray-700">Kekerapan</label>
+                                <label htmlFor="frequency" className="block text-xs font-bold text-gray-700 uppercase tracking-wider">Frequency</label>
                                 <select
                                     id="frequency"
                                     name="frequency"
                                     value={recurrence.frequency}
                                     onChange={(e) => setRecurrence(prev => ({ ...prev, frequency: e.target.value as typeof recurrence.frequency }))}
-                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                    className="mt-1 block w-full border-gray-300 rounded-xl shadow-xs focus:ring-indigo-500 focus:border-indigo-500 text-xs p-2.5 bg-white"
                                 >
-                                    <option value="weekly">Mingguan</option>
-                                    <option value="bi-weekly">Dwi-mingguan</option>
-                                    <option value="monthly">Bulanan</option>
+                                    <option value="weekly">Weekly</option>
+                                    <option value="bi-weekly">Bi-weekly</option>
+                                    <option value="monthly">Monthly</option>
                                 </select>
                             </div>
                             <div>
-                                <label htmlFor="endDate" className="block text-sm font-medium text-gray-700">Tarikh Tamat</label>
+                                <label htmlFor="endDate" className="block text-xs font-bold text-gray-700 uppercase tracking-wider">Recurrence End Date</label>
                                 <input
                                     type="date"
                                     id="endDate"
@@ -690,7 +630,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
                                     value={recurrence.endDate}
                                     onChange={(e) => setRecurrence(prev => ({ ...prev, endDate: e.target.value }))}
                                     required
-                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                    className="mt-1 block w-full border-gray-300 rounded-xl shadow-xs focus:ring-indigo-500 focus:border-indigo-500 text-xs p-2.5 bg-white"
                                 />
                             </div>
                         </div>
@@ -698,19 +638,19 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
                 </div>
             )}
 
-            <div className="pt-4 flex justify-end space-x-3">
+            <div className="pt-4 flex justify-end space-x-3 border-t border-gray-100">
                 <button
                     type="button"
                     onClick={onClose}
                     disabled={isUploading}
-                    className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    className="bg-white py-2 px-4 border border-gray-300 rounded-xl shadow-xs text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition"
                 >
-                    Batal
+                    Cancel
                 </button>
                 <button
                     type="submit"
                     disabled={isUploading}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-md disabled:bg-indigo-400 flex items-center justify-center space-x-2"
+                    className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-5 rounded-xl shadow-sm disabled:bg-slate-400 flex items-center justify-center space-x-2 text-xs transition"
                 >
                     {isUploading ? (
                         <>
@@ -718,10 +658,10 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                             </svg>
-                            <span>Memuat Naik...</span>
+                            <span>Uploading...</span>
                         </>
                     ) : (
-                        <span>{bookingToEdit ? 'Simpan Perubahan' : 'Hantar Booking'}</span>
+                        <span>{bookingToEdit ? 'Save Changes' : 'Submit Booking'}</span>
                     )}
                 </button>
             </div>

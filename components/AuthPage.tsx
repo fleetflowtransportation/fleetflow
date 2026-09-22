@@ -25,7 +25,7 @@ export const AuthPage: React.FC = () => {
     e.preventDefault();
     setLoginError(null);
     if (!loginEmail.trim() || !loginPassword.trim()) {
-      setLoginError('Sila isi alamat e-mel dan kata laluan.');
+      setLoginError('Please provide your email and password.');
       return;
     }
 
@@ -37,7 +37,7 @@ export const AuthPage: React.FC = () => {
     setLoginLoading(false);
 
     if (!success) {
-      setLoginError('E-mel atau Kata Laluan tidak sah (atau akaun dinyahaktifkan).');
+      setLoginError('Invalid email or password (or account has been deactivated).');
     }
   };
 
@@ -48,12 +48,12 @@ export const AuthPage: React.FC = () => {
 
     const slugPattern = /^[a-z0-9-]+$/;
     if (!slugPattern.test(regTenantId.trim())) {
-      setRegError('ID Organisasi hanya boleh mengandungi huruf kecil, nombor, dan tanda sempang (-). Tiada aksara khas atau jarak.');
+      setRegError('Organization ID can only contain lowercase letters, numbers, and hyphens (-). No special characters or spaces.');
       return;
     }
 
     if (!regTenantId.trim() || !regTenantName.trim() || !regAdminName.trim() || !regAdminEmail.trim() || !regAdminPassword.trim()) {
-      setRegError('Sila isi semua ruangan yang wajib.');
+      setRegError('Please complete all required fields.');
       return;
     }
 
@@ -68,7 +68,7 @@ export const AuthPage: React.FC = () => {
       );
 
       if (success) {
-        setRegSuccess(`Organisasi "${regTenantName}" berjaya didaftarkan! Sila log masuk menggunakan e-mel admin "${regAdminEmail}".`);
+        setRegSuccess(`Organization "${regTenantName}" registered successfully! Please log in using the administrator email "${regAdminEmail}".`);
         setRegTenantId('');
         setRegTenantName('');
         setRegAdminName('');
@@ -78,10 +78,10 @@ export const AuthPage: React.FC = () => {
           setIsLoginView(true);
         }, 5000);
       } else {
-        setRegError('Pendaftaran gagal. ID Organisasi tersebut mungkin sudah digunakan oleh pihak lain.');
+        setRegError('Registration failed. The Organization ID may already be registered by another tenant.');
       }
     } catch (err: any) {
-      setRegError(err.message || 'Pendaftaran gagal kerana ralat tidak diketahui.');
+      setRegError(err.message || 'Registration failed due to an unexpected error.');
     } finally {
       setRegLoading(false);
     }
@@ -98,8 +98,8 @@ export const AuthPage: React.FC = () => {
           </h1>
           <p className="text-sm text-slate-500 mt-1.5">
             {isLoginView 
-              ? 'Sila log masuk untuk urus kenderaan' 
-              : 'Daftarkan organisasi baharu untuk bermula'}
+              ? 'Sign in to manage fleet operations' 
+              : 'Register a new organization to get started'}
           </p>
         </div>
 
@@ -115,7 +115,7 @@ export const AuthPage: React.FC = () => {
             <form onSubmit={handleLoginSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Alamat E-mel
+                  Email Address
                 </label>
                 <input
                   type="email"
@@ -123,13 +123,13 @@ export const AuthPage: React.FC = () => {
                   onChange={(e) => setLoginEmail(e.target.value)}
                   required
                   className="block w-full border border-slate-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-3 text-sm outline-none transition"
-                  placeholder="cth: admin@organisasi.com"
+                  placeholder="e.g. admin@organization.com"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Kata Laluan
+                  Password
                 </label>
                 <input
                   type="password"
@@ -152,10 +152,10 @@ export const AuthPage: React.FC = () => {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
-                    <span>Log Masuk...</span>
+                    <span>Signing in...</span>
                   </>
                 ) : (
-                  <span>Log Masuk</span>
+                  <span>Sign In</span>
                 )}
               </button>
             </form>
@@ -166,7 +166,7 @@ export const AuthPage: React.FC = () => {
                 onClick={() => { setIsLoginView(false); setRegError(null); setRegSuccess(null); }}
                 className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition"
               >
-                Daftar Organisasi Baru
+                Register New Organization
               </button>
             </div>
           </div>
@@ -188,7 +188,7 @@ export const AuthPage: React.FC = () => {
             <form onSubmit={handleRegisterSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  ID Organisasi (Slug)
+                  Organization ID (Slug)
                 </label>
                 <input
                   type="text"
@@ -196,13 +196,13 @@ export const AuthPage: React.FC = () => {
                   onChange={(e) => setRegTenantId(e.target.value.toLowerCase())}
                   required
                   className="block w-full border border-slate-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-3 text-sm outline-none transition"
-                  placeholder="cth: yayasan-selangor"
+                  placeholder="e.g. acme-foundation"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Nama Penuh Organisasi
+                  Organization Full Name
                 </label>
                 <input
                   type="text"
@@ -210,12 +210,12 @@ export const AuthPage: React.FC = () => {
                   onChange={(e) => setRegTenantName(e.target.value)}
                   required
                   className="block w-full border border-slate-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-3 text-sm outline-none transition"
-                  placeholder="cth: Yayasan Kebajikan Selangor"
+                  placeholder="e.g. Acme Community Foundation"
                 />
               </div>
 
               <div className="border-t border-slate-100 pt-3 mt-3">
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Maklumat Pentadbir (Admin)</p>
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Administrator Account Details</p>
                 <div className="space-y-3">
                   <div>
                     <input
@@ -224,7 +224,7 @@ export const AuthPage: React.FC = () => {
                       onChange={(e) => setRegAdminName(e.target.value)}
                       required
                       className="block w-full border border-slate-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-2.5 text-sm outline-none transition"
-                      placeholder="Nama Admin"
+                      placeholder="Admin Name"
                     />
                   </div>
 
@@ -235,7 +235,7 @@ export const AuthPage: React.FC = () => {
                       onChange={(e) => setRegAdminEmail(e.target.value)}
                       required
                       className="block w-full border border-slate-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-2.5 text-sm outline-none transition"
-                      placeholder="E-mel Admin"
+                      placeholder="Admin Email"
                     />
                   </div>
 
@@ -246,7 +246,7 @@ export const AuthPage: React.FC = () => {
                       onChange={(e) => setRegAdminPassword(e.target.value)}
                       required
                       className="block w-full border border-slate-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-2.5 text-sm outline-none transition"
-                      placeholder="Kata Laluan"
+                      placeholder="Password"
                     />
                   </div>
                 </div>
@@ -263,10 +263,10 @@ export const AuthPage: React.FC = () => {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
-                    <span>Mendaftar...</span>
+                    <span>Registering...</span>
                   </>
                 ) : (
-                  <span>Daftar Organisasi</span>
+                  <span>Register Organization</span>
                 )}
               </button>
             </form>
@@ -277,7 +277,7 @@ export const AuthPage: React.FC = () => {
                 onClick={() => { setIsLoginView(true); setRegError(null); setRegSuccess(null); }}
                 className="text-xs font-semibold text-slate-600 hover:text-slate-800 transition"
               >
-                Sudah Ada Akaun? Log Masuk
+                Already Have an Account? Sign In
               </button>
             </div>
           </div>

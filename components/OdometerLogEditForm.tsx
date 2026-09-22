@@ -75,7 +75,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
           vehicleId: defaultVId,
           driverId: defaultDId,
           date: new Date().toISOString().split('T')[0],
-          fromLocation: 'HQ / Pusat Operasi',
+          fromLocation: 'HQ / Operations Base',
           toLocation: '',
           purpose: '',
           startOdometer: latestOdo > 0 ? String(latestOdo) : '',
@@ -88,7 +88,6 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
 
   const handleVehicleChange = (newVId: string) => {
     setFormData(prev => {
-      // If startOdometer is currently empty or matches old vehicle latest odo, suggest new vehicle's latest
       const suggestedStart = getLatestOdoForVehicle(newVId);
       return {
         ...prev,
@@ -121,11 +120,11 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.vehicleId) {
-      setError('Sila pilih kenderaan.');
+      setError('Please select a vehicle.');
       return;
     }
     if (!formData.driverId) {
-      setError('Sila pilih pemandu.');
+      setError('Please select a driver.');
       return;
     }
 
@@ -133,11 +132,11 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
     const end = Number(formData.endOdometer);
 
     if (isNaN(end) || formData.endOdometer === '') {
-      setError('Sila masukkan bacaan Odometer Tamat (KM) yang sah.');
+      setError('Please enter a valid Final Odometer reading (KM).');
       return;
     }
     if (start !== undefined && (isNaN(start) || end < start)) {
-      setError('Odometer Tamat tidak boleh kurang daripada Odometer Mula.');
+      setError('Final Odometer cannot be less than Start Odometer.');
       return;
     }
 
@@ -175,10 +174,10 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-bold text-slate-800">
-                {logToEdit ? 'Kemaskini Log Odometer' : 'Daftar Log Odometer Baru'}
+                {logToEdit ? 'Update Odometer Log' : 'Record New Odometer Log'}
               </h2>
               <p className="text-xs text-slate-500">
-                {logToEdit ? 'Ubah butiran rekod odometer perjalanan' : 'Kemasukan rekod perjalanan & bacaan meter'}
+                {logToEdit ? 'Edit trip mileage and odometer records' : 'Manual trip log and mileage entry'}
               </p>
             </div>
           </div>
@@ -201,7 +200,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
           {/* VEHICLE & DRIVER SELECTION */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Kenderaan *</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Vehicle *</label>
               <select 
                 name="vehicleId" 
                 value={formData.vehicleId} 
@@ -209,14 +208,14 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
                 required 
                 className="w-full text-xs border border-slate-300 rounded-xl p-2.5 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-medium"
               >
-                <option value="">-- Pilih Kenderaan --</option>
+                <option value="">-- Select Vehicle --</option>
                 {vehicles.map(v => (
                   <option key={v.id} value={v.id}>{v.name} ({v.plateNumber})</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Pemandu *</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Driver *</label>
               <select 
                 name="driverId" 
                 value={formData.driverId} 
@@ -224,7 +223,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
                 required 
                 className="w-full text-xs border border-slate-300 rounded-xl p-2.5 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-medium"
               >
-                <option value="">-- Pilih Pemandu --</option>
+                <option value="">-- Select Driver --</option>
                 {drivers.map(d => (
                   <option key={d.id} value={d.id}>{d.name} {d.role === 'admin' ? '(Admin)' : ''}</option>
                 ))}
@@ -233,7 +232,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Tarikh Perjalanan *</label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Trip Date *</label>
             <input 
               type="date" 
               name="date" 
@@ -246,22 +245,22 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Lokasi Dari</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Starting Location</label>
               <input 
                 type="text" 
                 name="fromLocation" 
-                placeholder="Cth: HQ / Pejabat"
+                placeholder="e.g. HQ / Main Office"
                 value={formData.fromLocation} 
                 onChange={handleChange} 
                 className="w-full text-xs border border-slate-300 rounded-xl p-2.5 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" 
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Lokasi Ke / Destinasi</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Destination / Location To</label>
               <input 
                 type="text" 
                 name="toLocation" 
-                placeholder="Cth: Hospital / KLIA"
+                placeholder="e.g. Hospital / Airport"
                 value={formData.toLocation} 
                 onChange={handleChange} 
                 className="w-full text-xs border border-slate-300 rounded-xl p-2.5 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" 
@@ -270,10 +269,10 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Tujuan Perjalanan</label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Trip Purpose</label>
             <textarea 
               name="purpose" 
-              placeholder="Cth: Penghantaran dokumen rasmi / Mengiringi VIP"
+              placeholder="e.g. Official document delivery / Community outreach"
               value={formData.purpose} 
               onChange={handleChange} 
               rows={2} 
@@ -284,26 +283,26 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
           {/* ODOMETER READINGS */}
           <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-3">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-              Bacaan Meter Kenderaan (KM)
+              Odometer Reading (KM)
             </span>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Meter Mula (KM)</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Start Odometer (KM)</label>
                 <input 
                   type="number" 
                   name="startOdometer" 
-                  placeholder="Cth: 12450"
+                  placeholder="e.g. 12450"
                   value={formData.startOdometer} 
                   onChange={handleChange} 
                   className="w-full text-xs font-mono font-bold border border-slate-300 rounded-lg p-2 bg-white focus:ring-2 focus:ring-indigo-500" 
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Meter Tamat (KM) *</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">End Odometer (KM) *</label>
                 <input 
                   type="number" 
                   name="endOdometer" 
-                  placeholder="Cth: 12510"
+                  placeholder="e.g. 12510"
                   value={formData.endOdometer} 
                   onChange={handleChange} 
                   required 
@@ -314,21 +313,21 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
 
             {distance !== null && (
               <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-xs">
-                <span className="text-slate-600 font-medium">Jarak Perjalanan Dikira:</span>
+                <span className="text-slate-600 font-medium">Calculated Trip Distance:</span>
                 <span className={`font-extrabold px-2 py-0.5 rounded-md ${
                   distance >= 0 ? 'bg-indigo-100 text-indigo-800' : 'bg-red-100 text-red-700'
                 }`}>
-                  {distance >= 0 ? `+${distance.toLocaleString()} KM` : 'Ralat: Tamat < Mula'}
+                  {distance >= 0 ? `+${distance.toLocaleString()} KM` : 'Error: End < Start'}
                 </span>
               </div>
             )}
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Catatan Tambahan (Pilihan)</label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Additional Remarks (Optional)</label>
             <textarea
               name="remarks"
-              placeholder="Catatan servis, keadaan jalan, dsb."
+              placeholder="Road conditions, service notes, etc."
               value={formData.remarks}
               onChange={handleChange}
               rows={2}
@@ -342,13 +341,13 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
               onClick={onClose} 
               className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
             >
-              Batal
+              Cancel
             </button>
             <button 
               type="submit" 
               className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-sm transition"
             >
-              {logToEdit ? 'Simpan Perubahan' : 'Daftar Log Odometer'}
+              {logToEdit ? 'Save Changes' : 'Record Odometer Log'}
             </button>
           </div>
         </form>

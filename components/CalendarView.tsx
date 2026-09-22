@@ -41,13 +41,13 @@ const getEventStyleInfo = (booking: Booking, driverName: string) => {
   return DRIVER_PILL_STYLES.default;
 };
 
-const MONTH_NAMES_MS = [
-  'Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun',
-  'Julai', 'Ogos', 'September', 'Oktober', 'November', 'Disember'
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
-const DAY_NAMES_FULL = ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'];
-const DAY_NAMES_SHORT = ['Ah', 'Is', 'Se', 'Ra', 'Kh', 'Ju', 'Sa'];
+const DAY_NAMES_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DAY_NAMES_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 interface BookingDetailModalProps {
   booking: Booking | null;
@@ -71,7 +71,7 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
   if (!booking) return null;
 
   const driverName = users.find(d => d.id === booking.driverId)?.name || 
-    (booking.serviceType === 'Self-Drive' ? 'Self-Drive (Pandu Sendiri)' : 'Unassigned / Belum Ditentu');
+    (booking.serviceType === 'Self-Drive' ? 'Self-Drive' : 'Unassigned');
   const vehicleInfo = vehicles.find(v => v.id === booking.vehicleId) ||
     vehicles.find(v => v.name.toLowerCase() === (booking.vehiclePreference || '').toLowerCase());
   const totalPassengers = booking.passengers ? booking.passengers.reduce((sum, p) => sum + p.count, 0) : 0;
@@ -97,11 +97,11 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
         calendarEventTitle: updatedTitle,
         calendarColor: newColor,
         status: newDriverId ? 'Confirmed' : booking.status,
-        adminNotes: `Pemandu dikemaskini kepada ${chosenDriver?.name || 'Tiada Pemandu'} pada ${new Date().toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' })}.`,
+        adminNotes: `Driver updated to ${chosenDriver?.name || 'Unassigned'} at ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}.`,
       });
       setIsChangingDriver(false);
     } catch (e: any) {
-      alert('Ralat kemaskini pemandu: ' + (e.message || e));
+      alert('Error updating driver: ' + (e.message || e));
     } finally {
       setIsSavingDriver(false);
     }
@@ -109,7 +109,7 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
 
   const handleDeleteClick = () => {
     if (!isAdmin) return;
-    if (window.confirm(`Adakah anda pasti mahu memadam tempahan ke "${booking.destination}"? Tindakan ini tidak boleh diundur.`)) {
+    if (window.confirm(`Are you sure you want to delete the booking to "${booking.destination}"? This action cannot be undone.`)) {
       onDelete(booking.id);
       onClose();
     }
@@ -136,20 +136,20 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
                 {booking.status}
               </span>
               <span className="text-xs text-slate-500 font-medium">
-                {booking.serviceType === 'Self-Drive' ? '🚗 Pandu Sendiri' : '👤 Pemandu Ditugaskan'}
+                {booking.serviceType === 'Self-Drive' ? '🚗 Self-Drive' : '👤 Assigned Driver'}
               </span>
             </div>
             <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 leading-snug">{booking.destination}</h2>
             {booking.requesterName && (
               <p className="text-xs text-slate-600 mt-0.5">
-                Oleh: <strong className="text-slate-800">{booking.requesterName}</strong> {booking.department ? `(${booking.department})` : ''}
+                By: <strong className="text-slate-800">{booking.requesterName}</strong> {booking.department ? `(${booking.department})` : ''}
               </p>
             )}
           </div>
           <button 
             onClick={onClose} 
             className="text-slate-400 hover:text-slate-700 p-1.5 hover:bg-slate-200 rounded-full transition cursor-pointer"
-            title="Tutup"
+            title="Close"
           >
             <XIcon className="h-5 w-5" />
           </button>
@@ -165,9 +165,9 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
 
           {booking.status === 'Conflict' && (
             <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900">
-              <p className="font-extrabold flex items-center gap-1">⚠️ STATUS: KONFLIK JADUAL</p>
-              <p className="mt-1">{booking.conflictReason || 'Bertembung jadual atau waktu rehat kenderaan/pemandu.'}</p>
-              <p className="mt-1 text-rose-700 font-semibold">Sila hubungi Admin untuk semakan dan penetapan semula.</p>
+              <p className="font-extrabold flex items-center gap-1">⚠️ STATUS: SCHEDULE CONFLICT</p>
+              <p className="mt-1">{booking.conflictReason || 'Schedule conflict with existing booking or driver break time.'}</p>
+              <p className="mt-1 text-rose-700 font-semibold">Please contact Admin for review and reassignment.</p>
             </div>
           )}
 
@@ -185,11 +185,11 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
           }`}>
             <span className="text-xl sm:text-2xl">{booking.shouldWait ? '⏳' : '🚗'}</span>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider opacity-80">Status Menunggu Pemandu</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider opacity-80">Driver Standby Status</p>
               <p className="text-xs font-extrabold">
                 {booking.shouldWait
-                  ? 'Pemandu Perlu Menunggu (Tunggu di lokasi sehingga program tamat)'
-                  : 'Pemandu Tidak Perlu Menunggu (Hantar / Drop-off sahaja)'}
+                  ? 'Driver Must Wait (Standby on-site until event completion)'
+                  : 'Driver Drop-off Only (No waiting required)'}
               </p>
             </div>
           </div>
@@ -198,9 +198,9 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
             <div className="flex items-start space-x-2.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
               <CalendarIcon className="h-5 w-5 text-indigo-600 mt-0.5 shrink-0" />
               <div>
-                <p className="text-[10px] text-slate-400 font-bold uppercase">Tarikh</p>
+                <p className="text-[10px] text-slate-400 font-bold uppercase">Date</p>
                 <span className="font-bold text-slate-800 text-xs sm:text-sm">
-                  {parseAsLocal(booking.dateTime).toLocaleDateString('ms-MY', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                  {parseAsLocal(booking.dateTime).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
                 </span>
               </div>
             </div>
@@ -208,7 +208,7 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
             <div className="flex items-start space-x-2.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
               <ClockIcon className="h-5 w-5 text-indigo-600 mt-0.5 shrink-0" />
               <div>
-                <p className="text-[10px] text-slate-400 font-bold uppercase">Masa Perjalanan</p>
+                <p className="text-[10px] text-slate-400 font-bold uppercase">Trip Time</p>
                 <span className="font-bold text-slate-800 text-xs sm:text-sm">
                   {parseAsLocal(booking.dateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
                   {booking.finishDateTime && ` – ${parseAsLocal(booking.finishDateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`}
@@ -219,7 +219,7 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
             <div className="flex items-start space-x-2.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
               <ArrowUpCircleIcon className="h-5 w-5 text-indigo-600 mt-0.5 shrink-0" />
               <div>
-                <p className="text-[10px] text-slate-400 font-bold uppercase">Lokasi Pickup</p>
+                <p className="text-[10px] text-slate-400 font-bold uppercase">Pickup Location</p>
                 <span className="font-medium text-slate-800 text-xs">
                   {getPickupLocationDisplay(booking.pickupPoint, booking.address)}
                 </span>
@@ -229,7 +229,7 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
             <div className="flex items-start space-x-2.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
               <LocationMarkerIcon className="h-5 w-5 text-indigo-600 mt-0.5 shrink-0" />
               <div>
-                <p className="text-[10px] text-slate-400 font-bold uppercase">Destinasi Drop-off</p>
+                <p className="text-[10px] text-slate-400 font-bold uppercase">Drop-off Destination</p>
                 <span className="font-bold text-slate-900 text-xs">{booking.destination}</span>
               </div>
             </div>
@@ -237,7 +237,7 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
             {/* Purpose */}
             {booking.purpose && (
               <div className="sm:col-span-2 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                <p className="text-[10px] text-slate-400 font-bold uppercase">Tujuan / Urusan</p>
+                <p className="text-[10px] text-slate-400 font-bold uppercase">Purpose / Agenda</p>
                 <p className="text-xs font-semibold text-slate-800 mt-0.5">{booking.purpose}</p>
               </div>
             )}
@@ -247,19 +247,19 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center space-x-2">
                   <UserGroupIcon className="h-4 w-4 text-indigo-600" />
-                  <p className="text-[10px] text-slate-500 font-bold uppercase">Jumlah Penumpang</p>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase">Total Passengers</p>
                 </div>
-                <span className="font-extrabold text-slate-900 text-xs px-2.5 py-0.5 bg-white rounded-full border border-slate-200">{totalPassengers} Orang</span>
+                <span className="font-extrabold text-slate-900 text-xs px-2.5 py-0.5 bg-white rounded-full border border-slate-200">{totalPassengers} Pax</span>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-white border border-slate-200 text-slate-700">
-                  Staf: <strong className="ml-1 text-indigo-600">{staffCount}</strong>
+                  Staff: <strong className="ml-1 text-indigo-600">{staffCount}</strong>
                 </span>
                 <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-white border border-slate-200 text-slate-700">
-                  Kanak-kanak: <strong className="ml-1 text-indigo-600">{kidsCount}</strong>
+                  Kids: <strong className="ml-1 text-indigo-600">{kidsCount}</strong>
                 </span>
                 <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-white border border-slate-200 text-slate-700">
-                  Remaja: <strong className="ml-1 text-indigo-600">{teenagersCount}</strong>
+                  Teenagers: <strong className="ml-1 text-indigo-600">{teenagersCount}</strong>
                 </span>
               </div>
             </div>
@@ -270,7 +270,7 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
                 <div className="flex items-center space-x-2">
                   <TruckIcon className="h-5 w-5 text-indigo-600" />
                   <div>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase">Pemandu Ditugaskan</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase">Assigned Driver</p>
                     <span className="font-extrabold text-slate-900 text-xs sm:text-sm">{driverName}</span>
                   </div>
                 </div>
@@ -280,7 +280,7 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
                     onClick={() => setIsChangingDriver(!isChangingDriver)}
                     className="text-xs px-2.5 py-1.5 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold rounded-lg shadow-xs transition cursor-pointer"
                   >
-                    {isChangingDriver ? 'Batal Tukar' : 'Tukar Pemandu'}
+                    {isChangingDriver ? 'Cancel' : 'Change Driver'}
                   </button>
                 )}
               </div>
@@ -288,17 +288,17 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
               {isAdmin && isChangingDriver && (
                 <div className="p-3 bg-white rounded-xl border border-indigo-200 space-y-2 shadow-xs animate-in fade-in">
                   <label className="block text-xs font-bold text-indigo-900">
-                    Pilih Pemandu Baharu:
+                    Select New Driver:
                   </label>
                   <select
                     value={newDriverId}
                     onChange={(e) => setNewDriverId(e.target.value)}
                     className="w-full text-xs p-2 border border-indigo-200 rounded-lg bg-indigo-50/30 text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:bg-white"
                   >
-                    <option value="">-- Tiada / Belum Ditentu --</option>
+                    <option value="">-- None / Unassigned --</option>
                     {users.filter(u => u.role === 'driver' || u.role === 'admin').map(u => (
                       <option key={u.id} value={u.id}>
-                        {u.name} ({u.role === 'admin' ? 'Admin' : 'Pemandu'})
+                        {u.name} ({u.role === 'admin' ? 'Admin' : 'Driver'})
                       </option>
                     ))}
                   </select>
@@ -308,7 +308,7 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
                       onClick={() => setIsChangingDriver(false)}
                       className="text-xs px-3 py-1 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 font-semibold cursor-pointer"
                     >
-                      Batal
+                      Cancel
                     </button>
                     <button
                       type="button"
@@ -316,29 +316,29 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
                       onClick={handleConfirmDriverChange}
                       className="text-xs px-3.5 py-1 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 shadow-xs cursor-pointer"
                     >
-                      {isSavingDriver ? 'Menyimpan...' : 'Sahkan Pertukaran'}
+                      {isSavingDriver ? 'Saving...' : 'Confirm Change'}
                     </button>
                   </div>
                 </div>
               )}
 
               <div className="pt-2 border-t border-indigo-100 flex items-center text-xs text-slate-700">
-                <span className="font-bold text-slate-500 mr-1.5">Kenderaan:</span>
+                <span className="font-bold text-slate-500 mr-1.5">Vehicle:</span>
                 <span className="font-semibold text-slate-900">
                   {vehicleInfo
                     ? `${vehicleInfo.name} (${vehicleInfo.plateNumber})`
                     : (booking.serviceType === 'Self-Drive'
-                        ? 'Perodua Alza (Pandu Sendiri)'
+                        ? 'Perodua Alza (Self-Drive)'
                         : (booking.vehiclePreference && booking.vehiclePreference !== 'Bebas'
                             ? booking.vehiclePreference
-                            : 'Bebas / Belum Ditentu'))}
+                            : 'Any / Unassigned'))}
                 </span>
               </div>
             </div>
 
             {booking.adminNotes && (
               <div className="sm:col-span-2 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700">
-                <span className="font-bold block text-slate-400 uppercase text-[9px] tracking-wider mb-0.5">Nota Pentadbiran</span>
+                <span className="font-bold block text-slate-400 uppercase text-[9px] tracking-wider mb-0.5">Admin Notes</span>
                 {booking.adminNotes}
               </div>
             )}
@@ -351,7 +351,7 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
             onClick={onClose}
             className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition cursor-pointer"
           >
-            Tutup
+            Close
           </button>
 
           {isAdmin ? (
@@ -361,7 +361,7 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
                 className="flex items-center text-xs text-rose-600 hover:bg-rose-50 font-bold py-2 px-3 border border-rose-200 rounded-xl transition shadow-xs bg-white cursor-pointer"
               >
                 <TrashIcon className="h-4 w-4 mr-1" />
-                Padam
+                Delete
               </button>
               <button
                 onClick={handleEditClick}
@@ -373,7 +373,7 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
             </div>
           ) : (
             <span className="text-[11px] font-semibold text-slate-400 italic">
-              Mod Paparan Pemandu (Lihat Sahaja)
+              Driver View Mode (Read Only)
             </span>
           )}
         </div>
@@ -518,7 +518,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ readOnly = false }) => {
   const { calendarGrid, monthLabel, yearLabel } = useMemo(() => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
-    const monthLabel = MONTH_NAMES_MS[month];
+    const monthLabel = MONTH_NAMES[month];
     const yearLabel = year;
 
     const firstDay = new Date(year, month, 1);
@@ -584,14 +584,14 @@ const CalendarView: React.FC<CalendarViewProps> = ({ readOnly = false }) => {
       const start = weekDays[0].date;
       const end = weekDays[6].date;
       if (start.getMonth() === end.getMonth()) {
-        return `${start.getDate()} – ${end.getDate()} ${MONTH_NAMES_MS[start.getMonth()]} ${start.getFullYear()}`;
+        return `${start.getDate()} – ${end.getDate()} ${MONTH_NAMES[start.getMonth()]} ${start.getFullYear()}`;
       }
-      return `${start.getDate()} ${MONTH_NAMES_MS[start.getMonth()]} – ${end.getDate()} ${MONTH_NAMES_MS[end.getMonth()]} ${end.getFullYear()}`;
+      return `${start.getDate()} ${MONTH_NAMES[start.getMonth()]} – ${end.getDate()} ${MONTH_NAMES[end.getMonth()]} ${end.getFullYear()}`;
     }
     if (viewMode === 'day') {
-      return `${DAY_NAMES_FULL[currentDate.getDay()]}, ${currentDate.getDate()} ${MONTH_NAMES_MS[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
+      return `${DAY_NAMES_FULL[currentDate.getDay()]}, ${currentDate.getDate()} ${MONTH_NAMES[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
     }
-    return `Jadual Tempahan (${MONTH_NAMES_MS[currentDate.getMonth()]} ${currentDate.getFullYear()})`;
+    return `Booking Schedule (${MONTH_NAMES[currentDate.getMonth()]} ${currentDate.getFullYear()})`;
   }, [viewMode, currentDate, monthLabel, yearLabel, weekDays]);
 
   // Current time position indicator (0-100% of the 6am-10pm timeline)
@@ -639,20 +639,20 @@ const CalendarView: React.FC<CalendarViewProps> = ({ readOnly = false }) => {
                   onClick={handleToday}
                   className="px-3 py-1.5 text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-xl shadow-2xs transition active:scale-95 cursor-pointer"
                 >
-                  Hari Ini
+                  Today
                 </button>
                 <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
                   <button
                     onClick={handlePrev}
                     className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-white rounded-lg transition active:scale-95 cursor-pointer"
-                    title="Sebelum"
+                    title="Previous"
                   >
                     <span className="text-sm font-bold block px-1">‹</span>
                   </button>
                   <button
                     onClick={handleNext}
                     className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-white rounded-lg transition active:scale-95 cursor-pointer"
-                    title="Selepas"
+                    title="Next"
                   >
                     <span className="text-sm font-bold block px-1">›</span>
                   </button>
@@ -677,7 +677,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ readOnly = false }) => {
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  Bulan
+                  Month
                 </button>
                 <button
                   onClick={() => setViewMode('week')}
@@ -687,7 +687,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ readOnly = false }) => {
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  Minggu
+                  Week
                 </button>
                 <button
                   onClick={() => setViewMode('day')}
@@ -697,7 +697,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ readOnly = false }) => {
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  Hari
+                  Day
                 </button>
                 <button
                   onClick={() => setViewMode('schedule')}
@@ -707,7 +707,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ readOnly = false }) => {
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  Jadual
+                  Schedule
                 </button>
               </div>
 
@@ -718,8 +718,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({ readOnly = false }) => {
                   className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2 px-3.5 rounded-xl shadow-xs transition active:scale-95 cursor-pointer ml-auto sm:ml-0"
                 >
                   <PlusIcon className="h-4 w-4" />
-                  <span className="hidden sm:inline">Tambah Tempahan</span>
-                  <span className="sm:hidden">Tambah</span>
+                  <span className="hidden sm:inline">Add Booking</span>
+                  <span className="sm:hidden">Add</span>
                 </button>
               )}
             </div>
@@ -728,7 +728,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ readOnly = false }) => {
 
           {/* Quick Filters Strip (Google Calendar Chips) */}
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-3 pt-3 border-t border-slate-100">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Penapis:</span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Filter:</span>
             
             <button
               onClick={() => setDriverFilter('all')}
@@ -738,7 +738,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ readOnly = false }) => {
                   : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
               }`}
             >
-              Semua
+              All
             </button>
 
             {driversList.map(driver => (
@@ -780,7 +780,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ readOnly = false }) => {
               }`}
             >
               <span className="w-2 h-2 rounded-full bg-rose-500" />
-              Konflik
+              Conflict
             </button>
           </div>
         </div>
@@ -878,7 +878,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ readOnly = false }) => {
                             }}
                             className="w-full text-left text-[10px] font-bold text-indigo-600 hover:text-indigo-800 px-1 py-0.5 rounded transition cursor-pointer"
                           >
-                            +{dayBookings.length - 3} lagi...
+                            +{dayBookings.length - 3} more...
                           </button>
                         )}
                       </div>
@@ -899,7 +899,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ readOnly = false }) => {
               {/* Week Day Header */}
               <div className="grid grid-cols-8 border-b border-slate-200 bg-slate-50 sticky top-0 z-10">
                 <div className="py-3 px-2 text-center text-[10px] font-bold text-slate-400 uppercase border-r border-slate-200">
-                  Masa
+                  Time
                 </div>
                 {weekDays.map(({ date, isToday }, i) => (
                   <div
@@ -995,9 +995,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({ readOnly = false }) => {
             {/* Day Header Banner */}
             <div className="bg-gradient-to-r from-slate-900 to-indigo-950 text-white p-4 rounded-2xl shadow-sm mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold text-indigo-300 uppercase tracking-wider">Jadual Hari Terpilih</p>
+                <p className="text-xs font-semibold text-indigo-300 uppercase tracking-wider">Selected Day Schedule</p>
                 <h3 className="text-base sm:text-xl font-extrabold text-white mt-0.5">
-                  {DAY_NAMES_FULL[currentDate.getDay()]}, {currentDate.getDate()} {MONTH_NAMES_MS[currentDate.getMonth()]} {currentDate.getFullYear()}
+                  {DAY_NAMES_FULL[currentDate.getDay()]}, {currentDate.getDate()} {MONTH_NAMES[currentDate.getMonth()]} {currentDate.getFullYear()}
                 </h3>
               </div>
 
@@ -1006,7 +1006,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ readOnly = false }) => {
                   {(() => {
                     const key = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
                     const count = (bookingsByDay.get(key) || []).length;
-                    return `${count} Perjalanan Terjadual`;
+                    return `${count} Scheduled Trips`;
                   })()}
                 </span>
               </div>
@@ -1022,8 +1022,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({ readOnly = false }) => {
                   return (
                     <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200">
                       <CalendarIcon className="h-10 w-10 text-slate-300 mx-auto mb-2" />
-                      <p className="font-bold text-slate-700 text-sm">Tiada Tempahan Pada Tarikh Ini</p>
-                      <p className="text-xs text-slate-400 mt-1">Gunakan butang navigasi atau tukar ke paparan Bulan untuk tarikh lain.</p>
+                      <p className="font-bold text-slate-700 text-sm">No Bookings On This Date</p>
+                      <p className="text-xs text-slate-400 mt-1">Use navigation controls or switch to Month view to select another date.</p>
                     </div>
                   );
                 }
@@ -1057,14 +1057,14 @@ const CalendarView: React.FC<CalendarViewProps> = ({ readOnly = false }) => {
 
                         <div className="flex items-center gap-2 text-xs">
                           <span className="font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">
-                            {booking.serviceType === 'Self-Drive' ? '🚗 Pandu Sendiri' : `👤 ${dName}`}
+                            {booking.serviceType === 'Self-Drive' ? '🚗 Self-Drive' : `👤 ${dName}`}
                           </span>
                         </div>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                         <div>
-                          <p className="text-[10px] text-slate-400 font-bold uppercase">Destinasi</p>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase">Destination</p>
                           <p className="text-sm font-extrabold text-slate-900">{booking.destination}</p>
                         </div>
                         <div>
@@ -1075,12 +1075,12 @@ const CalendarView: React.FC<CalendarViewProps> = ({ readOnly = false }) => {
 
                       <div className="flex flex-wrap items-center justify-between gap-2 mt-3 pt-2.5 border-t border-slate-100 text-xs text-slate-500">
                         <div className="flex items-center gap-2">
-                          <span className="font-semibold text-slate-700">Pemohon: {booking.requesterName} {booking.department ? `(${booking.department})` : ''}</span>
+                          <span className="font-semibold text-slate-700">Requester: {booking.requesterName} {booking.department ? `(${booking.department})` : ''}</span>
                         </div>
                         <div className="flex items-center gap-3">
-                          <span className="font-bold text-slate-800">👥 {totalPassengers} Orang</span>
+                          <span className="font-bold text-slate-800">👥 {totalPassengers} Pax</span>
                           <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${booking.shouldWait ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
-                            {booking.shouldWait ? '⏳ Perlu Menunggu' : '🚗 Drop-off Sahaja'}
+                            {booking.shouldWait ? '⏳ Standby Required' : '🚗 Drop-off Only'}
                           </span>
                         </div>
                       </div>
@@ -1103,7 +1103,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ readOnly = false }) => {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari destinasi, nama pemohon, atau tujuan..."
+                placeholder="Search destination, requester name, or purpose..."
                 className="w-full pl-9 pr-4 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-900 placeholder:text-slate-400"
               />
               <SearchIcon className="h-4 w-4 text-slate-400 absolute left-3 top-2.5 sm:top-3" />
@@ -1112,8 +1112,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({ readOnly = false }) => {
             {Array.from(bookingsByDay.entries()).length === 0 ? (
               <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200">
                 <CalendarIcon className="h-10 w-10 text-slate-300 mx-auto mb-2" />
-                <p className="font-bold text-slate-700 text-sm">Tiada Tempahan Dijumpai</p>
-                <p className="text-xs text-slate-400 mt-1">Cuba bersihkan carian atau tukar penapis pemandu.</p>
+                <p className="font-bold text-slate-700 text-sm">No Bookings Found</p>
+                <p className="text-xs text-slate-400 mt-1">Try clearing your search or switching driver filter.</p>
               </div>
             ) : (
               Array.from(bookingsByDay.entries()).map(([dateKey, dayBookings]) => {
@@ -1127,8 +1127,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({ readOnly = false }) => {
                       <div className={`px-3 py-1 rounded-xl text-xs font-extrabold uppercase tracking-wider ${
                         isToday ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700'
                       }`}>
-                        {isToday ? 'HARI INI • ' : ''}
-                        {DAY_NAMES_FULL[sampleDate.getDay()]}, {sampleDate.getDate()} {MONTH_NAMES_MS[sampleDate.getMonth()]}
+                        {isToday ? 'TODAY • ' : ''}
+                        {DAY_NAMES_FULL[sampleDate.getDay()]}, {sampleDate.getDate()} {MONTH_NAMES[sampleDate.getMonth()]}
                       </div>
                       <div className="h-px bg-slate-200 flex-1" />
                     </div>
@@ -1155,7 +1155,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ readOnly = false }) => {
                                 </span>
                                 {finishDt && (
                                   <span className="block text-[9px] text-slate-500 mt-0.5">
-                                    hingga {finishDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                                    to {finishDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
                                   </span>
                                 )}
                               </div>
@@ -1170,10 +1170,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({ readOnly = false }) => {
                                   </span>
                                 </div>
                                 <p className="text-xs text-slate-500 truncate mt-0.5">
-                                  Dari: {getPickupLocationDisplay(booking.pickupPoint, booking.address)}
+                                  From: {getPickupLocationDisplay(booking.pickupPoint, booking.address)}
                                 </p>
                                 <p className="text-[11px] text-slate-600 truncate mt-0.5">
-                                  Pemohon: <strong>{booking.requesterName}</strong> {booking.department ? `(${booking.department})` : ''}
+                                  Requester: <strong>{booking.requesterName}</strong> {booking.department ? `(${booking.department})` : ''}
                                 </p>
                               </div>
                             </div>

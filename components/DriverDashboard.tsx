@@ -60,12 +60,12 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
 
   const getVehicleInfo = (vehicleId: string | null, serviceType?: string) => {
     if (!vehicleId) {
-      if (serviceType === 'Self-Drive') return { name: 'Self-Drive (Alza)', plate: 'Pandu Sendiri' };
-      return { name: 'Bebas (Belum Ditetapkan)', plate: 'Pemandu Tentukan' };
+      if (serviceType === 'Self-Drive') return { name: 'Self-Drive (Alza)', plate: 'Self-Drive' };
+      return { name: 'Any (Unassigned)', plate: 'Driver Dispatches' };
     }
     const vehicle = vehicles.find(v => v.id === vehicleId);
     if (vehicle) return { name: vehicle.name, plate: vehicle.plateNumber };
-    return { name: `Kenderaan #${vehicleId.slice(-4).toUpperCase()}`, plate: '-' };
+    return { name: `Vehicle #${vehicleId.slice(-4).toUpperCase()}`, plate: '-' };
   };
 
   // Helper search predicate for driver
@@ -73,8 +73,8 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
     if (!query) return true;
     const q = query.trim().toLowerCase();
     const dt = parseAsLocal(b.dateTime);
-    const dateStr = dt.toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' }).toLowerCase();
-    const dayStr = dt.toLocaleDateString('ms-MY', { weekday: 'long' }).toLowerCase();
+    const dateStr = dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }).toLowerCase();
+    const dayStr = dt.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
     const pickupDisp = getPickupLocationDisplay(b.pickupPoint, b.address).toLowerCase();
     const vInfo = getVehicleInfo(b.vehicleId, b.serviceType);
 
@@ -177,7 +177,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
 
   const handleBulkCompleteJobs = () => {
     if (selectedBookingIds.length === 0) return;
-    if (confirm(`Tandakan ${selectedBookingIds.length} trip terpilih sebagai 'Selesai'?`)) {
+    if (confirm(`Mark ${selectedBookingIds.length} selected trips as 'Completed'?`)) {
       selectedBookingIds.forEach(id => updateBookingStatus(id, 'Completed'));
       setSelectedBookingIds([]);
     }
@@ -207,7 +207,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
   const formatTripDateTime = (dateTimeStr: string, finishDateTimeStr?: string) => {
     try {
       const start = parseAsLocal(dateTimeStr);
-      const dateFormatted = start.toLocaleDateString('ms-MY', {
+      const dateFormatted = start.toLocaleDateString('en-GB', {
         weekday: 'short',
         day: 'numeric',
         month: 'short',
@@ -266,10 +266,10 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
           <div className="bg-amber-100/90 border-b border-amber-200 px-3.5 py-1.5 flex items-center justify-between text-[11px] text-amber-950 font-bold">
             <div className="flex items-center gap-1.5">
               <span>⚠️</span>
-              <span>Trip Tarikh Lepas: {dateTimeInfo.date}</span>
+              <span>Past Date Trip: {dateTimeInfo.date}</span>
             </div>
             <span className="text-[10px] text-amber-900 font-extrabold bg-amber-200/80 px-2 py-0.5 rounded">
-              Menunggu Meter
+              Awaiting Odometer
             </span>
           </div>
         )}
@@ -299,14 +299,14 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
               }}
               onClick={(e) => e.stopPropagation()}
               className="h-4 w-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer"
-              title="Pilih untuk tindakan lumpsum"
+              title="Select for batch actions"
             />
             <div className="flex items-center gap-1.5">
               <span className={`inline-block w-2 h-2 rounded-full ${
                 isPastPending ? 'bg-amber-600 animate-pulse' : isAssigned ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'
               }`}></span>
               <span className="font-extrabold uppercase tracking-wide text-[11px]">
-                {isPastPending ? 'Trip Tertunggak (Belum Selesai)' : isAssigned ? 'Tugasan Baru Ditawarkan' : 'Dalam Perjalanan (Confirmed)'}
+                {isPastPending ? 'Overdue Trip (Pending Odometer)' : isAssigned ? 'New Assignment Offered' : 'In Progress (Confirmed)'}
               </span>
             </div>
           </div>
@@ -343,7 +343,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
                   <div className="w-0.5 h-6 border-l border-dashed border-slate-300 mt-1"></div>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Lokasi Ambil (Pickup)</span>
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Pickup Location</span>
                   <p className="text-xs sm:text-sm font-bold text-slate-900 leading-tight">{getPickupLocationDisplay(booking.pickupPoint, booking.address)}</p>
                 </div>
               </div>
@@ -354,7 +354,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
                   <div className="w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-rose-100"></div>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Lokasi Hantar (Destinasi)</span>
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Drop-off Location (Destination)</span>
                   <p className="text-xs sm:text-sm font-extrabold text-slate-900 leading-tight">{booking.destination}</p>
                   {booking.address && !isOtherPickup(booking.pickupPoint) && booking.address !== booking.destination && (
                     <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{booking.address}</p>
@@ -366,10 +366,10 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
                       href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(booking.destination)}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-indigo-50 text-indigo-700 hover:text-indigo-800 rounded-lg text-[11px] font-bold border border-slate-200 shadow-2xs transition"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-indigo-50 text-indigo-700 hover:text-indigo-800 rounded-lg text-[11px] font-bold border border-slate-200 shadow-2xs transition cursor-pointer"
                     >
                       <LocationMarkerIcon className="w-3 h-3 text-indigo-600" />
-                      <span>Buka Google Maps</span>
+                      <span>Open Google Maps</span>
                       <ExternalLinkIcon className="w-2.5 h-2.5 text-slate-400 ml-0.5" />
                     </a>
                   </div>
@@ -381,7 +381,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
 
           {/* PURPOSE SECTION */}
           <div className="p-3 bg-indigo-50/40 border border-indigo-100/70 rounded-xl text-xs">
-            <span className="text-[9px] font-bold uppercase tracking-wider text-indigo-900/60 block mb-0.5">Tujuan Perjalanan</span>
+            <span className="text-[9px] font-bold uppercase tracking-wider text-indigo-900/60 block mb-0.5">Trip Purpose</span>
             <p className="font-bold text-slate-900 leading-snug">{booking.purpose}</p>
           </div>
 
@@ -390,7 +390,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
             
             {/* VEHICLE INFO */}
             <div className={`p-2.5 rounded-xl border ${!booking.vehicleId ? 'bg-amber-50/70 border-amber-200/80' : 'bg-slate-50 border-slate-100'}`}>
-              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Kenderaan</span>
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Vehicle</span>
               <p className={`font-extrabold mt-0.5 truncate ${!booking.vehicleId ? 'text-amber-800' : 'text-slate-800'}`}>
                 {vehicleInfo.name}
               </p>
@@ -403,30 +403,30 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
 
             {/* REQUESTER & DEPT */}
             <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
-              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Pemohon & Jabatan</span>
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Requester & Dept</span>
               <p className="font-bold text-slate-800 mt-0.5 truncate">{booking.requesterName}</p>
-              <p className="text-[10px] text-slate-500 truncate">{booking.department || 'Am'}</p>
+              <p className="text-[10px] text-slate-500 truncate">{booking.department || 'General'}</p>
             </div>
 
             {/* PASSENGERS */}
             <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
-              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Penumpang</span>
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Passengers</span>
               <p className="font-bold text-slate-800 mt-0.5">
-                {totalPassengers} Orang
+                {totalPassengers} Persons
               </p>
-              <p className="text-[10px] text-slate-500 truncate" title={passengerBreakdown || 'Tiada pecahan'}>
-                {passengerBreakdown || 'Tiada pecahan'}
+              <p className="text-[10px] text-slate-500 truncate" title={passengerBreakdown || 'No breakdown'}>
+                {passengerBreakdown || 'No breakdown'}
               </p>
             </div>
 
             {/* SHOULD WAIT SPEC */}
             <div className={`p-2.5 rounded-xl border ${booking.shouldWait ? 'bg-amber-50/70 border-amber-200/80' : 'bg-slate-50 border-slate-100'}`}>
-              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Perlu Tunggu?</span>
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Standby Required?</span>
               <p className={`font-bold mt-0.5 text-[11px] ${booking.shouldWait ? 'text-amber-800' : 'text-slate-700'}`}>
-                {booking.shouldWait ? '⏳ Perlu Tunggu' : '🚀 Hantar Sahaja'}
+                {booking.shouldWait ? '⏳ Driver Standby' : '🚀 Drop-off Only'}
               </p>
               <span className="text-[10px] text-slate-400">
-                {booking.shouldWait ? 'Tunggu di destinasi' : 'Tidak perlu tunggu'}
+                {booking.shouldWait ? 'Wait at destination' : 'No standby required'}
               </span>
             </div>
 
@@ -435,14 +435,14 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
           {/* OPTIONAL REMARKS / ADMIN NOTES */}
           {booking.remarks && (
             <div className="p-2.5 bg-amber-50/70 border border-amber-200/60 rounded-xl text-xs text-amber-900">
-              <span className="font-extrabold text-[10px] uppercase tracking-wide block text-amber-800 mb-0.5">Catatan Pemohon:</span>
+              <span className="font-extrabold text-[10px] uppercase tracking-wide block text-amber-800 mb-0.5">Requester Remarks:</span>
               <p className="leading-snug">{booking.remarks}</p>
             </div>
           )}
 
           {booking.adminNotes && (
             <div className="p-2.5 bg-blue-50/70 border border-blue-200/60 rounded-xl text-xs text-blue-900">
-              <span className="font-extrabold text-[10px] uppercase tracking-wide block text-blue-800 mb-0.5">Nota Arahan Admin:</span>
+              <span className="font-extrabold text-[10px] uppercase tracking-wide block text-blue-800 mb-0.5">Admin Instructions:</span>
               <p className="leading-snug">{booking.adminNotes}</p>
             </div>
           )}
@@ -452,10 +452,10 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
             {isAssigned && (
               <button
                 onClick={() => handleAcceptJob(booking.id)}
-                className="w-full flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white font-extrabold py-3 px-4 rounded-xl shadow-sm transition active:scale-98 text-xs sm:text-sm uppercase tracking-wider"
+                className="w-full flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white font-extrabold py-3 px-4 rounded-xl shadow-sm transition active:scale-98 text-xs sm:text-sm uppercase tracking-wider cursor-pointer"
               >
                 <CheckCircleIcon className="h-4 w-4" />
-                <span>Terima Tugasan Ini</span>
+                <span>Accept This Job</span>
               </button>
             )}
 
@@ -463,21 +463,21 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => handleSingleOdometerOpen(booking.id)}
-                  className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-2.5 px-3 rounded-xl shadow-sm transition active:scale-98 text-xs uppercase tracking-wide"
+                  className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-2.5 px-3 rounded-xl shadow-sm transition active:scale-98 text-xs uppercase tracking-wide cursor-pointer"
                 >
                   <GaugeIcon className="h-4 w-4" />
-                  <span>Lapor Meter & Selesai</span>
+                  <span>Log Meter & Complete</span>
                 </button>
                 <button
                   onClick={() => {
-                    if (window.confirm("Tandakan selesai trip ini secara terus tanpa log odometer?")) {
+                    if (window.confirm("Mark this trip completed directly without an odometer log?")) {
                       updateBookingStatus(booking.id, 'Completed');
                     }
                   }}
-                  className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition font-bold text-xs uppercase tracking-wider"
-                  title="Selesai Serta-merta tanpa mengisi odometer"
+                  className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition font-bold text-xs uppercase tracking-wider cursor-pointer"
+                  title="Complete immediately without recording odometer"
                 >
-                  Direct Selesai
+                  Direct Complete
                 </button>
               </div>
             )}
@@ -500,10 +500,10 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <span className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase">Portal Pemandu</span>
+                <span className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase">Driver Portal</span>
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1 animate-pulse"></span>
-                  Bertugas (Online)
+                  On Duty (Online)
                 </span>
               </div>
               <h2 className="text-lg font-extrabold tracking-tight text-white mt-0.5">{driver.name}</h2>
@@ -513,10 +513,10 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
           <button
             onClick={() => setIsScheduleModalOpen(true)}
             className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-md transition active:scale-95 border border-indigo-400/40 cursor-pointer"
-            title="Buka Jadual Pemandu & Kalendar"
+            title="Open Driver Schedule & Calendar"
           >
             <CalendarIcon className="h-4 w-4" />
-            <span>Jadual Pemandu</span>
+            <span>Driver Schedule</span>
           </button>
         </div>
 
@@ -524,15 +524,15 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
         <div className="grid grid-cols-3 gap-2.5 mt-4 pt-4 border-t border-slate-800 text-center">
           <div className="bg-slate-800/60 py-2 px-2 rounded-xl border border-slate-700/60">
             <span className="block text-lg font-extrabold text-emerald-400">{completedTripsCount}</span>
-            <span className="block text-[10px] text-slate-400 font-medium uppercase tracking-wider">Trip Selesai</span>
+            <span className="block text-[10px] text-slate-400 font-medium uppercase tracking-wider">Completed Trips</span>
           </div>
           <div className="bg-slate-800/60 py-2 px-2 rounded-xl border border-slate-700/60">
             <span className="block text-lg font-extrabold text-indigo-300">{totalDriverMileage.toLocaleString()} km</span>
-            <span className="block text-[10px] text-slate-400 font-medium uppercase tracking-wider">Jumlah Jarak</span>
+            <span className="block text-[10px] text-slate-400 font-medium uppercase tracking-wider">Total Distance</span>
           </div>
           <div className="bg-slate-800/60 py-2 px-2 rounded-xl border border-slate-700/60">
             <span className="block text-lg font-extrabold text-amber-300">{fuelLogsCount}</span>
-            <span className="block text-[10px] text-slate-400 font-medium uppercase tracking-wider">Log Minyak</span>
+            <span className="block text-[10px] text-slate-400 font-medium uppercase tracking-wider">Fuel Logs</span>
           </div>
         </div>
       </div>
@@ -542,12 +542,12 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
         <button
           onClick={() => setIsScheduleModalOpen(true)}
           className="flex flex-col items-center justify-center p-3 bg-white hover:bg-indigo-50/70 border border-indigo-200 rounded-xl shadow-sm transition active:scale-98 text-center group cursor-pointer"
-          title="Lihat jadual bertugas dan kalendar perjalanan"
+          title="View duty schedules and trip calendars"
         >
           <div className="p-2 bg-indigo-50 group-hover:bg-indigo-100 rounded-lg text-indigo-600 mb-1.5 border border-indigo-100 transition">
             <CalendarIcon className="h-4 w-4" />
           </div>
-          <span className="text-xs font-bold text-indigo-900">Jadual Pemandu</span>
+          <span className="text-xs font-bold text-indigo-900">Driver Schedule</span>
         </button>
         <button
           onClick={() => setIsFuelLogOpen(true)}
@@ -556,7 +556,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
           <div className="p-2 bg-amber-50 rounded-lg text-amber-600 mb-1.5 border border-amber-100">
             <FuelIcon className="h-4 w-4" />
           </div>
-          <span className="text-xs font-bold text-slate-700">Log Minyak</span>
+          <span className="text-xs font-bold text-slate-700">Fuel Log</span>
         </button>
         <button
           onClick={handleOpenGeneralOdometer}
@@ -565,7 +565,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
           <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600 mb-1.5 border border-emerald-100">
             <GaugeIcon className="h-4 w-4" />
           </div>
-          <span className="text-xs font-bold text-slate-700">Log Odometer</span>
+          <span className="text-xs font-bold text-slate-700">Odometer Log</span>
         </button>
         <button
           onClick={() => setIsIssueLogOpen(true)}
@@ -574,7 +574,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
           <div className="p-2 bg-rose-50 rounded-lg text-rose-600 mb-1.5 border border-rose-100">
             <WrenchScrewdriverIcon className="h-4 w-4" />
           </div>
-          <span className="text-xs font-bold text-slate-700">Lapor Isu Van</span>
+          <span className="text-xs font-bold text-slate-700">Report Issue</span>
         </button>
       </div>
 
@@ -588,14 +588,14 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
             type="text"
             value={driverSearchQuery}
             onChange={(e) => setDriverSearchQuery(e.target.value)}
-            placeholder="Cari booking (nama pemohon, destinasi, pickup, tujuan, tarikh, kenderaan)..."
+            placeholder="Search bookings (requester name, destination, pickup, purpose, date, vehicle)..."
             className="w-full pl-10 pr-9 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition font-medium"
           />
           {driverSearchQuery && (
             <button
               onClick={() => setDriverSearchQuery('')}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
-              title="Kosongkan carian"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+              title="Clear search"
             >
               <XIcon className="h-4 w-4" />
             </button>
@@ -604,35 +604,35 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
         {driverSearchQuery && (
           <div className="flex items-center justify-between text-[11px] text-slate-500 px-1 pt-1">
             <span>
-              Menunjukkan <strong>{activeList.length}</strong> padanan dalam tab ini
+              Showing <strong>{activeList.length}</strong> results in this tab
             </span>
             <button
               onClick={() => setDriverSearchQuery('')}
-              className="text-indigo-600 font-bold hover:underline"
+              className="text-indigo-600 font-bold hover:underline cursor-pointer"
             >
-              Kosongkan Carian
+              Clear Search
             </button>
           </div>
         )}
       </div>
 
-      {/* TABBED INTERFACE (TUGASAN SEMASA, PERLU LAPOR METER, SEJARAH) */}
+      {/* TABBED INTERFACE */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         {/* TABS HEADER */}
         <div className="flex border-b border-slate-200 bg-slate-100/70 p-1 gap-1">
-          {/* TAB 1: TUGASAN SEMASA */}
+          {/* TAB 1: CURRENT & UPCOMING */}
           <button
             onClick={() => {
               setActiveTab('today');
               setSelectedBookingIds([]);
             }}
-            className={`flex-1 py-2.5 px-2 rounded-xl text-center font-bold text-[11px] sm:text-xs transition flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-2.5 px-2 rounded-xl text-center font-bold text-[11px] sm:text-xs transition flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === 'today' 
                 ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' 
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
-            <span>Hari Ini & Depan</span>
+            <span>Today & Upcoming</span>
             <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
               activeTab === 'today' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-600'
             }`}>
@@ -640,19 +640,19 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
             </span>
           </button>
 
-          {/* TAB 2: PERLU LAPOR METER (PAST TRIPS WITHOUT ODOMETER) */}
+          {/* TAB 2: PENDING ODOMETER (PAST TRIPS WITHOUT ODOMETER) */}
           <button
             onClick={() => {
               setActiveTab('pending');
               setSelectedBookingIds([]);
             }}
-            className={`flex-1 py-2.5 px-2 rounded-xl text-center font-bold text-[11px] sm:text-xs transition flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-2.5 px-2 rounded-xl text-center font-bold text-[11px] sm:text-xs transition flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === 'pending' 
                 ? 'bg-white text-amber-800 shadow-sm border border-slate-200' 
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
-            <span>Perlu Lapor Meter</span>
+            <span>Pending Odometer</span>
             {pendingOdometerBookings.length > 0 ? (
               <span className="bg-amber-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-extrabold animate-pulse shadow-2xs">
                 {pendingOdometerBookings.length}
@@ -664,19 +664,19 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
             )}
           </button>
 
-          {/* TAB 3: SEJARAH TRIP */}
+          {/* TAB 3: HISTORY */}
           <button
             onClick={() => {
               setActiveTab('history');
               setSelectedBookingIds([]);
             }}
-            className={`flex-1 py-2.5 px-2 rounded-xl text-center font-bold text-[11px] sm:text-xs transition flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-2.5 px-2 rounded-xl text-center font-bold text-[11px] sm:text-xs transition flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === 'history' 
                 ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' 
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
-            <span>Sejarah Trip</span>
+            <span>Trip History</span>
             <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
               activeTab === 'history' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-600'
             }`}>
@@ -686,7 +686,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
         </div>
 
         <div className="p-3.5 sm:p-5 space-y-4">
-          {/* BULK SELECT TOOLBAR (PILIH SEMUA / LUMPSUM) */}
+          {/* BULK SELECT TOOLBAR */}
           {activeList.length > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs">
               <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-700 select-none">
@@ -696,19 +696,19 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
                   onChange={handleToggleSelectAllActive}
                   className="h-4 w-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer"
                 />
-                <span>Pilih Semua ({activeList.length} trip dalam tab ini)</span>
+                <span>Select All ({activeList.length} trips in this tab)</span>
               </label>
 
               {selectedBookingIds.length > 0 && (
                 <div className="flex items-center gap-2">
                   <span className="font-extrabold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full text-[11px] border border-indigo-200">
-                    {selectedBookingIds.length} Dipilih
+                    {selectedBookingIds.length} Selected
                   </span>
                   <button
                     onClick={() => setSelectedBookingIds([])}
-                    className="text-slate-500 hover:text-slate-800 font-bold text-[11px] hover:underline"
+                    className="text-slate-500 hover:text-slate-800 font-bold text-[11px] hover:underline cursor-pointer"
                   >
-                    Batal Pilihan
+                    Clear Selection
                   </button>
                 </div>
               )}
@@ -722,7 +722,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
                   <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs flex items-start gap-2.5 text-slate-700">
                     <span className="text-sm">💡</span>
                     <p className="text-[11px] leading-relaxed">
-                      <strong>Tugasan Hari Ini & Akan Datang:</strong> Paparan fokus untuk tugasan hari ini. Anda boleh tanda checkbox pada trip yang selesai, kemudian tekan butang <strong>"Hantar Meter"</strong> di bawah untuk menghantar laporan odometer sekali gus.
+                      <strong>Today & Upcoming Tasks:</strong> Focused view for today's assignments. You can check the boxes on completed trips, then click <strong>"Submit Meter"</strong> below to submit batch odometer reports.
                     </p>
                   </div>
 
@@ -733,16 +733,16 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
                   <div className="w-10 h-10 bg-indigo-50 rounded-full flex items-center justify-center mb-3 text-indigo-600">
                     <TruckIcon className="h-5 w-5" />
                   </div>
-                  <p className="text-sm font-bold text-slate-800">Tiada Tugasan Hari Ini / Akan Datang</p>
+                  <p className="text-sm font-bold text-slate-800">No Tasks Today / Upcoming</p>
                   <p className="text-xs text-slate-400 mt-1 max-w-xs leading-relaxed">
-                    Semua tugasan hari ini telah selesai atau belum ditugaskan oleh admin. Sebarang trip baru akan muncul di sini secara automatik.
+                    All tasks for today are completed or have not been assigned yet. Any new trips will automatically appear here.
                   </p>
                 </div>
               )}
             </div>
           )}
 
-          {/* TAB 2: PENDING ODOMETER (TRIP TARIKH LEPAS) */}
+          {/* TAB 2: PENDING ODOMETER (PAST TRIPS) */}
           {activeTab === 'pending' && (
             <div className="space-y-4">
               {pendingOdometerBookings.length > 0 ? (
@@ -751,10 +751,10 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
                     <span className="text-base">⚠️</span>
                     <div className="space-y-1 text-[11px] leading-relaxed">
                       <p className="font-extrabold text-amber-950">
-                        {pendingOdometerBookings.length} Trip Dari Hari Lepas Belum Direkod Odometer:
+                        {pendingOdometerBookings.length} Trips from previous days without odometer records:
                       </p>
                       <p>
-                        Trip-trip ini telah dipisahkan ke sini supaya tidak mencampuradukkan jadual hari ini. Anda boleh tanda checkbox dan lapor meter bila-bila masa (seperti habis syif atau keesokan paginya). Selepas dilaporkan, trip akan automatik berpindah ke <strong>Sejarah Trip</strong>.
+                        These trips are separated here to keep today's schedule clean. You can check the boxes and report meter anytime (e.g. at end of shift or the next morning). Once reported, trips move automatically to <strong>Trip History</strong>.
                       </p>
                     </div>
                   </div>
@@ -766,16 +766,16 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
                   <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center mb-3 text-emerald-600">
                     <CheckCircleIcon className="h-5 w-5" />
                   </div>
-                  <p className="text-sm font-bold text-emerald-900">Hebat! Tiada Trip Tertunggak</p>
+                  <p className="text-sm font-bold text-emerald-900">Great! No Overdue Trips</p>
                   <p className="text-xs text-emerald-700 mt-1 max-w-xs leading-relaxed">
-                    Semua trip tarikh lepas telah lengkap direkod bacaan odometer dan berada dalam Sejarah Trip.
+                    All past trips have completed odometer records and are archived in Trip History.
                   </p>
                 </div>
               )}
             </div>
           )}
 
-          {/* TAB 3: SEJARAH TRIP */}
+          {/* TAB 3: TRIP HISTORY */}
           {activeTab === 'history' && (
             <div className="space-y-3">
               {historyBookings.length > 0 ? (
@@ -795,7 +795,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
                           <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
                             isCompleted ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
                           }`}>
-                            {booking.status === 'Completed' ? 'SELESAI ✅' : 'DIBATALKAN ❌'}
+                            {booking.status === 'Completed' ? 'COMPLETED ✅' : 'CANCELLED ❌'}
                           </span>
                           <span className="font-mono text-[10px] text-slate-400 font-bold">
                             #{booking.id.split('-')[1] || booking.id.slice(0, 5)}
@@ -814,7 +814,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
                           <span className="text-indigo-900">{booking.destination}</span>
                         </div>
                         <p className="text-[11px] text-slate-600">
-                          <strong className="text-slate-700">Tujuan:</strong> {booking.purpose}
+                          <strong className="text-slate-700">Purpose:</strong> {booking.purpose}
                         </p>
                       </div>
 
@@ -838,7 +838,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
                 })
               ) : (
                 <div className="text-center py-8 text-slate-400 font-semibold text-xs border border-dashed rounded-xl">
-                  Tiada rekod perjalanan selesai lagi.
+                  No completed trip records yet.
                 </div>
               )}
             </div>
@@ -846,7 +846,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
         </div>
       </div>
 
-      {/* DRIVER SCHEDULE & CALENDAR MODAL (ACCESSIBLE FROM TOP BUTTONS) */}
+      {/* DRIVER SCHEDULE & CALENDAR MODAL */}
       {isScheduleModalOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-sm p-3 sm:p-6 flex items-center justify-center animate-in fade-in duration-150">
           <div className="bg-white w-full max-w-5xl max-h-[92vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200">
@@ -857,15 +857,15 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
                   <CalendarIcon className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="text-base sm:text-lg font-extrabold text-slate-900">Jadual Pemandu & Kalendar</h3>
+                  <h3 className="text-base sm:text-lg font-extrabold text-slate-900">Driver Schedule & Calendar</h3>
                   <p className="text-xs text-slate-500 hidden sm:block">
-                    Semak jadual bertugas, syif dan kalendar perjalanan semua kenderaan
+                    Check duty schedules, shifts, and trip calendars across all vehicles
                   </p>
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
-                {/* Switch between Kalendar Tempahan and Jadual Syif on Desktop */}
+                {/* Switch between Booking Calendar and Shift Schedule on Desktop */}
                 <div className="hidden sm:flex bg-slate-200/80 p-0.5 rounded-xl text-xs font-semibold">
                   <button
                     onClick={() => setScheduleModalTab('calendar')}
@@ -875,7 +875,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    Kalendar Tempahan
+                    Booking Calendar
                   </button>
                   <button
                     onClick={() => setScheduleModalTab('schedule')}
@@ -885,21 +885,21 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    Jadual Syif Pemandu
+                    Driver Shifts
                   </button>
                 </div>
 
                 <button
                   onClick={() => setIsScheduleModalOpen(false)}
                   className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-xl transition cursor-pointer"
-                  title="Tutup Modal"
+                  title="Close Modal"
                 >
                   <XIcon className="h-5 w-5" />
                 </button>
               </div>
             </div>
 
-            {/* Switch between Kalendar Tempahan and Jadual Syif on Mobile */}
+            {/* Switch on Mobile */}
             <div className="sm:hidden flex border-b border-slate-200 bg-slate-100 p-1 text-xs font-semibold">
               <button
                 onClick={() => setScheduleModalTab('calendar')}
@@ -909,7 +909,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
                     : 'text-slate-600'
                 }`}
               >
-                Kalendar Tempahan
+                Booking Calendar
               </button>
               <button
                 onClick={() => setScheduleModalTab('schedule')}
@@ -919,7 +919,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
                     : 'text-slate-600'
                 }`}
               >
-                Jadual Syif
+                Shift Schedule
               </button>
             </div>
 
@@ -935,13 +935,13 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
             {/* Modal Footer */}
             <div className="px-4 py-3 bg-white border-t border-slate-200 flex justify-between items-center text-xs text-slate-500">
               <span className="font-medium">
-                Paparan: <strong className="text-slate-700">{scheduleModalTab === 'calendar' ? 'Kalendar Trip & Tempahan' : 'Jadual Syif / Bertugas Pemandu'}</strong>
+                View: <strong className="text-slate-700">{scheduleModalTab === 'calendar' ? 'Trip & Booking Calendar' : 'Driver Shift & Duty Schedule'}</strong>
               </span>
               <button
                 onClick={() => setIsScheduleModalOpen(false)}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl shadow-sm transition cursor-pointer"
               >
-                Tutup
+                Close
               </button>
             </div>
           </div>
@@ -956,9 +956,9 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
               {selectedBookingIds.length}
             </div>
             <div>
-              <p className="text-xs font-bold text-slate-200">{selectedBookingIds.length} Trip Dipilih</p>
+              <p className="text-xs font-bold text-slate-200">{selectedBookingIds.length} Trips Selected</p>
               <p className="text-[11px] text-slate-400 truncate max-w-[140px] sm:max-w-[220px]">
-                Tindakan lumpsum untuk pemandu
+                Batch actions for driver
               </p>
             </div>
           </div>
@@ -967,35 +967,35 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
             {selectedAssignedCount > 0 && (
               <button
                 onClick={handleBulkAcceptJobs}
-                className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-3 rounded-xl shadow-md transition active:scale-95 text-xs flex items-center gap-1"
-                title="Terima dan sahkan tugasan yang dipilih"
+                className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-3 rounded-xl shadow-md transition active:scale-95 text-xs flex items-center gap-1 cursor-pointer"
+                title="Accept and confirm selected jobs"
               >
-                <span>Terima Tugasan ({selectedAssignedCount})</span>
+                <span>Accept Jobs ({selectedAssignedCount})</span>
               </button>
             )}
 
             <button
               onClick={handleOpenOdometerForSelected}
-              className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 px-3.5 rounded-xl shadow-md transition active:scale-95 text-xs uppercase tracking-wide flex items-center gap-1"
-              title="Isi rekod odometer sekali gus untuk trip terpilih"
+              className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 px-3.5 rounded-xl shadow-md transition active:scale-95 text-xs uppercase tracking-wide flex items-center gap-1 cursor-pointer"
+              title="Submit odometer readings in batch for selected trips"
             >
               <GaugeIcon className="w-3.5 h-3.5" />
-              <span>Hantar Meter ({selectedBookingIds.length})</span>
+              <span>Submit Meter ({selectedBookingIds.length})</span>
             </button>
 
             <button
               onClick={handleBulkCompleteJobs}
-              className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-3 rounded-xl shadow-md transition active:scale-95 text-xs"
-              title="Tanda selesai semua trip yang dipilih secara langsung"
+              className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-3 rounded-xl shadow-md transition active:scale-95 text-xs cursor-pointer"
+              title="Mark all selected trips completed directly"
             >
-              Direct Selesai
+              Direct Complete
             </button>
 
             <button
               onClick={() => setSelectedBookingIds([])}
-              className="text-xs font-bold text-slate-400 hover:text-white px-2.5 py-1.5 rounded-lg"
+              className="text-xs font-bold text-slate-400 hover:text-white px-2.5 py-1.5 rounded-lg cursor-pointer"
             >
-              Batal
+              Cancel
             </button>
           </div>
         </div>

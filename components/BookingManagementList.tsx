@@ -248,7 +248,7 @@ export const BookingManagementList: React.FC = () => {
   // Bulk Actions
   const handleBulkStatusChange = async (status: Booking['status']) => {
     if (selectedIds.length === 0) return;
-    if (confirm(`Tukar status ${selectedIds.length} tempahan kepada '${status}'?`)) {
+    if (confirm(`Change status of ${selectedIds.length} selected booking(s) to '${status}'?`)) {
       await updateBookingsStatusBulk(selectedIds, status);
       handleClearSelection();
     }
@@ -257,7 +257,7 @@ export const BookingManagementList: React.FC = () => {
   const handleBulkAssignSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bulkAssignDriverId || !bulkAssignVehicleId) {
-      alert('Sila pilih Pemandu dan Kenderaan!');
+      alert('Please select both a Driver and a Vehicle.');
       return;
     }
     await assignBookingsBulk(selectedIds, bulkAssignDriverId, bulkAssignVehicleId);
@@ -284,30 +284,30 @@ export const BookingManagementList: React.FC = () => {
       : filteredBookings;
 
     if (listToExport.length === 0) {
-      alert('Tiada data untuk dieksport!');
+      alert('No data to export.');
       return;
     }
 
     const headers = [
-      'ID Tempahan',
-      'Tarikh',
-      'Masa Mula',
-      'Masa Tamat',
-      'Nama Pemohon',
-      'No. Telefon',
-      'Emel',
-      'Bahagian / Jabatan',
-      'Lokasi Pickup',
-      'Alamat Pickup Terperinci',
-      'Destinasi',
-      'Tujuan',
-      'Bil. Penumpang',
-      'Pemandu Ditugaskan',
-      'Kenderaan',
-      'No. Plat',
-      'Jenis Servis',
+      'Booking ID',
+      'Date',
+      'Start Time',
+      'End Time',
+      'Requester Name',
+      'Phone Number',
+      'Email',
+      'Department',
+      'Pickup Location',
+      'Detailed Address',
+      'Destination',
+      'Purpose',
+      'Passenger Count',
+      'Assigned Driver',
+      'Vehicle',
+      'Plate Number',
+      'Service Type',
       'Status',
-      'Catatan'
+      'Notes'
     ];
 
     const escapeCSV = (str: any) => {
@@ -341,7 +341,7 @@ export const BookingManagementList: React.FC = () => {
         escapeCSV(b.destination),
         escapeCSV(b.purpose),
         escapeCSV(totalPax),
-        escapeCSV(driver?.name || 'Belum Ditugaskan'),
+        escapeCSV(driver?.name || 'Unassigned'),
         escapeCSV(vehicle?.name || ''),
         escapeCSV(vehicle?.plateNumber || ''),
         escapeCSV(b.serviceType || 'Chauffeur'),
@@ -355,7 +355,7 @@ export const BookingManagementList: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `FleetFlow_Tempahan_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `FleetFlow_Bookings_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -387,13 +387,13 @@ export const BookingManagementList: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-3">
-            <span>Senarai Pengurusan Tempahan</span>
+            <span>Booking Management</span>
             <span className="text-xs font-bold px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full">
-              {filteredBookings.length} rekod
+              {filteredBookings.length} records
             </span>
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Cari, tapis, semak butiran, dan lakukan tindakan pukal (bulk select / update / assign) pada tempahan kenderaan.
+            Search, filter, inspect details, and perform bulk operations (bulk select / update / assign) on fleet bookings.
           </p>
         </div>
 
@@ -401,10 +401,10 @@ export const BookingManagementList: React.FC = () => {
           <button
             onClick={() => handleExportCSV(false)}
             className="inline-flex items-center px-3.5 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition"
-            title="Eksport senarai ke fail CSV Excel"
+            title="Export list to CSV Excel file"
           >
             <DocumentDownloadIcon className="h-4 w-4 mr-2 text-gray-500" />
-            Eksport CSV
+            Export CSV
           </button>
 
           <button
@@ -415,7 +415,7 @@ export const BookingManagementList: React.FC = () => {
             className="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg shadow-sm transition"
           >
             <PlusIcon className="h-5 w-5 mr-1.5" />
-            Tempahan Baru
+            New Booking
           </button>
         </div>
       </div>
@@ -430,7 +430,7 @@ export const BookingManagementList: React.FC = () => {
               : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
           }`}
         >
-          <span className="text-[11px] opacity-80">Semua</span>
+          <span className="text-[11px] opacity-80">All</span>
           <span className="text-lg font-extrabold mt-1">{stats.total}</span>
         </button>
 
@@ -521,7 +521,7 @@ export const BookingManagementList: React.FC = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-              placeholder="Cari tempahan (nama pemohon, destinasi, pickup, tujuan, no tel, pemandu)..."
+              placeholder="Search bookings (requester name, destination, pickup, purpose, phone, driver)..."
               className="w-full pl-11 pr-10 py-2.5 text-sm bg-gray-50/70 border border-gray-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
             />
             {searchQuery && (
@@ -541,20 +541,20 @@ export const BookingManagementList: React.FC = () => {
               className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
                 viewMode === 'table' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
               }`}
-              title="Paparan Jadual Lengkap"
+              title="Full Table View"
             >
               <TableIcon className="h-4 w-4" />
-              <span className="hidden sm:inline">Jadual</span>
+              <span className="hidden sm:inline">Table</span>
             </button>
             <button
               onClick={() => setViewMode('cards')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
                 viewMode === 'cards' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
               }`}
-              title="Paparan Kad Ringkas"
+              title="Compact Card View"
             >
               <ViewGridIcon className="h-4 w-4" />
-              <span className="hidden sm:inline">Kad</span>
+              <span className="hidden sm:inline">Cards</span>
             </button>
           </div>
         </div>
@@ -569,7 +569,7 @@ export const BookingManagementList: React.FC = () => {
               onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
               className="w-full py-2 px-3 bg-white border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
             >
-              <option value="all">Semua Status</option>
+              <option value="all">All Statuses</option>
               <option value="Confirmed">Confirmed</option>
               <option value="Assigned">Assigned</option>
               <option value="Pending">Pending</option>
@@ -579,67 +579,67 @@ export const BookingManagementList: React.FC = () => {
             </select>
           </div>
 
-          {/* Tarikh Preset */}
+          {/* Date Preset */}
           <div>
-            <label className="block font-bold text-gray-700 mb-1">Julat Tarikh</label>
+            <label className="block font-bold text-gray-700 mb-1">Date Range</label>
             <select
               value={datePreset}
               onChange={(e) => { setDatePreset(e.target.value); setCurrentPage(1); }}
               className="w-full py-2 px-3 bg-white border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
             >
-              <option value="all">Semua Tarikh</option>
-              <option value="today">Hari Ini</option>
-              <option value="week">Minggu Ini</option>
-              <option value="month">Bulan Ini</option>
-              <option value="upcoming">Akan Datang (Masa Depan)</option>
-              <option value="past">Tarikh Lepas (Sejarah)</option>
-              <option value="custom">Julat Tersuai...</option>
+              <option value="all">All Dates</option>
+              <option value="today">Today</option>
+              <option value="week">This Week</option>
+              <option value="month">This Month</option>
+              <option value="upcoming">Upcoming</option>
+              <option value="past">Past Records</option>
+              <option value="custom">Custom Range...</option>
             </select>
           </div>
 
-          {/* Pemandu */}
+          {/* Driver */}
           <div>
-            <label className="block font-bold text-gray-700 mb-1">Pemandu</label>
+            <label className="block font-bold text-gray-700 mb-1">Driver</label>
             <select
               value={driverFilter}
               onChange={(e) => { setDriverFilter(e.target.value); setCurrentPage(1); }}
               className="w-full py-2 px-3 bg-white border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
             >
-              <option value="all">Semua Pemandu</option>
-              <option value="unassigned">⚠️ Belum Ditugaskan</option>
+              <option value="all">All Drivers</option>
+              <option value="unassigned">⚠️ Unassigned</option>
               {drivers.map(d => (
                 <option key={d.id} value={d.id}>{d.name}</option>
               ))}
             </select>
           </div>
 
-          {/* Kenderaan */}
+          {/* Vehicle */}
           <div>
-            <label className="block font-bold text-gray-700 mb-1">Kenderaan</label>
+            <label className="block font-bold text-gray-700 mb-1">Vehicle</label>
             <select
               value={vehicleFilter}
               onChange={(e) => { setVehicleFilter(e.target.value); setCurrentPage(1); }}
               className="w-full py-2 px-3 bg-white border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
             >
-              <option value="all">Semua Kenderaan</option>
-              <option value="unassigned">⚠️ Belum Ditetapkan</option>
+              <option value="all">All Vehicles</option>
+              <option value="unassigned">⚠️ Unassigned</option>
               {vehicles.map(v => (
                 <option key={v.id} value={v.id}>{v.name} ({v.plateNumber})</option>
               ))}
             </select>
           </div>
 
-          {/* Servis */}
+          {/* Service */}
           <div>
-            <label className="block font-bold text-gray-700 mb-1">Jenis Servis</label>
+            <label className="block font-bold text-gray-700 mb-1">Service Type</label>
             <select
               value={serviceFilter}
               onChange={(e) => { setServiceFilter(e.target.value); setCurrentPage(1); }}
               className="w-full py-2 px-3 bg-white border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
             >
-              <option value="all">Semua Servis</option>
-              <option value="Chauffeur">Perlu Pemandu (Chauffeur)</option>
-              <option value="Self-Drive">Pandu Sendiri (Self-Drive)</option>
+              <option value="all">All Services</option>
+              <option value="Chauffeur">Chauffeur (Driver Required)</option>
+              <option value="Self-Drive">Self-Drive</option>
             </select>
           </div>
         </div>
@@ -647,14 +647,14 @@ export const BookingManagementList: React.FC = () => {
         {/* Custom Date Range Picker when datePreset === 'custom' */}
         {datePreset === 'custom' && (
           <div className="pt-2 border-t border-gray-100 flex items-center gap-3 text-xs">
-            <span className="font-bold text-gray-700">Dari:</span>
+            <span className="font-bold text-gray-700">From:</span>
             <input
               type="date"
               value={customStartDate}
               onChange={(e) => { setCustomStartDate(e.target.value); setCurrentPage(1); }}
               className="py-1.5 px-3 border border-gray-300 rounded-md"
             />
-            <span className="font-bold text-gray-700">Hingga:</span>
+            <span className="font-bold text-gray-700">To:</span>
             <input
               type="date"
               value={customEndDate}
@@ -667,7 +667,7 @@ export const BookingManagementList: React.FC = () => {
         {/* Reset Filter Action */}
         {(searchQuery || statusFilter !== 'all' || driverFilter !== 'all' || vehicleFilter !== 'all' || serviceFilter !== 'all' || datePreset !== 'all') && (
           <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs text-gray-500">
-            <span>Menapis <strong>{filteredBookings.length}</strong> daripada {bookings.length} jumlah keseluruhan</span>
+            <span>Showing <strong>{filteredBookings.length}</strong> of {bookings.length} total records</span>
             <button
               onClick={() => {
                 setSearchQuery('');
@@ -682,7 +682,7 @@ export const BookingManagementList: React.FC = () => {
               }}
               className="text-indigo-600 hover:text-indigo-800 font-bold hover:underline"
             >
-              Set Semula Semua Penapis
+              Reset All Filters
             </button>
           </div>
         )}
@@ -693,10 +693,10 @@ export const BookingManagementList: React.FC = () => {
         <div className="sticky top-4 z-30 bg-gray-900 text-white rounded-2xl p-4 shadow-xl border border-gray-800 flex flex-wrap items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2">
           <div className="flex items-center gap-3">
             <span className="bg-indigo-600 text-white font-mono font-bold text-xs px-3 py-1 rounded-full">
-              {selectedIds.length} Dipilih
+              {selectedIds.length} Selected
             </span>
             <span className="text-sm font-semibold text-gray-200">
-              Tindakan Pukal (Bulk Actions):
+              Bulk Actions:
             </span>
           </div>
 
@@ -707,7 +707,7 @@ export const BookingManagementList: React.FC = () => {
               className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition flex items-center gap-1.5"
             >
               <UserCircleIcon className="h-4 w-4" />
-              Tugaskan Pemandu & Kenderaan
+              Assign Driver & Vehicle
             </button>
 
             {/* BULK CONFIRM */}
@@ -715,7 +715,7 @@ export const BookingManagementList: React.FC = () => {
               onClick={() => handleBulkStatusChange('Confirmed')}
               className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition"
             >
-              Sahkan (Confirmed)
+              Mark Confirmed
             </button>
 
             {/* BULK COMPLETE */}
@@ -723,7 +723,7 @@ export const BookingManagementList: React.FC = () => {
               onClick={() => handleBulkStatusChange('Completed')}
               className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg transition"
             >
-              Tanda Selesai
+              Mark Completed
             </button>
 
             {/* BULK CSV EXPORT */}
@@ -732,7 +732,7 @@ export const BookingManagementList: React.FC = () => {
               className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold rounded-lg transition flex items-center gap-1"
             >
               <DocumentDownloadIcon className="h-4 w-4" />
-              Eksport ({selectedIds.length})
+              Export ({selectedIds.length})
             </button>
 
             {/* BULK DELETE */}
@@ -741,7 +741,7 @@ export const BookingManagementList: React.FC = () => {
               className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-lg transition flex items-center gap-1"
             >
               <TrashIcon className="h-4 w-4" />
-              Padam Terpilih
+              Delete Selected
             </button>
 
             {/* DESELECT */}
@@ -749,7 +749,7 @@ export const BookingManagementList: React.FC = () => {
               onClick={handleClearSelection}
               className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-semibold rounded-lg transition"
             >
-              Nyahpilih
+              Deselect All
             </button>
           </div>
         </div>
@@ -761,9 +761,9 @@ export const BookingManagementList: React.FC = () => {
           <div className="mx-auto w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 mb-3">
             <SearchIcon className="h-6 w-6" />
           </div>
-          <h3 className="text-base font-bold text-gray-800">Tiada Tempahan Dijumpai</h3>
+          <h3 className="text-base font-bold text-gray-800">No Bookings Found</h3>
           <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
-            Tiada rekod tempahan yang sepadan dengan carian atau penapis anda. Cuba ubah kata kunci carian atau tetapkan semula penapis.
+            No booking records match your current filters or search keywords. Try adjusting your query or resetting filters.
           </p>
         </div>
       ) : viewMode === 'table' ? (
@@ -779,16 +779,16 @@ export const BookingManagementList: React.FC = () => {
                       checked={allCurrentPageSelected}
                       onChange={handleToggleSelectAll}
                       className="h-4 w-4 rounded text-indigo-600 border-gray-300 focus:ring-indigo-500 cursor-pointer"
-                      title="Pilih Semua Halaman Ini"
+                      title="Select all on this page"
                     />
                   </th>
-                  <th className="py-3.5 px-3">Tarikh & Masa</th>
-                  <th className="py-3.5 px-3">Pemohon & Jabatan</th>
-                  <th className="py-3.5 px-3">Laluan Perjalanan</th>
-                  <th className="py-3.5 px-3">Penumpang</th>
-                  <th className="py-3.5 px-3">Pemandu & Kenderaan</th>
+                  <th className="py-3.5 px-3">Date & Time</th>
+                  <th className="py-3.5 px-3">Requester & Dept</th>
+                  <th className="py-3.5 px-3">Route / Trip</th>
+                  <th className="py-3.5 px-3">Passengers</th>
+                  <th className="py-3.5 px-3">Driver & Vehicle</th>
                   <th className="py-3.5 px-3">Status</th>
-                  <th className="py-3.5 pr-4 pl-3 text-right">Tindakan</th>
+                  <th className="py-3.5 pr-4 pl-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-150 text-gray-700">
@@ -797,7 +797,7 @@ export const BookingManagementList: React.FC = () => {
                   const dt = parseAsLocal(b.dateTime);
                   const finishDt = b.finishDateTime ? parseAsLocal(b.finishDateTime) : null;
                   
-                  const dateFormatted = dt.toLocaleDateString('ms-MY', {
+                  const dateFormatted = dt.toLocaleDateString('en-GB', {
                     day: 'numeric',
                     month: 'short',
                     year: 'numeric'
@@ -829,7 +829,7 @@ export const BookingManagementList: React.FC = () => {
                         />
                       </td>
 
-                      {/* TARIKH & MASA */}
+                      {/* DATE & TIME */}
                       <td className="py-3.5 px-3 whitespace-nowrap">
                         <div className="font-bold text-gray-900">{dateFormatted}</div>
                         <div className="text-gray-500 font-medium flex items-center gap-1 mt-0.5">
@@ -838,7 +838,7 @@ export const BookingManagementList: React.FC = () => {
                         </div>
                       </td>
 
-                      {/* PEMOHON */}
+                      {/* REQUESTER */}
                       <td className="py-3.5 px-3">
                         <div className="font-bold text-gray-900">{b.requesterName}</div>
                         {b.department && (
@@ -851,11 +851,11 @@ export const BookingManagementList: React.FC = () => {
                         )}
                       </td>
 
-                      {/* LALUAN */}
+                      {/* ROUTE */}
                       <td className="py-3.5 px-3 max-w-xs">
                         <div className="flex items-start gap-1">
                           <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-100">
-                            Mula
+                            From
                           </span>
                           <span className="font-semibold text-gray-800 line-clamp-1" title={pickupDisplay}>
                             {pickupDisplay}
@@ -863,7 +863,7 @@ export const BookingManagementList: React.FC = () => {
                         </div>
                         <div className="flex items-start gap-1 mt-1">
                           <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-100">
-                            Tuju
+                            To
                           </span>
                           <span className="font-bold text-gray-900 line-clamp-1" title={b.destination}>
                             {b.destination}
@@ -876,15 +876,15 @@ export const BookingManagementList: React.FC = () => {
                         )}
                       </td>
 
-                      {/* PENUMPANG */}
+                      {/* PASSENGERS */}
                       <td className="py-3.5 px-3 whitespace-nowrap">
-                        <span className="font-bold text-gray-800">{totalPax} orang</span>
+                        <span className="font-bold text-gray-800">{totalPax} pax</span>
                         <div className="text-[10px] text-gray-400">
-                          {b.serviceType === 'Self-Drive' ? 'Pandu Sendiri' : 'Pemandu'}
+                          {b.serviceType === 'Self-Drive' ? 'Self-Drive' : 'Chauffeur'}
                         </div>
                       </td>
 
-                      {/* PEMANDU & KENDERAAN */}
+                      {/* DRIVER & VEHICLE */}
                       <td className="py-3.5 px-3 whitespace-nowrap">
                         {driver ? (
                           <div className="flex items-center gap-1.5 font-bold text-gray-800">
@@ -893,14 +893,14 @@ export const BookingManagementList: React.FC = () => {
                           </div>
                         ) : (
                           <span className="text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200 text-[11px]">
-                            Belum Ditugaskan
+                            Unassigned
                           </span>
                         )}
                         <div className="text-gray-500 text-[11px] font-medium mt-0.5">
                           {vehicle ? (
                             <span>{vehicle.name} <strong className="font-mono text-gray-700">({vehicle.plateNumber})</strong></span>
                           ) : (
-                            <span className="text-gray-400">Tiada kenderaan</span>
+                            <span className="text-gray-400">No vehicle</span>
                           )}
                         </div>
                       </td>
@@ -910,13 +910,13 @@ export const BookingManagementList: React.FC = () => {
                         {getStatusBadge(b.status)}
                       </td>
 
-                      {/* TINDAKAN */}
+                      {/* ACTIONS */}
                       <td className="py-3.5 pr-4 pl-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => setDetailsBooking(b)}
                             className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition"
-                            title="Lihat Butiran Penuh"
+                            title="View Full Details"
                           >
                             <InformationCircleIcon className="h-4 w-4" />
                           </button>
@@ -926,14 +926,14 @@ export const BookingManagementList: React.FC = () => {
                               setIsFormOpen(true);
                             }}
                             className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition"
-                            title="Kemaskini Tempahan"
+                            title="Edit Booking"
                           >
                             <EditIcon className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => setDeleteConfirmState({ isOpen: true, isBulk: false, bookingId: b.id })}
                             className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition"
-                            title="Padam Tempahan"
+                            title="Delete Booking"
                           >
                             <TrashIcon className="h-4 w-4" />
                           </button>
@@ -983,9 +983,9 @@ export const BookingManagementList: React.FC = () => {
 
                   <div className="mt-3 space-y-2 text-xs">
                     <div>
-                      <span className="text-gray-400 font-bold block text-[10px] uppercase">Tarikh & Masa</span>
+                      <span className="text-gray-400 font-bold block text-[10px] uppercase">Date & Time</span>
                       <p className="font-bold text-gray-900 mt-0.5">
-                        {dt.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        {dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                         <span className="font-normal text-gray-500 ml-1">
                           ({dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
                           {finishDt ? ` – ${finishDt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}` : ''})
@@ -994,7 +994,7 @@ export const BookingManagementList: React.FC = () => {
                     </div>
 
                     <div>
-                      <span className="text-gray-400 font-bold block text-[10px] uppercase">Pemohon</span>
+                      <span className="text-gray-400 font-bold block text-[10px] uppercase">Requester</span>
                       <p className="font-bold text-gray-800">
                         {b.requesterName} {b.department ? `(${b.department})` : ''}
                       </p>
@@ -1005,17 +1005,17 @@ export const BookingManagementList: React.FC = () => {
                         <strong className="text-emerald-700 font-bold">Pickup:</strong> {pickupDisplay}
                       </p>
                       <p className="text-gray-800 font-bold">
-                        <strong className="text-blue-700 font-bold">Destinasi:</strong> {b.destination}
+                        <strong className="text-blue-700 font-bold">Destination:</strong> {b.destination}
                       </p>
                       {b.purpose && (
-                        <p className="text-gray-400 italic text-[11px]">Tujuan: {b.purpose}</p>
+                        <p className="text-gray-400 italic text-[11px]">Purpose: {b.purpose}</p>
                       )}
                     </div>
 
                     <div className="flex items-center justify-between text-[11px] pt-1">
-                      <span className="text-gray-500 font-semibold">{totalPax} Penumpang</span>
+                      <span className="text-gray-500 font-semibold">{totalPax} Passengers</span>
                       <span className="font-bold text-gray-700">
-                        {driver ? `Pemandu: ${driver.name}` : '⚠️ Belum Ada Pemandu'}
+                        {driver ? `Driver: ${driver.name}` : '⚠️ Unassigned'}
                       </span>
                     </div>
                   </div>
@@ -1026,7 +1026,7 @@ export const BookingManagementList: React.FC = () => {
                     onClick={() => setDetailsBooking(b)}
                     className="px-2.5 py-1 text-xs font-bold text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
                   >
-                    Butiran
+                    Details
                   </button>
                   <button
                     onClick={() => {
@@ -1041,7 +1041,7 @@ export const BookingManagementList: React.FC = () => {
                     onClick={() => setDeleteConfirmState({ isOpen: true, isBulk: false, bookingId: b.id })}
                     className="px-2.5 py-1 text-xs font-bold text-red-600 hover:bg-red-50 rounded-lg transition"
                   >
-                    Padam
+                    Delete
                   </button>
                 </div>
               </div>
@@ -1054,12 +1054,12 @@ export const BookingManagementList: React.FC = () => {
       {filteredBookings.length > 0 && (
         <div className="bg-white rounded-2xl border border-gray-200 p-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
           <div className="text-gray-600 font-medium">
-            Menunjukkan <strong>{(currentPage - 1) * pageSize + 1}</strong> hingga <strong>{Math.min(currentPage * pageSize, filteredBookings.length)}</strong> daripada <strong>{filteredBookings.length}</strong> tempahan
+            Showing <strong>{(currentPage - 1) * pageSize + 1}</strong> to <strong>{Math.min(currentPage * pageSize, filteredBookings.length)}</strong> of <strong>{filteredBookings.length}</strong> bookings
           </div>
 
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5">
-              <span className="text-gray-500 font-semibold">Baris per halaman:</span>
+              <span className="text-gray-500 font-semibold">Rows per page:</span>
               <select
                 value={pageSize}
                 onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
@@ -1078,7 +1078,7 @@ export const BookingManagementList: React.FC = () => {
                 onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                 className="px-3 py-1.5 border border-gray-300 rounded-lg font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
               >
-                Sebelum
+                Previous
               </button>
               <span className="px-3 py-1 font-bold text-gray-800">
                 {currentPage} / {totalPages}
@@ -1088,7 +1088,7 @@ export const BookingManagementList: React.FC = () => {
                 onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                 className="px-3 py-1.5 border border-gray-300 rounded-lg font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
               >
-                Seterusnya
+                Next
               </button>
             </div>
           </div>
@@ -1102,7 +1102,7 @@ export const BookingManagementList: React.FC = () => {
             <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-indigo-50/50">
               <div className="flex items-center gap-2">
                 <UserCircleIcon className="h-6 w-6 text-indigo-600" />
-                <h3 className="font-extrabold text-gray-900">Tugaskan Pemandu & Kenderaan</h3>
+                <h3 className="font-extrabold text-gray-900">Assign Driver & Vehicle</h3>
               </div>
               <button onClick={() => setIsBulkAssignOpen(false)} className="text-gray-400 hover:text-gray-600">
                 <XIcon className="h-5 w-5" />
@@ -1111,33 +1111,33 @@ export const BookingManagementList: React.FC = () => {
 
             <form onSubmit={handleBulkAssignSubmit} className="p-5 space-y-4 text-xs">
               <p className="text-gray-600">
-                Anda sedang menetapkan <strong>{selectedIds.length}</strong> tempahan terpilih kepada pemandu dan kenderaan berikut sekali gus.
+                You are assigning <strong>{selectedIds.length}</strong> selected booking(s) to the chosen driver and vehicle.
               </p>
 
               <div>
-                <label className="block font-bold text-gray-700 mb-1.5">Pilih Pemandu</label>
+                <label className="block font-bold text-gray-700 mb-1.5">Select Driver</label>
                 <select
                   value={bulkAssignDriverId}
                   onChange={(e) => setBulkAssignDriverId(e.target.value)}
                   required
                   className="w-full py-2.5 px-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 font-medium text-sm"
                 >
-                  <option value="">-- Pilih Pemandu --</option>
+                  <option value="">-- Select Driver --</option>
                   {drivers.map(d => (
-                    <option key={d.id} value={d.id}>{d.name} ({d.phone || 'Tiada Tel'})</option>
+                    <option key={d.id} value={d.id}>{d.name} ({d.phone || 'No phone'})</option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <label className="block font-bold text-gray-700 mb-1.5">Pilih Kenderaan</label>
+                <label className="block font-bold text-gray-700 mb-1.5">Select Vehicle</label>
                 <select
                   value={bulkAssignVehicleId}
                   onChange={(e) => setBulkAssignVehicleId(e.target.value)}
                   required
                   className="w-full py-2.5 px-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 font-medium text-sm"
                 >
-                  <option value="">-- Pilih Kenderaan --</option>
+                  <option value="">-- Select Vehicle --</option>
                   {vehicles.map(v => (
                     <option key={v.id} value={v.id}>{v.name} ({v.plateNumber})</option>
                   ))}
@@ -1150,13 +1150,13 @@ export const BookingManagementList: React.FC = () => {
                   onClick={() => setIsBulkAssignOpen(false)}
                   className="px-4 py-2 border border-gray-300 rounded-xl font-bold text-gray-700 hover:bg-gray-50"
                 >
-                  Batal
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-md transition"
                 >
-                  Tugaskan & Sahkan
+                  Assign & Confirm
                 </button>
               </div>
             </form>
@@ -1171,11 +1171,11 @@ export const BookingManagementList: React.FC = () => {
             <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4">
               <TrashIcon className="h-6 w-6" />
             </div>
-            <h3 className="text-lg font-extrabold text-gray-900">Sahkan Pemadaman</h3>
+            <h3 className="text-lg font-extrabold text-gray-900">Confirm Deletion</h3>
             <p className="text-xs text-gray-500 mt-2">
               {deleteConfirmState.isBulk
-                ? `Adakah anda pasti ingin memadam ${selectedIds.length} tempahan yang dipilih? Tindakan ini akan memadam rekod daripada pangkalan data dan kalendar.`
-                : `Adakah anda pasti ingin memadam tempahan ini? Tindakan ini tidak boleh diundur.`}
+                ? `Are you sure you want to delete ${selectedIds.length} selected booking(s)? This action will remove the record(s) from storage and the calendar.`
+                : `Are you sure you want to delete this booking? This action cannot be undone.`}
             </p>
             <div className="mt-6 flex items-center justify-center gap-3">
               <button
@@ -1183,14 +1183,14 @@ export const BookingManagementList: React.FC = () => {
                 onClick={() => setDeleteConfirmState({ isOpen: false, isBulk: false })}
                 className="px-4 py-2 border border-gray-300 rounded-xl font-bold text-gray-700 hover:bg-gray-50 text-xs"
               >
-                Batal
+                Cancel
               </button>
               <button
                 type="button"
                 onClick={handleConfirmDelete}
                 className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-xs shadow-md"
               >
-                Ya, Padam Sekarang
+                Yes, Delete Now
               </button>
             </div>
           </div>
@@ -1203,7 +1203,7 @@ export const BookingManagementList: React.FC = () => {
           <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
             <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-gray-50/60">
               <div className="flex items-center gap-2">
-                <span className="font-extrabold text-gray-900 text-base">Butiran Tempahan</span>
+                <span className="font-extrabold text-gray-900 text-base">Booking Details</span>
                 <span className="font-mono text-xs font-bold text-gray-500">#{detailsBooking.id.slice(-6).toUpperCase()}</span>
                 {getStatusBadge(detailsBooking.status)}
               </div>
@@ -1215,17 +1215,17 @@ export const BookingManagementList: React.FC = () => {
             <div className="p-6 overflow-y-auto space-y-4 text-xs">
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-100">
-                  <span className="text-gray-400 font-bold uppercase text-[10px] block">Pemohon</span>
+                  <span className="text-gray-400 font-bold uppercase text-[10px] block">Requester</span>
                   <p className="text-sm font-extrabold text-gray-900 mt-0.5">{detailsBooking.requesterName}</p>
-                  <p className="text-gray-600 mt-0.5">{detailsBooking.department || 'Tiada Jabatan'}</p>
-                  <p className="font-mono text-gray-500 mt-1">{detailsBooking.requesterPhone || 'Tiada Tel'}</p>
-                  <p className="text-gray-500">{detailsBooking.requesterEmail || 'Tiada Emel'}</p>
+                  <p className="text-gray-600 mt-0.5">{detailsBooking.department || 'No department'}</p>
+                  <p className="font-mono text-gray-500 mt-1">{detailsBooking.requesterPhone || 'No phone'}</p>
+                  <p className="text-gray-500">{detailsBooking.requesterEmail || 'No email'}</p>
                 </div>
 
                 <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-100">
-                  <span className="text-gray-400 font-bold uppercase text-[10px] block">Tarikh & Masa</span>
+                  <span className="text-gray-400 font-bold uppercase text-[10px] block">Date & Time</span>
                   <p className="text-sm font-extrabold text-gray-900 mt-0.5">
-                    {parseAsLocal(detailsBooking.dateTime).toLocaleDateString('ms-MY', {
+                    {parseAsLocal(detailsBooking.dateTime).toLocaleDateString('en-GB', {
                       weekday: 'long',
                       day: 'numeric',
                       month: 'long',
@@ -1239,86 +1239,86 @@ export const BookingManagementList: React.FC = () => {
                 </div>
               </div>
 
-              {/* LOKASI */}
+              {/* LOCATION */}
               <div className="bg-indigo-50/40 p-4 rounded-xl border border-indigo-100 space-y-2">
                 <div>
-                  <span className="text-emerald-700 font-bold uppercase text-[10px] block">Lokasi Ambil (Pickup)</span>
+                  <span className="text-emerald-700 font-bold uppercase text-[10px] block">Pickup Location</span>
                   <p className="font-extrabold text-gray-900 text-sm mt-0.5">
                     {getPickupLocationDisplay(detailsBooking.pickupPoint, detailsBooking.address)}
                   </p>
                 </div>
                 <div className="pt-2 border-t border-indigo-100/60">
-                  <span className="text-blue-700 font-bold uppercase text-[10px] block">Destinasi</span>
+                  <span className="text-blue-700 font-bold uppercase text-[10px] block">Destination</span>
                   <p className="font-extrabold text-gray-900 text-sm mt-0.5">{detailsBooking.destination}</p>
                   {detailsBooking.purpose && (
-                    <p className="text-gray-600 mt-1">Tujuan: {detailsBooking.purpose}</p>
+                    <p className="text-gray-600 mt-1">Purpose: {detailsBooking.purpose}</p>
                   )}
                 </div>
               </div>
 
-              {/* TUGASAN PEMANDU */}
+              {/* DRIVER ASSIGNMENT */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-3.5 rounded-xl border border-gray-200">
-                  <span className="text-gray-400 font-bold uppercase text-[10px] block">Pemandu Ditugaskan</span>
+                  <span className="text-gray-400 font-bold uppercase text-[10px] block">Assigned Driver</span>
                   {detailsBooking.driverId ? (
                     <div className="mt-1">
                       <p className="font-extrabold text-gray-900 text-sm">
-                        {users.find(u => u.id === detailsBooking.driverId)?.name || 'Pemandu'}
+                        {users.find(u => u.id === detailsBooking.driverId)?.name || 'Driver'}
                       </p>
                       <p className="text-gray-500">{users.find(u => u.id === detailsBooking.driverId)?.phone || ''}</p>
                     </div>
                   ) : (
-                    <p className="text-amber-600 font-bold mt-1">Belum Ditugaskan</p>
+                    <p className="text-amber-600 font-bold mt-1">Unassigned</p>
                   )}
                 </div>
 
                 <div className="p-3.5 rounded-xl border border-gray-200">
-                  <span className="text-gray-400 font-bold uppercase text-[10px] block">Kenderaan</span>
+                  <span className="text-gray-400 font-bold uppercase text-[10px] block">Vehicle</span>
                   {detailsBooking.vehicleId ? (
                     <div className="mt-1">
                       <p className="font-extrabold text-gray-900 text-sm">
-                        {vehicles.find(v => v.id === detailsBooking.vehicleId)?.name || 'Kenderaan'}
+                        {vehicles.find(v => v.id === detailsBooking.vehicleId)?.name || 'Vehicle'}
                       </p>
                       <p className="font-mono text-gray-700 font-bold">
                         {vehicles.find(v => v.id === detailsBooking.vehicleId)?.plateNumber || ''}
                       </p>
                     </div>
                   ) : (
-                    <p className="text-gray-400 font-medium mt-1">Tiada kenderaan ditetapkan</p>
+                    <p className="text-gray-400 font-medium mt-1">No vehicle assigned</p>
                   )}
                 </div>
               </div>
 
-              {/* PENUMPANG & CATATAN */}
+              {/* PASSENGERS & REMARKS */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100">
-                  <span className="font-bold text-gray-700">Jumlah Penumpang:</span>
+                  <span className="font-bold text-gray-700">Total Passengers:</span>
                   <span className="font-extrabold text-gray-900">
-                    {detailsBooking.passengers.reduce((sum, p) => sum + p.count, 0)} orang
+                    {detailsBooking.passengers.reduce((sum, p) => sum + p.count, 0)} pax
                   </span>
                 </div>
                 {detailsBooking.remarks && (
                   <div className="p-3 rounded-xl bg-amber-50/60 border border-amber-200 text-amber-950">
-                    <strong className="block text-[10px] uppercase tracking-wider font-extrabold">Catatan Pemohon:</strong>
+                    <strong className="block text-[10px] uppercase tracking-wider font-extrabold">Requester Notes:</strong>
                     <p className="mt-0.5">{detailsBooking.remarks}</p>
                   </div>
                 )}
                 {detailsBooking.adminNotes && (
                   <div className="p-3 rounded-xl bg-blue-50/60 border border-blue-200 text-blue-950">
-                    <strong className="block text-[10px] uppercase tracking-wider font-extrabold">Nota Admin:</strong>
+                    <strong className="block text-[10px] uppercase tracking-wider font-extrabold">Admin Notes:</strong>
                     <p className="mt-0.5">{detailsBooking.adminNotes}</p>
                   </div>
                 )}
                 {detailsBooking.attachmentUrl && (
                   <div className="p-3 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-between">
-                    <span className="font-bold text-gray-700">Lampiran Surat / Dokumen:</span>
+                    <span className="font-bold text-gray-700">Attachment / Document:</span>
                     <a
                       href={detailsBooking.attachmentUrl}
                       target="_blank"
                       rel="noreferrer"
                       className="text-indigo-600 font-bold hover:underline flex items-center gap-1"
                     >
-                      Buka Dokumen <ExternalLinkIcon className="h-3.5 w-3.5" />
+                      Open Document <ExternalLinkIcon className="h-3.5 w-3.5" />
                     </a>
                   </div>
                 )}
@@ -1331,7 +1331,7 @@ export const BookingManagementList: React.FC = () => {
                 onClick={() => setDetailsBooking(null)}
                 className="px-4 py-2 border border-gray-300 rounded-xl font-bold text-gray-700 hover:bg-gray-100"
               >
-                Tutup
+                Close
               </button>
               <button
                 type="button"
@@ -1343,7 +1343,7 @@ export const BookingManagementList: React.FC = () => {
                 }}
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-md"
               >
-                Kemaskini Tempahan
+                Edit Booking
               </button>
             </div>
           </div>

@@ -76,13 +76,13 @@ export const getPickupLocationDisplay = (
 
   if (isOtherPickup(cleanPickup)) {
     if (cleanAddress) {
-      // If address already has "Lokasi Lain" prefix, don't duplicate
-      if (/^lokasi\s+lain/i.test(cleanAddress) || /^lain-lain/i.test(cleanAddress)) {
+      // If address already has "Other Location" / "Lokasi Lain" prefix, don't duplicate
+      if (/^(other\s+location|lokasi\s+lain|lain-lain)/i.test(cleanAddress)) {
         return cleanAddress;
       }
-      return `Lokasi Lain (${cleanAddress})`;
+      return `Other Location (${cleanAddress})`;
     }
-    return 'Lokasi Lain';
+    return 'Other Location';
   }
 
   // If pickupPoint is empty but address is provided and not a known standard pickup
@@ -90,5 +90,5 @@ export const getPickupLocationDisplay = (
     return cleanAddress;
   }
 
-  return cleanPickup || 'Tidak Dinyatakan';
+  return cleanPickup || 'Not Specified';
 };

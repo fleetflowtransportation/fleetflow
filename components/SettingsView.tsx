@@ -40,43 +40,43 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
   const tabs: { id: SettingsSubTab; label: string; icon: React.ReactNode; badge?: string | number; description: string }[] = [
     {
       id: 'profile',
-      label: 'Profil Syarikat',
+      label: 'Organization Profile',
       icon: <BuildingOfficeIcon className="w-4 h-4" />,
-      description: 'Nama syarikat, alamat, nombor telefon & maklumat rasmi entiti',
+      description: 'Company name, address, contact numbers & official organization details',
     },
     {
       id: 'schedule',
-      label: 'Jadual Pemandu',
+      label: 'Driver Schedules',
       icon: <ClockIcon className="w-4 h-4" />,
       badge: scheduleCount > 0 ? scheduleCount : undefined,
-      description: 'Pengurusan syif, ketersediaan, waktu bertugas & jadual kerja pemandu',
+      description: 'Shift management, driver availability, on-duty hours & weekly rosters',
     },
     {
       id: 'users',
-      label: 'Pengguna & Pemandu',
+      label: 'Users & Drivers',
       icon: <UsersIcon className="w-4 h-4" />,
       badge: userCount,
-      description: 'Senarai akaun staf pentadbiran dan pemandu van',
+      description: 'Administrative staff accounts, roles, and driver profiles',
     },
     {
       id: 'vehicles',
-      label: 'Kenderaan',
+      label: 'Vehicles',
       icon: <TruckIcon className="w-4 h-4" />,
       badge: vehicleCount,
-      description: 'Pengurusan aset kenderaan, kapasiti tempat duduk & spesifikasi',
+      description: 'Fleet vehicle assets, seating capacity, plate numbers & specifications',
     },
     {
       id: 'archive',
-      label: 'Arkib Tempahan',
+      label: 'Booking Archive',
       icon: <ArchiveIcon className="w-4 h-4" />,
       badge: archivedCount,
-      description: 'Sejarah rekod tempahan lepas dan arkib arkib logistik',
+      description: 'Historical trip logs, past booking records & archived requests',
     },
     {
       id: 'integrations',
-      label: 'Integrasi & Sistem',
+      label: 'Integrations & System',
       icon: <AdjustmentsIcon className="w-4 h-4" />,
-      description: 'Google Calendar, Drive, Apps Script Webhook & pautan awam',
+      description: 'Google Calendar, Drive, Apps Script Webhook & public booking link',
     },
   ];
 
@@ -87,17 +87,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
         <div>
           <div className="flex items-center gap-2 text-xs font-bold text-indigo-600 uppercase tracking-wider mb-1">
             <SparklesIcon className="w-4 h-4" />
-            <span>Pusat Kawalan Pentadbir</span>
+            <span>Admin Control Center</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Tetapan & Pengurusan Sistem</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Settings & System Management</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Urus profil organisasi, jadual pemandu, pengguna, kenderaan, arkib rekod tempahan dan integrasi luaran.
+            Manage organization profile, driver schedules, users, vehicles, booking archives, and cloud integrations.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
-            6 Modul Pengurusan
+            6 Management Modules
           </span>
         </div>
       </div>

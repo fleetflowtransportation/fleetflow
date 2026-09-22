@@ -56,7 +56,7 @@ const TripCompletionForm: React.FC<TripCompletionFormProps> = ({ isOpen, onClose
     if (!booking) return;
 
     if (!booking.vehicleId && !selectedVehicleId) {
-      setError('Sila pilih kenderaan yang dibawa.');
+      setError('Please select the vehicle utilized for this trip.');
       return;
     }
 
@@ -100,19 +100,19 @@ const TripCompletionForm: React.FC<TripCompletionFormProps> = ({ isOpen, onClose
           
           {!booking.vehicleId && (
             <div>
-              <label className="block text-sm font-bold text-gray-700">Pilih Kenderaan Yang Digunakan *</label>
+              <label className="block text-sm font-bold text-gray-700">Select Vehicle Used *</label>
               <select
                 value={selectedVehicleId}
                 onChange={(e) => setSelectedVehicleId(e.target.value)}
                 required
                 className="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
               >
-                <option value="">-- Pilih Kenderaan --</option>
+                <option value="">-- Select Vehicle --</option>
                 {vehicles.map(v => (
                   <option key={v.id} value={v.id}>{v.name} ({v.plateNumber})</option>
                 ))}
               </select>
-              <p className="mt-1 text-xs text-amber-600">Tempahan ini didaftarkan sebagai "Bebas", sila pilih van yang anda bawa.</p>
+              <p className="mt-1 text-xs text-amber-600">This booking was submitted as "Unassigned / Flexible", please specify the vehicle used.</p>
             </div>
           )}
 
@@ -126,7 +126,7 @@ const TripCompletionForm: React.FC<TripCompletionFormProps> = ({ isOpen, onClose
               className="mt-1 block w-full border-gray-300 rounded-md shadow-sm" 
               placeholder="e.g., 123450"
             />
-            <p className="mt-1 text-xs text-gray-500">Auto-filled from vehicle's last reading.</p>
+            <p className="mt-1 text-xs text-gray-500">Auto-filled from vehicle's last recorded reading.</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">End Odometer (km)</label>
@@ -141,7 +141,7 @@ const TripCompletionForm: React.FC<TripCompletionFormProps> = ({ isOpen, onClose
           </div>
           <div className="pt-4 flex justify-end space-x-3">
             <button type="button" onClick={onClose} className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
-            <button type="submit" className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md">Confirm Completion</button>
+            <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg shadow-md">Confirm Completion</button>
           </div>
         </form>
       </div>

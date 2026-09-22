@@ -47,7 +47,7 @@ const Header: React.FC<HeaderProps> = ({ activeView, setActiveView }) => {
     
     const adminNavItems = [
         { view: 'dashboard', label: 'Dashboard', icon: <ViewGridIcon className="h-4 w-4" /> },
-        { view: 'bookings', label: 'Senarai Booking', icon: <ClipboardListIcon className="h-4 w-4" /> },
+        { view: 'bookings', label: 'Bookings', icon: <ClipboardListIcon className="h-4 w-4" /> },
         { view: 'calendar', label: 'Calendar', icon: <CalendarIcon className="h-4 w-4" /> },
         { view: 'reports', label: 'Logs', icon: <DocumentReportIcon className="h-4 w-4" /> },
         { view: 'issues', label: 'Issues', icon: <ExclamationIcon className="h-4 w-4" /> },
@@ -88,7 +88,7 @@ const Header: React.FC<HeaderProps> = ({ activeView, setActiveView }) => {
                                     <div className="text-left">
                                         <span className="text-xs sm:text-sm font-semibold block leading-tight">{currentUser.name}</span>
                                         <span className="text-[10px] text-indigo-300 uppercase font-medium block">
-                                            {currentUser.role === 'admin' ? 'Pentadbir Sistem' : currentUser.role === 'driver' ? 'Pemandu' : 'Staf'}
+                                            {currentUser.role === 'admin' ? 'System Administrator' : currentUser.role === 'driver' ? 'Driver' : 'Staff'}
                                         </span>
                                     </div>
                                 </div>
@@ -96,15 +96,15 @@ const Header: React.FC<HeaderProps> = ({ activeView, setActiveView }) => {
                                     onClick={logout}
                                     className="flex items-center bg-indigo-700/80 hover:bg-indigo-600 text-white font-medium p-2 sm:px-3 sm:py-2 rounded-xl text-sm transition border border-indigo-600 shadow-sm active:scale-95"
                                     aria-label="Logout"
-                                    title="Log Keluar"
+                                    title="Log Out"
                                 >
                                     <LogoutIcon className="h-5 w-5" />
-                                    <span className="hidden sm:inline ml-1.5 text-xs">Log Keluar</span>
+                                    <span className="hidden sm:inline ml-1.5 text-xs">Log Out</span>
                                 </button>
                             </div>
                         ) : (
                             <span className="text-xs sm:text-sm font-medium text-indigo-300 bg-indigo-800/60 px-3 py-1.5 rounded-xl border border-indigo-700">
-                                Pandangan Awam
+                                Public View
                             </span>
                         )}
                     </div>

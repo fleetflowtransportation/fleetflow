@@ -23,7 +23,7 @@ export const ProfileSettings: React.FC = () => {
   const isDirtyRef = React.useRef(false);
   const lastTenantIdRef = React.useRef<string | null>(null);
 
-  // Lock / Edit Mode Toggle (User explicitly requested edit/lock toggle)
+  // Lock / Edit Mode Toggle
   const [isEditing, setIsEditing] = useState(false);
 
   // Form state
@@ -40,7 +40,7 @@ export const ProfileSettings: React.FC = () => {
     return {
       companyName: activeTenant?.companyName || activeTenant?.name || 'Yayasan Chow Kit',
       registrationNumber: activeTenant?.registrationNumber || 'PPM-012-14-11012011',
-      description: activeTenant?.description || 'Pusat Perlindungan Kanak-kanak & Pengurusan Pengangkutan Kebajikan Chow Kit',
+      description: activeTenant?.description || 'Child Crisis Shelter & Community Welfare Transportation Management',
       phone: activeTenant?.phone || '+603-4045 5550',
       whatsapp: activeTenant?.whatsapp || '+6012-3456789',
       email: activeTenant?.email || 'info@yck.org.my',
@@ -49,7 +49,7 @@ export const ProfileSettings: React.FC = () => {
       postcode: activeTenant?.postcode || '50350',
       city: activeTenant?.city || 'Kuala Lumpur',
       state: activeTenant?.state || 'Wilayah Persekutuan Kuala Lumpur',
-      picName: activeTenant?.picName || 'En. Syafiq (Pengurus Pengangkutan)',
+      picName: activeTenant?.picName || 'En. Syafiq (Transport Coordinator)',
       picPhone: activeTenant?.picPhone || '+6012-3456789',
     };
   });
@@ -173,7 +173,7 @@ export const ProfileSettings: React.FC = () => {
 
         setSaveStatus({
           type: 'success',
-          message: 'Maklumat profil organisasi telah berjaya disimpan dan dikemaskini!',
+          message: 'Organization profile has been successfully saved and updated!',
         });
         setTimeout(() => {
           setSaveStatus({ type: null, message: '' });
@@ -181,13 +181,13 @@ export const ProfileSettings: React.FC = () => {
       } else {
         setSaveStatus({
           type: 'error',
-          message: 'Gagal mengemaskini profil. Sila periksa sambungan internet atau cuba sebentar lagi.',
+          message: 'Failed to update profile. Please verify your internet connection or try again.',
         });
       }
     } catch (err: any) {
       setSaveStatus({
         type: 'error',
-        message: err.message || 'Ralat semasa menyimpan profil organisasi.',
+        message: err.message || 'An error occurred while saving organization profile.',
       });
     } finally {
       setIsSaving(false);
@@ -196,7 +196,7 @@ export const ProfileSettings: React.FC = () => {
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
-    setCopyNotice(`Tersalin: ${label}`);
+    setCopyNotice(`Copied: ${label}`);
     setTimeout(() => {
       setCopyNotice(null);
     }, 3000);
@@ -204,18 +204,18 @@ export const ProfileSettings: React.FC = () => {
 
   const copyFullSummary = () => {
     const summary = [
-      `SYARIKAT: ${formData.companyName || 'Yayasan Chow Kit'}`,
-      formData.registrationNumber ? `NO. DAFTAR (SSM/ROS): ${formData.registrationNumber}` : null,
+      `ORGANIZATION: ${formData.companyName || 'Yayasan Chow Kit'}`,
+      formData.registrationNumber ? `REG NO. (SSM/ROS): ${formData.registrationNumber}` : null,
       formData.phone ? `TEL: ${formData.phone}` : null,
       formData.whatsapp ? `WHATSAPP: ${formData.whatsapp}` : null,
-      formData.email ? `EMEL: ${formData.email}` : null,
-      formData.website ? `LAMAN WEB: ${formData.website}` : null,
-      formData.address ? `ALAMAT: ${formData.address}${formData.postcode ? ', ' + formData.postcode : ''}${formData.city ? ' ' + formData.city : ''}${formData.state ? ', ' + formData.state : ''}` : null,
-      formData.picName ? `PIC: ${formData.picName} (${formData.picPhone || 'Tiada No.'})` : null,
-      formData.description ? `CATATAN: ${formData.description}` : null,
+      formData.email ? `EMAIL: ${formData.email}` : null,
+      formData.website ? `WEBSITE: ${formData.website}` : null,
+      formData.address ? `ADDRESS: ${formData.address}${formData.postcode ? ', ' + formData.postcode : ''}${formData.city ? ' ' + formData.city : ''}${formData.state ? ', ' + formData.state : ''}` : null,
+      formData.picName ? `PIC: ${formData.picName} (${formData.picPhone || 'No number'})` : null,
+      formData.description ? `NOTE: ${formData.description}` : null,
     ].filter(Boolean).join('\n');
 
-    copyToClipboard(summary, 'Ringkasan Penuh Profil');
+    copyToClipboard(summary, 'Full Profile Summary');
   };
 
   const handlePrint = () => {
@@ -241,7 +241,7 @@ export const ProfileSettings: React.FC = () => {
     'Terengganu'
   ];
 
-  // Clean WhatsApp phone number for link (e.g. removes +, -, spaces and prefixes with 60)
+  // Clean WhatsApp phone number for link
   const cleanWhatsAppNumber = (rawPhone?: string) => {
     if (!rawPhone) return '';
     let digits = rawPhone.replace(/\D/g, '');
@@ -267,13 +267,13 @@ export const ProfileSettings: React.FC = () => {
           <div className="space-y-2">
             <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-indigo-600/60 text-xs font-semibold uppercase tracking-wider text-indigo-100">
               <BuildingOfficeIcon className="w-4 h-4" />
-              <span>Profil Organisasi & Syarikat</span>
+              <span>Organization & Company Profile</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">
-              {formData.companyName || 'Maklumat Profil Organisasi'}
+              {formData.companyName || 'Organization Profile Information'}
             </h2>
             <p className="text-indigo-200 text-sm max-w-2xl">
-              Urus butiran rasmi organisasi, nombor perhubungan, alamat berdaftar, dan pegawai PIC. Maklumat ini disegerakkan secara berpusat dan digunapakai untuk semua dokumen rasmi, surat kebenaran, dan laporan armada.
+              Manage official organization details, contact numbers, registered address, and Person In Charge (PIC). Information is synchronized across all reports, authorization letters, and fleet records.
             </p>
           </div>
 
@@ -287,12 +287,12 @@ export const ProfileSettings: React.FC = () => {
               {isEditing ? (
                 <>
                   <LockOpenIcon className="w-4 h-4 text-amber-300 animate-pulse" />
-                  <span>Mod Suntingan Aktif</span>
+                  <span>Edit Mode Active</span>
                 </>
               ) : (
                 <>
                   <LockClosedIcon className="w-4 h-4 text-emerald-300" />
-                  <span>Mod Terkunci (Disimpan)</span>
+                  <span>Locked Mode (Saved)</span>
                 </>
               )}
             </div>
@@ -305,7 +305,7 @@ export const ProfileSettings: React.FC = () => {
                 className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-white text-indigo-900 font-semibold text-sm hover:bg-indigo-50 shadow-md hover:shadow-lg transition active:scale-95"
               >
                 <EditIcon className="w-4 h-4 mr-2 text-indigo-700" />
-                Kemaskini / Edit Profil
+                Edit / Update Profile
               </button>
             ) : (
               <button
@@ -313,7 +313,7 @@ export const ProfileSettings: React.FC = () => {
                 onClick={handleCancelEdit}
                 className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-sm border border-white/20 transition active:scale-95"
               >
-                Kunci Semula / Batal
+                Cancel / Re-lock
               </button>
             )}
           </div>
@@ -344,7 +344,7 @@ export const ProfileSettings: React.FC = () => {
           )}
           <div className="flex-1">
             <span className="text-sm font-semibold block">
-              {saveStatus.type === 'success' ? 'Berjaya Disimpan' : 'Ralat Penyimpanan'}
+              {saveStatus.type === 'success' ? 'Successfully Saved' : 'Save Error'}
             </span>
             <span className="text-xs text-gray-700">{saveStatus.message}</span>
           </div>
@@ -368,12 +368,12 @@ export const ProfileSettings: React.FC = () => {
                 </div>
                 <div>
                   <h4 className="text-sm font-bold">
-                    {isEditing ? 'Borang Dibuka Untuk Suntingan' : 'Borang Dalam Keadaan Terkunci'}
+                    {isEditing ? 'Form Unlocked for Editing' : 'Form is in Locked View'}
                   </h4>
                   <p className="text-xs opacity-80">
                     {isEditing 
-                      ? 'Anda boleh mengubah maklumat di bawah. Tekan butang "Simpan Profil Syarikat" untuk mengunci dan menyimpan ke pangkalan data.' 
-                      : 'Data telah disimpan dengan selamat. Tekan butang "Kemaskini / Edit" jika anda ingin membuat sebarang perubahan.'}
+                      ? 'You can modify the fields below. Click "Save & Lock Profile" to persist updates to the database.' 
+                      : 'Data is securely saved. Click "Edit / Update Profile" if you need to make changes.'}
                   </p>
                 </div>
               </div>
@@ -385,7 +385,7 @@ export const ProfileSettings: React.FC = () => {
                   className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition active:scale-95 flex-shrink-0"
                 >
                   <EditIcon className="w-3.5 h-3.5 mr-1.5" />
-                  Buka Kunci Untuk Edit
+                  Unlock to Edit
                 </button>
               ) : (
                 <div className="flex items-center gap-2 flex-shrink-0">
@@ -394,7 +394,7 @@ export const ProfileSettings: React.FC = () => {
                     onClick={handleCancelEdit}
                     className="px-3 py-1.5 rounded-lg bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs font-medium transition"
                   >
-                    Batal
+                    Cancel
                   </button>
                   <button
                     type="submit"
@@ -402,7 +402,7 @@ export const ProfileSettings: React.FC = () => {
                     className="inline-flex items-center px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition disabled:opacity-50"
                   >
                     <CheckCircleIcon className="w-3.5 h-3.5 mr-1.5" />
-                    {isSaving ? 'Menyimpan...' : 'Simpan Sekarang'}
+                    {isSaving ? 'Saving...' : 'Save Now'}
                   </button>
                 </div>
               )}
@@ -413,11 +413,11 @@ export const ProfileSettings: React.FC = () => {
               <div className="flex items-center justify-between border-b border-gray-100 pb-3">
                 <div className="flex items-center gap-2">
                   <BuildingOfficeIcon className="w-5 h-5 text-indigo-600" />
-                  <h3 className="text-base font-semibold text-gray-900">Maklumat Asas Syarikat & Organisasi</h3>
+                  <h3 className="text-base font-semibold text-gray-900">Basic Organization Details</h3>
                 </div>
                 {!isEditing && (
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                    <LockClosedIcon className="w-3.5 h-3.5" /> Terkunci
+                    <LockClosedIcon className="w-3.5 h-3.5" /> Locked
                   </span>
                 )}
               </div>
@@ -425,7 +425,7 @@ export const ProfileSettings: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
                   <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
-                    Nama Penuh Syarikat / Pertubuhan <span className="text-red-500">*</span>
+                    Full Organization / Company Name <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -434,7 +434,7 @@ export const ProfileSettings: React.FC = () => {
                     onChange={handleChange}
                     disabled={!isEditing}
                     required
-                    placeholder="cth. Yayasan Chow Kit / Syarikat Pengangkutan Logistik Sdn Bhd"
+                    placeholder="e.g. Yayasan Chow Kit / Apex Logistics Sdn Bhd"
                     className={`w-full px-3.5 py-2.5 rounded-lg border text-sm transition ${
                       !isEditing 
                         ? 'bg-gray-50/70 border-gray-200 text-gray-800 font-medium cursor-not-allowed' 
@@ -445,7 +445,7 @@ export const ProfileSettings: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
-                    No. Pendaftaran (SSM / ROS / Pertubuhan)
+                    Registration Number (SSM / ROS / Org No.)
                   </label>
                   <input
                     type="text"
@@ -453,7 +453,7 @@ export const ProfileSettings: React.FC = () => {
                     value={formData.registrationNumber || ''}
                     onChange={handleChange}
                     disabled={!isEditing}
-                    placeholder="cth. PPM-012-14-11012011 / 202301012345"
+                    placeholder="e.g. PPM-012-14-11012011 / 202301012345"
                     className={`w-full px-3.5 py-2.5 rounded-lg border text-sm transition ${
                       !isEditing 
                         ? 'bg-gray-50/70 border-gray-200 text-gray-800 font-mono cursor-not-allowed' 
@@ -464,7 +464,7 @@ export const ProfileSettings: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
-                    Laman Web Rasmi (Website URL)
+                    Official Website URL
                   </label>
                   <input
                     type="url"
@@ -472,7 +472,7 @@ export const ProfileSettings: React.FC = () => {
                     value={formData.website || ''}
                     onChange={handleChange}
                     disabled={!isEditing}
-                    placeholder="cth. https://www.yck.org.my"
+                    placeholder="e.g. https://www.yck.org.my"
                     className={`w-full px-3.5 py-2.5 rounded-lg border text-sm transition ${
                       !isEditing 
                         ? 'bg-gray-50/70 border-gray-200 text-gray-800 cursor-not-allowed' 
@@ -483,7 +483,7 @@ export const ProfileSettings: React.FC = () => {
 
                 <div className="md:col-span-2">
                   <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
-                    Penerangan Ringkas / Objektif Operasi
+                    Brief Description / Mission Statement
                   </label>
                   <textarea
                     name="description"
@@ -491,7 +491,7 @@ export const ProfileSettings: React.FC = () => {
                     value={formData.description || ''}
                     onChange={handleChange}
                     disabled={!isEditing}
-                    placeholder="cth. Pusat perlindungan & perkhidmatan kebajikan kanak-kanak dan keluarga."
+                    placeholder="e.g. Child protection center & community welfare transport services."
                     className={`w-full px-3.5 py-2.5 rounded-lg border text-sm transition ${
                       !isEditing 
                         ? 'bg-gray-50/70 border-gray-200 text-gray-800 cursor-not-allowed' 
@@ -507,11 +507,11 @@ export const ProfileSettings: React.FC = () => {
               <div className="flex items-center justify-between border-b border-gray-100 pb-3">
                 <div className="flex items-center gap-2">
                   <PhoneIcon className="w-5 h-5 text-indigo-600" />
-                  <h3 className="text-base font-semibold text-gray-900">Maklumat Perhubungan Rasmi</h3>
+                  <h3 className="text-base font-semibold text-gray-900">Official Contact Channels</h3>
                 </div>
                 {!isEditing && (
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                    <LockClosedIcon className="w-3.5 h-3.5" /> Terkunci
+                    <LockClosedIcon className="w-3.5 h-3.5" /> Locked
                   </span>
                 )}
               </div>
@@ -519,7 +519,7 @@ export const ProfileSettings: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
-                    No. Telefon Pejabat
+                    Office Phone Number
                   </label>
                   <input
                     type="tel"
@@ -527,7 +527,7 @@ export const ProfileSettings: React.FC = () => {
                     value={formData.phone || ''}
                     onChange={handleChange}
                     disabled={!isEditing}
-                    placeholder="cth. +603-4045 5550"
+                    placeholder="e.g. +603-4045 5550"
                     className={`w-full px-3.5 py-2.5 rounded-lg border text-sm transition ${
                       !isEditing 
                         ? 'bg-gray-50/70 border-gray-200 text-gray-800 cursor-not-allowed' 
@@ -538,7 +538,7 @@ export const ProfileSettings: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
-                    No. Hotline / WhatsApp
+                    Hotline / WhatsApp Number
                   </label>
                   <input
                     type="tel"
@@ -546,7 +546,7 @@ export const ProfileSettings: React.FC = () => {
                     value={formData.whatsapp || ''}
                     onChange={handleChange}
                     disabled={!isEditing}
-                    placeholder="cth. +6012-3456789"
+                    placeholder="e.g. +6012-3456789"
                     className={`w-full px-3.5 py-2.5 rounded-lg border text-sm transition ${
                       !isEditing 
                         ? 'bg-gray-50/70 border-gray-200 text-gray-800 cursor-not-allowed' 
@@ -557,7 +557,7 @@ export const ProfileSettings: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
-                    Emel Rasmi Organisasi
+                    Official Organization Email
                   </label>
                   <input
                     type="email"
@@ -565,7 +565,7 @@ export const ProfileSettings: React.FC = () => {
                     value={formData.email || ''}
                     onChange={handleChange}
                     disabled={!isEditing}
-                    placeholder="cth. info@yck.org.my"
+                    placeholder="e.g. info@yck.org.my"
                     className={`w-full px-3.5 py-2.5 rounded-lg border text-sm transition ${
                       !isEditing 
                         ? 'bg-gray-50/70 border-gray-200 text-gray-800 cursor-not-allowed' 
@@ -581,11 +581,11 @@ export const ProfileSettings: React.FC = () => {
               <div className="flex items-center justify-between border-b border-gray-100 pb-3">
                 <div className="flex items-center gap-2">
                   <LocationMarkerIcon className="w-5 h-5 text-indigo-600" />
-                  <h3 className="text-base font-semibold text-gray-900">Alamat Ibu Pejabat & Lokasi Operasi</h3>
+                  <h3 className="text-base font-semibold text-gray-900">Headquarters & Operating Address</h3>
                 </div>
                 {!isEditing && (
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                    <LockClosedIcon className="w-3.5 h-3.5" /> Terkunci
+                    <LockClosedIcon className="w-3.5 h-3.5" /> Locked
                   </span>
                 )}
               </div>
@@ -593,7 +593,7 @@ export const ProfileSettings: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="md:col-span-3">
                   <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
-                    Alamat Lengkap (Jalan, Blok, Bangunan)
+                    Full Street Address (Building, Street, Unit)
                   </label>
                   <textarea
                     name="address"
@@ -601,7 +601,7 @@ export const ProfileSettings: React.FC = () => {
                     value={formData.address || ''}
                     onChange={handleChange}
                     disabled={!isEditing}
-                    placeholder="cth. No. 22B, Jalan Chow Kit"
+                    placeholder="e.g. No. 22B, Jalan Chow Kit"
                     className={`w-full px-3.5 py-2.5 rounded-lg border text-sm transition ${
                       !isEditing 
                         ? 'bg-gray-50/70 border-gray-200 text-gray-800 cursor-not-allowed' 
@@ -612,7 +612,7 @@ export const ProfileSettings: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
-                    Poskod
+                    Postal Code
                   </label>
                   <input
                     type="text"
@@ -621,7 +621,7 @@ export const ProfileSettings: React.FC = () => {
                     value={formData.postcode || ''}
                     onChange={handleChange}
                     disabled={!isEditing}
-                    placeholder="cth. 50350"
+                    placeholder="e.g. 50350"
                     className={`w-full px-3.5 py-2.5 rounded-lg border text-sm transition ${
                       !isEditing 
                         ? 'bg-gray-50/70 border-gray-200 text-gray-800 font-mono cursor-not-allowed' 
@@ -632,7 +632,7 @@ export const ProfileSettings: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
-                    Bandar
+                    City
                   </label>
                   <input
                     type="text"
@@ -640,7 +640,7 @@ export const ProfileSettings: React.FC = () => {
                     value={formData.city || ''}
                     onChange={handleChange}
                     disabled={!isEditing}
-                    placeholder="cth. Kuala Lumpur"
+                    placeholder="e.g. Kuala Lumpur"
                     className={`w-full px-3.5 py-2.5 rounded-lg border text-sm transition ${
                       !isEditing 
                         ? 'bg-gray-50/70 border-gray-200 text-gray-800 cursor-not-allowed' 
@@ -651,7 +651,7 @@ export const ProfileSettings: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
-                    Negeri
+                    State / Province
                   </label>
                   <select
                     name="state"
@@ -664,7 +664,7 @@ export const ProfileSettings: React.FC = () => {
                         : 'bg-white border-gray-300 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
                     }`}
                   >
-                    <option value="">Pilih Negeri</option>
+                    <option value="">Select State</option>
                     {malaysianStates.map(st => (
                       <option key={st} value={st}>{st}</option>
                     ))}
@@ -678,11 +678,11 @@ export const ProfileSettings: React.FC = () => {
               <div className="flex items-center justify-between border-b border-gray-100 pb-3">
                 <div className="flex items-center gap-2">
                   <UserCircleIcon className="w-5 h-5 text-indigo-600" />
-                  <h3 className="text-base font-semibold text-gray-900">Pegawai Dihubungi (Person In Charge - PIC)</h3>
+                  <h3 className="text-base font-semibold text-gray-900">Person In Charge (PIC) & Officer</h3>
                 </div>
                 {!isEditing && (
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                    <LockClosedIcon className="w-3.5 h-3.5" /> Terkunci
+                    <LockClosedIcon className="w-3.5 h-3.5" /> Locked
                   </span>
                 )}
               </div>
@@ -690,7 +690,7 @@ export const ProfileSettings: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
-                    Nama Pegawai / PIC
+                    PIC Full Name & Title
                   </label>
                   <input
                     type="text"
@@ -698,7 +698,7 @@ export const ProfileSettings: React.FC = () => {
                     value={formData.picName || ''}
                     onChange={handleChange}
                     disabled={!isEditing}
-                    placeholder="cth. En. Syafiq (Pengurus Pengangkutan)"
+                    placeholder="e.g. En. Syafiq (Transport Coordinator)"
                     className={`w-full px-3.5 py-2.5 rounded-lg border text-sm transition ${
                       !isEditing 
                         ? 'bg-gray-50/70 border-gray-200 text-gray-800 cursor-not-allowed' 
@@ -709,7 +709,7 @@ export const ProfileSettings: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
-                    No. Telefon Bimbit PIC
+                    PIC Mobile Phone Number
                   </label>
                   <input
                     type="tel"
@@ -717,7 +717,7 @@ export const ProfileSettings: React.FC = () => {
                     value={formData.picPhone || ''}
                     onChange={handleChange}
                     disabled={!isEditing}
-                    placeholder="cth. +6012-3456789"
+                    placeholder="e.g. +6012-3456789"
                     className={`w-full px-3.5 py-2.5 rounded-lg border text-sm transition ${
                       !isEditing 
                         ? 'bg-gray-50/70 border-gray-200 text-gray-800 cursor-not-allowed' 
@@ -738,7 +738,7 @@ export const ProfileSettings: React.FC = () => {
                     className="inline-flex items-center px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm shadow-sm transition active:scale-95"
                   >
                     <EditIcon className="w-4 h-4 mr-2" />
-                    Buka Borang & Edit Profil
+                    Edit / Update Profile
                   </button>
                 ) : (
                   <button
@@ -746,7 +746,7 @@ export const ProfileSettings: React.FC = () => {
                     onClick={handleCancelEdit}
                     className="inline-flex items-center px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-sm transition active:scale-95"
                   >
-                    Batal Perubahan
+                    Cancel Changes
                   </button>
                 )}
               </div>
@@ -763,12 +763,12 @@ export const ProfileSettings: React.FC = () => {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
-                      Menyimpan Maklumat...
+                      Saving Details...
                     </>
                   ) : (
                     <>
                       <CheckCircleIcon className="w-5 h-5 mr-2" />
-                      Simpan & Kunci Profil
+                      Save & Lock Profile
                     </>
                   )}
                 </button>
@@ -785,11 +785,11 @@ export const ProfileSettings: React.FC = () => {
             <div className="flex items-center justify-between pb-4 border-b border-gray-100">
               <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 flex items-center gap-1.5">
                 <SparklesIcon className="w-4 h-4 text-indigo-600" />
-                Kad Pratonton Profil Rasmi
+                Live Profile Card Preview
               </span>
               <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                Terkini & Aktif
+                Active & Verified
               </span>
             </div>
 
@@ -799,7 +799,7 @@ export const ProfileSettings: React.FC = () => {
                 <div className="flex items-start justify-between gap-2">
                   <div className="space-y-1">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-100/80 px-2 py-0.5 rounded">
-                      Entiti Organisasi
+                      Organization Entity
                     </span>
                     <h4 className="font-bold text-gray-900 text-lg leading-snug">
                       {formData.companyName || 'Yayasan Chow Kit'}
@@ -813,14 +813,14 @@ export const ProfileSettings: React.FC = () => {
                 {formData.registrationNumber && (
                   <div className="flex items-center justify-between bg-white/80 backdrop-blur-sm px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs">
                     <span className="text-gray-500 font-mono text-[11px]">
-                      No. Daftar: {formData.registrationNumber}
+                      Reg No.: {formData.registrationNumber}
                     </span>
                     <button
                       type="button"
-                      onClick={() => copyToClipboard(formData.registrationNumber!, 'No. Pendaftaran')}
+                      onClick={() => copyToClipboard(formData.registrationNumber!, 'Registration Number')}
                       className="text-[10px] font-semibold text-indigo-600 hover:text-indigo-800"
                     >
-                      Salin
+                      Copy
                     </button>
                   </div>
                 )}
@@ -840,16 +840,16 @@ export const ProfileSettings: React.FC = () => {
                   <PhoneIcon className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
                   <div className="flex-1 space-y-1">
                     <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 block">
-                      Talian Perhubungan
+                      Contact Channels
                     </span>
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-gray-900">{formData.phone || 'Tiada No. Telefon'}</span>
+                      <span className="font-semibold text-gray-900">{formData.phone || 'No phone number'}</span>
                       {formData.phone && (
                         <a 
                           href={`tel:${formData.phone}`} 
                           className="text-[11px] font-semibold text-indigo-600 hover:underline"
                         >
-                          Panggil
+                          Call
                         </a>
                       )}
                     </div>
@@ -865,7 +865,7 @@ export const ProfileSettings: React.FC = () => {
                           rel="noreferrer"
                           className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold hover:bg-emerald-200 transition"
                         >
-                          Chat WhatsApp
+                          WhatsApp Chat
                         </a>
                       </div>
                     )}
@@ -877,16 +877,16 @@ export const ProfileSettings: React.FC = () => {
                   <MailIcon className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
                   <div className="flex-1 space-y-0.5">
                     <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 block">
-                      Emel Rasmi
+                      Official Email
                     </span>
                     <div className="flex items-center justify-between">
-                      <span className="text-gray-900 font-medium break-all">{formData.email || 'Tiada Emel Diisi'}</span>
+                      <span className="text-gray-900 font-medium break-all">{formData.email || 'No email specified'}</span>
                       {formData.email && (
                         <a 
                           href={`mailto:${formData.email}`} 
                           className="text-[11px] font-semibold text-indigo-600 hover:underline ml-2"
                         >
-                          Hantar
+                          Send Email
                         </a>
                       )}
                     </div>
@@ -899,7 +899,7 @@ export const ProfileSettings: React.FC = () => {
                     <GlobeAltIcon className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
                     <div className="flex-1 space-y-0.5">
                       <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 block">
-                        Laman Web
+                        Official Website
                       </span>
                       <a 
                         href={formData.website} 
@@ -918,12 +918,12 @@ export const ProfileSettings: React.FC = () => {
                   <LocationMarkerIcon className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
                   <div className="flex-1 space-y-1">
                     <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 block">
-                      Alamat Pejabat
+                      Headquarters Address
                     </span>
                     <p className="text-gray-800 leading-relaxed font-medium">
                       {formData.address 
                         ? `${formData.address}${formData.postcode ? ', ' + formData.postcode : ''}${formData.city ? ' ' + formData.city : ''}${formData.state ? ', ' + formData.state : ''}`
-                        : 'Tiada alamat diisi'}
+                        : 'No address specified'}
                     </p>
                     {formData.address && (
                       <a
@@ -932,7 +932,7 @@ export const ProfileSettings: React.FC = () => {
                         rel="noreferrer"
                         className="inline-flex items-center text-[11px] font-semibold text-indigo-600 hover:underline pt-0.5"
                       >
-                        📍 Buka di Google Maps
+                        📍 Open in Google Maps
                       </a>
                     )}
                   </div>
@@ -944,7 +944,7 @@ export const ProfileSettings: React.FC = () => {
                     <UserCircleIcon className="w-5 h-5 text-indigo-600 mt-0.5 flex-shrink-0" />
                     <div className="flex-1">
                       <span className="text-[10px] uppercase font-bold text-indigo-700 block">
-                        Pegawai Bertugas (PIC)
+                        Person In Charge (PIC)
                       </span>
                       <span className="font-bold text-gray-900 block text-xs">{formData.picName}</span>
                       {formData.picPhone && (
@@ -954,7 +954,7 @@ export const ProfileSettings: React.FC = () => {
                             href={`tel:${formData.picPhone}`}
                             className="text-[10px] font-semibold text-indigo-600 hover:underline"
                           >
-                            Hubungi
+                            Call PIC
                           </a>
                         </div>
                       )}
@@ -972,7 +972,7 @@ export const ProfileSettings: React.FC = () => {
                 className="w-full inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs transition active:scale-95"
               >
                 <ClipboardCheckIcon className="w-4 h-4 mr-2 text-slate-600" />
-                Salin Ringkasan Profil
+                Copy Profile Summary
               </button>
 
               <button
@@ -981,13 +981,13 @@ export const ProfileSettings: React.FC = () => {
                 className="w-full inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-xs transition active:scale-95"
               >
                 <PrinterIcon className="w-4 h-4 mr-2 text-indigo-600" />
-                Cetak Kad Profil Syarikat
+                Print Profile Sheet
               </button>
             </div>
 
             {/* Note */}
             <div className="p-3 bg-indigo-50/70 rounded-xl text-[11px] text-indigo-800 leading-relaxed border border-indigo-100">
-              💡 Maklumat profil ini disimpan secara selamat di awan dan digunakan secara automatik dalam cetakan surat, laporan logistik, dan pengesahan tempahan.
+              💡 Profile details are securely saved in cloud storage and automatically populated in printed trip reports, authorization letters, and booking dispatch records.
             </div>
           </div>
         </div>

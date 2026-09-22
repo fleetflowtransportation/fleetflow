@@ -3,10 +3,10 @@ import { useAppContext } from '../context/AppContext';
 import type { DriverSchedule } from '../types';
 import { XIcon, TrashIcon, PlusIcon } from './icons/Icons';
 
-const WEEKDAY_LABELS = ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'];
+const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTH_LABELS = [
-  'Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun',
-  'Julai', 'Ogos', 'September', 'Oktober', 'November', 'Disember'
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
 const DRIVER_COLORS = [
@@ -66,7 +66,6 @@ const toTime12H = (raw: string) => {
 };
 
 const parseDateKeyLoose = (raw: string) => {
-  // Handle 'yyyy-MM-dd', full ISO string, atau 'dd/MM/yyyy' — semua di-normalize ke 'yyyy-MM-dd'
   if (!raw) return '';
   if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
   const dmy = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
@@ -121,7 +120,7 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
     const idx = drivers.findIndex(d => d.id === driverId);
     return DRIVER_COLORS[idx >= 0 ? idx % DRIVER_COLORS.length : 0];
   };
-  const driverName = (driverId: string) => drivers.find(d => d.id === driverId)?.name || 'Driver Tidak Diketahui';
+  const driverName = (driverId: string) => drivers.find(d => d.id === driverId)?.name || 'Unknown Driver';
 
   const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
   const [anchor, setAnchor] = useState(new Date());
@@ -190,11 +189,11 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
     <div className="max-w-6xl mx-auto">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Jadual Bertugas & Syif Pemandu</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Driver Shift & Duty Roster</h2>
           <p className="text-gray-600 mt-0.5 text-xs sm:text-sm">
             {isEditable 
-              ? 'Klik mana-mana tarikh untuk tambah shift. Klik shift sedia ada untuk edit/padam.' 
-              : 'Paparan jadual syif dan waktu bertugas pemandu (Mod Lihat Sahaja).'}
+              ? 'Click any date to assign a shift. Click existing shifts to edit or delete.' 
+              : 'Driver shift rosters and duty schedule overview (Read-Only View).'}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -202,38 +201,38 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
             <button
               onClick={() => setViewMode('month')}
               className={`px-3 py-1.5 transition ${viewMode === 'month' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
-            >Bulan</button>
+            >Month</button>
             <button
               onClick={() => setViewMode('week')}
               className={`px-3 py-1.5 border-l border-gray-300 transition ${viewMode === 'week' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
-            >Minggu</button>
+            >Week</button>
           </div>
           {isEditable && (
             <button
               onClick={toggleBulkMode}
               className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium border transition ${bulkMode ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
             >
-              {bulkMode ? 'Batal Pilih Berbilang' : 'Pilih Berbilang Tarikh'}
+              {bulkMode ? 'Cancel Multi-Select' : 'Select Multiple Dates'}
             </button>
           )}
         </div>
       </div>
 
-      {/* Navigasi tarikh */}
+      {/* Date Navigation */}
       <div className="flex items-center justify-between mb-3 bg-white border border-gray-200 rounded-xl px-3.5 py-2 shadow-xs">
-        <button onClick={goPrev} className="px-2.5 py-1 text-gray-600 hover:bg-gray-100 rounded-lg font-bold text-xs sm:text-sm">‹ Sebelum</button>
+        <button onClick={goPrev} className="px-2.5 py-1 text-gray-600 hover:bg-gray-100 rounded-lg font-bold text-xs sm:text-sm">‹ Previous</button>
         <div className="font-bold text-gray-800 text-xs sm:text-sm">
           {viewMode === 'month'
             ? `${MONTH_LABELS[anchor.getMonth()]} ${anchor.getFullYear()}`
             : `${gridDays[0].getDate()} ${MONTH_LABELS[gridDays[0].getMonth()]} - ${gridDays[6].getDate()} ${MONTH_LABELS[gridDays[6].getMonth()]} ${gridDays[6].getFullYear()}`}
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={goToday} className="px-2.5 py-1 text-xs sm:text-sm text-indigo-600 hover:bg-indigo-50 rounded-lg font-bold">Hari Ini</button>
-          <button onClick={goNext} className="px-2.5 py-1 text-gray-600 hover:bg-gray-100 rounded-lg font-bold text-xs sm:text-sm">Selepas ›</button>
+          <button onClick={goToday} className="px-2.5 py-1 text-xs sm:text-sm text-indigo-600 hover:bg-indigo-50 rounded-lg font-bold">Today</button>
+          <button onClick={goNext} className="px-2.5 py-1 text-gray-600 hover:bg-gray-100 rounded-lg font-bold text-xs sm:text-sm">Next ›</button>
         </div>
       </div>
 
-      {/* Legend driver */}
+      {/* Driver Legend */}
       {drivers.length > 0 && (
         <div className="flex flex-wrap gap-2.5 mb-3 px-1">
           {drivers.map((d, idx) => (
@@ -245,7 +244,7 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
         </div>
       )}
 
-      {/* Grid kalendar */}
+      {/* Calendar Grid */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-xs">
         <div className="grid grid-cols-7 bg-gray-50 border-b border-gray-200">
           {WEEKDAY_LABELS.map(label => (
@@ -300,7 +299,7 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
                     );
                   })}
                   {hiddenCount > 0 && (
-                    <div className="text-[10px] text-gray-400 font-semibold px-1">+{hiddenCount} lagi</div>
+                    <div className="text-[10px] text-gray-400 font-semibold px-1">+{hiddenCount} more</div>
                   )}
                 </div>
               </div>
@@ -309,12 +308,12 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
         </div>
       </div>
 
-      {/* Floating bar bila bulk mode ada selection */}
+      {/* Floating bulk action bar */}
       {bulkMode && selectedDates.size > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white rounded-full shadow-lg px-5 py-3 flex items-center gap-4 z-40 animate-fadeIn">
-          <span className="text-sm font-medium">{selectedDates.size} tarikh dipilih</span>
+          <span className="text-sm font-medium">{selectedDates.size} dates selected</span>
           <button onClick={openBulkAddModal} className="bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-semibold px-4 py-1.5 rounded-full transition">
-            Tetapkan Shift
+            Set Shifts
           </button>
           
           <button
@@ -324,11 +323,11 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
             }}
             className="bg-red-600 hover:bg-red-500 text-white text-sm font-semibold px-4 py-1.5 rounded-full transition"
           >
-            Padam Jadual Pukal
+            Bulk Delete Roster
           </button>
 
           <button onClick={() => setSelectedDates(new Set())} className="text-gray-300 hover:text-white text-sm">
-            Kosongkan
+            Clear
           </button>
         </div>
       )}
@@ -368,12 +367,12 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
               .map(s => s.id);
 
             if (schedIdsToDelete.length === 0) {
-              alert("Tiada jadual pemandu yang sepadan dengan pilihan anda.");
+              alert("No driver schedules match your selection.");
               return;
             }
 
-            const label = driverId === 'all' ? 'semua pemandu' : `pemandu ${drivers.find(d => d.id === driverId)?.name || ''}`;
-            if (window.confirm(`Adakah anda pasti mahu memadamkan jadual bagi ${label} (${schedIdsToDelete.length} jadual) pada tarikh-tarikh yang dipilih?`)) {
+            const label = driverId === 'all' ? 'all drivers' : `driver ${drivers.find(d => d.id === driverId)?.name || ''}`;
+            if (window.confirm(`Are you sure you want to delete shifts for ${label} (${schedIdsToDelete.length} shifts) across the selected dates?`)) {
               deleteDriverSchedulesBulk(schedIdsToDelete);
               setSelectedDates(new Set());
               setBulkMode(false);
@@ -427,7 +426,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ modal, drivers, onClose, 
       return;
     }
     if (!mula || !tamat) {
-      alert('Sila isi masa mula dan tamat.');
+      alert('Please fill in start and end times.');
       return;
     }
     if (isEdit && editSchedule) {
@@ -436,7 +435,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ modal, drivers, onClose, 
     }
     if (modal.mode === 'add') {
       if (selectedDriverIds.size === 0) {
-        alert('Sila pilih sekurang-kurangnya seorang driver.');
+        alert('Please select at least one driver.');
         return;
       }
       const entries = modal.dates.flatMap(date =>
@@ -448,7 +447,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ modal, drivers, onClose, 
 
   const formatDateLabel = (dateKey: string) => {
     const d = new Date(dateKey + 'T00:00:00');
-    return d.toLocaleDateString('ms-MY', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+    return d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
   };
 
   if (isBulkDelete) {
@@ -457,7 +456,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ modal, drivers, onClose, 
         <div className="bg-white rounded-lg shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
           <div className="flex justify-between items-center p-4 border-b">
             <h3 className="text-lg font-bold text-gray-800">
-              Padam Jadual Pukal ({modal.dates.length} Tarikh)
+              Bulk Delete Shifts ({modal.dates.length} Dates)
             </h3>
             <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
               <XIcon className="h-5 w-5" />
@@ -466,33 +465,33 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ modal, drivers, onClose, 
 
           <form onSubmit={handleSubmit} className="overflow-y-auto p-5 space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tarikh Terpilih</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Selected Dates</label>
               <div className="max-h-24 overflow-y-auto bg-gray-50 border border-gray-200 rounded-md p-2 text-sm text-gray-600 space-y-0.5">
                 {modal.dates.map(d => <div key={d}>{formatDateLabel(d)}</div>)}
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Pilih Pemandu Yang Ingin Dipadamkan</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Select Driver to Delete</label>
               <select
                 value={targetDriverId}
                 onChange={(e) => setTargetDriverId(e.target.value)}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
               >
-                <option value="all">Semua Pemandu (Padam Semua)</option>
+                <option value="all">All Drivers (Delete All)</option>
                 {drivers.map(d => (
                   <option key={d.id} value={d.id}>{d.name}</option>
                 ))}
               </select>
               <p className="mt-1.5 text-xs text-gray-500">
-                Pilih pemandu spesifik untuk memadamkan jadual beliau sahaja pada tarikh terpilih, atau pilih "Semua Pemandu" untuk memadamkan semua jadual pada tarikh tersebut.
+                Choose a specific driver to clear only their roster on the selected dates, or choose "All Drivers" to remove all shifts.
               </p>
             </div>
 
             <div className="pt-4 flex items-center justify-end gap-2 border-t">
-              <button type="button" onClick={onClose} className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">Batal</button>
+              <button type="button" onClick={onClose} className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
               <button type="submit" className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg shadow-md text-sm transition">
-                Sahkan Padam
+                Confirm Delete
               </button>
             </div>
           </form>
@@ -506,7 +505,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ modal, drivers, onClose, 
       <div className="bg-white rounded-lg shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
         <div className="flex justify-between items-center p-4 border-b">
           <h3 className="text-lg font-bold text-gray-800">
-            {isEdit ? 'Edit Shift' : modal.mode === 'add' && modal.dates.length > 1 ? `Tetapkan Shift (${modal.dates.length} Tarikh)` : 'Tambah Shift'}
+            {isEdit ? 'Edit Shift' : modal.mode === 'add' && modal.dates.length > 1 ? `Set Shifts (${modal.dates.length} Dates)` : 'Add Shift'}
           </h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><XIcon className="h-5 w-5" /></button>
         </div>
@@ -514,7 +513,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ modal, drivers, onClose, 
         <form onSubmit={handleSubmit} className="overflow-y-auto p-5 space-y-4">
           {modal.mode === 'add' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tarikh</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
               <div className="max-h-24 overflow-y-auto bg-gray-50 border border-gray-200 rounded-md p-2 text-sm text-gray-600 space-y-0.5">
                 {modal.dates.map(d => <div key={d}>{formatDateLabel(d)}</div>)}
               </div>
@@ -525,14 +524,14 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ modal, drivers, onClose, 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Driver</label>
               <div className="text-sm bg-gray-50 border border-gray-200 rounded-md px-3 py-2 text-gray-700">
-                {drivers.find(d => d.id === editSchedule.DriverId)?.name || 'Driver Tidak Diketahui'}
+                {drivers.find(d => d.id === editSchedule.DriverId)?.name || 'Unknown Driver'}
               </div>
             </div>
           ) : (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Driver</label>
               <div className="space-y-1.5">
-                {drivers.length === 0 && <p className="text-sm text-gray-400">Tiada driver aktif.</p>}
+                {drivers.length === 0 && <p className="text-sm text-gray-400">No active drivers available.</p>}
                 {drivers.map(d => (
                   <label key={d.id} className="flex items-center gap-2 text-sm text-gray-700">
                     <input
@@ -550,11 +549,11 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ modal, drivers, onClose, 
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Masa Mula</label>
+              <label className="block text-sm font-medium text-gray-700">Start Time</label>
               <input type="time" value={mula} onChange={e => setMula(e.target.value)} required className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"/>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Masa Tamat</label>
+              <label className="block text-sm font-medium text-gray-700">End Time</label>
               <input type="time" value={tamat} onChange={e => setTamat(e.target.value)} required className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"/>
             </div>
           </div>
@@ -566,13 +565,13 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ modal, drivers, onClose, 
                 onClick={() => onDelete(editSchedule.id)}
                 className="flex items-center text-sm font-medium text-red-600 hover:text-red-800"
               >
-                <TrashIcon className="h-4 w-4 mr-1" /> Padam Shift
+                <TrashIcon className="h-4 w-4 mr-1" /> Delete Shift
               </button>
             ) : <span />}
             <div className="flex gap-2">
-              <button type="button" onClick={onClose} className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">Batal</button>
+              <button type="button" onClick={onClose} className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
               <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-md text-sm">
-                {isEdit ? 'Simpan' : 'Tetapkan Shift'}
+                {isEdit ? 'Save Changes' : 'Assign Shifts'}
               </button>
             </div>
           </div>

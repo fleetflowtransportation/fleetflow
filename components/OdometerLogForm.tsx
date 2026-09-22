@@ -155,7 +155,7 @@ const OdometerLogForm: React.FC<OdometerLogFormProps> = ({
     e.preventDefault();
 
     if (!formData.vehicleId || !formData.date || !formData.fromLocation.trim() || !formData.toLocation.trim() || !formData.purpose.trim() || !formData.startOdometer || !formData.endOdometer) {
-      setError('Sila isi semua ruangan wajib.');
+      setError('Please fill in all required fields.');
       return;
     }
 
@@ -163,12 +163,12 @@ const OdometerLogForm: React.FC<OdometerLogFormProps> = ({
     const end = Number(formData.endOdometer);
 
     if (isNaN(start) || isNaN(end) || start < 0 || end < 0) {
-      setError('Sila masukkan bacaan odometer yang sah.');
+      setError('Please enter valid odometer readings.');
       return;
     }
 
     if (end < start) {
-      setError('Odometer Tamat tidak boleh kurang daripada Odometer Mula.');
+      setError('End Odometer cannot be less than Start Odometer.');
       return;
     }
 
@@ -200,8 +200,8 @@ const OdometerLogForm: React.FC<OdometerLogFormProps> = ({
         {/* Modal Header */}
         <div className="flex justify-between items-center p-5 border-b bg-gray-50">
           <div>
-            <h2 className="text-lg font-extrabold text-gray-900 tracking-tight">Lapor Meter & Selesai Trip</h2>
-            <p className="text-xs text-gray-500 font-medium mt-0.5">Sahkan tugasan yang selesai & kemas kini odometer</p>
+            <h2 className="text-lg font-extrabold text-gray-900 tracking-tight">Odometer Check-in & Trip Completion</h2>
+            <p className="text-xs text-gray-500 font-medium mt-0.5">Confirm completed assignments and record odometer readings</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1.5 hover:bg-gray-200 rounded-full transition"><XIcon className="h-6 w-6" /></button>
         </div>
@@ -216,7 +216,7 @@ const OdometerLogForm: React.FC<OdometerLogFormProps> = ({
           
           {/* MULTI-SELECT ACTIVE TRIPS */}
           <div>
-            <label className="block text-xs font-bold uppercase text-gray-400 mb-2">Pilih Tugasan Yang Selesai (Boleh Pilih Banyak)</label>
+            <label className="block text-xs font-bold uppercase text-gray-400 mb-2">Select Completed Assignments (Multi-select enabled)</label>
             {driverActiveBookings.length > 0 ? (
               <div className="space-y-1.5 max-h-40 overflow-y-auto border border-gray-200 rounded-xl p-2.5 bg-gray-50">
                 {driverActiveBookings.map(b => {
@@ -238,87 +238,87 @@ const OdometerLogForm: React.FC<OdometerLogFormProps> = ({
                         <p className="font-extrabold text-gray-900">
                           {parseAsLocal(b.dateTime).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} - {b.destination}
                         </p>
-                        <p className="text-[10px] text-gray-500 font-medium mt-0.5">Tujuan: {b.purpose} | Van: {b.vehicleId ? 'Van ' + b.vehicleId.slice(-3).toUpperCase() : 'Self-Drive'}</p>
+                        <p className="text-[10px] text-gray-500 font-medium mt-0.5">Purpose: {b.purpose} | Van: {b.vehicleId ? 'Van ' + b.vehicleId.slice(-3).toUpperCase() : 'Self-Drive'}</p>
                       </div>
                     </label>
                   );
                 })}
               </div>
             ) : (
-              <p className="text-xs text-gray-400 bg-gray-50 p-4 rounded-xl border border-dashed text-center font-semibold">Tiada tugasan aktif untuk dilaporkan.</p>
+              <p className="text-xs text-gray-400 bg-gray-50 p-4 rounded-xl border border-dashed text-center font-semibold">No active assignments to report.</p>
             )}
-            <p className="text-[10px] text-indigo-600 font-semibold mt-1.5">💡 Memilih tugasan akan auto-mengisi lokasi, tujuan, dan menukar semua status trip terpilih kepada 'Completed' serentak!</p>
+            <p className="text-[10px] text-indigo-600 font-semibold mt-1.5">💡 Selecting assignments will auto-fill location and purpose, marking all selected trips as 'Completed'.</p>
           </div>
 
           {/* Vehicle Dropdown */}
           <div>
-            <label className="block text-xs font-bold uppercase text-gray-400 mb-1">Nombor Van / Kenderaan *</label>
+            <label className="block text-xs font-bold uppercase text-gray-400 mb-1">Vehicle / Van *</label>
             <select name="vehicleId" value={formData.vehicleId} onChange={handleChange} required className="block w-full border-gray-200 rounded-xl shadow-xs text-sm font-semibold p-2.5 bg-gray-50 focus:bg-white focus:ring-indigo-500 focus:border-indigo-500">
-              <option value="">-- Pilih Van --</option>
+              <option value="">-- Select Vehicle --</option>
               {vehicles.map(v => <option key={v.id} value={v.id}>{v.name} ({v.plateNumber})</option>)}
             </select>
           </div>
 
           {/* Date Picker */}
           <div>
-            <label className="block text-xs font-bold uppercase text-gray-400 mb-1">Tarikh Perjalanan *</label>
+            <label className="block text-xs font-bold uppercase text-gray-400 mb-1">Trip Date *</label>
             <input type="date" name="date" value={formData.date} onChange={handleChange} required className="block w-full border-gray-200 rounded-xl shadow-xs text-sm font-semibold p-2.5 bg-gray-50 focus:bg-white focus:ring-indigo-500 focus:border-indigo-500" />
           </div>
 
           {/* Route details */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-bold uppercase text-gray-400 mb-1">Mula Dari *</label>
-              <input type="text" name="fromLocation" value={formData.fromLocation} onChange={handleChange} required className="block w-full border-gray-200 rounded-xl shadow-xs text-sm font-medium p-2.5 bg-gray-50 focus:bg-white focus:ring-indigo-500 focus:border-indigo-500" placeholder="cth: YCK" />
+              <label className="block text-xs font-bold uppercase text-gray-400 mb-1">From Location *</label>
+              <input type="text" name="fromLocation" value={formData.fromLocation} onChange={handleChange} required className="block w-full border-gray-200 rounded-xl shadow-xs text-sm font-medium p-2.5 bg-gray-50 focus:bg-white focus:ring-indigo-500 focus:border-indigo-500" placeholder="e.g. Headquarters" />
             </div>
             <div>
-              <label className="block text-xs font-bold uppercase text-gray-400 mb-1">Lokasi Ke / Destinasi *</label>
-              <input type="text" name="toLocation" value={formData.toLocation} onChange={handleChange} required className="block w-full border-gray-200 rounded-xl shadow-xs text-sm font-medium p-2.5 bg-gray-50 focus:bg-white focus:ring-indigo-500 focus:border-indigo-500" placeholder="cth: Cheras" />
+              <label className="block text-xs font-bold uppercase text-gray-400 mb-1">Destination *</label>
+              <input type="text" name="toLocation" value={formData.toLocation} onChange={handleChange} required className="block w-full border-gray-200 rounded-xl shadow-xs text-sm font-medium p-2.5 bg-gray-50 focus:bg-white focus:ring-indigo-500 focus:border-indigo-500" placeholder="e.g. Convention Center" />
             </div>
           </div>
 
           {/* Purpose details */}
           <div>
-            <label className="block text-xs font-bold uppercase text-gray-400 mb-1">Tujuan Perjalanan *</label>
-            <textarea name="purpose" value={formData.purpose} onChange={handleChange} required rows={2} className="block w-full border-gray-200 rounded-xl shadow-xs text-sm font-medium p-2.5 bg-gray-50 focus:bg-white focus:ring-indigo-500 focus:border-indigo-500" placeholder="cth: membawa staf atau tugas am" />
+            <label className="block text-xs font-bold uppercase text-gray-400 mb-1">Trip Purpose *</label>
+            <textarea name="purpose" value={formData.purpose} onChange={handleChange} required rows={2} className="block w-full border-gray-200 rounded-xl shadow-xs text-sm font-medium p-2.5 bg-gray-50 focus:bg-white focus:ring-indigo-500 focus:border-indigo-500" placeholder="e.g. Staff transport or official task" />
           </div>
 
           {/* Odometer metrics */}
           <div className="grid grid-cols-2 gap-3 p-3 bg-indigo-50/40 rounded-xl border border-indigo-100">
             <div>
-              <label className="block text-xs font-bold text-indigo-900 uppercase mb-1">Odometer Mula (KM) *</label>
-              <input type="number" name="startOdometer" value={formData.startOdometer} onChange={handleChange} required className="block w-full border-indigo-200 rounded-xl text-sm font-extrabold p-2.5 bg-white text-indigo-950 focus:ring-indigo-500 focus:border-indigo-500" placeholder="cth: 123456" />
+              <label className="block text-xs font-bold text-indigo-900 uppercase mb-1">Start Odometer (KM) *</label>
+              <input type="number" name="startOdometer" value={formData.startOdometer} onChange={handleChange} required className="block w-full border-indigo-200 rounded-xl text-sm font-extrabold p-2.5 bg-white text-indigo-950 focus:ring-indigo-500 focus:border-indigo-500" placeholder="e.g. 123456" />
             </div>
             <div>
-              <label className="block text-xs font-bold text-indigo-900 uppercase mb-1">Odometer Tamat (KM) *</label>
-              <input type="number" name="endOdometer" value={formData.endOdometer} onChange={handleChange} required className="block w-full border-indigo-200 rounded-xl text-sm font-extrabold p-2.5 bg-white text-indigo-950 focus:ring-indigo-500 focus:border-indigo-500" placeholder="cth: 123500" />
+              <label className="block text-xs font-bold text-indigo-900 uppercase mb-1">End Odometer (KM) *</label>
+              <input type="number" name="endOdometer" value={formData.endOdometer} onChange={handleChange} required className="block w-full border-indigo-200 rounded-xl text-sm font-extrabold p-2.5 bg-white text-indigo-950 focus:ring-indigo-500 focus:border-indigo-500" placeholder="e.g. 123500" />
             </div>
           </div>
 
           {distance !== null && (
             <div className="flex items-center justify-between p-3.5 bg-emerald-50 rounded-xl border border-emerald-100 text-xs font-bold text-emerald-800">
-              <span>JUMLAH JARAK REKODED</span>
+              <span>TOTAL RECORDED DISTANCE</span>
               <span className="text-sm font-extrabold">{distance.toLocaleString()} KM</span>
             </div>
           )}
 
           {/* Remarks details */}
           <div>
-            <label className="block text-xs font-bold uppercase text-gray-400 mb-1">Catatan Tambahan (Jika Ada)</label>
+            <label className="block text-xs font-bold uppercase text-gray-400 mb-1">Additional Remarks (Optional)</label>
             <textarea
               name="remarks"
               value={formData.remarks}
               onChange={handleChange}
               rows={2}
               className="block w-full border-gray-200 rounded-xl shadow-xs text-sm font-medium p-2.5 bg-gray-50 focus:bg-white focus:ring-indigo-500 focus:border-indigo-500"
-              placeholder="cth: berhenti isi minyak, tunggu staf, dll."
+              placeholder="e.g. Fuel stop, waiting for passengers, etc."
             />
           </div>
 
           {/* Action buttons */}
           <div className="pt-4 flex justify-end space-x-3 border-t">
-            <button type="button" onClick={onClose} className="bg-white py-2.5 px-4 border border-gray-300 rounded-xl shadow-xs text-xs font-bold text-gray-700 hover:bg-gray-50 transition">Batal</button>
-            <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold py-2.5 px-5 rounded-xl shadow-md transition">Hantar Rekod</button>
+            <button type="button" onClick={onClose} className="bg-white py-2.5 px-4 border border-gray-300 rounded-xl shadow-xs text-xs font-bold text-gray-700 hover:bg-gray-50 transition cursor-pointer">Cancel</button>
+            <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold py-2.5 px-5 rounded-xl shadow-md transition cursor-pointer">Submit Record</button>
           </div>
         </form>
       </div>

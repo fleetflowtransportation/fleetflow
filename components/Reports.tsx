@@ -33,12 +33,12 @@ interface FuelLogWithMetrics extends FuelLog {
 }
 
 const dateFilters = [
-  { key: 'all', label: 'Semua Masa' },
-  { key: 'today', label: 'Hari Ini' },
-  { key: 'week', label: 'Minggu Ini' },
-  { key: 'month', label: 'Bulan Ini' },
-  { key: 'last_month', label: 'Bulan Lepas' },
-  { key: 'custom', label: 'Julat Tarikh...' },
+  { key: 'all', label: 'All Time' },
+  { key: 'today', label: 'Today' },
+  { key: 'week', label: 'This Week' },
+  { key: 'month', label: 'This Month' },
+  { key: 'last_month', label: 'Last Month' },
+  { key: 'custom', label: 'Custom Date Range...' },
 ];
 
 const Reports: React.FC = () => {
@@ -89,13 +89,13 @@ const Reports: React.FC = () => {
   const drivers = useMemo(() => users.filter(u => u.role === 'driver' || u.role === 'admin'), [users]);
 
   const getDriverName = useCallback((driverId: string | null | undefined) => {
-    if (!driverId) return 'Pemandu Tidak Ditetapkan';
-    return users.find(d => d.id === driverId)?.name || 'Pemandu';
+    if (!driverId) return 'Unassigned Driver';
+    return users.find(d => d.id === driverId)?.name || 'Driver';
   }, [users]);
 
   const getVehicleInfo = useCallback((vehicleId: string | null | undefined) => {
-    if (!vehicleId) return { name: 'Kenderaan Bebas', plateNumber: '-' };
-    return vehicles.find(v => v.id === vehicleId) || { name: 'Kenderaan Tidak Dikenali', plateNumber: '-' };
+    if (!vehicleId) return { name: 'Any Vehicle', plateNumber: '-' };
+    return vehicles.find(v => v.id === vehicleId) || { name: 'Unknown Vehicle', plateNumber: '-' };
   }, [vehicles]);
 
   // --- CRUD Handlers for Odometer ---
@@ -110,7 +110,7 @@ const Reports: React.FC = () => {
   };
 
   const handleDeleteOdoLog = (id: string) => {
-    if (window.confirm('Adakah anda pasti mahu memadam log odometer ini? Tindakan ini tidak boleh diundur.')) {
+    if (window.confirm('Are you sure you want to delete this odometer log entry? This action cannot be undone.')) {
       deleteOdometerLog(id);
     }
   };
@@ -127,7 +127,7 @@ const Reports: React.FC = () => {
   };
 
   const handleDeleteFuelLog = (id: string) => {
-    if (window.confirm('Adakah anda pasti mahu memadam log bahan api ini? Tindakan ini tidak boleh diundur.')) {
+    if (window.confirm('Are you sure you want to delete this fuel purchase record? This action cannot be undone.')) {
       deleteFuelLog(id);
     }
   };
@@ -351,26 +351,26 @@ const Reports: React.FC = () => {
     );
 
     if (dataToExport.length === 0) {
-      alert("Tiada data untuk dieksport.");
+      alert("No data available to export.");
       return;
     }
 
     if (format === 'pdf') {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
-      doc.text("Ringkasan Bulanan Perjalanan & Jarak", 14, 16);
+      doc.text("Monthly Trip & Distance Summary", 14, 16);
       doc.autoTable({
-        head: [['Bulan', 'Kenderaan', 'Jumlah Trip', 'Jumlah Jarak']],
+        head: [['Month', 'Vehicle', 'Total Trips', 'Total Distance']],
         body: dataToExport.map(d => [d.month, d.vehicle, d.tripCount, d.totalDistance]),
         startY: 25,
       });
       doc.save('monthly_trip_summary.pdf');
     } else {
       const headers = [
-        { key: 'month', label: 'Bulan' },
-        { key: 'vehicle', label: 'Kenderaan' },
-        { key: 'tripCount', label: 'Jumlah Trip' },
-        { key: 'totalDistance', label: 'Jumlah Jarak' }
+        { key: 'month', label: 'Month' },
+        { key: 'vehicle', label: 'Vehicle' },
+        { key: 'tripCount', label: 'Total Trips' },
+        { key: 'totalDistance', label: 'Total Distance' }
       ];
       const csv = convertToCSV(dataToExport, headers);
       downloadCSV(csv, 'monthly_trip_summary.csv');
@@ -379,14 +379,14 @@ const Reports: React.FC = () => {
 
   const exportDetailedTripReportPdf = (data: Booking[], vehicles: Vehicle[], users: User[]) => {
     if (data.length === 0) {
-      alert("Tiada data untuk dieksport.");
+      alert("No data available to export.");
       return;
     }
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
-    doc.text("Laporan Perjalanan Terperinci", 14, 16);
+    doc.text("Detailed Trip Report", 14, 16);
 
-    const tableColumn = ["Tarikh", "Kenderaan", "Pemandu", "Destinasi", "Tujuan"];
+    const tableColumn = ["Date", "Vehicle", "Driver", "Destination", "Purpose"];
     const tableRows: (string | number)[][] = [];
 
     data.forEach(booking => {
@@ -394,7 +394,7 @@ const Reports: React.FC = () => {
       const driver = users.find(u => u.id === booking.driverId);
       tableRows.push([
         parseAsLocal(booking.dateTime).toLocaleDateString('en-GB'),
-        vehicle?.plateNumber || 'Bebas',
+        vehicle?.plateNumber || 'Any',
         driver?.name || 'N/A',
         booking.destination,
         booking.purpose,
@@ -402,7 +402,7 @@ const Reports: React.FC = () => {
     });
 
     doc.autoTable({ head: [tableColumn], body: tableRows, startY: 25 });
-    doc.save(`laporan_perjalanan_${new Date().toISOString().split('T')[0]}.pdf`);
+    doc.save(`trip_report_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   // Detailed fuel report metrics
@@ -451,11 +451,11 @@ const Reports: React.FC = () => {
           <div>
             <div className="flex items-center space-x-2 text-indigo-600 mb-1">
               <DocumentReportIcon className="h-5 w-5" />
-              <span className="text-xs font-bold uppercase tracking-wider">Pengurusan Rekod & Audit</span>
+              <span className="text-xs font-bold uppercase tracking-wider">Audit & Operations Records</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Logs & Audit Pemandu</h1>
+            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Driver Logs & Auditing</h1>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Pusat kawalan CRUD bagi log odometer perjalanan pemandu, log pembelian bahan api, dan analisis perbatuan.
+              Unified management portal for trip odometer logs, fuel purchase receipts, and fleet mileage analytics.
             </p>
           </div>
 
@@ -466,14 +466,14 @@ const Reports: React.FC = () => {
               className="inline-flex items-center px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition transform hover:-translate-y-0.5"
             >
               <PlusIcon className="h-4 w-4 mr-1.5" />
-              + Log Odometer
+              + Record Odometer Log
             </button>
             <button
               onClick={handleCreateFuelLog}
               className="inline-flex items-center px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-sm transition transform hover:-translate-y-0.5"
             >
               <PlusIcon className="h-4 w-4 mr-1.5" />
-              + Log Bahan Api
+              + Record Fuel Log
             </button>
           </div>
         </div>
@@ -489,7 +489,7 @@ const Reports: React.FC = () => {
             }`}
           >
             <GaugeIcon className="h-4 w-4 mr-2" />
-            Log Odometer
+            Odometer Logs
             <span className={`ml-2 px-2 py-0.5 text-xs rounded-full font-bold ${
               activeSubTab === 'odometer' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-600'
             }`}>
@@ -506,7 +506,7 @@ const Reports: React.FC = () => {
             }`}
           >
             <FuelIcon className="h-4 w-4 mr-2" />
-            Log Bahan Api
+            Fuel Purchase Logs
             <span className={`ml-2 px-2 py-0.5 text-xs rounded-full font-bold ${
               activeSubTab === 'fuel' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'
             }`}>
@@ -523,7 +523,7 @@ const Reports: React.FC = () => {
             }`}
           >
             <DocumentReportIcon className="h-4 w-4 mr-2" />
-            Laporan & Eksport
+            Reports & Export
           </button>
         </div>
       </div>
@@ -537,9 +537,9 @@ const Reports: React.FC = () => {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold text-slate-500">Jumlah Rekod Log</p>
+                <p className="text-xs font-semibold text-slate-500">Total Log Entries</p>
                 <p className="text-2xl font-black text-slate-800 mt-1">{odoStats.totalTrips}</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Penyerahan odometer</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Odometer submissions</p>
               </div>
               <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
                 <GaugeIcon className="h-6 w-6" />
@@ -548,11 +548,11 @@ const Reports: React.FC = () => {
 
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold text-slate-500">Jumlah Jarak Direkod</p>
+                <p className="text-xs font-semibold text-slate-500">Total Distance Logged</p>
                 <p className="text-2xl font-black text-indigo-700 mt-1">
                   {odoStats.totalKm.toLocaleString()} <span className="text-xs font-bold text-slate-500">KM</span>
                 </p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Perjalanan selesai</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Completed journeys</p>
               </div>
               <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
                 <RouteIcon className="h-6 w-6" />
@@ -561,11 +561,11 @@ const Reports: React.FC = () => {
 
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold text-slate-500">Purata Jarak / Trip</p>
+                <p className="text-xs font-semibold text-slate-500">Average Distance / Trip</p>
                 <p className="text-2xl font-black text-slate-800 mt-1">
                   {odoStats.avgKm} <span className="text-xs font-bold text-slate-500">KM</span>
                 </p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Efisiensi laluan</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Route efficiency</p>
               </div>
               <div className="p-3 bg-slate-50 text-slate-600 rounded-xl">
                 <RouteIcon className="h-6 w-6" />
@@ -574,9 +574,9 @@ const Reports: React.FC = () => {
 
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold text-slate-500">Kenderaan Terlibat</p>
+                <p className="text-xs font-semibold text-slate-500">Vehicles Utilized</p>
                 <p className="text-2xl font-black text-emerald-700 mt-1">{odoStats.distinctVehicles}</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Armada aktif</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Active fleet</p>
               </div>
               <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
                 <TruckIcon className="h-6 w-6" />
@@ -592,7 +592,7 @@ const Reports: React.FC = () => {
                 <SearchIcon className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Cari lokasi, tujuan, plat kenderaan, pemandu..."
+                  placeholder="Search location, purpose, vehicle plate, driver..."
                   value={odoSearch}
                   onChange={e => setOdoSearch(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 font-medium"
@@ -606,7 +606,7 @@ const Reports: React.FC = () => {
                   onChange={e => setOdoVehicleFilter(e.target.value)}
                   className="w-full p-2 text-xs border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 font-medium"
                 >
-                  <option value="">Semua Kenderaan</option>
+                  <option value="">All Vehicles</option>
                   {vehicles.map(v => (
                     <option key={v.id} value={v.id}>{v.name} ({v.plateNumber})</option>
                   ))}
@@ -620,7 +620,7 @@ const Reports: React.FC = () => {
                   onChange={e => setOdoDriverFilter(e.target.value)}
                   className="w-full p-2 text-xs border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 font-medium"
                 >
-                  <option value="">Semua Pemandu</option>
+                  <option value="">All Drivers</option>
                   {drivers.map(d => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
@@ -644,14 +644,14 @@ const Reports: React.FC = () => {
             {/* Custom Date Range Picker */}
             {odoDateFilter === 'custom' && (
               <div className="flex items-center gap-3 pt-2 border-t border-slate-100">
-                <span className="text-xs font-semibold text-slate-600">Dari:</span>
+                <span className="text-xs font-semibold text-slate-600">From:</span>
                 <input
                   type="date"
                   value={odoStartDate}
                   onChange={e => setOdoStartDate(e.target.value)}
                   className="text-xs border border-slate-300 rounded-lg p-1.5"
                 />
-                <span className="text-xs font-semibold text-slate-600">Hingga:</span>
+                <span className="text-xs font-semibold text-slate-600">To:</span>
                 <input
                   type="date"
                   value={odoEndDate}
@@ -666,7 +666,7 @@ const Reports: React.FC = () => {
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
             <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Senarai Log Odometer ({filteredOdoLogs.length} rekod dijumpai)
+                Odometer Logs List ({filteredOdoLogs.length} records found)
               </span>
               {(odoSearch || odoVehicleFilter || odoDriverFilter || odoDateFilter !== 'all') && (
                 <button
@@ -680,7 +680,7 @@ const Reports: React.FC = () => {
                   }}
                   className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
                 >
-                  Reset Penapis
+                  Reset Filters
                 </button>
               )}
             </div>
@@ -689,15 +689,15 @@ const Reports: React.FC = () => {
               <table className="min-w-full divide-y divide-slate-200 text-xs">
                 <thead className="bg-slate-50">
                   <tr>
-                    <th className="px-4 py-3 text-left font-bold text-slate-600">Tarikh</th>
-                    <th className="px-4 py-3 text-left font-bold text-slate-600">Kenderaan</th>
-                    <th className="px-4 py-3 text-left font-bold text-slate-600">Pemandu</th>
-                    <th className="px-4 py-3 text-left font-bold text-slate-600">Laluan (Dari → Ke)</th>
-                    <th className="px-4 py-3 text-left font-bold text-slate-600">Tujuan & Catatan</th>
-                    <th className="px-4 py-3 text-right font-bold text-slate-600">Meter Mula</th>
-                    <th className="px-4 py-3 text-right font-bold text-slate-600">Meter Tamat</th>
-                    <th className="px-4 py-3 text-right font-bold text-slate-600">Jarak (KM)</th>
-                    <th className="px-4 py-3 text-center font-bold text-slate-600 w-24">Tindakan</th>
+                    <th className="px-4 py-3 text-left font-bold text-slate-600">Date</th>
+                    <th className="px-4 py-3 text-left font-bold text-slate-600">Vehicle</th>
+                    <th className="px-4 py-3 text-left font-bold text-slate-600">Driver</th>
+                    <th className="px-4 py-3 text-left font-bold text-slate-600">Route (From → To)</th>
+                    <th className="px-4 py-3 text-left font-bold text-slate-600">Purpose & Remarks</th>
+                    <th className="px-4 py-3 text-right font-bold text-slate-600">Start (KM)</th>
+                    <th className="px-4 py-3 text-right font-bold text-slate-600">End (KM)</th>
+                    <th className="px-4 py-3 text-right font-bold text-slate-600">Distance</th>
+                    <th className="px-4 py-3 text-center font-bold text-slate-600 w-24">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
@@ -705,7 +705,7 @@ const Reports: React.FC = () => {
                     filteredOdoLogs.map(log => {
                       const veh = getVehicleInfo(log.vehicleId);
                       const driverName = getDriverName(log.driverId);
-                      const displayDate = log.date ? new Date(log.date).toLocaleDateString('ms-MY', {
+                      const displayDate = log.date ? new Date(log.date).toLocaleDateString('en-GB', {
                         day: 'numeric',
                         month: 'short',
                         year: 'numeric'
@@ -763,14 +763,14 @@ const Reports: React.FC = () => {
                               <button
                                 onClick={() => handleEditOdoLog(log)}
                                 className="p-1.5 text-slate-500 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition"
-                                title="Kemaskini Log"
+                                title="Edit Log"
                               >
                                 <EditIcon className="h-4 w-4" />
                               </button>
                               <button
                                 onClick={() => handleDeleteOdoLog(log.id)}
                                 className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                                title="Padam Log"
+                                title="Delete Log"
                               >
                                 <TrashIcon className="h-4 w-4" />
                               </button>
@@ -783,14 +783,14 @@ const Reports: React.FC = () => {
                     <tr>
                       <td colSpan={9} className="px-4 py-12 text-center text-slate-400">
                         <GaugeIcon className="h-8 w-8 mx-auto text-slate-300 mb-2" />
-                        <p className="font-semibold text-slate-600">Tiada rekod odometer dijumpai</p>
-                        <p className="text-xs text-slate-400 mt-0.5">Sila ubah kata carian atau penapis, atau tambah log baru.</p>
+                        <p className="font-semibold text-slate-600">No odometer records found</p>
+                        <p className="text-xs text-slate-400 mt-0.5">Try changing your filters or add a new odometer log entry.</p>
                         <button
                           onClick={handleCreateOdoLog}
                           className="mt-3 inline-flex items-center px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold"
                         >
                           <PlusIcon className="h-3.5 w-3.5 mr-1" />
-                          Tambah Log Odometer
+                          Record Odometer Log
                         </button>
                       </td>
                     </tr>
@@ -804,7 +804,7 @@ const Reports: React.FC = () => {
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
             <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center">
               <TruckIcon className="h-4 w-4 mr-2 text-indigo-600" />
-              Status Odometer Semasa Mengikut Kenderaan Armada
+              Current Fleet Odometer Status
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {vehicles.map(v => {
@@ -820,17 +820,17 @@ const Reports: React.FC = () => {
                           {v.plateNumber}
                         </span>
                         <h4 className="font-bold text-slate-900 text-sm mt-1">{v.name}</h4>
-                        <p className="text-[11px] text-slate-500 font-medium">{logs.length} rekod perjalanan direkod</p>
+                        <p className="text-[11px] text-slate-500 font-medium">{logs.length} logged trip records</p>
                       </div>
                       <div className="text-right">
-                        <span className="text-[10px] uppercase font-bold text-slate-400 block">Meter Semasa</span>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">Current Odo</span>
                         <span className="font-mono font-extrabold text-slate-900 text-sm">
                           {latest ? `${latest.odometer.toLocaleString()} km` : `${v.initialOdometer || 0} km`}
                         </span>
                       </div>
                     </div>
                     <div className="mt-3 pt-2.5 border-t border-slate-200/70 flex justify-between items-center text-xs">
-                      <span className="text-slate-500 font-medium">Jumlah Jarak Log:</span>
+                      <span className="text-slate-500 font-medium">Logged Mileage:</span>
                       <span className="font-bold text-indigo-700">{totalKm.toLocaleString()} KM</span>
                     </div>
                   </div>
@@ -850,9 +850,9 @@ const Reports: React.FC = () => {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold text-slate-500">Jumlah Isian Minyak</p>
+                <p className="text-xs font-semibold text-slate-500">Refueling Entries</p>
                 <p className="text-2xl font-black text-slate-800 mt-1">{fuelStats.totalCount}</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Resit & log berdaftar</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Receipts & logs recorded</p>
               </div>
               <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
                 <FuelIcon className="h-6 w-6" />
@@ -861,11 +861,11 @@ const Reports: React.FC = () => {
 
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold text-slate-500">Jumlah Perbelanjaan</p>
+                <p className="text-xs font-semibold text-slate-500">Total Expenditure</p>
                 <p className="text-2xl font-black text-amber-700 mt-1">
                   RM {fuelStats.totalCost.toFixed(2)}
                 </p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Kos belian bahan api</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Fuel purchase cost</p>
               </div>
               <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
                 <FuelIcon className="h-6 w-6" />
@@ -874,11 +874,11 @@ const Reports: React.FC = () => {
 
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold text-slate-500">Jumlah Liter Bahan Api</p>
+                <p className="text-xs font-semibold text-slate-500">Total Fuel Volume</p>
                 <p className="text-2xl font-black text-slate-800 mt-1">
                   {fuelStats.totalLiters.toFixed(1)} <span className="text-xs font-bold text-slate-500">L</span>
                 </p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Isipadu keseluruhan</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Total volume dispensed</p>
               </div>
               <div className="p-3 bg-slate-50 text-slate-600 rounded-xl">
                 <FuelIcon className="h-6 w-6" />
@@ -887,11 +887,11 @@ const Reports: React.FC = () => {
 
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold text-slate-500">Purata Harga / Liter</p>
+                <p className="text-xs font-semibold text-slate-500">Avg Price / Liter</p>
                 <p className="text-2xl font-black text-emerald-700 mt-1">
                   RM {fuelStats.avgPricePerLiter}
                 </p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Kadar purata per liter</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Effective average rate</p>
               </div>
               <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
                 <FuelIcon className="h-6 w-6" />
@@ -907,7 +907,7 @@ const Reports: React.FC = () => {
                 <SearchIcon className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Cari kenderaan, plat nombor, pemandu..."
+                  placeholder="Search vehicle, plate number, driver..."
                   value={fuelSearch}
                   onChange={e => setFuelSearch(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 font-medium"
@@ -921,7 +921,7 @@ const Reports: React.FC = () => {
                   onChange={e => setFuelLogFilters(prev => ({ ...prev, vehicleId: e.target.value }))}
                   className="w-full p-2 text-xs border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 font-medium"
                 >
-                  <option value="">Semua Kenderaan</option>
+                  <option value="">All Vehicles</option>
                   {vehicles.map(v => (
                     <option key={v.id} value={v.id}>{v.name} ({v.plateNumber})</option>
                   ))}
@@ -935,7 +935,7 @@ const Reports: React.FC = () => {
                   onChange={e => setFuelLogFilters(prev => ({ ...prev, driverId: e.target.value }))}
                   className="w-full p-2 text-xs border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 font-medium"
                 >
-                  <option value="">Semua Pemandu</option>
+                  <option value="">All Drivers</option>
                   {drivers.map(d => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
@@ -959,14 +959,14 @@ const Reports: React.FC = () => {
             {/* Custom Date Range Picker */}
             {fuelLogFilters.dateFilter === 'custom' && (
               <div className="flex items-center gap-3 pt-2 border-t border-slate-100">
-                <span className="text-xs font-semibold text-slate-600">Dari:</span>
+                <span className="text-xs font-semibold text-slate-600">From:</span>
                 <input
                   type="date"
                   value={fuelLogFilters.startDate}
                   onChange={e => setFuelLogFilters(prev => ({ ...prev, startDate: e.target.value }))}
                   className="text-xs border border-slate-300 rounded-lg p-1.5"
                 />
-                <span className="text-xs font-semibold text-slate-600">Hingga:</span>
+                <span className="text-xs font-semibold text-slate-600">To:</span>
                 <input
                   type="date"
                   value={fuelLogFilters.endDate}
@@ -981,7 +981,7 @@ const Reports: React.FC = () => {
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
             <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Senarai Log Bahan Api ({filteredFuelLogs.length} rekod dijumpai)
+                Fuel Purchase Records ({filteredFuelLogs.length} entries found)
               </span>
               {(fuelSearch || fuelLogFilters.vehicleId || fuelLogFilters.driverId || fuelLogFilters.dateFilter !== 'all') && (
                 <button
@@ -991,7 +991,7 @@ const Reports: React.FC = () => {
                   }}
                   className="text-xs font-semibold text-amber-600 hover:text-amber-800"
                 >
-                  Reset Penapis
+                  Reset Filters
                 </button>
               )}
             </div>
@@ -1000,15 +1000,15 @@ const Reports: React.FC = () => {
               <table className="min-w-full divide-y divide-slate-200 text-xs">
                 <thead className="bg-slate-50">
                   <tr>
-                    <th className="px-4 py-3 text-left font-bold text-slate-600">Tarikh</th>
-                    <th className="px-4 py-3 text-left font-bold text-slate-600">Kenderaan</th>
-                    <th className="px-4 py-3 text-left font-bold text-slate-600">Pemandu</th>
-                    <th className="px-4 py-3 text-right font-bold text-slate-600">Odometer (KM)</th>
-                    <th className="px-4 py-3 text-right font-bold text-slate-600">Kuantiti (L)</th>
-                    <th className="px-4 py-3 text-right font-bold text-slate-600">Harga/L (RM)</th>
-                    <th className="px-4 py-3 text-right font-bold text-slate-600">Jumlah Kos (RM)</th>
-                    <th className="px-4 py-3 text-center font-bold text-slate-600">Resit</th>
-                    <th className="px-4 py-3 text-center font-bold text-slate-600 w-24">Tindakan</th>
+                    <th className="px-4 py-3 text-left font-bold text-slate-600">Date</th>
+                    <th className="px-4 py-3 text-left font-bold text-slate-600">Vehicle</th>
+                    <th className="px-4 py-3 text-left font-bold text-slate-600">Driver</th>
+                    <th className="px-4 py-3 text-right font-bold text-slate-600">Odometer</th>
+                    <th className="px-4 py-3 text-right font-bold text-slate-600">Volume (L)</th>
+                    <th className="px-4 py-3 text-right font-bold text-slate-600">Price/L (RM)</th>
+                    <th className="px-4 py-3 text-right font-bold text-slate-600">Total Cost (RM)</th>
+                    <th className="px-4 py-3 text-center font-bold text-slate-600">Receipt</th>
+                    <th className="px-4 py-3 text-center font-bold text-slate-600 w-24">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
@@ -1016,7 +1016,7 @@ const Reports: React.FC = () => {
                     filteredFuelLogs.map(log => {
                       const veh = getVehicleInfo(log.vehicleId);
                       const driverName = getDriverName(log.driverId);
-                      const displayDate = log.date ? new Date(log.date).toLocaleDateString('ms-MY', {
+                      const displayDate = log.date ? new Date(log.date).toLocaleDateString('en-GB', {
                         day: 'numeric',
                         month: 'short',
                         year: 'numeric'
@@ -1060,10 +1060,10 @@ const Reports: React.FC = () => {
                                 className="inline-flex items-center text-xs text-indigo-600 hover:text-indigo-800 font-bold hover:underline"
                               >
                                 <PaperClipIcon className="h-3.5 w-3.5 mr-1" />
-                                Resit
+                                Receipt
                               </a>
                             ) : (
-                              <span className="text-slate-400 text-[11px] italic">Tiada</span>
+                              <span className="text-slate-400 text-[11px] italic">None</span>
                             )}
                           </td>
                           <td className="px-4 py-3 text-center whitespace-nowrap">
@@ -1071,14 +1071,14 @@ const Reports: React.FC = () => {
                               <button
                                 onClick={() => handleEditFuelLog(log)}
                                 className="p-1.5 text-slate-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition"
-                                title="Kemaskini Log Bahan Api"
+                                title="Edit Fuel Record"
                               >
                                 <EditIcon className="h-4 w-4" />
                               </button>
                               <button
                                 onClick={() => handleDeleteFuelLog(log.id)}
                                 className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                                title="Padam Log Bahan Api"
+                                title="Delete Fuel Record"
                               >
                                 <TrashIcon className="h-4 w-4" />
                               </button>
@@ -1091,14 +1091,14 @@ const Reports: React.FC = () => {
                     <tr>
                       <td colSpan={9} className="px-4 py-12 text-center text-slate-400">
                         <FuelIcon className="h-8 w-8 mx-auto text-slate-300 mb-2" />
-                        <p className="font-semibold text-slate-600">Tiada log bahan api dijumpai</p>
-                        <p className="text-xs text-slate-400 mt-0.5">Sila ubah kata carian atau penapis, atau daftar resit minyak baru.</p>
+                        <p className="font-semibold text-slate-600">No fuel records found</p>
+                        <p className="text-xs text-slate-400 mt-0.5">Try changing your filters or add a new fuel purchase receipt.</p>
                         <button
                           onClick={handleCreateFuelLog}
                           className="mt-3 inline-flex items-center px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold"
                         >
                           <PlusIcon className="h-3.5 w-3.5 mr-1" />
-                          Tambah Log Bahan Api
+                          Record Fuel Log
                         </button>
                       </td>
                     </tr>
@@ -1121,16 +1121,16 @@ const Reports: React.FC = () => {
               <div>
                 <h3 className="text-lg font-bold text-slate-900 flex items-center">
                   <RouteIcon className="h-5 w-5 mr-2 text-indigo-600" />
-                  Ringkasan Bulanan Perjalanan & Jarak Kenderaan
+                  Monthly Vehicle Trips & Distance Summary
                 </h3>
-                <p className="text-xs text-slate-500">Agregat perjalanan selesai dan perbatuan mengikut bulan & kenderaan</p>
+                <p className="text-xs text-slate-500">Aggregated completed trip counts and mileage breakdown by month & vehicle</p>
               </div>
               <div className="flex items-center space-x-2">
                 <button
                   onClick={() => handlePrint('monthly-trip-summary-printable')}
                   className="flex items-center text-xs bg-white hover:bg-slate-50 text-slate-700 font-bold py-1.5 px-3 border border-slate-300 rounded-xl shadow-xs"
                 >
-                  <PrinterIcon className="h-3.5 w-3.5 mr-1.5 text-slate-500" /> Cetak
+                  <PrinterIcon className="h-3.5 w-3.5 mr-1.5 text-slate-500" /> Print
                 </button>
                 <button
                   onClick={() => handleExportTripSummary('pdf')}
@@ -1158,9 +1158,9 @@ const Reports: React.FC = () => {
                       <table className="min-w-full divide-y divide-slate-200 border border-slate-200 text-xs bg-white">
                         <thead className="bg-slate-100/70">
                           <tr>
-                            <th className="px-4 py-2.5 text-left font-bold text-slate-700 uppercase">Kenderaan</th>
-                            <th className="px-4 py-2.5 text-right font-bold text-slate-700 uppercase">Jumlah Trip</th>
-                            <th className="px-4 py-2.5 text-right font-bold text-slate-700 uppercase">Jumlah Jarak (KM)</th>
+                            <th className="px-4 py-2.5 text-left font-bold text-slate-700 uppercase">Vehicle</th>
+                            <th className="px-4 py-2.5 text-right font-bold text-slate-700 uppercase">Total Trips</th>
+                            <th className="px-4 py-2.5 text-right font-bold text-slate-700 uppercase">Total Distance (KM)</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -1188,7 +1188,7 @@ const Reports: React.FC = () => {
                 ))
               ) : (
                 <p className="text-center py-6 text-slate-400 text-xs font-semibold">
-                  Tiada rekod perjalanan selesai yang mempunyai data jarak.
+                  No completed trip records with mileage data found.
                 </p>
               )}
             </div>
@@ -1200,22 +1200,22 @@ const Reports: React.FC = () => {
               <div>
                 <h3 className="text-lg font-bold text-slate-900 flex items-center">
                   <RouteIcon className="h-5 w-5 mr-2 text-indigo-600" />
-                  Log Perjalanan Terperinci
+                  Detailed Trip Logs
                 </h3>
-                <p className="text-xs text-slate-500">Senarai rekod tempahan yang telah berjaya diselesaikan oleh pemandu</p>
+                <p className="text-xs text-slate-500">Complete listing of historical vehicle bookings fulfilled by drivers</p>
               </div>
               <div className="flex items-center space-x-2">
                 <button
                   onClick={() => handlePrint('detailed-trip-log-printable')}
                   className="flex items-center text-xs bg-white hover:bg-slate-50 text-slate-700 font-bold py-1.5 px-3 border border-slate-300 rounded-xl shadow-xs"
                 >
-                  <PrinterIcon className="h-3.5 w-3.5 mr-1.5 text-slate-500" /> Cetak
+                  <PrinterIcon className="h-3.5 w-3.5 mr-1.5 text-slate-500" /> Print
                 </button>
                 <button
                   onClick={() => exportDetailedTripReportPdf(tripReportData, vehicles, users)}
                   className="flex items-center text-xs bg-white hover:bg-slate-50 text-slate-700 font-bold py-1.5 px-3 border border-slate-300 rounded-xl shadow-xs"
                 >
-                  <DocumentDownloadIcon className="h-3.5 w-3.5 mr-1.5 text-indigo-600" /> Eksport PDF
+                  <DocumentDownloadIcon className="h-3.5 w-3.5 mr-1.5 text-indigo-600" /> Export PDF
                 </button>
               </div>
             </div>
@@ -1224,11 +1224,11 @@ const Reports: React.FC = () => {
               <table className="min-w-full divide-y divide-slate-200 text-xs border border-slate-200 rounded-xl overflow-hidden">
                 <thead className="bg-slate-100">
                   <tr>
-                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Tarikh</th>
-                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Kenderaan</th>
-                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Pemandu</th>
-                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Destinasi</th>
-                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Tujuan</th>
+                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Date</th>
+                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Vehicle</th>
+                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Driver</th>
+                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Destination</th>
+                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Purpose</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
@@ -1239,10 +1239,10 @@ const Reports: React.FC = () => {
                       return (
                         <tr key={b.id} className="hover:bg-slate-50">
                           <td className="px-4 py-2.5 whitespace-nowrap font-medium text-slate-700">
-                            {parseAsLocal(b.dateTime).toLocaleDateString('ms-MY')}
+                            {parseAsLocal(b.dateTime).toLocaleDateString('en-GB')}
                           </td>
                           <td className="px-4 py-2.5 whitespace-nowrap font-bold text-slate-900">
-                            {veh ? `${veh.name} (${veh.plateNumber})` : 'Bebas (Belum Tetap)'}
+                            {veh ? `${veh.name} (${veh.plateNumber})` : 'Any / Self-Drive'}
                           </td>
                           <td className="px-4 py-2.5 whitespace-nowrap text-slate-700 font-medium">
                             {driver?.name || 'N/A'}
@@ -1259,7 +1259,7 @@ const Reports: React.FC = () => {
                   ) : (
                     <tr>
                       <td colSpan={5} className="text-center py-6 text-slate-400 font-medium">
-                        Tiada log perjalanan selesai bagi tapisan ini.
+                        No completed trips match the selected filter criteria.
                       </td>
                     </tr>
                   )}
@@ -1274,16 +1274,16 @@ const Reports: React.FC = () => {
               <div>
                 <h3 className="text-lg font-bold text-slate-900 flex items-center">
                   <FuelIcon className="h-5 w-5 mr-2 text-amber-600" />
-                  Analisis Efisiensi & Kecekapan Bahan Api
+                  Fuel Efficiency & Mileage Economy Analysis
                 </h3>
-                <p className="text-xs text-slate-500">Perbandingan bacaan odometer berturut-turut bagi mengira KM/Liter dan Kos/KM</p>
+                <p className="text-xs text-slate-500">Continuous odometer comparison to calculate KM/Liter economy and Cost/KM metrics</p>
               </div>
               <div className="flex items-center space-x-2">
                 <button
                   onClick={() => handlePrint('detailed-fuel-log-printable')}
                   className="flex items-center text-xs bg-white hover:bg-slate-50 text-slate-700 font-bold py-1.5 px-3 border border-slate-300 rounded-xl shadow-xs"
                 >
-                  <PrinterIcon className="h-3.5 w-3.5 mr-1.5 text-slate-500" /> Cetak
+                  <PrinterIcon className="h-3.5 w-3.5 mr-1.5 text-slate-500" /> Print
                 </button>
               </div>
             </div>
@@ -1292,15 +1292,15 @@ const Reports: React.FC = () => {
               <table className="min-w-full divide-y divide-slate-200 text-xs border border-slate-200 rounded-xl overflow-hidden">
                 <thead className="bg-slate-100">
                   <tr>
-                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Kenderaan</th>
-                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Pemandu</th>
-                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Tarikh</th>
+                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Vehicle</th>
+                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Driver</th>
+                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Date</th>
                     <th className="px-4 py-2.5 text-right font-bold text-slate-700">Odometer</th>
-                    <th className="px-4 py-2.5 text-right font-bold text-slate-700">Jarak (KM)</th>
-                    <th className="px-4 py-2.5 text-right font-bold text-slate-700">Liter</th>
-                    <th className="px-4 py-2.5 text-right font-bold text-slate-700">Kos (RM)</th>
-                    <th className="px-4 py-2.5 text-right font-bold text-slate-700">Purata KM/L</th>
-                    <th className="px-4 py-2.5 text-right font-bold text-slate-700">Kos/KM</th>
+                    <th className="px-4 py-2.5 text-right font-bold text-slate-700">Distance</th>
+                    <th className="px-4 py-2.5 text-right font-bold text-slate-700">Volume</th>
+                    <th className="px-4 py-2.5 text-right font-bold text-slate-700">Cost</th>
+                    <th className="px-4 py-2.5 text-right font-bold text-slate-700">Avg KM/L</th>
+                    <th className="px-4 py-2.5 text-right font-bold text-slate-700">Cost/KM</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
@@ -1317,7 +1317,7 @@ const Reports: React.FC = () => {
                             {driver?.name || 'N/A'}
                           </td>
                           <td className="px-4 py-2.5 whitespace-nowrap text-slate-600 font-medium">
-                            {new Date(log.date).toLocaleDateString('ms-MY')}
+                            {new Date(log.date).toLocaleDateString('en-GB')}
                           </td>
                           <td className="px-4 py-2.5 text-right font-mono font-bold text-slate-800">
                             {log.odometer ? `${log.odometer.toLocaleString()} km` : '-'}
@@ -1343,7 +1343,7 @@ const Reports: React.FC = () => {
                   ) : (
                     <tr>
                       <td colSpan={9} className="text-center py-6 text-slate-400 font-medium">
-                        Tiada data bahan api untuk dijana analisis.
+                        No fuel data available to generate efficiency analysis.
                       </td>
                     </tr>
                   )}

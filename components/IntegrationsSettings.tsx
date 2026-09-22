@@ -113,12 +113,12 @@ export const IntegrationsSettings: React.FC = () => {
         setIsLocked(true); // Auto-lock after saving
         setTimeout(() => setSaveSuccess(false), 4000);
       } else {
-        setSaveError('Gagal menyimpan tetapan. Sila pastikan sambungan internet anda aktif.');
+        setSaveError('Failed to save settings. Please verify your internet connection.');
       }
       refreshLogs();
     } catch (err: any) {
       console.error('Error saving integrations:', err);
-      setSaveError(err.message || 'Ralat semasa menyimpan tetapan integrasi.');
+      setSaveError(err.message || 'An error occurred while saving integration settings.');
     } finally {
       setSaveLoading(false);
     }
@@ -136,7 +136,7 @@ export const IntegrationsSettings: React.FC = () => {
     } catch (err: any) {
       setTestResult({
         success: false,
-        message: err.message || 'Ralat sambungan'
+        message: err.message || 'Connection error'
       });
       refreshLogs();
     } finally {
@@ -154,14 +154,14 @@ export const IntegrationsSettings: React.FC = () => {
 
   const fullCodeGs = `// =========================================================================
 // FleetFlow Google Apps Script (Code.gs)
-// Menyokong: Google Calendar (Create, Update, Delete), Drive & Ujian Sambungan
+// Supports: Google Calendar (Create, Update, Delete), Drive & Connection Testing
 // =========================================================================
 
 function doGet(e) {
   return ContentService.createTextOutput(JSON.stringify({
     status: "success",
     success: true,
-    message: "Google Apps Script Web App FleetFlow sedang aktif dan sedia menerima arahan.",
+    message: "FleetFlow Google Apps Script Web App is active and ready to receive requests.",
     timestamp: new Date().toISOString()
   })).setMimeType(ContentService.MimeType.JSON);
 }
@@ -179,7 +179,7 @@ function doPost(e) {
     }
     
     // -----------------------------------------------------------------------
-    // 0. ACTION: ping / testConnection (Ujian Sambungan Google - Tanpa Cipta Acara)
+    // 0. ACTION: ping / testConnection
     // -----------------------------------------------------------------------
     if (data.action === "ping" || data.actionType === "ping" || data.type === "ping" || data.action === "testConnection" || !data.action) {
       var calName = "Default Calendar";
@@ -205,7 +205,7 @@ function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify({
         status: "success",
         success: true,
-        message: "Sambungan ke Google Apps Script berjaya! Perkhidmatan sedia menerima tempahan.",
+        message: "Google Apps Script connection successful! Web service is ready.",
         calendar: calName,
         calendarReady: calendarOk,
         driveReady: driveOk,
@@ -214,7 +214,7 @@ function doPost(e) {
     }
 
     // -----------------------------------------------------------------------
-    // 1. ACTION: updateCalendarEvent (Kemaskini Acara Kalendar)
+    // 1. ACTION: updateCalendarEvent
     // -----------------------------------------------------------------------
     if (data.action === "updateCalendarEvent" || data.actionType === "updateCalendarEvent") {
       var calendarId = data.calendarId || "primary";
@@ -230,7 +230,7 @@ function doPost(e) {
         } catch (err) {}
       }
 
-      var title = data.title || data.summary || "Tempahan Kenderaan FleetFlow";
+      var title = data.title || data.summary || "FleetFlow Vehicle Booking";
       var description = data.description || "";
       var location = data.location || "";
       
@@ -284,7 +284,7 @@ function doPost(e) {
     }
 
     // -----------------------------------------------------------------------
-    // 2. ACTION: deleteCalendarEvent (Padam Acara Kalendar)
+    // 2. ACTION: deleteCalendarEvent
     // -----------------------------------------------------------------------
     if (data.action === "deleteCalendarEvent" || data.actionType === "deleteCalendarEvent") {
       var calendarId = data.calendarId || "primary";
@@ -311,19 +311,19 @@ function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify({
         status: "success",
         success: true,
-        message: "Acara tidak ditemui atau telah dipadam"
+        message: "Event not found or already deleted"
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
     // -----------------------------------------------------------------------
-    // 3. ACTION: createCalendarEvent (Cipta Acara Kalendar Baru)
+    // 3. ACTION: createCalendarEvent
     // -----------------------------------------------------------------------
     var calendarId = data.calendarId || "primary";
     var cal = (calendarId && calendarId !== "primary" && calendarId.indexOf("@") !== -1)
       ? (CalendarApp.getCalendarById(calendarId) || CalendarApp.getDefaultCalendar())
       : CalendarApp.getDefaultCalendar();
 
-    var title = data.title || data.summary || ("Tempahan Kenderaan - " + (data.requesterName || "Pengguna"));
+    var title = data.title || data.summary || ("Vehicle Booking - " + (data.requesterName || "User"));
     var description = data.description || "";
     var location = data.location || "";
     
@@ -368,13 +368,13 @@ function doPost(e) {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="space-y-1">
             <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-              <span>Pautan Tempahan Awam (Public Form)</span>
+              <span>Public Booking Form Link</span>
               <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 uppercase">
-                {activeTenant?.companyName || activeTenant?.name || 'Organisasi Aktif'}
+                {activeTenant?.companyName || activeTenant?.name || 'Active Organization'}
               </span>
             </h3>
             <p className="text-sm text-gray-500">
-              Kongsikan pautan ini kepada staf atau pemohon untuk mengisi borang tempahan van secara terus.
+              Share this link with staff or external requesters to directly submit vehicle booking requests.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -382,7 +382,7 @@ function doPost(e) {
               onClick={handleCopyLink}
               className="inline-flex items-center px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition"
             >
-              {copied ? '✓ Disalin!' : 'Salin Pautan'}
+              {copied ? '✓ Copied!' : 'Copy Link'}
             </button>
             <a
               href={publicBookingUrl}
@@ -390,7 +390,7 @@ function doPost(e) {
               rel="noreferrer"
               className="inline-flex items-center px-3.5 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium transition"
             >
-              Buka Form ↗
+              Open Form ↗
             </a>
           </div>
         </div>
@@ -403,9 +403,9 @@ function doPost(e) {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-gray-100">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Google Workspace & Kalendar</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Google Workspace & Calendar Configuration</h3>
             <p className="text-sm text-gray-500 mt-0.5">
-              Sambungkan tempahan FleetFlow dengan Google Calendar dan Google Drive organisasi anda.
+              Sync FleetFlow bookings directly with your organization's Google Calendar and Google Drive.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -414,13 +414,13 @@ function doPost(e) {
               disabled={testingConnection}
               className="inline-flex items-center px-3.5 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-semibold transition disabled:opacity-50"
             >
-              {testingConnection ? 'Menguji...' : '⚡ Uji Sambungan'}
+              {testingConnection ? 'Testing...' : '⚡ Test Connection'}
             </button>
             <button
               onClick={openModal}
               className="inline-flex items-center px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition"
             >
-              ⚙️ Ubah Tetapan
+              ⚙️ Modify Settings
             </button>
           </div>
         </div>
@@ -428,7 +428,7 @@ function doPost(e) {
         {/* Test Result Banner */}
         {testResult && (
           <div className={`p-4 rounded-xl text-sm ${testResult.success ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
-            <span className="font-semibold">{testResult.success ? '✓ Berjaya: ' : '✗ Gagal: '}</span>
+            <span className="font-semibold">{testResult.success ? '✓ Success: ' : '✗ Failed: '}</span>
             {testResult.message}
           </div>
         )}
@@ -444,14 +444,14 @@ function doPost(e) {
           <div className="p-4 rounded-xl bg-gray-50 border border-gray-100 space-y-1">
             <span className="text-xs text-gray-500 font-semibold uppercase tracking-wider block">Google Drive Folder ID</span>
             <span className="font-mono text-xs text-gray-800 break-all select-all font-medium block">
-              {driveId || '(Folder Utama)'}
+              {driveId || '(Root Folder)'}
             </span>
           </div>
 
           <div className="p-4 rounded-xl bg-gray-50 border border-gray-100 space-y-1">
             <span className="text-xs text-gray-500 font-semibold uppercase tracking-wider block">Google Apps Script Web App URL</span>
             <span className="font-mono text-xs text-gray-800 truncate select-all font-medium block">
-              {appsScriptUrl ? `${appsScriptUrl.substring(0, 35)}...` : '(Belum dikonfigurasi)'}
+              {appsScriptUrl ? `${appsScriptUrl.substring(0, 35)}...` : '(Not configured)'}
             </span>
           </div>
         </div>
@@ -462,18 +462,18 @@ function doPost(e) {
             onClick={() => setShowCodeGuide(!showCodeGuide)}
             className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
           >
-            {showCodeGuide ? '▼ Sembunyikan Kod Google Apps Script' : '▶ Tunjukkan Kod Google Apps Script (Code.gs)'}
+            {showCodeGuide ? '▼ Hide Google Apps Script Code' : '▶ Show Google Apps Script Code (Code.gs)'}
           </button>
 
           {showCodeGuide && (
             <div className="mt-4 p-4 rounded-xl bg-gray-900 text-gray-100 text-xs font-mono space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-gray-400">Code.gs (Salin dan tampal ke Google Apps Script editor)</span>
+                <span className="text-gray-400">Code.gs (Copy and paste into Google Apps Script editor)</span>
                 <button
                   onClick={handleCopyCode}
                   className="px-3 py-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-semibold"
                 >
-                  {codeCopied ? '✓ Disalin' : 'Salin Semua Kod'}
+                  {codeCopied ? '✓ Copied' : 'Copy Full Code'}
                 </button>
               </div>
               <pre className="max-h-60 overflow-y-auto p-3 bg-black/40 rounded-lg text-[11px] leading-relaxed select-all">
@@ -487,26 +487,26 @@ function doPost(e) {
       {/* Diagnostics Logs Card */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h4 className="text-sm font-semibold text-gray-900">Log Diagnostik Kalendar</h4>
+          <h4 className="text-sm font-semibold text-gray-900">Calendar Diagnostic Logs</h4>
           <div className="flex items-center gap-2">
             <button
               onClick={refreshLogs}
               className="text-xs text-indigo-600 hover:underline"
             >
-              Muat Semula
+              Refresh
             </button>
             <span className="text-gray-300">|</span>
             <button
               onClick={handleClearLogs}
               className="text-xs text-red-600 hover:underline"
             >
-              Padam Log
+              Clear Logs
             </button>
           </div>
         </div>
 
         {diagnosticLogs.length === 0 ? (
-          <p className="text-xs text-gray-500 italic py-2">Tiada rekod diagnostik buat masa ini.</p>
+          <p className="text-xs text-gray-500 italic py-2">No diagnostic records logged yet.</p>
         ) : (
           <div className="max-h-48 overflow-y-auto space-y-2">
             {diagnosticLogs.slice(-8).reverse().map((log, idx) => (
@@ -526,13 +526,13 @@ function doPost(e) {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-2xl max-w-xl w-full p-6 space-y-6 shadow-2xl border border-gray-100">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-              <h3 className="text-lg font-bold text-gray-900">Kemaskini Google Integrations</h3>
+              <h3 className="text-lg font-bold text-gray-900">Update Google Integrations</h3>
               <button onClick={closeModal} className="text-gray-400 hover:text-gray-600">✕</button>
             </div>
 
             {saveSuccess && (
               <div className="p-3 bg-emerald-50 text-emerald-800 text-xs rounded-lg font-medium">
-                ✓ Tetapan integrasi berjaya disimpan!
+                ✓ Integration settings saved successfully!
               </div>
             )}
 
@@ -544,13 +544,13 @@ function doPost(e) {
 
             <form onSubmit={handleSaveAllIntegrations} className="space-y-4">
               <div className="flex items-center justify-between p-3 bg-amber-50 rounded-xl text-xs text-amber-800">
-                <span>{isLocked ? '🔒 Mod Dikunci (Mencegah perubahan tidak sengaja)' : '🔓 Mod Dibuka (Sedia untuk diedit)'}</span>
+                <span>{isLocked ? '🔒 Locked Mode (Prevents accidental changes)' : '🔓 Unlocked Mode (Ready to edit)'}</span>
                 <button
                   type="button"
                   onClick={() => setIsLocked(!isLocked)}
                   className="px-2.5 py-1 bg-amber-200 hover:bg-amber-300 text-amber-900 rounded font-semibold transition"
                 >
-                  {isLocked ? 'Buka Kunci' : 'Kunci Semula'}
+                  {isLocked ? 'Unlock' : 'Re-lock'}
                 </button>
               </div>
 
@@ -563,7 +563,7 @@ function doPost(e) {
                   disabled={isLocked}
                   value={tempCalendarId}
                   onChange={(e) => setTempCalendarId(e.target.value)}
-                  placeholder="primary atau alamat emel kalendar cth: yck-van@group.calendar.google.com"
+                  placeholder="primary or calendar email e.g. yck-van@group.calendar.google.com"
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 text-xs font-mono focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-100"
                 />
               </div>
@@ -577,7 +577,7 @@ function doPost(e) {
                   disabled={isLocked}
                   value={tempDriveId}
                   onChange={(e) => setTempDriveId(e.target.value)}
-                  placeholder="ID folder Google Drive cth: 1A2b3C4d5E6F..."
+                  placeholder="Google Drive folder ID e.g. 1A2b3C4d5E6F..."
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 text-xs font-mono focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-100"
                 />
               </div>
@@ -602,14 +602,14 @@ function doPost(e) {
                   onClick={closeModal}
                   className="px-4 py-2 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
                 >
-                  Tutup
+                  Close
                 </button>
                 <button
                   type="submit"
                   disabled={isLocked || saveLoading}
                   className="px-5 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition disabled:opacity-50"
                 >
-                  {saveLoading ? 'Menyimpan...' : 'Simpan Perubahan'}
+                  {saveLoading ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </form>

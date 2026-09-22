@@ -42,7 +42,7 @@ export const BookingResultModal: React.FC<BookingResultModalProps> = ({ isOpen, 
                 {isConfirmed ? 'CONFIRMED' : 'REJECTED AUTOMATICALLY'}
               </span>
               <h3 className="text-lg font-bold text-gray-900 mt-1">
-                {isConfirmed ? 'Tempahan Berjaya Disahkan' : 'Tempahan Ditolak Secara Automatik'}
+                {isConfirmed ? 'Booking Confirmed Successfully' : 'Booking Automatically Rejected'}
               </h3>
             </div>
           </div>
@@ -56,7 +56,7 @@ export const BookingResultModal: React.FC<BookingResultModalProps> = ({ isOpen, 
           {/* Main Status & Calendar Event Title */}
           <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
             <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
-              Tajuk Google Calendar Event
+              Google Calendar Event Title
             </div>
             <div className="font-mono text-sm font-semibold text-gray-800 flex items-center justify-between">
               <span>{result.calendarEventTitle}</span>
@@ -71,14 +71,14 @@ export const BookingResultModal: React.FC<BookingResultModalProps> = ({ isOpen, 
             <div className="p-4 bg-rose-50 border border-rose-200 rounded-lg space-y-2">
               <div className="font-semibold text-rose-800 flex items-center space-x-2">
                 <InformationCircleIcon className="h-5 w-5 text-rose-600 flex-shrink-0" />
-                <span>Sebab Penolakan:</span>
+                <span>Rejection Reason:</span>
               </div>
               <p className="text-rose-700 leading-relaxed font-medium">
                 {result.conflictReason || result.adminNotes}
               </p>
               <div className="pt-2 mt-2 border-t border-rose-200 text-xs text-rose-800 space-y-1">
-                <p>• Notifikasi emel penolakan automatik telah dihantar terus kepada pemohon (<b>{result.emailNotifications.requester.to}</b>).</p>
-                <p>• Tempahan ini <b>TIDAK</b> disimpan ke dalam pangkalan data dan <b>TIDAK</b> dimasukkan ke dalam kalendar.</p>
+                <p>• Automated rejection email notification has been sent to the requester (<b>{result.emailNotifications.requester.to}</b>).</p>
+                <p>• This booking was <b>NOT</b> saved to the database and <b>NOT</b> added to the calendar.</p>
               </div>
             </div>
           )}
@@ -89,26 +89,26 @@ export const BookingResultModal: React.FC<BookingResultModalProps> = ({ isOpen, 
               <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-lg">
                 <div className="flex items-center space-x-2 text-indigo-900 font-semibold mb-1">
                   <UserCircleIcon className="h-4 w-4" />
-                  <span>Pemandu Ditugaskan</span>
+                  <span>Assigned Driver</span>
                 </div>
                 <div className="text-gray-900 font-bold text-base">
-                  {result.assignedDriverName || 'Tiada (Self-Drive)'}
+                  {result.assignedDriverName || 'None (Self-Drive)'}
                 </div>
                 <div className="text-xs text-indigo-700 mt-1">
-                  {result.assignedDriverName ? 'Auto-assign berjadual' : 'Pandu sendiri'}
+                  {result.assignedDriverName ? 'Scheduled auto-assignment' : 'Self-drive'}
                 </div>
               </div>
 
               <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg">
                 <div className="flex items-center space-x-2 text-blue-900 font-semibold mb-1">
                   <TruckIcon className="h-4 w-4" />
-                  <span>Kenderaan Diperuntukkan</span>
+                  <span>Allocated Vehicle</span>
                 </div>
                 <div className="text-gray-900 font-bold text-base">
-                  {result.assignedVehicleName || 'Bebas (Belum Ditugaskan)'}
+                  {result.assignedVehicleName || 'Any / Unassigned'}
                 </div>
                 <div className="text-xs text-blue-700 mt-1">
-                  {result.assignedVehicleName ? 'Slot kenderaan disahkan bebas' : 'Pemandu akan tentukan kenderaan semasa lapor meter'}
+                  {result.assignedVehicleName ? 'Vehicle slot confirmed available' : 'Driver selects vehicle upon odometer check-in'}
                 </div>
               </div>
             </div>
@@ -119,39 +119,39 @@ export const BookingResultModal: React.FC<BookingResultModalProps> = ({ isOpen, 
             <div className="p-3 bg-amber-50 border-l-4 border-amber-500 text-amber-800 rounded-r-md">
               <div className="font-semibold flex items-center space-x-1.5">
                 <ClockIcon className="h-4 w-4 text-amber-600" />
-                <span>Amaran: Pra-Waktu Kerja (Pre-working-hour)</span>
+                <span>Warning: Pre-Working Hour Assignment</span>
               </div>
               <p className="text-xs mt-1 text-amber-700">
-                Tempahan ini bermula sebelum waktu kerja rasmi pemandu. Sila buat pengesahan manual bersama pemandu bertugas ({result.assignedDriverName}) dan Head of Transportation sebelum bertolak.
+                This booking starts before official driver working hours. Please confirm manually with the on-duty driver ({result.assignedDriverName}) and Head of Transportation prior to departure.
               </p>
             </div>
           )}
 
           {/* Admin System Notes */}
           <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded-lg border border-gray-200">
-            <span className="font-semibold text-gray-700">Catatan Sistem: </span>
+            <span className="font-semibold text-gray-700">System Notes: </span>
             {result.adminNotes}
           </div>
 
           {/* Email Notification Preview */}
           <div className="pt-2 border-t border-gray-100 space-y-2">
             <div className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-              Penghantaran Emel Automatik
+              Automated Email Dispatch
             </div>
             <div className="space-y-1 text-xs">
               <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                <span className="font-medium text-gray-700">Emel Pemohon:</span>
+                <span className="font-medium text-gray-700">Requester Email:</span>
                 <span className="text-gray-600 truncate max-w-xs">{result.emailNotifications.requester.to}</span>
               </div>
               {result.emailNotifications.driver && (
                 <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                  <span className="font-medium text-gray-700">Emel Pemandu:</span>
+                  <span className="font-medium text-gray-700">Driver Email:</span>
                   <span className="text-gray-600 truncate max-w-xs">{result.emailNotifications.driver.to}</span>
                 </div>
               )}
               {result.emailNotifications.admin && (
                 <div className="flex items-center justify-between p-2 bg-rose-50 rounded">
-                  <span className="font-medium text-rose-800">Emel Admin Ain:</span>
+                  <span className="font-medium text-rose-800">Admin Notification:</span>
                   <span className="text-rose-700 truncate max-w-xs">{result.emailNotifications.admin.to}</span>
                 </div>
               )}
@@ -165,7 +165,7 @@ export const BookingResultModal: React.FC<BookingResultModalProps> = ({ isOpen, 
             onClick={onClose}
             className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-medium rounded-lg shadow-sm transition text-xs cursor-pointer"
           >
-            Faham & Tutup
+            Understood & Close
           </button>
         </div>
       </div>
