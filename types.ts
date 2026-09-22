@@ -168,3 +168,19 @@ export interface BookingHistory {
   bookingId: string;
   previousState: Booking;
 }
+
+export interface SelfDriveStaff {
+  id: string;
+  name: string;
+  phone: string;
+  department: string;
+  icNumber: string;
+  icAttachmentName?: string;
+  icAttachmentUrl?: string;
+  licenseAttachmentName?: string;
+  licenseAttachmentUrl?: string;
+  notes?: string;
+  status: 'active' | 'inactive';
+  createdAt: string;
+  tenantId?: string;
+}

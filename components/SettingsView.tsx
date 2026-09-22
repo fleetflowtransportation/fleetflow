@@ -6,6 +6,7 @@ import UserManagement from './UserManagement';
 import VehicleManagement from './VehicleManagement';
 import BookingArchive from './BookingArchive';
 import IntegrationsSettings from './IntegrationsSettings';
+import SelfDriveStaffManagement from './SelfDriveStaffManagement';
 import { 
   BuildingOfficeIcon,
   ClockIcon,
@@ -13,10 +14,11 @@ import {
   TruckIcon,
   ArchiveIcon,
   AdjustmentsIcon,
-  SparklesIcon
+  SparklesIcon,
+  DocumentTextIcon
 } from './icons/Icons';
 
-export type SettingsSubTab = 'profile' | 'schedule' | 'users' | 'vehicles' | 'archive' | 'integrations';
+export type SettingsSubTab = 'profile' | 'schedule' | 'users' | 'self-drive' | 'vehicles' | 'archive' | 'integrations';
 
 export interface SettingsViewProps {
   initialSubTab?: SettingsSubTab;
@@ -24,7 +26,7 @@ export interface SettingsViewProps {
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'profile' }) => {
   const [activeSubTab, setActiveSubTab] = useState<SettingsSubTab>(initialSubTab);
-  const { users, vehicles, bookings, driverSchedules } = useAppContext();
+  const { users, vehicles, bookings, driverSchedules, selfDriveStaff } = useAppContext();
 
   useEffect(() => {
     if (initialSubTab) {
@@ -36,6 +38,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
   const userCount = users.length;
   const vehicleCount = vehicles.length;
   const scheduleCount = driverSchedules.length;
+  const staffCount = selfDriveStaff.length;
 
   const tabs: { id: SettingsSubTab; label: string; icon: React.ReactNode; badge?: string | number; description: string }[] = [
     {
@@ -57,6 +60,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
       icon: <UsersIcon className="w-4 h-4" />,
       badge: userCount,
       description: 'Administrative staff accounts, roles, and driver profiles',
+    },
+    {
+      id: 'self-drive',
+      label: 'Self-Drive Staff',
+      icon: <DocumentTextIcon className="w-4 h-4" />,
+      badge: staffCount > 0 ? staffCount : undefined,
+      description: 'Authorized staff documentation (IC & Driving License attachments) & QR odometer',
     },
     {
       id: 'vehicles',
@@ -143,6 +153,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
           </div>
         )}
         {activeSubTab === 'users' && <UserManagement />}
+        {activeSubTab === 'self-drive' && <SelfDriveStaffManagement />}
         {activeSubTab === 'vehicles' && <VehicleManagement />}
         {activeSubTab === 'archive' && <BookingArchive />}
         {activeSubTab === 'integrations' && <IntegrationsSettings />}

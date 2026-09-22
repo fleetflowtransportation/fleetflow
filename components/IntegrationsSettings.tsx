@@ -145,11 +145,19 @@ export const IntegrationsSettings: React.FC = () => {
   };
 
   const publicBookingUrl = `${window.location.origin}/?action=book&tenant_id=${activeTenant?.id || 'yayasan-chow-kit'}`;
+  const publicOdometerUrl = `${window.location.origin}/?action=odometer&tenant_id=${activeTenant?.id || 'yayasan-chow-kit'}`;
+  const [copiedOdometer, setCopiedOdometer] = useState(false);
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(publicBookingUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCopyOdometerLink = () => {
+    navigator.clipboard.writeText(publicOdometerUrl);
+    setCopiedOdometer(true);
+    setTimeout(() => setCopiedOdometer(false), 2000);
   };
 
   const fullCodeGs = `// =========================================================================
@@ -396,6 +404,42 @@ function doPost(e) {
         </div>
         <div className="mt-3 bg-gray-50 rounded-lg p-2.5 border border-gray-100 font-mono text-xs text-gray-600 truncate select-all">
           {publicBookingUrl}
+        </div>
+      </div>
+
+      {/* Public Self-Drive Odometer Portal Link Card */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+              <span>Self-Drive Odometer Portal (QR Code Link)</span>
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 uppercase">
+                Public Access
+              </span>
+            </h3>
+            <p className="text-sm text-gray-500">
+              Link for vehicle QR codes. Self-drive staff can scan this to log Start & End odometers without logging in.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCopyOdometerLink}
+              className="inline-flex items-center px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition"
+            >
+              {copiedOdometer ? '✓ Copied!' : 'Copy Odometer Link'}
+            </button>
+            <a
+              href={publicOdometerUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center px-3.5 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium transition"
+            >
+              Open Portal ↗
+            </a>
+          </div>
+        </div>
+        <div className="mt-3 bg-gray-50 rounded-lg p-2.5 border border-gray-100 font-mono text-xs text-gray-600 truncate select-all">
+          {publicOdometerUrl}
         </div>
       </div>
 

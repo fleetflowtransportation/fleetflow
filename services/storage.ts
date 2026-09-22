@@ -1,4 +1,4 @@
-import type { Booking, FuelLog, OdometerLog, User, Vehicle, IssueLog, DriverSchedule, Tenant } from '../types';
+import type { Booking, FuelLog, OdometerLog, User, Vehicle, IssueLog, DriverSchedule, Tenant, SelfDriveStaff } from '../types';
 import { USERS, VEHICLES, INITIAL_BOOKINGS, INITIAL_DRIVER_SCHEDULES } from '../constants';
 import { supabase } from './supabaseClient';
 
@@ -257,6 +257,68 @@ const fromDbDriverSchedule = (row: any): DriverSchedule => ({
   tenantId: row.tenant_id || getTenantId(),
 });
 
+// Helper: Convert SelfDriveStaff TS to DB
+const toDbSelfDriveStaff = (s: Partial<SelfDriveStaff>) => ({
+  ...(s.id && { id: s.id }),
+  ...(s.name !== undefined && { name: s.name }),
+  ...(s.phone !== undefined && { phone: s.phone }),
+  ...(s.department !== undefined && { department: s.department }),
+  ...(s.icNumber !== undefined && { ic_number: s.icNumber }),
+  ...(s.icAttachmentName !== undefined && { ic_attachment_name: s.icAttachmentName }),
+  ...(s.icAttachmentUrl !== undefined && { ic_attachment_url: s.icAttachmentUrl }),
+  ...(s.licenseAttachmentName !== undefined && { license_attachment_name: s.licenseAttachmentName }),
+  ...(s.licenseAttachmentUrl !== undefined && { license_attachment_url: s.licenseAttachmentUrl }),
+  ...(s.notes !== undefined && { notes: s.notes }),
+  ...(s.status !== undefined && { status: s.status }),
+  ...(s.createdAt !== undefined && { created_at: s.createdAt }),
+  tenant_id: s.tenantId || getTenantId(),
+});
+
+const fromDbSelfDriveStaff = (row: any): SelfDriveStaff => ({
+  id: row.id,
+  name: row.name,
+  phone: row.phone || '',
+  department: row.department || '',
+  icNumber: row.ic_number || '',
+  icAttachmentName: row.ic_attachment_name || undefined,
+  icAttachmentUrl: row.ic_attachment_url || undefined,
+  licenseAttachmentName: row.license_attachment_name || undefined,
+  licenseAttachmentUrl: row.license_attachment_url || undefined,
+  notes: row.notes || undefined,
+  status: (row.status as 'active' | 'inactive') || 'active',
+  createdAt: row.created_at || new Date().toISOString(),
+  tenantId: row.tenant_id || getTenantId(),
+});
+
+const INITIAL_SELF_DRIVE_STAFF: SelfDriveStaff[] = [
+  {
+    id: 'staff-sds-01',
+    name: 'Siti Nurhaliza binti Ahmad',
+    phone: '+6013-4567890',
+    department: 'Program',
+    icNumber: '920815-10-5432',
+    icAttachmentName: 'ic_siti_nurhaliza.pdf',
+    licenseAttachmentName: 'driving_license_siti.pdf',
+    status: 'active',
+    notes: 'Authorized self-drive staff for community outreach and errand trips.',
+    createdAt: '2026-01-10T08:00:00.000Z',
+    tenantId: 'yayasan-chow-kit'
+  },
+  {
+    id: 'staff-sds-02',
+    name: 'Mohd Farhan bin Razali',
+    phone: '+6017-8899001',
+    department: 'ALPD',
+    icNumber: '880324-14-6789',
+    icAttachmentName: 'ic_farhan_razali.jpg',
+    licenseAttachmentName: 'driving_license_farhan.jpg',
+    status: 'active',
+    notes: 'Approved for Alza usage during official youth development activities.',
+    createdAt: '2026-02-15T09:30:00.000Z',
+    tenantId: 'yayasan-chow-kit'
+  }
+];
+
 export const storageService = {
   getTenantId,
   setTenantId,
@@ -396,6 +458,45 @@ export const storageService = {
       console.warn('[Supabase] getDriverSchedules exception:', err.message);
       return [];
     }
+  },
+
+  getSelfDriveStaff: async (): Promise<SelfDriveStaff[]> => {
+    const tenantId = getTenantId();
+    // 1. Check local storage cache
+    let localList: SelfDriveStaff[] = [];
+    try {
+      const raw = localStorage.getItem(`fleetflow_self_drive_staff_${tenantId}`);
+      if (raw) {
+        localList = JSON.parse(raw);
+      } else if (tenantId === 'yayasan-chow-kit') {
+        localList = INITIAL_SELF_DRIVE_STAFF;
+        localStorage.setItem(`fleetflow_self_drive_staff_${tenantId}`, JSON.stringify(localList));
+      }
+    } catch {
+      // ignore
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('self_drive_staff')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false });
+      
+      if (!error && data && data.length > 0) {
+        const dbItems = data.map(fromDbSelfDriveStaff);
+        try {
+          localStorage.setItem(`fleetflow_self_drive_staff_${tenantId}`, JSON.stringify(dbItems));
+        } catch {
+          // ignore
+        }
+        return dbItems;
+      }
+    } catch (err: any) {
+      // ignore supabase table missing or network error
+    }
+
+    return localList;
   },
 
   // ---- WRITE (BOOKINGS) ----
@@ -672,6 +773,82 @@ export const storageService = {
     } catch (err: any) {
       console.error('[Supabase] deleteDriverSchedulesBulk exception:', err.message);
     }
+  },
+
+  // ---- WRITE (SELF-DRIVE STAFF) ----
+  createSelfDriveStaff: async (data: SelfDriveStaff): Promise<SelfDriveStaff> => {
+    const tenantId = data.tenantId || getTenantId();
+    // 1. Update localStorage cache
+    try {
+      const raw = localStorage.getItem(`fleetflow_self_drive_staff_${tenantId}`);
+      const list: SelfDriveStaff[] = raw ? JSON.parse(raw) : [];
+      const updated = [data, ...list.filter(item => item.id !== data.id)];
+      localStorage.setItem(`fleetflow_self_drive_staff_${tenantId}`, JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+
+    // 2. Try Supabase
+    try {
+      const dbRow = toDbSelfDriveStaff(data);
+      const { error } = await supabase.from('self_drive_staff').insert([dbRow]);
+      if (error) console.warn('[Supabase] createSelfDriveStaff note:', error.message);
+    } catch (err: any) {
+      // ignore
+    }
+
+    return data;
+  },
+
+  updateSelfDriveStaff: async (data: Partial<SelfDriveStaff> & { id: string }): Promise<any> => {
+    const tenantId = data.tenantId || getTenantId();
+    // 1. Update localStorage cache
+    try {
+      const raw = localStorage.getItem(`fleetflow_self_drive_staff_${tenantId}`);
+      if (raw) {
+        const list: SelfDriveStaff[] = JSON.parse(raw);
+        const updated = list.map(item => item.id === data.id ? { ...item, ...data } : item);
+        localStorage.setItem(`fleetflow_self_drive_staff_${tenantId}`, JSON.stringify(updated));
+      }
+    } catch {
+      // ignore
+    }
+
+    // 2. Try Supabase
+    try {
+      const dbRow = toDbSelfDriveStaff(data);
+      const { error } = await supabase.from('self_drive_staff').update(dbRow).eq('id', data.id);
+      if (error) console.warn('[Supabase] updateSelfDriveStaff note:', error.message);
+    } catch (err: any) {
+      // ignore
+    }
+
+    return data;
+  },
+
+  deleteSelfDriveStaff: async (id: string): Promise<{ id: string }> => {
+    const tenantId = getTenantId();
+    // 1. Update localStorage cache
+    try {
+      const raw = localStorage.getItem(`fleetflow_self_drive_staff_${tenantId}`);
+      if (raw) {
+        const list: SelfDriveStaff[] = JSON.parse(raw);
+        const updated = list.filter(item => item.id !== id);
+        localStorage.setItem(`fleetflow_self_drive_staff_${tenantId}`, JSON.stringify(updated));
+      }
+    } catch {
+      // ignore
+    }
+
+    // 2. Try Supabase
+    try {
+      const { error } = await supabase.from('self_drive_staff').delete().eq('id', id);
+      if (error) console.warn('[Supabase] deleteSelfDriveStaff note:', error.message);
+    } catch (err: any) {
+      // ignore
+    }
+
+    return { id };
   },
 
   // ---- TENANTS & MULTITENANCY ----

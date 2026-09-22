@@ -14,19 +14,24 @@ import DriverScheduleManager from './components/DriverScheduleManager';
 import BookingManagementList from './components/BookingManagementList';
 import { AuthPage } from './components/AuthPage';
 import { PublicBookingPage } from './components/PublicBookingPage';
+import { PublicOdometerPage } from './components/PublicOdometerPage';
 import { SettingsView } from './components/SettingsView';
 
 const App: React.FC = () => {
   const { currentUser, isLoading, loadError, reload } = useAppContext();
-  const [activeView, setActiveView] = useState<'dashboard' | 'bookings' | 'reports' | 'logs' | 'archive' | 'vehicles' | 'users' | 'calendar' | 'issues' | 'schedule' | 'settings'>('dashboard');
+  const [activeView, setActiveView] = useState<'dashboard' | 'bookings' | 'reports' | 'logs' | 'archive' | 'vehicles' | 'users' | 'self-drive' | 'calendar' | 'issues' | 'schedule' | 'settings'>('dashboard');
 
-  // Cek pautan borang tempahan awam (tanpa log masuk)
+  // Check public action URLs (booking form or self-drive odometer portal)
   const urlParams = new URLSearchParams(window.location.search);
-  const isPublicBooking = urlParams.get('action') === 'book';
-  const publicTenantId = urlParams.get('tenant_id');
+  const action = urlParams.get('action');
+  const publicTenantId = urlParams.get('tenant_id') || 'yayasan-chow-kit';
 
-  if (isPublicBooking && publicTenantId) {
+  if (action === 'book') {
     return <PublicBookingPage tenantId={publicTenantId} />;
+  }
+
+  if (action === 'odometer') {
+    return <PublicOdometerPage tenantId={publicTenantId} />;
   }
 
   if (isLoading) {
@@ -83,6 +88,8 @@ const App: React.FC = () => {
         return <SettingsView initialSubTab="vehicles" />;
       case 'users':
         return <SettingsView initialSubTab="users" />;
+      case 'self-drive':
+        return <SettingsView initialSubTab="self-drive" />;
       case 'issues':
         return <IssueManagement />;
       case 'schedule':

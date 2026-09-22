@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, ReactNode, useCallback, useRef, useEffect } from 'react';
-import type { Booking, FuelLog, OdometerLog, User, Vehicle, BookingHistory, CurrentUser, IssueLog, DriverSchedule, Tenant } from '../types';
+import type { Booking, FuelLog, OdometerLog, User, Vehicle, BookingHistory, CurrentUser, IssueLog, DriverSchedule, Tenant, SelfDriveStaff } from '../types';
 import { storageService } from '../services/storage';
 import { parseAsLocal } from '../utils';
 import { evaluateBookingAssignment, normalizeDate, normalizeTime, getDriverCalendarColor, type AutoAssignResult } from '../services/bookingEngine';
@@ -57,6 +57,10 @@ interface AppContextType {
   updateTenantGoogleIntegrations: (settings: { googleAppsScriptUrl?: string; googleCalendarId?: string; googleDriveId?: string }) => Promise<boolean>;
   updateTenantProfile: (profileData: Partial<Tenant>) => Promise<boolean>;
   registerOrganization: (tenantId: string, tenantName: string, adminName: string, adminEmail: string, adminPassword?: string) => Promise<boolean>;
+  selfDriveStaff: SelfDriveStaff[];
+  addSelfDriveStaff: (staff: Omit<SelfDriveStaff, 'id' | 'createdAt'>) => Promise<SelfDriveStaff>;
+  updateSelfDriveStaff: (staffId: string, updatedData: Partial<Omit<SelfDriveStaff, 'id'>>) => Promise<void>;
+  deleteSelfDriveStaff: (staffId: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -70,6 +74,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [odometerLogs, setOdometerLogs] = useState<OdometerLog[]>([]);
   const [issueLogs, setIssueLogs] = useState<IssueLog[]>([]);
   const [driverSchedules, setDriverSchedules] = useState<DriverSchedule[]>([]);
+  const [selfDriveStaff, setSelfDriveStaff] = useState<SelfDriveStaff[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
@@ -143,8 +148,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       storageService.getOdometerLogs(),
       storageService.getIssueLogs(),
       storageService.getDriverSchedules(),
+      storageService.getSelfDriveStaff(),
     ])
-      .then(([u, v, b, f, o, i, s]) => {
+      .then(([u, v, b, f, o, i, s, sds]) => {
         if (cancelled) return;
         setUsers(u);
         setVehicles(v);
@@ -153,10 +159,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setOdometerLogs(o);
         setIssueLogs(i);
         setDriverSchedules(s);
+        setSelfDriveStaff(sds);
       })
       .catch(err => {
         if (cancelled) return;
-        setLoadError(err.message || 'Gagal memuatkan data dari server.');
+        setLoadError(err.message || 'Failed to load data from server.');
       })
       .finally(() => {
         if (!cancelled) {
@@ -1057,9 +1064,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return prev.filter(v => v.id !== vehicleId);
     });
     storageService.deleteVehicle(vehicleId).catch(err => {
-      alert('Gagal padam vehicle: ' + err.message);
+      alert('Failed to delete vehicle: ' + err.message);
     });
   }, [bookings, clearUndoState]);
+
+  const addSelfDriveStaff = useCallback(async (staffData: Omit<SelfDriveStaff, 'id' | 'createdAt'>): Promise<SelfDriveStaff> => {
+    const id = tempId('staff-sds');
+    const newStaff: SelfDriveStaff = {
+      ...staffData,
+      id,
+      createdAt: new Date().toISOString(),
+      tenantId: storageService.getTenantId()
+    };
+    setSelfDriveStaff(prev => [newStaff, ...prev]);
+    await storageService.createSelfDriveStaff(newStaff);
+    return newStaff;
+  }, []);
+
+  const updateSelfDriveStaff = useCallback(async (staffId: string, updatedData: Partial<Omit<SelfDriveStaff, 'id'>>): Promise<void> => {
+    setSelfDriveStaff(prev => prev.map(s => s.id === staffId ? { ...s, ...updatedData } : s));
+    await storageService.updateSelfDriveStaff({ id: staffId, ...updatedData });
+  }, []);
+
+  const deleteSelfDriveStaff = useCallback(async (staffId: string): Promise<void> => {
+    setSelfDriveStaff(prev => prev.filter(s => s.id !== staffId));
+    await storageService.deleteSelfDriveStaff(staffId);
+  }, []);
 
   return (
     <AppContext.Provider value={{
@@ -1114,6 +1144,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       updateTenantGoogleIntegrations,
       updateTenantProfile,
       registerOrganization,
+      selfDriveStaff,
+      addSelfDriveStaff,
+      updateSelfDriveStaff,
+      deleteSelfDriveStaff,
     }}>
       {children}
     </AppContext.Provider>
