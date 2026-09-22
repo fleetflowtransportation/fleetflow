@@ -690,75 +690,53 @@ export const storageService = {
       const { data, error } = await supabase.from('tenants').select('*').eq('id', id).maybeSingle();
       
       if (error) {
-        console.error('[Supabase] getTenant error:', error.message);
+        console.warn('[Supabase] getTenant warning:', error.message);
       }
 
-      if (!data) {
-        if (id === 'yayasan-chow-kit') {
-          return {
-            id,
-            name: localProfile.name || localProfile.companyName || 'Yayasan Chow Kit',
-            status: 'active',
-            googleAppsScriptUrl: localProfile.googleAppsScriptUrl || '',
-            googleCalendarId: localProfile.googleCalendarId || '',
-            googleDriveId: localProfile.googleDriveId || '',
-            companyName: localProfile.companyName || 'Yayasan Chow Kit',
-            registrationNumber: localProfile.registrationNumber || 'PPM-012-14-11012011',
-            phone: localProfile.phone || '+603-4045 5550',
-            whatsapp: localProfile.whatsapp || '+6012-3456789',
-            email: localProfile.email || 'info@yck.org.my',
-            address: localProfile.address || 'No. 22B, Jalan Chow Kit, 50350 Kuala Lumpur',
-            postcode: localProfile.postcode || '50350',
-            city: localProfile.city || 'Kuala Lumpur',
-            state: localProfile.state || 'Wilayah Persekutuan Kuala Lumpur',
-            website: localProfile.website || 'https://www.yck.org.my',
-            picName: localProfile.picName || 'En. Syafiq (Pengurus Pengangkutan)',
-            picPhone: localProfile.picPhone || '+6012-3456789',
-            description: localProfile.description || 'Pusat Perlindungan Kanak-kanak & Pengurusan Pengangkutan Kebajikan Chow Kit',
-          };
+      let scriptUrl = data?.google_apps_script_url || localProfile.googleAppsScriptUrl || '';
+      let calendarId = data?.google_calendar_id || localProfile.googleCalendarId || '';
+      let driveId = data?.google_drive_id || localProfile.googleDriveId || '';
+      
+      let dbMetaProfile: Partial<Tenant> = {};
+      if (typeof driveId === 'string' && driveId.includes(':::FF_META:::')) {
+        const parts = driveId.split(':::FF_META:::');
+        driveId = parts[0] || '';
+        try {
+          dbMetaProfile = JSON.parse(parts[1]);
+        } catch {
+          // ignore
         }
-        if (Object.keys(localProfile).length > 0) {
-          return {
-            id,
-            name: localProfile.name || localProfile.companyName || id,
-            status: 'active',
-            ...localProfile
-          };
-        }
-        return null;
       }
-      
-      let scriptUrl = data.google_apps_script_url || localProfile.googleAppsScriptUrl || '';
-      let calendarId = data.google_calendar_id || localProfile.googleCalendarId || '';
-      let driveId = data.google_drive_id || localProfile.googleDriveId || '';
-      
+
       if (typeof calendarId === 'string' && calendarId.includes(':::')) {
         const parts = calendarId.split(':::');
         calendarId = parts[0] || '';
         driveId = parts[1] || driveId;
       }
 
-      return {
-        id: data.id,
-        name: data.name || localProfile.name || localProfile.companyName || 'Yayasan Chow Kit',
-        status: data.status || 'active',
+      const merged: Tenant = {
+        id,
+        name: dbMetaProfile.companyName || data?.name || localProfile.companyName || localProfile.name || (id === 'yayasan-chow-kit' ? 'Yayasan Chow Kit' : id),
+        status: data?.status || 'active',
         googleAppsScriptUrl: scriptUrl,
         googleCalendarId: calendarId,
         googleDriveId: driveId,
-        companyName: data.company_name || localProfile.companyName || data.name || 'Yayasan Chow Kit',
-        registrationNumber: data.registration_number || localProfile.registrationNumber || '',
-        phone: data.phone || localProfile.phone || '',
-        whatsapp: data.whatsapp || localProfile.whatsapp || '',
-        email: data.email || localProfile.email || '',
-        address: data.address || localProfile.address || '',
-        postcode: data.postcode || localProfile.postcode || '',
-        city: data.city || localProfile.city || '',
-        state: data.state || localProfile.state || '',
-        website: data.website || localProfile.website || '',
-        picName: data.pic_name || localProfile.picName || '',
-        picPhone: data.pic_phone || localProfile.picPhone || '',
-        description: data.description || localProfile.description || '',
+        companyName: dbMetaProfile.companyName || data?.company_name || localProfile.companyName || data?.name || (id === 'yayasan-chow-kit' ? 'Yayasan Chow Kit' : id),
+        registrationNumber: dbMetaProfile.registrationNumber || data?.registration_number || localProfile.registrationNumber || (id === 'yayasan-chow-kit' ? 'PPM-012-14-11012011' : ''),
+        phone: dbMetaProfile.phone || data?.phone || localProfile.phone || (id === 'yayasan-chow-kit' ? '+603-4045 5550' : ''),
+        whatsapp: dbMetaProfile.whatsapp || data?.whatsapp || localProfile.whatsapp || (id === 'yayasan-chow-kit' ? '+6012-3456789' : ''),
+        email: dbMetaProfile.email || data?.email || localProfile.email || (id === 'yayasan-chow-kit' ? 'info@yck.org.my' : ''),
+        address: dbMetaProfile.address || data?.address || localProfile.address || (id === 'yayasan-chow-kit' ? 'No. 22B, Jalan Chow Kit, 50350 Kuala Lumpur' : ''),
+        postcode: dbMetaProfile.postcode || data?.postcode || localProfile.postcode || (id === 'yayasan-chow-kit' ? '50350' : ''),
+        city: dbMetaProfile.city || data?.city || localProfile.city || (id === 'yayasan-chow-kit' ? 'Kuala Lumpur' : ''),
+        state: dbMetaProfile.state || data?.state || localProfile.state || (id === 'yayasan-chow-kit' ? 'Wilayah Persekutuan Kuala Lumpur' : ''),
+        website: dbMetaProfile.website || data?.website || localProfile.website || (id === 'yayasan-chow-kit' ? 'https://www.yck.org.my' : ''),
+        picName: dbMetaProfile.picName || data?.pic_name || localProfile.picName || (id === 'yayasan-chow-kit' ? 'En. Syafiq (Pengurus Pengangkutan)' : ''),
+        picPhone: dbMetaProfile.picPhone || data?.pic_phone || localProfile.picPhone || (id === 'yayasan-chow-kit' ? '+6012-3456789' : ''),
+        description: dbMetaProfile.description || data?.description || localProfile.description || (id === 'yayasan-chow-kit' ? 'Pusat Perlindungan Kanak-kanak & Pengurusan Pengangkutan Kebajikan Chow Kit' : ''),
       };
+
+      return merged;
     } catch (err: any) {
       console.warn('[Supabase] getTenant exception:', err.message);
       return null;
@@ -776,52 +754,32 @@ export const storageService = {
         // ignore
       }
 
-      const mergedProfile = {
+      const mergedProfile: Partial<Tenant> = {
         ...existingLocal,
         ...updatedData,
       };
 
-      // 2. Prepare database payload with standard tenant columns
-      const dbRow: any = {
-        id,
+      // 2. Prepare metadata JSON payload for database cloud persistence
+      const metaPayload = {
+        companyName: mergedProfile.companyName || mergedProfile.name || '',
+        registrationNumber: mergedProfile.registrationNumber || '',
+        phone: mergedProfile.phone || '',
+        whatsapp: mergedProfile.whatsapp || '',
+        email: mergedProfile.email || '',
+        address: mergedProfile.address || '',
+        postcode: mergedProfile.postcode || '',
+        city: mergedProfile.city || '',
+        state: mergedProfile.state || '',
+        website: mergedProfile.website || '',
+        picName: mergedProfile.picName || '',
+        picPhone: mergedProfile.picPhone || '',
+        description: mergedProfile.description || '',
       };
-      if (updatedData.name !== undefined) dbRow.name = updatedData.name;
-      if (updatedData.status !== undefined) dbRow.status = updatedData.status;
-      if (updatedData.googleAppsScriptUrl !== undefined) dbRow.google_apps_script_url = updatedData.googleAppsScriptUrl;
-      if (updatedData.googleCalendarId !== undefined) dbRow.google_calendar_id = updatedData.googleCalendarId;
-      if (updatedData.googleDriveId !== undefined) dbRow.google_drive_id = updatedData.googleDriveId;
-      if (updatedData.companyName !== undefined) dbRow.company_name = updatedData.companyName;
-      if (updatedData.phone !== undefined) dbRow.phone = updatedData.phone;
-      if (updatedData.email !== undefined) dbRow.email = updatedData.email;
-      if (updatedData.address !== undefined) dbRow.address = updatedData.address;
 
-      console.log('[Supabase] Updating tenant in database:', id, dbRow);
+      const rawDriveId = (mergedProfile.googleDriveId || '').split(':::FF_META:::')[0] || '';
+      const packedDriveId = rawDriveId + ':::FF_META:::' + JSON.stringify(metaPayload);
 
-      // 3. Try direct upsert into Supabase tenants table
-      try {
-        const { error: upsertErr } = await supabase
-          .from('tenants')
-          .upsert(dbRow, { onConflict: 'id' });
-
-        if (upsertErr) {
-          console.warn('[Supabase] Primary upsert warning, trying minimal fallback columns:', upsertErr.message);
-          
-          // Fallback update attempt with core columns only
-          const fallbackRow: any = { id };
-          if (updatedData.name !== undefined) fallbackRow.name = updatedData.name;
-          if (updatedData.status !== undefined) fallbackRow.status = updatedData.status;
-          if (updatedData.googleCalendarId !== undefined) fallbackRow.google_calendar_id = updatedData.googleCalendarId;
-          if (updatedData.googleDriveId !== undefined) fallbackRow.google_drive_id = updatedData.googleDriveId;
-          
-          await supabase
-            .from('tenants')
-            .upsert(fallbackRow, { onConflict: 'id' });
-        }
-      } catch (dbEx: any) {
-        console.warn('[Supabase] DB upsert skipped/caught:', dbEx.message);
-      }
-
-      // 4. Always save full profile payload in localStorage for immediate reliability
+      // 3. Save to localStorage immediately for instant local retrieval
       try {
         localStorage.setItem(`fleetflow_tenant_config_${id}`, JSON.stringify(mergedProfile));
         if (updatedData.googleAppsScriptUrl) {
@@ -829,6 +787,35 @@ export const storageService = {
         }
       } catch {
         // ignore
+      }
+
+      // 4. Upsert to Supabase
+      try {
+        const primaryRow: any = {
+          id,
+          name: mergedProfile.companyName || mergedProfile.name || 'Yayasan Chow Kit',
+          status: mergedProfile.status || 'active',
+          google_drive_id: packedDriveId,
+          ...(mergedProfile.googleAppsScriptUrl !== undefined && { google_apps_script_url: mergedProfile.googleAppsScriptUrl }),
+          ...(mergedProfile.googleCalendarId !== undefined && { google_calendar_id: mergedProfile.googleCalendarId }),
+        };
+
+        const { error: upsertErr } = await supabase
+          .from('tenants')
+          .upsert(primaryRow, { onConflict: 'id' });
+
+        if (upsertErr) {
+          console.warn('[Supabase] Primary tenant upsert fallback attempt:', upsertErr.message);
+          await supabase
+            .from('tenants')
+            .upsert({
+              id,
+              name: mergedProfile.companyName || mergedProfile.name || id,
+              google_drive_id: packedDriveId,
+            }, { onConflict: 'id' });
+        }
+      } catch (dbEx: any) {
+        console.warn('[Supabase] DB upsert exception caught:', dbEx.message);
       }
 
       return true;

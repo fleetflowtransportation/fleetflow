@@ -10,13 +10,21 @@ import {
   UserCircleIcon,
   CheckCircleIcon,
   DocumentTextIcon,
-  SparklesIcon
+  SparklesIcon,
+  LockClosedIcon,
+  LockOpenIcon,
+  EditIcon,
+  PrinterIcon,
+  ClipboardCheckIcon
 } from './icons/Icons';
 
 export const ProfileSettings: React.FC = () => {
   const { activeTenant, updateTenantProfile } = useAppContext();
   const isDirtyRef = React.useRef(false);
   const lastTenantIdRef = React.useRef<string | null>(null);
+
+  // Lock / Edit Mode Toggle (User explicitly requested edit/lock toggle)
+  const [isEditing, setIsEditing] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState<Partial<Tenant>>(() => {
@@ -30,38 +38,38 @@ export const ProfileSettings: React.FC = () => {
       // ignore
     }
     return {
-      companyName: activeTenant?.companyName || activeTenant?.name || '',
-      registrationNumber: activeTenant?.registrationNumber || '',
-      description: activeTenant?.description || '',
-      phone: activeTenant?.phone || '',
-      whatsapp: activeTenant?.whatsapp || '',
-      email: activeTenant?.email || '',
-      website: activeTenant?.website || '',
-      address: activeTenant?.address || '',
-      postcode: activeTenant?.postcode || '',
-      city: activeTenant?.city || '',
-      state: activeTenant?.state || '',
-      picName: activeTenant?.picName || '',
-      picPhone: activeTenant?.picPhone || '',
+      companyName: activeTenant?.companyName || activeTenant?.name || 'Yayasan Chow Kit',
+      registrationNumber: activeTenant?.registrationNumber || 'PPM-012-14-11012011',
+      description: activeTenant?.description || 'Pusat Perlindungan Kanak-kanak & Pengurusan Pengangkutan Kebajikan Chow Kit',
+      phone: activeTenant?.phone || '+603-4045 5550',
+      whatsapp: activeTenant?.whatsapp || '+6012-3456789',
+      email: activeTenant?.email || 'info@yck.org.my',
+      website: activeTenant?.website || 'https://www.yck.org.my',
+      address: activeTenant?.address || 'No. 22B, Jalan Chow Kit, 50350 Kuala Lumpur',
+      postcode: activeTenant?.postcode || '50350',
+      city: activeTenant?.city || 'Kuala Lumpur',
+      state: activeTenant?.state || 'Wilayah Persekutuan Kuala Lumpur',
+      picName: activeTenant?.picName || 'En. Syafiq (Pengurus Pengangkutan)',
+      picPhone: activeTenant?.picPhone || '+6012-3456789',
     };
   });
 
   const [isSaving, setIsSaving] = useState(false);
+  const [copyNotice, setCopyNotice] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({
     type: null,
     message: '',
   });
 
-  // Only initialize from activeTenant on first load or if switching to a completely different tenant,
-  // NEVER overwrite while user is editing/typing!
+  // Sync with activeTenant when tenant changes or when updated
   useEffect(() => {
     if (!activeTenant) return;
 
     const isDifferentTenant = lastTenantIdRef.current !== activeTenant.id;
-    if (isDifferentTenant || !isDirtyRef.current) {
+    if (isDifferentTenant || (!isDirtyRef.current && !isEditing)) {
       lastTenantIdRef.current = activeTenant.id;
 
-      // Check if draft exists first
+      // Check if draft exists
       let draftData: Partial<Tenant> | null = null;
       try {
         const raw = localStorage.getItem(`fleetflow_profile_draft_${activeTenant.id}`);
@@ -71,7 +79,7 @@ export const ProfileSettings: React.FC = () => {
       }
 
       setFormData({
-        companyName: draftData?.companyName ?? (activeTenant.companyName || activeTenant.name || ''),
+        companyName: draftData?.companyName ?? (activeTenant.companyName || activeTenant.name || 'Yayasan Chow Kit'),
         registrationNumber: draftData?.registrationNumber ?? (activeTenant.registrationNumber || ''),
         description: draftData?.description ?? (activeTenant.description || ''),
         phone: draftData?.phone ?? (activeTenant.phone || ''),
@@ -86,7 +94,7 @@ export const ProfileSettings: React.FC = () => {
         picPhone: draftData?.picPhone ?? (activeTenant.picPhone || ''),
       });
     }
-  }, [activeTenant?.id]);
+  }, [activeTenant, isEditing]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -110,6 +118,35 @@ export const ProfileSettings: React.FC = () => {
     });
   };
 
+  const handleCancelEdit = () => {
+    isDirtyRef.current = false;
+    const currentId = activeTenant?.id || 'yayasan-chow-kit';
+    try {
+      localStorage.removeItem(`fleetflow_profile_draft_${currentId}`);
+    } catch {
+      // ignore
+    }
+
+    if (activeTenant) {
+      setFormData({
+        companyName: activeTenant.companyName || activeTenant.name || 'Yayasan Chow Kit',
+        registrationNumber: activeTenant.registrationNumber || '',
+        description: activeTenant.description || '',
+        phone: activeTenant.phone || '',
+        whatsapp: activeTenant.whatsapp || '',
+        email: activeTenant.email || '',
+        website: activeTenant.website || '',
+        address: activeTenant.address || '',
+        postcode: activeTenant.postcode || '',
+        city: activeTenant.city || '',
+        state: activeTenant.state || '',
+        picName: activeTenant.picName || '',
+        picPhone: activeTenant.picPhone || '',
+      });
+    }
+    setIsEditing(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
@@ -131,9 +168,12 @@ export const ProfileSettings: React.FC = () => {
           // ignore
         }
 
+        // Lock form upon successful save
+        setIsEditing(false);
+
         setSaveStatus({
           type: 'success',
-          message: 'Maklumat profil syarikat / organisasi telah berjaya disimpan dan dikemaskini!',
+          message: 'Maklumat profil syarikat / organisasi telah berjaya disimpan ke Supabase dan dikunci!',
         });
         setTimeout(() => {
           setSaveStatus({ type: null, message: '' });
@@ -141,17 +181,45 @@ export const ProfileSettings: React.FC = () => {
       } else {
         setSaveStatus({
           type: 'error',
-          message: 'Gagal mengemaskini profil. Sila cuba sebentar lagi.',
+          message: 'Gagal mengemaskini profil. Sila periksa sambungan internet atau cuba sebentar lagi.',
         });
       }
     } catch (err: any) {
       setSaveStatus({
         type: 'error',
-        message: err.message || 'Ralat semasa menyimpan profil.',
+        message: err.message || 'Ralat semasa menyimpan profil ke Supabase.',
       });
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    setCopyNotice(`Tersalin: ${label}`);
+    setTimeout(() => {
+      setCopyNotice(null);
+    }, 3000);
+  };
+
+  const copyFullSummary = () => {
+    const summary = [
+      `SYARIKAT: ${formData.companyName || 'Yayasan Chow Kit'}`,
+      formData.registrationNumber ? `NO. DAFTAR (SSM/ROS): ${formData.registrationNumber}` : null,
+      formData.phone ? `TEL: ${formData.phone}` : null,
+      formData.whatsapp ? `WHATSAPP: ${formData.whatsapp}` : null,
+      formData.email ? `EMEL: ${formData.email}` : null,
+      formData.website ? `LAMAN WEB: ${formData.website}` : null,
+      formData.address ? `ALAMAT: ${formData.address}${formData.postcode ? ', ' + formData.postcode : ''}${formData.city ? ' ' + formData.city : ''}${formData.state ? ', ' + formData.state : ''}` : null,
+      formData.picName ? `PIC: ${formData.picName} (${formData.picPhone || 'Tiada No.'})` : null,
+      formData.description ? `CATATAN: ${formData.description}` : null,
+    ].filter(Boolean).join('\n');
+
+    copyToClipboard(summary, 'Ringkasan Penuh Profil');
+  };
+
+  const handlePrint = () => {
+    window.print();
   };
 
   const malaysianStates = [
@@ -173,6 +241,24 @@ export const ProfileSettings: React.FC = () => {
     'Terengganu'
   ];
 
+  // Clean WhatsApp phone number for link (e.g. removes +, -, spaces and prefixes with 60)
+  const cleanWhatsAppNumber = (rawPhone?: string) => {
+    if (!rawPhone) return '';
+    let digits = rawPhone.replace(/\D/g, '');
+    if (digits.startsWith('0')) {
+      digits = '60' + digits.substring(1);
+    } else if (digits.startsWith('60')) {
+      // already ok
+    } else if (digits.length > 0) {
+      digits = '60' + digits;
+    }
+    return digits;
+  };
+
+  const formattedAddressForMaps = encodeURIComponent(
+    `${formData.address || ''} ${formData.postcode || ''} ${formData.city || ''} ${formData.state || ''}`.trim()
+  );
+
   return (
     <div className="space-y-8">
       {/* Header Banner */}
@@ -187,18 +273,60 @@ export const ProfileSettings: React.FC = () => {
               {formData.companyName || 'Maklumat Profil Organisasi'}
             </h2>
             <p className="text-indigo-200 text-sm max-w-2xl">
-              Kemaskini butiran entiti perniagaan, nombor telefon rasmi, alamat ibu pejabat, dan pegawai bertugas untuk rekod sistem pengurusan logistik.
+              Urus butiran rasmi syarikat, nombor perhubungan, alamat berdaftar, dan pegawai PIC. Data disegerakkan terus dengan pangkalan data Supabase dan digunapakai untuk semua cetakan surat dan laporan sistem.
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="bg-white/10 backdrop-blur-md px-4 py-3 rounded-xl border border-white/20 text-right">
-              <span className="text-xs text-indigo-200 block uppercase font-medium">Tenant ID</span>
-              <span className="font-mono text-sm font-bold text-white">{activeTenant?.id || 'yayasan-chow-kit'}</span>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            {/* Lock Status Pill */}
+            <div className={`px-4 py-2.5 rounded-xl border backdrop-blur-md flex items-center gap-2 text-sm font-medium shadow-sm ${
+              isEditing 
+                ? 'bg-amber-500/20 border-amber-400/40 text-amber-100' 
+                : 'bg-emerald-500/20 border-emerald-400/40 text-emerald-100'
+            }`}>
+              {isEditing ? (
+                <>
+                  <LockOpenIcon className="w-4 h-4 text-amber-300 animate-pulse" />
+                  <span>Mod Suntingan Aktif</span>
+                </>
+              ) : (
+                <>
+                  <LockClosedIcon className="w-4 h-4 text-emerald-300" />
+                  <span>Mod Terkunci (Disimpan)</span>
+                </>
+              )}
             </div>
+
+            {/* Quick Action to Toggle Edit Mode */}
+            {!isEditing ? (
+              <button
+                type="button"
+                onClick={() => setIsEditing(true)}
+                className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-white text-indigo-900 font-semibold text-sm hover:bg-indigo-50 shadow-md hover:shadow-lg transition active:scale-95"
+              >
+                <EditIcon className="w-4 h-4 mr-2 text-indigo-700" />
+                Kemaskini / Edit Profil
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-sm border border-white/20 transition active:scale-95"
+              >
+                Kunci Semula / Batal
+              </button>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Copy / Action Notice Toast */}
+      {copyNotice && (
+        <div className="fixed bottom-6 right-6 z-50 bg-gray-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-gray-700 animate-bounce">
+          <ClipboardCheckIcon className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+          <span className="text-sm font-medium">{copyNotice}</span>
+        </div>
+      )}
 
       {/* Alert Notification */}
       {saveStatus.type && (
@@ -214,7 +342,12 @@ export const ProfileSettings: React.FC = () => {
           ) : (
             <DocumentTextIcon className="w-6 h-6 text-red-600 flex-shrink-0" />
           )}
-          <span className="text-sm font-medium">{saveStatus.message}</span>
+          <div className="flex-1">
+            <span className="text-sm font-semibold block">
+              {saveStatus.type === 'success' ? 'Berjaya Disimpan' : 'Ralat Penyimpanan'}
+            </span>
+            <span className="text-xs text-gray-700">{saveStatus.message}</span>
+          </div>
         </div>
       )}
 
@@ -223,11 +356,70 @@ export const ProfileSettings: React.FC = () => {
         <div className="lg:col-span-2 space-y-6">
           <form onSubmit={handleSubmit} className="space-y-6">
             
+            {/* Top Edit State Indicator Bar */}
+            <div className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+              isEditing 
+                ? 'bg-amber-50 border-amber-200 text-amber-900' 
+                : 'bg-slate-50 border-slate-200 text-slate-700'
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${isEditing ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-700'}`}>
+                  {isEditing ? <LockOpenIcon className="w-5 h-5" /> : <LockClosedIcon className="w-5 h-5" />}
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold">
+                    {isEditing ? 'Borang Dibuka Untuk Suntingan' : 'Borang Dalam Keadaan Terkunci'}
+                  </h4>
+                  <p className="text-xs opacity-80">
+                    {isEditing 
+                      ? 'Anda boleh mengubah maklumat di bawah. Tekan butang "Simpan Profil Syarikat" untuk mengunci dan menyimpan ke pangkalan data.' 
+                      : 'Data telah disimpan dengan selamat. Tekan butang "Kemaskini / Edit" jika anda ingin membuat sebarang perubahan.'}
+                  </p>
+                </div>
+              </div>
+
+              {!isEditing ? (
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(true)}
+                  className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition active:scale-95 flex-shrink-0"
+                >
+                  <EditIcon className="w-3.5 h-3.5 mr-1.5" />
+                  Buka Kunci Untuk Edit
+                </button>
+              ) : (
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    className="px-3 py-1.5 rounded-lg bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs font-medium transition"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSaving}
+                    className="inline-flex items-center px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition disabled:opacity-50"
+                  >
+                    <CheckCircleIcon className="w-3.5 h-3.5 mr-1.5" />
+                    {isSaving ? 'Menyimpan...' : 'Simpan Sekarang'}
+                  </button>
+                </div>
+              )}
+            </div>
+
             {/* Section 1: Maklumat Asas */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-5">
-              <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
-                <BuildingOfficeIcon className="w-5 h-5 text-indigo-600" />
-                <h3 className="text-base font-semibold text-gray-900">Maklumat Asas Syarikat</h3>
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <BuildingOfficeIcon className="w-5 h-5 text-indigo-600" />
+                  <h3 className="text-base font-semibold text-gray-900">Maklumat Asas Syarikat & Organisasi</h3>
+                </div>
+                {!isEditing && (
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                    <LockClosedIcon className="w-3.5 h-3.5" /> Terkunci
+                  </span>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -240,51 +432,71 @@ export const ProfileSettings: React.FC = () => {
                     name="companyName"
                     value={formData.companyName || ''}
                     onChange={handleChange}
+                    disabled={!isEditing}
                     required
-                    placeholder="cth. Yayasan Chow Kit / Syarikat Pengangkutan Sdn Bhd"
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                    placeholder="cth. Yayasan Chow Kit / Syarikat Pengangkutan Logistik Sdn Bhd"
+                    className={`w-full px-3.5 py-2.5 rounded-lg border text-sm transition ${
+                      !isEditing 
+                        ? 'bg-gray-50/70 border-gray-200 text-gray-800 font-medium cursor-not-allowed' 
+                        : 'bg-white border-gray-300 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
+                    }`}
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
-                    No. Pendaftaran Syarikat / SSM / ROS
+                    No. Pendaftaran (SSM / ROS / Pertubuhan)
                   </label>
                   <input
                     type="text"
                     name="registrationNumber"
                     value={formData.registrationNumber || ''}
                     onChange={handleChange}
-                    placeholder="cth. 202301012345 (123456-X) / PPM-012"
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                    disabled={!isEditing}
+                    placeholder="cth. PPM-012-14-11012011 / 202301012345"
+                    className={`w-full px-3.5 py-2.5 rounded-lg border text-sm transition ${
+                      !isEditing 
+                        ? 'bg-gray-50/70 border-gray-200 text-gray-800 font-mono cursor-not-allowed' 
+                        : 'bg-white border-gray-300 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
+                    }`}
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
-                    Laman Web Rasmi / Portal
+                    Laman Web Rasmi (Website URL)
                   </label>
                   <input
                     type="url"
                     name="website"
                     value={formData.website || ''}
                     onChange={handleChange}
-                    placeholder="https://www.syarikatanda.com"
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                    disabled={!isEditing}
+                    placeholder="cth. https://www.yck.org.my"
+                    className={`w-full px-3.5 py-2.5 rounded-lg border text-sm transition ${
+                      !isEditing 
+                        ? 'bg-gray-50/70 border-gray-200 text-gray-800 cursor-not-allowed' 
+                        : 'bg-white border-gray-300 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
+                    }`}
                   />
                 </div>
 
                 <div className="md:col-span-2">
                   <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
-                    Penerangan / Slogan Ringkas
+                    Penerangan Ringkas / Objektif Operasi
                   </label>
                   <textarea
                     name="description"
                     rows={2}
                     value={formData.description || ''}
                     onChange={handleChange}
-                    placeholder="Keterangan fungsi organisasi atau perkhidmatan logistik..."
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                    disabled={!isEditing}
+                    placeholder="cth. Pusat perlindungan & perkhidmatan kebajikan kanak-kanak dan keluarga."
+                    className={`w-full px-3.5 py-2.5 rounded-lg border text-sm transition ${
+                      !isEditing 
+                        ? 'bg-gray-50/70 border-gray-200 text-gray-800 cursor-not-allowed' 
+                        : 'bg-white border-gray-300 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
+                    }`}
                   />
                 </div>
               </div>
@@ -292,78 +504,109 @@ export const ProfileSettings: React.FC = () => {
 
             {/* Section 2: Maklumat Perhubungan Rasmi */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-5">
-              <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
-                <PhoneIcon className="w-5 h-5 text-indigo-600" />
-                <h3 className="text-base font-semibold text-gray-900">Maklumat Perhubungan</h3>
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <PhoneIcon className="w-5 h-5 text-indigo-600" />
+                  <h3 className="text-base font-semibold text-gray-900">Maklumat Perhubungan Rasmi</h3>
+                </div>
+                {!isEditing && (
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                    <LockClosedIcon className="w-3.5 h-3.5" /> Terkunci
+                  </span>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
-                    No. Telefon Pejabat <span className="text-red-500">*</span>
+                    No. Telefon Pejabat
                   </label>
                   <input
                     type="tel"
                     name="phone"
                     value={formData.phone || ''}
                     onChange={handleChange}
-                    required
+                    disabled={!isEditing}
                     placeholder="cth. +603-4045 5550"
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                    className={`w-full px-3.5 py-2.5 rounded-lg border text-sm transition ${
+                      !isEditing 
+                        ? 'bg-gray-50/70 border-gray-200 text-gray-800 cursor-not-allowed' 
+                        : 'bg-white border-gray-300 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
+                    }`}
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
-                    No. WhatsApp Rasmi
+                    No. Hotline / WhatsApp
                   </label>
                   <input
                     type="tel"
                     name="whatsapp"
                     value={formData.whatsapp || ''}
                     onChange={handleChange}
+                    disabled={!isEditing}
                     placeholder="cth. +6012-3456789"
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                    className={`w-full px-3.5 py-2.5 rounded-lg border text-sm transition ${
+                      !isEditing 
+                        ? 'bg-gray-50/70 border-gray-200 text-gray-800 cursor-not-allowed' 
+                        : 'bg-white border-gray-300 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
+                    }`}
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
-                    Emel Rasmi Organisasi <span className="text-red-500">*</span>
+                    Emel Rasmi Organisasi
                   </label>
                   <input
                     type="email"
                     name="email"
                     value={formData.email || ''}
                     onChange={handleChange}
-                    required
-                    placeholder="info@syarikat.com.my"
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                    disabled={!isEditing}
+                    placeholder="cth. info@yck.org.my"
+                    className={`w-full px-3.5 py-2.5 rounded-lg border text-sm transition ${
+                      !isEditing 
+                        ? 'bg-gray-50/70 border-gray-200 text-gray-800 cursor-not-allowed' 
+                        : 'bg-white border-gray-300 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
+                    }`}
                   />
                 </div>
               </div>
             </div>
 
-            {/* Section 3: Alamat Pejabat / Premis */}
+            {/* Section 3: Alamat Ibu Pejabat */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-5">
-              <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
-                <LocationMarkerIcon className="w-5 h-5 text-indigo-600" />
-                <h3 className="text-base font-semibold text-gray-900">Alamat Premis / Ibu Pejabat</h3>
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <LocationMarkerIcon className="w-5 h-5 text-indigo-600" />
+                  <h3 className="text-base font-semibold text-gray-900">Alamat Ibu Pejabat & Lokasi Operasi</h3>
+                </div>
+                {!isEditing && (
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                    <LockClosedIcon className="w-3.5 h-3.5" /> Terkunci
+                  </span>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="md:col-span-3">
                   <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
-                    Alamat Lengkap <span className="text-red-500">*</span>
+                    Alamat Lengkap (Jalan, Blok, Bangunan)
                   </label>
                   <textarea
                     name="address"
                     rows={2}
                     value={formData.address || ''}
                     onChange={handleChange}
-                    required
-                    placeholder="No. Unit, Bangunan, Jalan..."
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                    disabled={!isEditing}
+                    placeholder="cth. No. 22B, Jalan Chow Kit"
+                    className={`w-full px-3.5 py-2.5 rounded-lg border text-sm transition ${
+                      !isEditing 
+                        ? 'bg-gray-50/70 border-gray-200 text-gray-800 cursor-not-allowed' 
+                        : 'bg-white border-gray-300 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
+                    }`}
                   />
                 </div>
 
@@ -374,11 +617,16 @@ export const ProfileSettings: React.FC = () => {
                   <input
                     type="text"
                     name="postcode"
+                    maxLength={5}
                     value={formData.postcode || ''}
                     onChange={handleChange}
-                    placeholder="50350"
-                    maxLength={10}
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                    disabled={!isEditing}
+                    placeholder="cth. 50350"
+                    className={`w-full px-3.5 py-2.5 rounded-lg border text-sm transition ${
+                      !isEditing 
+                        ? 'bg-gray-50/70 border-gray-200 text-gray-800 font-mono cursor-not-allowed' 
+                        : 'bg-white border-gray-300 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
+                    }`}
                   />
                 </div>
 
@@ -391,8 +639,13 @@ export const ProfileSettings: React.FC = () => {
                     name="city"
                     value={formData.city || ''}
                     onChange={handleChange}
-                    placeholder="Kuala Lumpur"
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                    disabled={!isEditing}
+                    placeholder="cth. Kuala Lumpur"
+                    className={`w-full px-3.5 py-2.5 rounded-lg border text-sm transition ${
+                      !isEditing 
+                        ? 'bg-gray-50/70 border-gray-200 text-gray-800 cursor-not-allowed' 
+                        : 'bg-white border-gray-300 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
+                    }`}
                   />
                 </div>
 
@@ -404,9 +657,14 @@ export const ProfileSettings: React.FC = () => {
                     name="state"
                     value={formData.state || ''}
                     onChange={handleChange}
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition bg-white"
+                    disabled={!isEditing}
+                    className={`w-full px-3.5 py-2.5 rounded-lg border text-sm transition ${
+                      !isEditing 
+                        ? 'bg-gray-50/70 border-gray-200 text-gray-800 cursor-not-allowed' 
+                        : 'bg-white border-gray-300 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
+                    }`}
                   >
-                    <option value="">-- Pilih Negeri --</option>
+                    <option value="">Pilih Negeri</option>
                     {malaysianStates.map(st => (
                       <option key={st} value={st}>{st}</option>
                     ))}
@@ -417,9 +675,16 @@ export const ProfileSettings: React.FC = () => {
 
             {/* Section 4: Pegawai Bertugas (PIC) */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-5">
-              <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
-                <UserCircleIcon className="w-5 h-5 text-indigo-600" />
-                <h3 className="text-base font-semibold text-gray-900">Pegawai Dihubungi (Person In Charge - PIC)</h3>
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <UserCircleIcon className="w-5 h-5 text-indigo-600" />
+                  <h3 className="text-base font-semibold text-gray-900">Pegawai Dihubungi (Person In Charge - PIC)</h3>
+                </div>
+                {!isEditing && (
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                    <LockClosedIcon className="w-3.5 h-3.5" /> Terkunci
+                  </span>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -432,8 +697,13 @@ export const ProfileSettings: React.FC = () => {
                     name="picName"
                     value={formData.picName || ''}
                     onChange={handleChange}
+                    disabled={!isEditing}
                     placeholder="cth. En. Syafiq (Pengurus Pengangkutan)"
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                    className={`w-full px-3.5 py-2.5 rounded-lg border text-sm transition ${
+                      !isEditing 
+                        ? 'bg-gray-50/70 border-gray-200 text-gray-800 cursor-not-allowed' 
+                        : 'bg-white border-gray-300 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
+                    }`}
                   />
                 </div>
 
@@ -446,35 +716,63 @@ export const ProfileSettings: React.FC = () => {
                     name="picPhone"
                     value={formData.picPhone || ''}
                     onChange={handleChange}
+                    disabled={!isEditing}
                     placeholder="cth. +6012-3456789"
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                    className={`w-full px-3.5 py-2.5 rounded-lg border text-sm transition ${
+                      !isEditing 
+                        ? 'bg-gray-50/70 border-gray-200 text-gray-800 cursor-not-allowed' 
+                        : 'bg-white border-gray-300 text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
+                    }`}
                   />
                 </div>
               </div>
             </div>
 
             {/* Action Bar */}
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                type="submit"
-                disabled={isSaving}
-                className="inline-flex items-center justify-center px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm shadow-md hover:shadow-lg transition-all transform active:scale-95 disabled:opacity-50"
-              >
-                {isSaving ? (
-                  <>
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Menyimpan Maklumat...
-                  </>
+            <div className="flex items-center justify-between pt-2">
+              <div>
+                {!isEditing ? (
+                  <button
+                    type="button"
+                    onClick={() => setIsEditing(true)}
+                    className="inline-flex items-center px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm shadow-sm transition active:scale-95"
+                  >
+                    <EditIcon className="w-4 h-4 mr-2" />
+                    Buka Borang & Edit Profil
+                  </button>
                 ) : (
-                  <>
-                    <CheckCircleIcon className="w-5 h-5 mr-2" />
-                    Simpan Profil Syarikat
-                  </>
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    className="inline-flex items-center px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-sm transition active:scale-95"
+                  >
+                    Batal Perubahan
+                  </button>
                 )}
-              </button>
+              </div>
+
+              {isEditing && (
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="inline-flex items-center justify-center px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-md hover:shadow-lg transition-all transform active:scale-95 disabled:opacity-50"
+                >
+                  {isSaving ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Menyimpan ke Supabase...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircleIcon className="w-5 h-5 mr-2" />
+                      Simpan & Kunci Profil
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </form>
         </div>
@@ -482,87 +780,214 @@ export const ProfileSettings: React.FC = () => {
         {/* Live Preview / Summary Card (1 Col) */}
         <div className="space-y-6">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 sticky top-6 space-y-6">
+            
+            {/* Preview Card Header */}
             <div className="flex items-center justify-between pb-4 border-b border-gray-100">
               <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 flex items-center gap-1.5">
-                <SparklesIcon className="w-4 h-4" />
-                Kad Pratonton Profil
+                <SparklesIcon className="w-4 h-4 text-indigo-600" />
+                Kad Pratonton Profil Rasmi
               </span>
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800">
-                Aktif
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                Terkini & Aktif
               </span>
             </div>
 
+            {/* Main Visual Profile Box */}
             <div className="space-y-4">
-              <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 space-y-1">
-                <h4 className="font-bold text-gray-900 text-base leading-snug">
-                  {formData.companyName || 'Nama Syarikat Anda'}
-                </h4>
+              <div className="p-5 bg-gradient-to-br from-slate-50 to-indigo-50/40 rounded-xl border border-indigo-100 space-y-2 relative overflow-hidden">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-100/80 px-2 py-0.5 rounded">
+                      Entiti Organisasi
+                    </span>
+                    <h4 className="font-bold text-gray-900 text-lg leading-snug">
+                      {formData.companyName || 'Yayasan Chow Kit'}
+                    </h4>
+                  </div>
+                  <div className="p-2 bg-white rounded-lg shadow-sm border border-indigo-100 text-indigo-600">
+                    <BuildingOfficeIcon className="w-5 h-5" />
+                  </div>
+                </div>
+
                 {formData.registrationNumber && (
-                  <p className="text-xs text-gray-500 font-mono">
-                    No. Daftar: {formData.registrationNumber}
-                  </p>
+                  <div className="flex items-center justify-between bg-white/80 backdrop-blur-sm px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs">
+                    <span className="text-gray-500 font-mono text-[11px]">
+                      No. Daftar: {formData.registrationNumber}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(formData.registrationNumber!, 'No. Pendaftaran')}
+                      className="text-[10px] font-semibold text-indigo-600 hover:text-indigo-800"
+                    >
+                      Salin
+                    </button>
+                  </div>
                 )}
+
                 {formData.description && (
-                  <p className="text-xs text-gray-600 mt-2 leading-relaxed italic">
+                  <p className="text-xs text-gray-600 leading-relaxed italic pt-1">
                     "{formData.description}"
                   </p>
                 )}
               </div>
 
-              <div className="space-y-2.5 text-xs text-gray-600">
-                <div className="flex items-start gap-2.5">
+              {/* Detailed Contact List */}
+              <div className="space-y-3 text-xs text-gray-600 divide-y divide-gray-100">
+                
+                {/* Phone & WhatsApp */}
+                <div className="pt-2 flex items-start gap-3">
                   <PhoneIcon className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <span className="font-medium text-gray-800">{formData.phone || 'Tiada No. Telefon'}</span>
+                  <div className="flex-1 space-y-1">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 block">
+                      Talian Perhubungan
+                    </span>
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-gray-900">{formData.phone || 'Tiada No. Telefon'}</span>
+                      {formData.phone && (
+                        <a 
+                          href={`tel:${formData.phone}`} 
+                          className="text-[11px] font-semibold text-indigo-600 hover:underline"
+                        >
+                          Panggil
+                        </a>
+                      )}
+                    </div>
                     {formData.whatsapp && (
-                      <span className="text-emerald-600 block">WA: {formData.whatsapp}</span>
+                      <div className="flex items-center justify-between pt-0.5">
+                        <span className="text-emerald-700 font-medium flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                          WA: {formData.whatsapp}
+                        </span>
+                        <a 
+                          href={`https://wa.me/${cleanWhatsAppNumber(formData.whatsapp)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold hover:bg-emerald-200 transition"
+                        >
+                          Chat WhatsApp
+                        </a>
+                      </div>
                     )}
                   </div>
                 </div>
 
-                <div className="flex items-start gap-2.5">
+                {/* Email */}
+                <div className="pt-3 flex items-start gap-3">
                   <MailIcon className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                  <span className="text-gray-800 break-all">{formData.email || 'Tiada Emel'}</span>
+                  <div className="flex-1 space-y-0.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 block">
+                      Emel Rasmi
+                    </span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-900 font-medium break-all">{formData.email || 'Tiada Emel Diisi'}</span>
+                      {formData.email && (
+                        <a 
+                          href={`mailto:${formData.email}`} 
+                          className="text-[11px] font-semibold text-indigo-600 hover:underline ml-2"
+                        >
+                          Hantar
+                        </a>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
+                {/* Website */}
                 {formData.website && (
-                  <div className="flex items-start gap-2.5">
+                  <div className="pt-3 flex items-start gap-3">
                     <GlobeAltIcon className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                    <a 
-                      href={formData.website} 
-                      target="_blank" 
-                      rel="noreferrer"
-                      className="text-indigo-600 hover:underline break-all"
-                    >
-                      {formData.website}
-                    </a>
+                    <div className="flex-1 space-y-0.5">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 block">
+                        Laman Web
+                      </span>
+                      <a 
+                        href={formData.website} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="text-indigo-600 hover:underline break-all font-medium block"
+                      >
+                        {formData.website}
+                      </a>
+                    </div>
                   </div>
                 )}
 
-                <div className="flex items-start gap-2.5">
+                {/* Address */}
+                <div className="pt-3 flex items-start gap-3">
                   <LocationMarkerIcon className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                  <span className="text-gray-700 leading-relaxed">
-                    {formData.address 
-                      ? `${formData.address}${formData.postcode ? ', ' + formData.postcode : ''}${formData.city ? ' ' + formData.city : ''}${formData.state ? ', ' + formData.state : ''}`
-                      : 'Tiada alamat diisi'}
-                  </span>
+                  <div className="flex-1 space-y-1">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 block">
+                      Alamat Pejabat
+                    </span>
+                    <p className="text-gray-800 leading-relaxed font-medium">
+                      {formData.address 
+                        ? `${formData.address}${formData.postcode ? ', ' + formData.postcode : ''}${formData.city ? ' ' + formData.city : ''}${formData.state ? ', ' + formData.state : ''}`
+                        : 'Tiada alamat diisi'}
+                    </p>
+                    {formData.address && (
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${formattedAddressForMaps}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center text-[11px] font-semibold text-indigo-600 hover:underline pt-0.5"
+                      >
+                        📍 Buka di Google Maps
+                      </a>
+                    )}
+                  </div>
                 </div>
 
+                {/* PIC */}
                 {formData.picName && (
-                  <div className="pt-3 border-t border-gray-100 flex items-start gap-2.5">
-                    <UserCircleIcon className="w-4 h-4 text-indigo-500 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <span className="text-gray-500 block text-[10px] uppercase font-semibold">Pegawai PIC</span>
-                      <span className="font-semibold text-gray-800">{formData.picName}</span>
-                      {formData.picPhone && <span className="text-gray-500 block">{formData.picPhone}</span>}
+                  <div className="pt-3 flex items-start gap-3 bg-indigo-50/50 p-3 rounded-xl border border-indigo-100/60">
+                    <UserCircleIcon className="w-5 h-5 text-indigo-600 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <span className="text-[10px] uppercase font-bold text-indigo-700 block">
+                        Pegawai Bertugas (PIC)
+                      </span>
+                      <span className="font-bold text-gray-900 block text-xs">{formData.picName}</span>
+                      {formData.picPhone && (
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-gray-600 font-mono text-xs">{formData.picPhone}</span>
+                          <a 
+                            href={`tel:${formData.picPhone}`}
+                            className="text-[10px] font-semibold text-indigo-600 hover:underline"
+                          >
+                            Hubungi
+                          </a>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="p-3 bg-indigo-50/70 rounded-xl text-[11px] text-indigo-800 leading-relaxed">
-              💡 Maklumat profil ini digunakan dalam cetakan laporan logistik, pengesahan jadual pemandu, dan integrasi invois/surat tempahan rasmi.
+            {/* Preview Action Buttons */}
+            <div className="pt-2 border-t border-gray-100 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={copyFullSummary}
+                className="w-full inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs transition active:scale-95"
+              >
+                <ClipboardCheckIcon className="w-4 h-4 mr-2 text-slate-600" />
+                Salin Ringkasan Profil
+              </button>
+
+              <button
+                type="button"
+                onClick={handlePrint}
+                className="w-full inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-xs transition active:scale-95"
+              >
+                <PrinterIcon className="w-4 h-4 mr-2 text-indigo-600" />
+                Cetak Kad Profil Syarikat
+              </button>
+            </div>
+
+            {/* Note */}
+            <div className="p-3 bg-indigo-50/70 rounded-xl text-[11px] text-indigo-800 leading-relaxed border border-indigo-100">
+              💡 Maklumat profil ini disimpan terus ke pangkalan data cloud dan digunakan dalam cetakan laporan logistik serta pengesahan tempahan rasmi.
             </div>
           </div>
         </div>
