@@ -173,7 +173,7 @@ export const ProfileSettings: React.FC = () => {
 
         setSaveStatus({
           type: 'success',
-          message: 'Maklumat profil syarikat / organisasi telah berjaya disimpan ke Supabase dan dikunci!',
+          message: 'Maklumat profil organisasi telah berjaya disimpan dan dikemaskini!',
         });
         setTimeout(() => {
           setSaveStatus({ type: null, message: '' });
@@ -187,7 +187,7 @@ export const ProfileSettings: React.FC = () => {
     } catch (err: any) {
       setSaveStatus({
         type: 'error',
-        message: err.message || 'Ralat semasa menyimpan profil ke Supabase.',
+        message: err.message || 'Ralat semasa menyimpan profil organisasi.',
       });
     } finally {
       setIsSaving(false);
@@ -273,7 +273,7 @@ export const ProfileSettings: React.FC = () => {
               {formData.companyName || 'Maklumat Profil Organisasi'}
             </h2>
             <p className="text-indigo-200 text-sm max-w-2xl">
-              Urus butiran rasmi syarikat, nombor perhubungan, alamat berdaftar, dan pegawai PIC. Data disegerakkan terus dengan pangkalan data Supabase dan digunapakai untuk semua cetakan surat dan laporan sistem.
+              Urus butiran rasmi organisasi, nombor perhubungan, alamat berdaftar, dan pegawai PIC. Maklumat ini disegerakkan secara berpusat dan digunapakai untuk semua dokumen rasmi, surat kebenaran, dan laporan armada.
             </p>
           </div>
 
@@ -763,7 +763,7 @@ export const ProfileSettings: React.FC = () => {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
-                      Menyimpan ke Supabase...
+                      Menyimpan Maklumat...
                     </>
                   ) : (
                     <>
@@ -987,7 +987,7 @@ export const ProfileSettings: React.FC = () => {
 
             {/* Note */}
             <div className="p-3 bg-indigo-50/70 rounded-xl text-[11px] text-indigo-800 leading-relaxed border border-indigo-100">
-              💡 Maklumat profil ini disimpan terus ke pangkalan data cloud dan digunakan dalam cetakan laporan logistik serta pengesahan tempahan rasmi.
+              💡 Maklumat profil ini disimpan secara selamat di awan dan digunakan secara automatik dalam cetakan surat, laporan logistik, dan pengesahan tempahan.
             </div>
           </div>
         </div>

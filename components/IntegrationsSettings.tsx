@@ -96,7 +96,7 @@ export const IntegrationsSettings: React.FC = () => {
       const cleanDrv = tempDriveId.trim();
       const cleanUrl = cleanGoogleScriptUrl(tempAppsScriptUrl);
 
-      // Save all 3 to Supabase database for the active tenant
+      // Save all 3 to cloud storage for the active organization
       const success = await updateTenantGoogleIntegrations({
         googleAppsScriptUrl: cleanUrl,
         googleCalendarId: cleanCal,
@@ -113,12 +113,12 @@ export const IntegrationsSettings: React.FC = () => {
         setIsLocked(true); // Auto-lock after saving
         setTimeout(() => setSaveSuccess(false), 4000);
       } else {
-        setSaveError('Gagal menyimpan ke pangkalan data Supabase. Sila pastikan sambungan internet aktif.');
+        setSaveError('Gagal menyimpan tetapan. Sila pastikan sambungan internet anda aktif.');
       }
       refreshLogs();
     } catch (err: any) {
       console.error('Error saving integrations:', err);
-      setSaveError(err.message || 'Ralat semasa menyimpan tetapan ke Supabase.');
+      setSaveError(err.message || 'Ralat semasa menyimpan tetapan integrasi.');
     } finally {
       setSaveLoading(false);
     }
@@ -370,7 +370,7 @@ function doPost(e) {
             <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
               <span>Pautan Tempahan Awam (Public Form)</span>
               <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 uppercase">
-                {activeTenant?.id || 'yayasan-chow-kit'}
+                {activeTenant?.companyName || activeTenant?.name || 'Organisasi Aktif'}
               </span>
             </h3>
             <p className="text-sm text-gray-500">
