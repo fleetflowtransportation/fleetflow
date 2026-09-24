@@ -1,5 +1,5 @@
-import type { Booking, FuelLog, OdometerLog, User, Vehicle, IssueLog, DriverSchedule, Tenant, SelfDriveStaff } from '../types';
-import { USERS, VEHICLES, INITIAL_BOOKINGS, INITIAL_DRIVER_SCHEDULES } from '../constants';
+import type { Booking, FuelLog, OdometerLog, User, Vehicle, IssueLog, DriverSchedule, Tenant, SelfDriveStaff, MaintenanceInterval, MaintenanceLog } from '../types';
+import { USERS, VEHICLES, INITIAL_BOOKINGS, INITIAL_DRIVER_SCHEDULES, INITIAL_MAINTENANCE_INTERVALS, INITIAL_MAINTENANCE_LOGS } from '../constants';
 import { supabase } from './supabaseClient';
 
 let currentTenantId = 'yayasan-chow-kit';
@@ -318,6 +318,72 @@ const INITIAL_SELF_DRIVE_STAFF: SelfDriveStaff[] = [
     tenantId: 'yayasan-chow-kit'
   }
 ];
+
+// Helper: Convert MaintenanceInterval TS to DB
+const toDbMaintenanceInterval = (m: Partial<MaintenanceInterval>) => ({
+  ...(m.id && { id: m.id }),
+  ...(m.vehicleId !== undefined && { vehicle_id: m.vehicleId }),
+  ...(m.serviceName !== undefined && { service_name: m.serviceName }),
+  ...(m.category !== undefined && { category: m.category }),
+  ...(m.intervalKm !== undefined && { interval_km: m.intervalKm }),
+  ...(m.intervalMonths !== undefined && { interval_months: m.intervalMonths }),
+  ...(m.lastServiceDate !== undefined && { last_service_date: m.lastServiceDate }),
+  ...(m.lastServiceOdometer !== undefined && { last_service_odometer: m.lastServiceOdometer }),
+  ...(m.nextDueOdometer !== undefined && { next_due_odometer: m.nextDueOdometer }),
+  ...(m.nextDueDate !== undefined && { next_due_date: m.nextDueDate }),
+  ...(m.estimatedCost !== undefined && { estimated_cost: m.estimatedCost }),
+  ...(m.notes !== undefined && { notes: m.notes }),
+  tenant_id: m.tenantId || getTenantId(),
+});
+
+const fromDbMaintenanceInterval = (row: any): MaintenanceInterval => ({
+  id: row.id,
+  vehicleId: row.vehicle_id,
+  serviceName: row.service_name,
+  category: row.category || 'General',
+  intervalKm: Number(row.interval_km || 0),
+  intervalMonths: Number(row.interval_months || 0),
+  lastServiceDate: row.last_service_date || '',
+  lastServiceOdometer: Number(row.last_service_odometer || 0),
+  nextDueOdometer: row.next_due_odometer ? Number(row.next_due_odometer) : undefined,
+  nextDueDate: row.next_due_date || undefined,
+  estimatedCost: row.estimated_cost ? Number(row.estimated_cost) : undefined,
+  notes: row.notes || undefined,
+  tenantId: row.tenant_id || getTenantId(),
+});
+
+// Helper: Convert MaintenanceLog TS to DB
+const toDbMaintenanceLog = (l: Partial<MaintenanceLog>) => ({
+  ...(l.id && { id: l.id }),
+  ...(l.vehicleId !== undefined && { vehicle_id: l.vehicleId }),
+  ...(l.serviceDate !== undefined && { service_date: l.serviceDate }),
+  ...(l.odometer !== undefined && { odometer: l.odometer }),
+  ...(l.serviceType !== undefined && { service_type: l.serviceType }),
+  ...(l.serviceItems !== undefined && { service_items: l.serviceItems }),
+  ...(l.workshopName !== undefined && { workshop_name: l.workshopName }),
+  ...(l.invoiceNumber !== undefined && { invoice_number: l.invoiceNumber }),
+  ...(l.totalCost !== undefined && { total_cost: l.totalCost }),
+  ...(l.performedBy !== undefined && { performed_by: l.performedBy }),
+  ...(l.remarks !== undefined && { remarks: l.remarks }),
+  ...(l.receiptUrl !== undefined && { receipt_url: l.receiptUrl }),
+  tenant_id: l.tenantId || getTenantId(),
+});
+
+const fromDbMaintenanceLog = (row: any): MaintenanceLog => ({
+  id: row.id,
+  vehicleId: row.vehicle_id,
+  serviceDate: row.service_date,
+  odometer: Number(row.odometer || 0),
+  serviceType: row.service_type || 'Scheduled Maintenance',
+  serviceItems: Array.isArray(row.service_items) ? row.service_items : (row.service_items ? JSON.parse(row.service_items) : []),
+  workshopName: row.workshop_name || '',
+  invoiceNumber: row.invoice_number || undefined,
+  totalCost: Number(row.total_cost || 0),
+  performedBy: row.performed_by || undefined,
+  remarks: row.remarks || undefined,
+  receiptUrl: row.receipt_url || undefined,
+  tenantId: row.tenant_id || getTenantId(),
+});
 
 export const storageService = {
   getTenantId,
@@ -847,6 +913,195 @@ export const storageService = {
     } catch (err: any) {
       // ignore
     }
+
+    return { id };
+  },
+
+  // ---- MAINTENANCE INTERVALS ----
+  getMaintenanceIntervals: async (): Promise<MaintenanceInterval[]> => {
+    const tenantId = getTenantId();
+    let localList: MaintenanceInterval[] = [];
+    try {
+      const raw = localStorage.getItem(`fleetflow_maintenance_intervals_${tenantId}`);
+      if (raw) {
+        localList = JSON.parse(raw);
+      } else {
+        localList = INITIAL_MAINTENANCE_INTERVALS.map(m => ({ ...m, tenantId }));
+        localStorage.setItem(`fleetflow_maintenance_intervals_${tenantId}`, JSON.stringify(localList));
+      }
+    } catch {
+      localList = INITIAL_MAINTENANCE_INTERVALS.map(m => ({ ...m, tenantId }));
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('maintenance_intervals')
+        .select('*')
+        .eq('tenant_id', tenantId);
+
+      if (!error && data && data.length > 0) {
+        const dbItems = data.map(fromDbMaintenanceInterval);
+        try {
+          localStorage.setItem(`fleetflow_maintenance_intervals_${tenantId}`, JSON.stringify(dbItems));
+        } catch {}
+        return dbItems;
+      }
+    } catch (err: any) {
+      // ignore
+    }
+
+    return localList;
+  },
+
+  createMaintenanceInterval: async (data: MaintenanceInterval): Promise<MaintenanceInterval> => {
+    const tenantId = getTenantId();
+    const itemWithTenant = { ...data, tenantId: data.tenantId || tenantId };
+    try {
+      const raw = localStorage.getItem(`fleetflow_maintenance_intervals_${tenantId}`);
+      const list: MaintenanceInterval[] = raw ? JSON.parse(raw) : [];
+      list.unshift(itemWithTenant);
+      localStorage.setItem(`fleetflow_maintenance_intervals_${tenantId}`, JSON.stringify(list));
+    } catch {}
+
+    try {
+      const dbRow = toDbMaintenanceInterval(itemWithTenant);
+      const { error } = await supabase.from('maintenance_intervals').insert([dbRow]);
+      if (error) console.warn('[Supabase] createMaintenanceInterval note:', error.message);
+    } catch {}
+
+    return itemWithTenant;
+  },
+
+  updateMaintenanceInterval: async (data: Partial<MaintenanceInterval> & { id: string }): Promise<any> => {
+    const tenantId = getTenantId();
+    try {
+      const raw = localStorage.getItem(`fleetflow_maintenance_intervals_${tenantId}`);
+      if (raw) {
+        const list: MaintenanceInterval[] = JSON.parse(raw);
+        const updated = list.map(item => item.id === data.id ? { ...item, ...data } : item);
+        localStorage.setItem(`fleetflow_maintenance_intervals_${tenantId}`, JSON.stringify(updated));
+      }
+    } catch {}
+
+    try {
+      const dbRow = toDbMaintenanceInterval(data);
+      const { error } = await supabase.from('maintenance_intervals').update(dbRow).eq('id', data.id);
+      if (error) console.warn('[Supabase] updateMaintenanceInterval note:', error.message);
+    } catch {}
+
+    return data;
+  },
+
+  deleteMaintenanceInterval: async (id: string): Promise<{ id: string }> => {
+    const tenantId = getTenantId();
+    try {
+      const raw = localStorage.getItem(`fleetflow_maintenance_intervals_${tenantId}`);
+      if (raw) {
+        const list: MaintenanceInterval[] = JSON.parse(raw);
+        const updated = list.filter(item => item.id !== id);
+        localStorage.setItem(`fleetflow_maintenance_intervals_${tenantId}`, JSON.stringify(updated));
+      }
+    } catch {}
+
+    try {
+      const { error } = await supabase.from('maintenance_intervals').delete().eq('id', id);
+      if (error) console.warn('[Supabase] deleteMaintenanceInterval note:', error.message);
+    } catch {}
+
+    return { id };
+  },
+
+  // ---- MAINTENANCE LOGS ----
+  getMaintenanceLogs: async (): Promise<MaintenanceLog[]> => {
+    const tenantId = getTenantId();
+    let localList: MaintenanceLog[] = [];
+    try {
+      const raw = localStorage.getItem(`fleetflow_maintenance_logs_${tenantId}`);
+      if (raw) {
+        localList = JSON.parse(raw);
+      } else {
+        localList = INITIAL_MAINTENANCE_LOGS.map(l => ({ ...l, tenantId }));
+        localStorage.setItem(`fleetflow_maintenance_logs_${tenantId}`, JSON.stringify(localList));
+      }
+    } catch {
+      localList = INITIAL_MAINTENANCE_LOGS.map(l => ({ ...l, tenantId }));
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('maintenance_logs')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('service_date', { ascending: false });
+
+      if (!error && data && data.length > 0) {
+        const dbItems = data.map(fromDbMaintenanceLog);
+        try {
+          localStorage.setItem(`fleetflow_maintenance_logs_${tenantId}`, JSON.stringify(dbItems));
+        } catch {}
+        return dbItems;
+      }
+    } catch (err: any) {
+      // ignore
+    }
+
+    return localList;
+  },
+
+  createMaintenanceLog: async (data: MaintenanceLog): Promise<MaintenanceLog> => {
+    const tenantId = getTenantId();
+    const itemWithTenant = { ...data, tenantId: data.tenantId || tenantId };
+    try {
+      const raw = localStorage.getItem(`fleetflow_maintenance_logs_${tenantId}`);
+      const list: MaintenanceLog[] = raw ? JSON.parse(raw) : [];
+      list.unshift(itemWithTenant);
+      localStorage.setItem(`fleetflow_maintenance_logs_${tenantId}`, JSON.stringify(list));
+    } catch {}
+
+    try {
+      const dbRow = toDbMaintenanceLog(itemWithTenant);
+      const { error } = await supabase.from('maintenance_logs').insert([dbRow]);
+      if (error) console.warn('[Supabase] createMaintenanceLog note:', error.message);
+    } catch {}
+
+    return itemWithTenant;
+  },
+
+  updateMaintenanceLog: async (data: Partial<MaintenanceLog> & { id: string }): Promise<any> => {
+    const tenantId = getTenantId();
+    try {
+      const raw = localStorage.getItem(`fleetflow_maintenance_logs_${tenantId}`);
+      if (raw) {
+        const list: MaintenanceLog[] = JSON.parse(raw);
+        const updated = list.map(item => item.id === data.id ? { ...item, ...data } : item);
+        localStorage.setItem(`fleetflow_maintenance_logs_${tenantId}`, JSON.stringify(updated));
+      }
+    } catch {}
+
+    try {
+      const dbRow = toDbMaintenanceLog(data);
+      const { error } = await supabase.from('maintenance_logs').update(dbRow).eq('id', data.id);
+      if (error) console.warn('[Supabase] updateMaintenanceLog note:', error.message);
+    } catch {}
+
+    return data;
+  },
+
+  deleteMaintenanceLog: async (id: string): Promise<{ id: string }> => {
+    const tenantId = getTenantId();
+    try {
+      const raw = localStorage.getItem(`fleetflow_maintenance_logs_${tenantId}`);
+      if (raw) {
+        const list: MaintenanceLog[] = JSON.parse(raw);
+        const updated = list.filter(item => item.id !== id);
+        localStorage.setItem(`fleetflow_maintenance_logs_${tenantId}`, JSON.stringify(updated));
+      }
+    } catch {}
+
+    try {
+      const { error } = await supabase.from('maintenance_logs').delete().eq('id', id);
+      if (error) console.warn('[Supabase] deleteMaintenanceLog note:', error.message);
+    } catch {}
 
     return { id };
   },

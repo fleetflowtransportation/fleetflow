@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, ReactNode, useCallback, useRef, useEffect } from 'react';
-import type { Booking, FuelLog, OdometerLog, User, Vehicle, BookingHistory, CurrentUser, IssueLog, DriverSchedule, Tenant, SelfDriveStaff } from '../types';
+import type { Booking, FuelLog, OdometerLog, User, Vehicle, BookingHistory, CurrentUser, IssueLog, DriverSchedule, Tenant, SelfDriveStaff, MaintenanceInterval, MaintenanceLog } from '../types';
 import { storageService } from '../services/storage';
 import { parseAsLocal } from '../utils';
 import { evaluateBookingAssignment, normalizeDate, normalizeTime, getDriverCalendarColor, type AutoAssignResult } from '../services/bookingEngine';
@@ -61,6 +61,14 @@ interface AppContextType {
   addSelfDriveStaff: (staff: Omit<SelfDriveStaff, 'id' | 'createdAt'>) => Promise<SelfDriveStaff>;
   updateSelfDriveStaff: (staffId: string, updatedData: Partial<Omit<SelfDriveStaff, 'id'>>) => Promise<void>;
   deleteSelfDriveStaff: (staffId: string) => Promise<void>;
+  maintenanceIntervals: MaintenanceInterval[];
+  maintenanceLogs: MaintenanceLog[];
+  addMaintenanceInterval: (data: Omit<MaintenanceInterval, 'id'>) => Promise<MaintenanceInterval>;
+  updateMaintenanceInterval: (id: string, updatedData: Partial<Omit<MaintenanceInterval, 'id'>>) => Promise<void>;
+  deleteMaintenanceInterval: (id: string) => Promise<void>;
+  addMaintenanceLog: (data: Omit<MaintenanceLog, 'id'>, intervalIdToUpdate?: string) => Promise<MaintenanceLog>;
+  updateMaintenanceLog: (id: string, updatedData: Partial<Omit<MaintenanceLog, 'id'>>) => Promise<void>;
+  deleteMaintenanceLog: (id: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -75,6 +83,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [issueLogs, setIssueLogs] = useState<IssueLog[]>([]);
   const [driverSchedules, setDriverSchedules] = useState<DriverSchedule[]>([]);
   const [selfDriveStaff, setSelfDriveStaff] = useState<SelfDriveStaff[]>([]);
+  const [maintenanceIntervals, setMaintenanceIntervals] = useState<MaintenanceInterval[]>([]);
+  const [maintenanceLogs, setMaintenanceLogs] = useState<MaintenanceLog[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
@@ -149,8 +159,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       storageService.getIssueLogs(),
       storageService.getDriverSchedules(),
       storageService.getSelfDriveStaff(),
+      storageService.getMaintenanceIntervals(),
+      storageService.getMaintenanceLogs(),
     ])
-      .then(([u, v, b, f, o, i, s, sds]) => {
+      .then(([u, v, b, f, o, i, s, sds, mi, ml]) => {
         if (cancelled) return;
         setUsers(u);
         setVehicles(v);
@@ -160,6 +172,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setIssueLogs(i);
         setDriverSchedules(s);
         setSelfDriveStaff(sds);
+        setMaintenanceIntervals(mi);
+        setMaintenanceLogs(ml);
       })
       .catch(err => {
         if (cancelled) return;
@@ -1091,6 +1105,91 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     await storageService.deleteSelfDriveStaff(staffId);
   }, []);
 
+  // ---- Maintenance Intervals & Logs ----
+  const addMaintenanceInterval = useCallback(async (data: Omit<MaintenanceInterval, 'id'>): Promise<MaintenanceInterval> => {
+    const id = tempId('m-int');
+    const newInterval: MaintenanceInterval = {
+      ...data,
+      id,
+      tenantId: storageService.getTenantId(),
+    };
+    setMaintenanceIntervals(prev => [newInterval, ...prev]);
+    await storageService.createMaintenanceInterval(newInterval);
+    return newInterval;
+  }, []);
+
+  const updateMaintenanceInterval = useCallback(async (id: string, updatedData: Partial<Omit<MaintenanceInterval, 'id'>>): Promise<void> => {
+    setMaintenanceIntervals(prev => prev.map(item => item.id === id ? { ...item, ...updatedData } : item));
+    await storageService.updateMaintenanceInterval({ id, ...updatedData });
+  }, []);
+
+  const deleteMaintenanceInterval = useCallback(async (id: string): Promise<void> => {
+    setMaintenanceIntervals(prev => prev.filter(item => item.id !== id));
+    await storageService.deleteMaintenanceInterval(id);
+  }, []);
+
+  const addMaintenanceLog = useCallback(async (data: Omit<MaintenanceLog, 'id'>, intervalIdToUpdate?: string): Promise<MaintenanceLog> => {
+    const id = tempId('m-log');
+    const newLog: MaintenanceLog = {
+      ...data,
+      id,
+      tenantId: storageService.getTenantId(),
+    };
+    setMaintenanceLogs(prev => [newLog, ...prev]);
+    await storageService.createMaintenanceLog(newLog);
+
+    // Auto-advance corresponding maintenance interval(s)
+    setMaintenanceIntervals(prev => {
+      return prev.map(interval => {
+        const isTarget = intervalIdToUpdate === interval.id || (
+          interval.vehicleId === data.vehicleId && 
+          data.serviceItems.some(item => 
+            item.toLowerCase().includes(interval.serviceName.toLowerCase()) || 
+            interval.serviceName.toLowerCase().includes(item.toLowerCase())
+          )
+        );
+
+        if (isTarget) {
+          const nextKm = interval.intervalKm > 0 ? data.odometer + interval.intervalKm : interval.nextDueOdometer;
+          let nextDate = interval.nextDueDate;
+          if (interval.intervalMonths > 0) {
+            const d = new Date(data.serviceDate || new Date().toISOString().split('T')[0]);
+            d.setMonth(d.getMonth() + interval.intervalMonths);
+            nextDate = d.toISOString().split('T')[0];
+          }
+          const updated = {
+            ...interval,
+            lastServiceDate: data.serviceDate,
+            lastServiceOdometer: data.odometer,
+            nextDueOdometer: nextKm,
+            nextDueDate: nextDate,
+          };
+          storageService.updateMaintenanceInterval({
+            id: interval.id,
+            lastServiceDate: updated.lastServiceDate,
+            lastServiceOdometer: updated.lastServiceOdometer,
+            nextDueOdometer: updated.nextDueOdometer,
+            nextDueDate: updated.nextDueDate,
+          }).catch(console.warn);
+          return updated;
+        }
+        return interval;
+      });
+    });
+
+    return newLog;
+  }, []);
+
+  const updateMaintenanceLog = useCallback(async (id: string, updatedData: Partial<Omit<MaintenanceLog, 'id'>>): Promise<void> => {
+    setMaintenanceLogs(prev => prev.map(l => l.id === id ? { ...l, ...updatedData } : l));
+    await storageService.updateMaintenanceLog({ id, ...updatedData });
+  }, []);
+
+  const deleteMaintenanceLog = useCallback(async (id: string): Promise<void> => {
+    setMaintenanceLogs(prev => prev.filter(l => l.id !== id));
+    await storageService.deleteMaintenanceLog(id);
+  }, []);
+
   return (
     <AppContext.Provider value={{
       users,
@@ -1148,6 +1247,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addSelfDriveStaff,
       updateSelfDriveStaff,
       deleteSelfDriveStaff,
+      maintenanceIntervals,
+      maintenanceLogs,
+      addMaintenanceInterval,
+      updateMaintenanceInterval,
+      deleteMaintenanceInterval,
+      addMaintenanceLog,
+      updateMaintenanceLog,
+      deleteMaintenanceLog,
     }}>
       {children}
     </AppContext.Provider>

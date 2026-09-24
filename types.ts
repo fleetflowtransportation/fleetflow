@@ -124,6 +124,40 @@ export interface IssueLog {
   tenantId?: string;
 }
 
+export type MaintenanceCategory = 'Engine' | 'Transmission' | 'Brakes' | 'Tires' | 'Electrical' | 'Inspection' | 'General' | 'Other';
+
+export interface MaintenanceInterval {
+  id: string;
+  vehicleId: string;
+  serviceName: string; // e.g. "Engine Oil & Oil Filter", "Transmission / Gearbox Fluid"
+  category: MaintenanceCategory;
+  intervalKm: number; // e.g. 5000 or 10000 km (0 if time-only)
+  intervalMonths: number; // e.g. 6 or 12 months (0 if km-only)
+  lastServiceDate: string; // 'YYYY-MM-DD'
+  lastServiceOdometer: number; // Odometer reading at last service
+  nextDueOdometer?: number; // Calculated or custom target km
+  nextDueDate?: string; // Calculated or custom target date 'YYYY-MM-DD'
+  estimatedCost?: number; // Estimated cost in RM
+  notes?: string; // e.g. "Fully Synthetic 5W-30 SN/CF, 4.0L with OEM filter"
+  tenantId?: string;
+}
+
+export interface MaintenanceLog {
+  id: string;
+  vehicleId: string;
+  serviceDate: string; // 'YYYY-MM-DD'
+  odometer: number;
+  serviceType: 'Scheduled Maintenance' | 'Unscheduled Repair' | 'Inspection' | 'Tire Service' | 'Emergency Repair';
+  serviceItems: string[]; // e.g. ["Engine Oil & Oil Filter", "Air Filter"]
+  workshopName: string; // e.g. "Perodua Service Pandan", "Bengkel Maju Jaya"
+  invoiceNumber?: string;
+  totalCost: number; // in RM
+  performedBy?: string;
+  remarks?: string;
+  receiptUrl?: string;
+  tenantId?: string;
+}
+
 export interface DriverSchedule {
   id: string;
   Date: string;     // 'yyyy-MM-dd'

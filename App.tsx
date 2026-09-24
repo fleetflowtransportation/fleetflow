@@ -10,6 +10,7 @@ import VehicleManagement from './components/VehicleManagement';
 import UserManagement from './components/UserManagement';
 import CalendarView from './components/CalendarView';
 import IssueManagement from './components/IssueManagement';
+import MaintenanceManagement from './components/MaintenanceManagement';
 import DriverScheduleManager from './components/DriverScheduleManager';
 import BookingManagementList from './components/BookingManagementList';
 import { AuthPage } from './components/AuthPage';
@@ -19,7 +20,7 @@ import { SettingsView } from './components/SettingsView';
 
 const App: React.FC = () => {
   const { currentUser, isLoading, loadError, reload } = useAppContext();
-  const [activeView, setActiveView] = useState<'dashboard' | 'bookings' | 'reports' | 'logs' | 'archive' | 'vehicles' | 'users' | 'self-drive' | 'calendar' | 'issues' | 'schedule' | 'settings'>('dashboard');
+  const [activeView, setActiveView] = useState<'dashboard' | 'bookings' | 'reports' | 'logs' | 'archive' | 'vehicles' | 'users' | 'self-drive' | 'calendar' | 'maintenance' | 'issues' | 'schedule' | 'settings'>('dashboard');
 
   // Check public action URLs (booking form or self-drive odometer portal)
   const urlParams = new URLSearchParams(window.location.search);
@@ -94,8 +95,9 @@ const App: React.FC = () => {
         return <SettingsView initialSubTab="users" />;
       case 'self-drive':
         return <SettingsView initialSubTab="self-drive" />;
+      case 'maintenance':
       case 'issues':
-        return <IssueManagement />;
+        return <MaintenanceManagement />;
       case 'schedule':
         return <SettingsView initialSubTab="schedule" />;
       case 'settings':

@@ -13,10 +13,11 @@ import {
     ClockIcon, 
     ClipboardListIcon,
     BuildingOfficeIcon,
-    AdjustmentsIcon
+    AdjustmentsIcon,
+    WrenchScrewdriverIcon
 } from './icons/Icons';
 
-type NavView = 'dashboard' | 'bookings' | 'reports' | 'logs' | 'archive' | 'vehicles' | 'users' | 'calendar' | 'issues' | 'schedule' | 'settings';
+type NavView = 'dashboard' | 'bookings' | 'reports' | 'logs' | 'archive' | 'vehicles' | 'users' | 'calendar' | 'maintenance' | 'issues' | 'schedule' | 'settings';
 
 interface HeaderProps {
   activeView: NavView;
@@ -50,7 +51,7 @@ const Header: React.FC<HeaderProps> = ({ activeView, setActiveView }) => {
         { view: 'bookings', label: 'Bookings', icon: <ClipboardListIcon className="h-4 w-4" /> },
         { view: 'calendar', label: 'Calendar', icon: <CalendarIcon className="h-4 w-4" /> },
         { view: 'reports', label: 'Logs', icon: <DocumentReportIcon className="h-4 w-4" /> },
-        { view: 'issues', label: 'Issues', icon: <ExclamationIcon className="h-4 w-4" /> },
+        { view: 'maintenance', label: 'Maintenance', icon: <WrenchScrewdriverIcon className="h-4 w-4" /> },
         { view: 'settings', label: 'Settings', icon: <AdjustmentsIcon className="h-4 w-4" /> },
     ];
 
