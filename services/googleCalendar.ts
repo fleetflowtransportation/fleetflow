@@ -73,6 +73,119 @@ export const buildCalendarDescription = (booking: Booking, vehicles?: Vehicle[])
   ].join('\n');
 };
 
+export const buildEmailHtml = (booking: Booking, type: 'CONFIRMATION' | 'UPDATED' | 'CANCELLED', vehicles?: Vehicle[]): { subject: string; html: string; text: string } => {
+  const dateStr = normalizeDate(booking.dateTime);
+  const timeStr = normalizeTime(booking.dateTime);
+  const finishTimeStr = booking.finishDateTime ? normalizeTime(booking.finishDateTime) : '';
+  const totalPassengers = (booking.passengers || []).reduce((sum, p) => sum + (p.count || 0), 0);
+  const matchedV = vehicles?.find(v => v.id === booking.vehicleId) ||
+    vehicles?.find(v => v.name.toLowerCase() === (booking.vehiclePreference || '').toLowerCase());
+  const vehicleText = matchedV ? `${matchedV.name} (${matchedV.plateNumber})` : (booking.serviceType === 'Self-Drive' ? 'Perodua Alza (Self-Drive)' : (booking.vehiclePreference || 'Any available'));
+  const pickupText = getPickupLocationDisplay(booking.pickupPoint, booking.address);
+
+  let typeBadge = '<span style="background-color: #10b981; color: #ffffff; padding: 4px 12px; border-radius: 9999px; font-weight: bold; font-size: 12px;">CONFIRMED</span>';
+  let subjectPrefix = '✅ Booking Confirmed';
+  let headerTitle = 'Vehicle Reservation Confirmed';
+  let introMessage = 'Your vehicle reservation has been received and confirmed. Details of your scheduled trip are provided below:';
+
+  if (type === 'UPDATED') {
+    typeBadge = '<span style="background-color: #3b82f6; color: #ffffff; padding: 4px 12px; border-radius: 9999px; font-weight: bold; font-size: 12px;">UPDATED</span>';
+    subjectPrefix = '📝 Booking Updated';
+    headerTitle = 'Vehicle Reservation Updated';
+    introMessage = 'Your vehicle reservation has been modified. Please review the updated schedule and assignment details below:';
+  } else if (type === 'CANCELLED') {
+    typeBadge = '<span style="background-color: #ef4444; color: #ffffff; padding: 4px 12px; border-radius: 9999px; font-weight: bold; font-size: 12px;">CANCELLED</span>';
+    subjectPrefix = '❌ Booking Cancelled';
+    headerTitle = 'Vehicle Reservation Cancelled';
+    introMessage = 'Your vehicle reservation has been cancelled. The vehicle slot and driver schedule have been released:';
+  }
+
+  const subject = `${subjectPrefix}: ${booking.destination} - ${dateStr} (${timeStr})`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>${subject}</title>
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #1e293b;">
+      <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border: 1px solid #e2e8f0;">
+        
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #3730a3, #1e1b4b); padding: 28px 24px; color: #ffffff; text-align: left;">
+          <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: #c7d2fe; font-weight: bold; margin-bottom: 8px;">FleetFlow Fleet Management</div>
+          <h1 style="margin: 0; font-size: 22px; font-weight: 800; line-height: 1.3;">${headerTitle}</h1>
+          <div style="margin-top: 12px;">${typeBadge}</div>
+        </div>
+
+        <!-- Body -->
+        <div style="padding: 24px;">
+          <p style="font-size: 14px; line-height: 1.6; color: #475569; margin-top: 0;">
+            Hello <strong>${booking.requesterName}</strong>,<br>
+            ${introMessage}
+          </p>
+
+          <!-- Key Details Card -->
+          <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px; background-color: #f1f5f9; border-radius: 12px; overflow: hidden;">
+            <tr>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #64748b; width: 35%;">Destination</td>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: 800; color: #0f172a;">${booking.destination}</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #64748b;">Date & Time</td>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #0f172a;">${dateStr} (${timeStr}${finishTimeStr ? ' – ' + finishTimeStr : ''})</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #64748b;">Pickup Point</td>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; color: #334155;">${pickupText}</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #64748b;">Trip Purpose</td>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; color: #334155;">${booking.purpose}</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #64748b;">Service Type</td>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #334155;">${booking.serviceType === 'Self-Drive' ? '🚗 Self-Drive' : '👤 Driver Service'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #64748b;">Assigned Driver</td>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #3730a3;">${booking.serviceType === 'Self-Drive' ? 'Self-Drive (Staff)' : (booking.driverId || 'Scheduled')}</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #64748b;">Allocated Vehicle</td>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; color: #334155;">${vehicleText}</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #64748b;">Passengers</td>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; color: #334155;">${totalPassengers} Pax</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 16px; font-weight: bold; color: #64748b;">Driver Standby</td>
+              <td style="padding: 12px 16px; color: #334155;">${booking.shouldWait ? 'Yes (Standby on-site)' : 'No (Drop-off only)'}</td>
+            </tr>
+          </table>
+
+          ${booking.remarks ? `
+            <div style="margin-top: 16px; padding: 12px 16px; background-color: #fffbeb; border-left: 4px solid #f59e0b; border-radius: 6px; font-size: 13px; color: #92400e;">
+              <strong>Remarks:</strong> ${booking.remarks}
+            </div>
+          ` : ''}
+
+          <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; text-align: center;">
+            This is an automated notification from FleetFlow. For any inquiries or modifications, please contact your transport coordinator.
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const text = `${headerTitle}\n\nRequester: ${booking.requesterName}\nDestination: ${booking.destination}\nDate & Time: ${dateStr} ${timeStr}\nPickup: ${pickupText}\nPurpose: ${booking.purpose}\nStatus: ${booking.status}\n\nFleetFlow Fleet Management`;
+
+  return { subject, html, text };
+};
+
 export interface CalendarDiagnosticLog {
   id: string;
   timestamp: string;
@@ -331,12 +444,22 @@ export const googleCalendarService = {
     const title = buildCalendarEventTitle(booking);
     const description = buildCalendarDescription(booking, vehicles);
     const location = booking.destination || '';
+    const emailData = buildEmailHtml(booking, 'CONFIRMATION', vehicles);
+
+    const attendees = booking.requesterEmail
+      ? [{ email: booking.requesterEmail, displayName: booking.requesterName }]
+      : [];
 
     const eventPayload = {
       summary: title,
       title: title,
       description: description,
       location: location,
+      attendees: attendees,
+      guests: booking.requesterEmail || '',
+      guestEmail: booking.requesterEmail || '',
+      sendInvites: true,
+      sendUpdates: 'all',
       start: {
         dateTime: startIso,
         timeZone: 'Asia/Kuala_Lumpur',
@@ -354,14 +477,14 @@ export const googleCalendarService = {
     if (uniqueScriptUrls.length === 0 && !cachedToken) {
       addDiagnosticLog({
         bookingTitle: title,
-        endpointUrl: 'Tiada Web App URL',
+        endpointUrl: 'No Web App URL',
         payload: eventPayload,
         status: 'ERROR',
-        errorMessage: 'Tiada Google Apps Script Web App URL atau Google Calendar ID dikonfigurasikan.',
+        errorMessage: 'No Google Apps Script Web App URL or Google Calendar ID configured.',
       });
     }
 
-    // Attempt via Google Apps Script Endpoints (Automatic Webhook without client OAuth)
+    // Attempt via Google Apps Script Endpoints (Automatic Webhook with Guest Invites + Auto Email)
     for (const scriptUrl of uniqueScriptUrls) {
       try {
         const scriptBody = JSON.stringify({
@@ -377,6 +500,16 @@ export const googleCalendarService = {
           endTime: endIso,
           start: { dateTime: startIso, timeZone: 'Asia/Kuala_Lumpur' },
           end: { dateTime: endIso, timeZone: 'Asia/Kuala_Lumpur' },
+          requesterEmail: booking.requesterEmail || '',
+          requesterName: booking.requesterName || '',
+          guests: booking.requesterEmail || '',
+          attendees: attendees,
+          sendInvites: true,
+          sendUpdates: 'all',
+          sendEmail: Boolean(booking.requesterEmail),
+          emailSubject: emailData.subject,
+          emailHtml: emailData.html,
+          emailText: emailData.text,
           event: eventPayload,
         });
 
@@ -399,7 +532,7 @@ export const googleCalendarService = {
         addDiagnosticLog({
           bookingTitle: title,
           endpointUrl: scriptUrl,
-          payload: { action: 'createCalendarEvent', title, startIso, endIso },
+          payload: { action: 'createCalendarEvent', title, requesterEmail: booking.requesterEmail, startIso, endIso },
           status: isSuccess ? 'SUCCESS' : 'ERROR',
           httpStatus: res.status,
           responseBody: resText.substring(0, 300),
@@ -408,7 +541,7 @@ export const googleCalendarService = {
 
         if (isSuccess) {
           const eventId = data.eventId || data.id || data.event_id || `evt-apps-script-${Date.now()}`;
-          console.log('[Google Calendar] Created event via Apps Script URL:', eventId);
+          console.log('[Google Calendar] Created event with guest invite via Apps Script:', eventId);
           return eventId;
         }
       } catch (err: any) {
@@ -418,7 +551,7 @@ export const googleCalendarService = {
           endpointUrl: scriptUrl,
           payload: { action: 'createCalendarEvent', title },
           status: 'ERROR',
-          errorMessage: err.message || 'Gagal memanggil endpoint Apps Script'
+          errorMessage: err.message || 'Failed to call Apps Script endpoint'
         });
       }
     }
@@ -426,7 +559,7 @@ export const googleCalendarService = {
     // Attempt via REST API if client OAuth token is available
     if (cachedToken && tenant?.googleCalendarId && !tenant.googleCalendarId.startsWith('http')) {
       try {
-        const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(tenant.googleCalendarId)}/events`, {
+        const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(tenant.googleCalendarId)}/events?sendUpdates=all`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${cachedToken}`,
@@ -448,7 +581,7 @@ export const googleCalendarService = {
 
         if (res.ok) {
           const data = JSON.parse(resText);
-          console.log('[Google Calendar] Event created via REST API:', data.id);
+          console.log('[Google Calendar] Event created via REST API with guests:', data.id);
           return data.id;
         }
       } catch (err: any) {
@@ -478,6 +611,11 @@ export const googleCalendarService = {
     const title = buildCalendarEventTitle(booking);
     const description = buildCalendarDescription(booking, vehicles);
     const location = booking.destination || '';
+    const emailData = buildEmailHtml(booking, 'UPDATED', vehicles);
+
+    const attendees = booking.requesterEmail
+      ? [{ email: booking.requesterEmail, displayName: booking.requesterName }]
+      : [];
 
     const uniqueScriptUrls = getValidGoogleScriptUrls(tenant);
 
@@ -491,6 +629,15 @@ export const googleCalendarService = {
           eventId: booking.calendarEventId,
           bookingId: booking.id,
           requesterName: booking.requesterName,
+          requesterEmail: booking.requesterEmail || '',
+          guests: booking.requesterEmail || '',
+          attendees: attendees,
+          sendInvites: true,
+          sendUpdates: 'all',
+          sendEmail: Boolean(booking.requesterEmail),
+          emailSubject: emailData.subject,
+          emailHtml: emailData.html,
+          emailText: emailData.text,
           calendarId: tenant?.googleCalendarId && !tenant.googleCalendarId.startsWith('http') ? tenant.googleCalendarId : 'primary',
           title: title,
           summary: title,
@@ -515,16 +662,16 @@ export const googleCalendarService = {
         const isSuccess = res.ok && (!resJson || resJson.status === 'success' || resJson.success === true || resText.includes('success'));
 
         addDiagnosticLog({
-          bookingTitle: `[KEMASKINI] ${title}`,
+          bookingTitle: `[UPDATE] ${title}`,
           endpointUrl: scriptUrl,
-          payload: { action: 'updateCalendarEvent', eventId: booking.calendarEventId, title },
+          payload: { action: 'updateCalendarEvent', eventId: booking.calendarEventId, title, requesterEmail: booking.requesterEmail },
           status: isSuccess ? 'SUCCESS' : 'ERROR',
           httpStatus: res.status,
           responseBody: resText.substring(0, 300),
         });
 
         if (isSuccess) {
-          console.log('[Google Calendar] Event updated via Apps Script URL:', booking.calendarEventId);
+          console.log('[Google Calendar] Event updated with email dispatch via Apps Script URL:', booking.calendarEventId);
           return true;
         }
       } catch (err: any) {
@@ -539,11 +686,12 @@ export const googleCalendarService = {
           summary: title,
           description: description,
           location: location,
+          attendees: attendees,
           start: { dateTime: startIso, timeZone: 'Asia/Kuala_Lumpur' },
           end: { dateTime: endIso, timeZone: 'Asia/Kuala_Lumpur' },
         };
 
-        const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(tenant.googleCalendarId)}/events/${encodeURIComponent(booking.calendarEventId)}`, {
+        const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(tenant.googleCalendarId)}/events/${encodeURIComponent(booking.calendarEventId)}?sendUpdates=all`, {
           method: 'PUT',
           headers: {
             'Authorization': `Bearer ${cachedToken}`,
@@ -568,6 +716,11 @@ export const googleCalendarService = {
     const startIso = bookingInfo?.dateTime ? formatMalaysiaIso(bookingInfo.dateTime) : undefined;
     const endIso = bookingInfo?.finishDateTime ? formatMalaysiaIso(bookingInfo.finishDateTime) : undefined;
 
+    let emailData: { subject: string; html: string; text: string } | null = null;
+    if (bookingInfo && bookingInfo.destination && bookingInfo.dateTime) {
+      emailData = buildEmailHtml(bookingInfo as Booking, 'CANCELLED');
+    }
+
     const uniqueScriptUrls = getValidGoogleScriptUrls(tenant);
 
     // Try via Apps Script Web App
@@ -581,6 +734,12 @@ export const googleCalendarService = {
           calendarEventId: eventId,
           id: eventId,
           bookingId: bookingInfo?.id,
+          requesterName: bookingInfo?.requesterName,
+          requesterEmail: bookingInfo?.requesterEmail || '',
+          sendEmail: Boolean(bookingInfo?.requesterEmail),
+          emailSubject: emailData?.subject,
+          emailHtml: emailData?.html,
+          emailText: emailData?.text,
           title: title,
           summary: title,
           startTime: startIso,
@@ -603,16 +762,16 @@ export const googleCalendarService = {
         const isSuccess = res.ok && (!resJson || resJson.status === 'success' || resJson.success === true || resText.includes('success'));
 
         addDiagnosticLog({
-          bookingTitle: `[PADAM] ${title || eventId || 'Acara Kalendar'}`,
+          bookingTitle: `[DELETE] ${title || eventId || 'Calendar Event'}`,
           endpointUrl: scriptUrl,
-          payload: { action: 'deleteCalendarEvent', eventId, title },
+          payload: { action: 'deleteCalendarEvent', eventId, title, requesterEmail: bookingInfo?.requesterEmail },
           status: isSuccess ? 'SUCCESS' : 'ERROR',
           httpStatus: res.status,
           responseBody: resText.substring(0, 300),
         });
 
         if (isSuccess) {
-          console.log('[Google Calendar] Event deleted via Apps Script URL:', eventId);
+          console.log('[Google Calendar] Event deleted and cancellation email dispatched via Apps Script:', eventId);
           return true;
         }
       } catch (err: any) {
@@ -623,7 +782,7 @@ export const googleCalendarService = {
     // Fallback: Try REST API if cached OAuth token exists
     if (cachedToken && tenant?.googleCalendarId && eventId && !tenant.googleCalendarId.startsWith('http')) {
       try {
-        const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(tenant.googleCalendarId)}/events/${encodeURIComponent(eventId)}`, {
+        const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(tenant.googleCalendarId)}/events/${encodeURIComponent(eventId)}?sendUpdates=all`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${cachedToken}`,

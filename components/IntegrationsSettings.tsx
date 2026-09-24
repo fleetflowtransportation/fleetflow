@@ -241,6 +241,7 @@ function doPost(e) {
       var title = data.title || data.summary || "FleetFlow Vehicle Booking";
       var description = data.description || "";
       var location = data.location || "";
+      var requesterEmail = data.requesterEmail || data.guests || data.guestEmail || "";
       
       var startStr = data.startTime || data.startIso || (data.start && data.start.dateTime);
       var endStr = data.endTime || data.endIso || (data.end && data.end.dateTime);
@@ -268,7 +269,24 @@ function doPost(e) {
         event.setTime(startTime, endTime);
         if (description) event.setDescription(description);
         if (location) event.setLocation(location);
+        if (requesterEmail && requesterEmail.indexOf("@") !== -1) {
+          try {
+            event.addGuest(requesterEmail);
+          } catch (e) {}
+        }
         
+        // Dispatch update notification email
+        if (requesterEmail && (data.emailHtml || data.sendEmail)) {
+          try {
+            MailApp.sendEmail({
+              to: requesterEmail,
+              subject: data.emailSubject || ("📝 Booking Updated: " + title),
+              htmlBody: data.emailHtml || ("<p>Your booking <strong>" + title + "</strong> has been updated.</p>"),
+              name: "FleetFlow Transport"
+            });
+          } catch (mErr) {}
+        }
+
         return ContentService.createTextOutput(JSON.stringify({
           status: "success",
           success: true,
@@ -277,10 +295,27 @@ function doPost(e) {
           title: event.getTitle()
         })).setMimeType(ContentService.MimeType.JSON);
       } else {
-        var newEv = cal.createEvent(title, startTime, endTime, {
+        var eventOptions = {
           description: description,
-          location: location
-        });
+          location: location,
+          sendInvites: true
+        };
+        if (requesterEmail && requesterEmail.indexOf("@") !== -1) {
+          eventOptions.guests = requesterEmail;
+        }
+        var newEv = cal.createEvent(title, startTime, endTime, eventOptions);
+        
+        if (requesterEmail && (data.emailHtml || data.sendEmail)) {
+          try {
+            MailApp.sendEmail({
+              to: requesterEmail,
+              subject: data.emailSubject || ("📝 Booking Updated: " + title),
+              htmlBody: data.emailHtml || ("<p>Your booking <strong>" + title + "</strong> has been updated.</p>"),
+              name: "FleetFlow Transport"
+            });
+          } catch (mErr) {}
+        }
+
         return ContentService.createTextOutput(JSON.stringify({
           status: "success",
           success: true,
@@ -300,31 +335,59 @@ function doPost(e) {
         ? (CalendarApp.getCalendarById(calendarId) || CalendarApp.getDefaultCalendar())
         : CalendarApp.getDefaultCalendar();
 
+      var requesterEmail = data.requesterEmail || data.guests || data.guestEmail || "";
       var eventId = data.eventId || data.id;
       if (eventId) {
         try {
           var event = cal.getEventById(eventId);
           if (event) {
             event.deleteEvent();
-            return ContentService.createTextOutput(JSON.stringify({
-              status: "success",
-              success: true,
-              action: "deleted",
-              id: eventId
-            })).setMimeType(ContentService.MimeType.JSON);
           }
         } catch (delErr) {}
+      }
+
+      // Dispatch cancellation notification email
+      if (requesterEmail && (data.emailHtml || data.sendEmail)) {
+        try {
+          MailApp.sendEmail({
+            to: requesterEmail,
+            subject: data.emailSubject || ("❌ Booking Cancelled: " + (data.title || "Vehicle Booking")),
+            htmlBody: data.emailHtml || ("<p>Your booking for <strong>" + (data.title || "Vehicle Booking") + "</strong> has been cancelled.</p>"),
+            name: "FleetFlow Transport"
+          });
+        } catch (mErr) {}
       }
 
       return ContentService.createTextOutput(JSON.stringify({
         status: "success",
         success: true,
-        message: "Event not found or already deleted"
+        action: "deleted",
+        id: eventId || "done"
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
     // -----------------------------------------------------------------------
-    // 3. ACTION: createCalendarEvent
+    // 3. ACTION: sendEmail (Direct notification dispatch)
+    // -----------------------------------------------------------------------
+    if (data.action === "sendEmail" || data.actionType === "sendEmail") {
+      var recipient = data.to || data.requesterEmail || data.guestEmail;
+      if (recipient && recipient.indexOf("@") !== -1) {
+        MailApp.sendEmail({
+          to: recipient,
+          subject: data.subject || "[FleetFlow] Vehicle Reservation Notice",
+          htmlBody: data.html || data.htmlBody || ("<pre>" + (data.body || data.text || "Booking notification") + "</pre>"),
+          name: "FleetFlow Transport"
+        });
+        return ContentService.createTextOutput(JSON.stringify({
+          status: "success",
+          success: true,
+          message: "Email sent to " + recipient
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // 4. ACTION: createCalendarEvent (With Guest Invitation & Automated Email)
     // -----------------------------------------------------------------------
     var calendarId = data.calendarId || "primary";
     var cal = (calendarId && calendarId !== "primary" && calendarId.indexOf("@") !== -1)
@@ -334,6 +397,7 @@ function doPost(e) {
     var title = data.title || data.summary || ("Vehicle Booking - " + (data.requesterName || "User"));
     var description = data.description || "";
     var location = data.location || "";
+    var requesterEmail = data.requesterEmail || data.guests || data.guestEmail || "";
     
     var startStr = data.startTime || data.startIso || (data.start && data.start.dateTime);
     var endStr = data.endTime || data.endIso || (data.end && data.end.dateTime);
@@ -342,16 +406,37 @@ function doPost(e) {
     if (isNaN(startTime.getTime())) startTime = new Date();
     if (isNaN(endTime.getTime())) endTime = new Date(startTime.getTime() + 60 * 60 * 1000);
 
-    var createdEvent = cal.createEvent(title, startTime, endTime, {
+    var eventOptions = {
       description: description,
-      location: location
-    });
+      location: location,
+      sendInvites: true
+    };
+    if (requesterEmail && requesterEmail.indexOf("@") !== -1) {
+      eventOptions.guests = requesterEmail;
+    }
+
+    var createdEvent = cal.createEvent(title, startTime, endTime, eventOptions);
+
+    // Also dispatch direct confirmation HTML email to requester
+    if (requesterEmail && (data.emailHtml || data.sendEmail)) {
+      try {
+        MailApp.sendEmail({
+          to: requesterEmail,
+          subject: data.emailSubject || ("✅ Booking Confirmed: " + title),
+          htmlBody: data.emailHtml || ("<p>Your vehicle reservation <strong>" + title + "</strong> has been confirmed.</p>"),
+          name: "FleetFlow Transport"
+        });
+      } catch (mailErr) {
+        Logger.log("MailApp error: " + mailErr.toString());
+      }
+    }
 
     return ContentService.createTextOutput(JSON.stringify({
       status: "success",
       success: true,
       id: createdEvent.getId(),
-      title: createdEvent.getTitle()
+      title: createdEvent.getTitle(),
+      guestInvited: Boolean(requesterEmail)
     })).setMimeType(ContentService.MimeType.JSON);
 
   } catch (error) {
