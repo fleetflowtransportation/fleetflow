@@ -22,18 +22,6 @@ import BookingForm from './BookingForm';
 
 export type CalendarViewMode = 'month' | '3days' | 'week' | 'day' | 'schedule';
 
-export interface CalendarTheme {
-  bg: string;
-  cardBg: string;
-  border: string;
-  headerBg: string;
-  textPrimary: string;
-  textSecondary: string;
-  textMuted: string;
-  gridLine: string;
-  timeGutterBg: string;
-}
-
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'
@@ -42,60 +30,65 @@ const MONTH_NAMES = [
 const DAY_NAMES_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const DAY_NAMES_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-// Modern Solid Event Styles matching Google Calendar phone app screenshots
-const EVENT_CARD_COLORS = {
+// Clean, soothing, professional color palette matching the original FleetFlow app
+export const EVENT_CARD_COLORS = {
   syafiq: {
-    bg: 'bg-[#5c6bc0] hover:bg-[#4f5da8]',
-    border: 'border-[#3f51b5]',
-    text: 'text-white',
-    badge: 'bg-indigo-900/60 text-indigo-100',
-    bar: 'bg-indigo-300',
+    bg: 'bg-blue-50 hover:bg-blue-100/90',
+    border: 'border-blue-200 border-l-4 border-l-blue-600',
+    text: 'text-blue-950',
+    subtext: 'text-blue-700',
+    badge: 'bg-blue-200/70 text-blue-900',
+    dot: 'bg-blue-600',
+    monthChip: 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100',
   },
   saiful: {
-    bg: 'bg-[#43a047] hover:bg-[#388e3c]',
-    border: 'border-[#2e7d32]',
-    text: 'text-white',
-    badge: 'bg-emerald-950/60 text-emerald-100',
-    bar: 'bg-emerald-300',
+    bg: 'bg-emerald-50 hover:bg-emerald-100/90',
+    border: 'border-emerald-200 border-l-4 border-l-emerald-600',
+    text: 'text-emerald-950',
+    subtext: 'text-emerald-700',
+    badge: 'bg-emerald-200/70 text-emerald-900',
+    dot: 'bg-emerald-600',
+    monthChip: 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100',
   },
   selfdrive: {
-    bg: 'bg-[#546e7a] hover:bg-[#455a64]',
-    border: 'border-[#37474f]',
-    text: 'text-white',
-    badge: 'bg-slate-900/60 text-slate-100',
-    bar: 'bg-slate-300',
-  },
-  lunch: {
-    bg: 'bg-[#e53935] hover:bg-[#d32f2f]',
-    border: 'border-[#c62828]',
-    text: 'text-white',
-    badge: 'bg-red-950/60 text-red-100',
-    bar: 'bg-red-300',
+    bg: 'bg-slate-100 hover:bg-slate-200/80',
+    border: 'border-slate-300 border-l-4 border-l-slate-600',
+    text: 'text-slate-900',
+    subtext: 'text-slate-700',
+    badge: 'bg-slate-200 text-slate-800',
+    dot: 'bg-slate-600',
+    monthChip: 'bg-slate-100 text-slate-800 border-slate-300 hover:bg-slate-200',
   },
   conflict: {
-    bg: 'bg-[#d81b60] hover:bg-[#c2185b]',
-    border: 'border-[#ad1457]',
-    text: 'text-white',
-    badge: 'bg-pink-950/60 text-pink-100',
-    bar: 'bg-pink-300',
+    bg: 'bg-rose-50 hover:bg-rose-100/90',
+    border: 'border-rose-200 border-l-4 border-l-rose-500',
+    text: 'text-rose-950',
+    subtext: 'text-rose-700',
+    badge: 'bg-rose-200 text-rose-900',
+    dot: 'bg-rose-600',
+    monthChip: 'bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100',
   },
   pending: {
-    bg: 'bg-[#fb8c00] hover:bg-[#f57c00]',
-    border: 'border-[#ef6c00]',
-    text: 'text-white',
-    badge: 'bg-amber-950/60 text-amber-100',
-    bar: 'bg-amber-300',
+    bg: 'bg-amber-50 hover:bg-amber-100/90',
+    border: 'border-amber-200 border-l-4 border-l-amber-500',
+    text: 'text-amber-950',
+    subtext: 'text-amber-700',
+    badge: 'bg-amber-200 text-amber-900',
+    dot: 'bg-amber-500',
+    monthChip: 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100',
   },
   default: {
-    bg: 'bg-[#7e57c2] hover:bg-[#673ab7]',
-    border: 'border-[#512da8]',
-    text: 'text-white',
-    badge: 'bg-purple-950/60 text-purple-100',
-    bar: 'bg-purple-300',
+    bg: 'bg-indigo-50 hover:bg-indigo-100/90',
+    border: 'border-indigo-200 border-l-4 border-l-indigo-600',
+    text: 'text-indigo-950',
+    subtext: 'text-indigo-700',
+    badge: 'bg-indigo-200/70 text-indigo-900',
+    dot: 'bg-indigo-600',
+    monthChip: 'bg-indigo-50 text-indigo-800 border-indigo-200 hover:bg-indigo-100',
   }
 };
 
-const getEventCardStyle = (booking: Partial<Booking>, driverName?: string) => {
+export const getEventCardStyle = (booking: Partial<Booking>, driverName?: string) => {
   if (booking.status === 'Conflict') return EVENT_CARD_COLORS.conflict;
   if (booking.serviceType === 'Self-Drive') return EVENT_CARD_COLORS.selfdrive;
   const lower = (driverName || '').toLowerCase();
@@ -115,11 +108,11 @@ interface PositionedBooking {
   totalCols: number;
 }
 
-// Compute collision layout for events within a day column
+// Compute collision layout for events within a day column across full 24-hour range (0 - 24)
 const calculateDayCollisionLayout = (
   dayBookings: Booking[],
-  rangeStartHour = 8,
-  rangeEndHour = 19
+  rangeStartHour = 0,
+  rangeEndHour = 24
 ): PositionedBooking[] => {
   const totalRangeMinutes = (rangeEndHour - rangeStartHour) * 60;
   const rangeStartMinutes = rangeStartHour * 60;
@@ -139,7 +132,7 @@ const calculateDayCollisionLayout = (
     const clampedEnd = Math.max(clampedStart + 25, Math.min(rangeStartMinutes + totalRangeMinutes, endM));
 
     const topPercent = Math.max(0, ((clampedStart - rangeStartMinutes) / totalRangeMinutes) * 100);
-    const heightPercent = Math.max(4.5, ((clampedEnd - clampedStart) / totalRangeMinutes) * 100);
+    const heightPercent = Math.max(3.2, ((clampedEnd - clampedStart) / totalRangeMinutes) * 100);
 
     return {
       booking: b,
@@ -205,7 +198,7 @@ const calculateDayCollisionLayout = (
   return result;
 };
 
-// Detail Modal
+// Detail Modal - Clean white aesthetic
 interface BookingDetailModalProps {
   booking: Booking | null;
   onClose: () => void;
@@ -228,9 +221,8 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
   let context: any = null;
   try {
     context = useAppContext();
-  } catch {
-    // context optional
-  }
+  } catch {}
+  
   const users = (propUsers && propUsers.length > 0) ? propUsers : (context?.users || []);
   const vehicles = (propVehicles && propVehicles.length > 0) ? propVehicles : (context?.vehicles || []);
   const updateBooking = context?.updateBooking || (async () => {});
@@ -299,25 +291,30 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
   const style = getEventCardStyle(booking, driverName);
 
   return (
-    <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex justify-center items-center p-3 sm:p-4 animate-in fade-in duration-150" onClick={onClose}>
-      <div className="bg-[#1e1e1e] text-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden border border-neutral-700" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex justify-center items-center p-3 sm:p-4 animate-in fade-in duration-150" onClick={onClose}>
+      <div className="bg-white text-slate-800 rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden border border-slate-200" onClick={e => e.stopPropagation()}>
         
-        {/* Header - Solid Google Calendar Card Color */}
-        <div className={`p-4 sm:p-5 ${style.bg} border-b border-white/10 text-white flex justify-between items-start`}>
+        {/* Header */}
+        <div className="p-4 sm:p-5 bg-slate-50 border-b border-slate-200 flex justify-between items-start">
           <div className="flex-1 pr-3">
             <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-black/30 text-white border border-white/20">
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                booking.status === 'Confirmed' ? 'bg-emerald-100 text-emerald-800' :
+                booking.status === 'Conflict' ? 'bg-rose-100 text-rose-800' :
+                booking.status === 'Completed' ? 'bg-blue-100 text-blue-800' :
+                'bg-amber-100 text-amber-800'
+              }`}>
                 {booking.status}
               </span>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-white/20 text-white">
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-200 text-slate-700">
                 {booking.serviceType === 'Self-Drive' ? '🚗 Self-Drive' : `👤 ${driverName}`}
               </span>
             </div>
-            <h3 className="text-base sm:text-lg font-extrabold leading-snug">
+            <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-snug">
               {booking.calendarEventTitle || `${booking.requesterName} → ${booking.destination}`}
             </h3>
-            <p className="text-xs text-white/80 mt-1 flex items-center gap-1 font-mono">
-              <ClockIcon className="h-3.5 w-3.5 shrink-0 inline" />
+            <p className="text-xs text-slate-500 mt-1 flex items-center gap-1 font-medium">
+              <ClockIcon className="h-3.5 w-3.5 shrink-0 text-slate-400 inline" />
               {parseAsLocal(booking.dateTime).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
               {' • '}
               {parseAsLocal(booking.dateTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
@@ -325,41 +322,41 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
             </p>
           </div>
 
-          <button onClick={onClose} className="text-white/80 hover:text-white p-1 rounded-full hover:bg-white/20 transition cursor-pointer">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-200 transition cursor-pointer">
             <XIcon className="h-5 w-5" />
           </button>
         </div>
 
         {/* Content Body */}
-        <div className="p-4 sm:p-6 space-y-4 max-h-[75vh] overflow-y-auto text-xs sm:text-sm text-neutral-200">
+        <div className="p-4 sm:p-6 space-y-4 max-h-[75vh] overflow-y-auto text-xs sm:text-sm text-slate-700">
           
           {/* Destination & Pickup Card */}
-          <div className="p-3.5 bg-neutral-800/80 rounded-xl border border-neutral-700/60 space-y-2.5">
+          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
             <div className="flex items-start gap-2.5">
-              <LocationMarkerIcon className="h-4 w-4 text-rose-400 mt-0.5 shrink-0" />
+              <LocationMarkerIcon className="h-4 w-4 text-rose-500 mt-0.5 shrink-0" />
               <div className="flex-1">
-                <span className="text-[10px] font-bold text-neutral-400 uppercase">Destination</span>
-                <p className="font-extrabold text-white text-sm sm:text-base">{booking.destination}</p>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Destination</span>
+                <p className="font-bold text-slate-900 text-sm sm:text-base">{booking.destination}</p>
               </div>
             </div>
 
-            <div className="flex items-start gap-2.5 pt-2 border-t border-neutral-700/40">
-              <ArrowUpCircleIcon className="h-4 w-4 text-emerald-400 mt-0.5 shrink-0" />
+            <div className="flex items-start gap-2.5 pt-2 border-t border-slate-200/80">
+              <ArrowUpCircleIcon className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
               <div className="flex-1">
-                <span className="text-[10px] font-bold text-neutral-400 uppercase">Pickup Location</span>
-                <p className="font-semibold text-neutral-300">{getPickupLocationDisplay(booking.pickupPoint, booking.address)}</p>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pickup Location</span>
+                <p className="font-semibold text-slate-800">{getPickupLocationDisplay(booking.pickupPoint, booking.address)}</p>
               </div>
             </div>
           </div>
 
           {/* Passenger & Purpose Card */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="p-3 bg-neutral-800/80 rounded-xl border border-neutral-700/60">
-              <div className="flex items-center gap-1.5 text-neutral-400 text-[10px] font-bold uppercase mb-1">
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="flex items-center gap-1.5 text-slate-500 text-[10px] font-bold uppercase mb-1">
                 <UserGroupIcon className="h-3.5 w-3.5" />
                 <span>Passengers ({totalPassengers})</span>
               </div>
-              <p className="font-bold text-white text-xs">
+              <p className="font-bold text-slate-900 text-xs">
                 {[
                   staffCount > 0 ? `${staffCount} Staff` : '',
                   kidsCount > 0 ? `${kidsCount} Kids` : '',
@@ -368,56 +365,56 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
               </p>
             </div>
 
-            <div className="p-3 bg-neutral-800/80 rounded-xl border border-neutral-700/60">
-              <div className="flex items-center gap-1.5 text-neutral-400 text-[10px] font-bold uppercase mb-1">
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="flex items-center gap-1.5 text-slate-500 text-[10px] font-bold uppercase mb-1">
                 <ClockIcon className="h-3.5 w-3.5" />
                 <span>Driver Standby</span>
               </div>
-              <p className="font-bold text-white text-xs">
+              <p className="font-bold text-slate-900 text-xs">
                 {booking.shouldWait ? '⏳ Standby On-Site' : '🚗 Drop-Off Only'}
               </p>
             </div>
           </div>
 
           {/* Requester Details */}
-          <div className="p-3 bg-neutral-800/80 rounded-xl border border-neutral-700/60 space-y-1">
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
             <div className="flex justify-between items-center text-xs">
-              <span className="text-neutral-400 font-medium">Requester:</span>
-              <span className="font-bold text-white">{booking.requesterName}</span>
+              <span className="text-slate-500 font-medium">Requester:</span>
+              <span className="font-bold text-slate-900">{booking.requesterName}</span>
             </div>
             {booking.department && (
               <div className="flex justify-between items-center text-xs">
-                <span className="text-neutral-400 font-medium">Department:</span>
-                <span className="font-semibold text-neutral-200">{booking.department}</span>
+                <span className="text-slate-500 font-medium">Department:</span>
+                <span className="font-semibold text-slate-800">{booking.department}</span>
               </div>
             )}
             {booking.requesterEmail && (
               <div className="flex justify-between items-center text-xs">
-                <span className="text-neutral-400 font-medium">Email (Invited):</span>
-                <span className="font-mono text-indigo-300 text-[11px]">{booking.requesterEmail}</span>
+                <span className="text-slate-500 font-medium">Email:</span>
+                <span className="font-mono text-indigo-600 text-[11px] font-medium">{booking.requesterEmail}</span>
               </div>
             )}
             {booking.purpose && (
-              <div className="pt-2 mt-2 border-t border-neutral-700/40">
-                <span className="text-[10px] text-neutral-400 font-bold uppercase block">Purpose</span>
-                <p className="text-xs text-neutral-200 mt-0.5">{booking.purpose}</p>
+              <div className="pt-2 mt-2 border-t border-slate-200">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Purpose</span>
+                <p className="text-xs text-slate-800 mt-0.5">{booking.purpose}</p>
               </div>
             )}
             {booking.remarks && (
-              <div className="pt-2 mt-2 border-t border-neutral-700/40">
-                <span className="text-[10px] text-amber-400 font-bold uppercase block">Remarks</span>
-                <p className="text-xs text-amber-200/90 mt-0.5">{booking.remarks}</p>
+              <div className="pt-2 mt-2 border-t border-slate-200">
+                <span className="text-[10px] text-amber-600 font-bold uppercase block">Remarks</span>
+                <p className="text-xs text-amber-900 mt-0.5">{booking.remarks}</p>
               </div>
             )}
           </div>
 
           {/* Allocated Vehicle */}
-          <div className="p-3 bg-neutral-800/80 rounded-xl border border-neutral-700/60 flex items-center justify-between">
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <TruckIcon className="h-4 w-4 text-indigo-400 shrink-0" />
+              <TruckIcon className="h-4 w-4 text-indigo-600 shrink-0" />
               <div>
-                <span className="text-[10px] font-bold text-neutral-400 uppercase block">Vehicle</span>
-                <p className="font-bold text-white text-xs">
+                <span className="text-[10px] font-bold text-slate-400 uppercase block">Allocated Vehicle</span>
+                <p className="font-bold text-slate-900 text-xs">
                   {vehicleInfo ? `${vehicleInfo.name} (${vehicleInfo.plateNumber})` : (booking.vehiclePreference || 'Any available')}
                 </p>
               </div>
@@ -426,13 +423,13 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
 
           {/* Driver Management (Admin Only) */}
           {isAdmin && (
-            <div className="p-3.5 bg-neutral-900 rounded-xl border border-indigo-500/30 space-y-2">
+            <div className="p-3.5 bg-indigo-50/70 rounded-xl border border-indigo-200 space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-extrabold text-indigo-400 uppercase tracking-wider">Driver Reassignment</span>
+                <span className="text-[10px] font-bold text-indigo-900 uppercase tracking-wider">Driver Reassignment</span>
                 {!isChangingDriver && (
                   <button
                     onClick={() => setIsChangingDriver(true)}
-                    className="text-[11px] font-bold text-indigo-300 hover:text-indigo-200 underline cursor-pointer"
+                    className="text-[11px] font-bold text-indigo-700 hover:text-indigo-900 underline cursor-pointer"
                   >
                     Change Driver
                   </button>
@@ -444,7 +441,7 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
                   <select
                     value={newDriverId}
                     onChange={(e) => setNewDriverId(e.target.value)}
-                    className="w-full bg-neutral-800 text-white rounded-lg px-3 py-2 text-xs border border-neutral-600 focus:ring-2 focus:ring-indigo-500 font-semibold"
+                    className="w-full bg-white text-slate-900 rounded-lg px-3 py-2 text-xs border border-slate-300 focus:ring-2 focus:ring-indigo-500 font-medium"
                   >
                     <option value="">-- Select Driver --</option>
                     {users.filter(u => u.role === 'Driver' || u.role === 'Staff').map(u => (
@@ -456,22 +453,22 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
                   <div className="flex gap-2 justify-end">
                     <button
                       onClick={() => setIsChangingDriver(false)}
-                      className="px-2.5 py-1 text-xs rounded bg-neutral-700 hover:bg-neutral-600 text-neutral-300"
+                      className="px-2.5 py-1 text-xs rounded bg-slate-200 hover:bg-slate-300 text-slate-700"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={handleConfirmDriverChange}
                       disabled={isSavingDriver}
-                      className="px-3 py-1 text-xs font-bold rounded bg-indigo-600 hover:bg-indigo-500 text-white"
+                      className="px-3 py-1 text-xs font-bold rounded bg-indigo-600 hover:bg-indigo-700 text-white"
                     >
                       {isSavingDriver ? 'Saving...' : 'Save Driver'}
                     </button>
                   </div>
                 </div>
               ) : (
-                <p className="text-xs font-semibold text-neutral-300">
-                  Current: <span className="font-bold text-white">{driverName}</span>
+                <p className="text-xs font-medium text-slate-700">
+                  Current: <span className="font-bold text-slate-900">{driverName}</span>
                 </p>
               )}
             </div>
@@ -480,12 +477,12 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="p-3 sm:p-4 bg-neutral-900 border-t border-neutral-800 flex justify-between items-center gap-2">
+        <div className="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center gap-2">
           {isAdmin ? (
             <>
               <button
                 onClick={handleDeleteClick}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-rose-400 hover:bg-rose-950/40 rounded-xl border border-rose-800/40 transition cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100 rounded-xl border border-rose-200 transition cursor-pointer"
               >
                 <TrashIcon className="h-4 w-4" />
                 <span>Delete</span>
@@ -494,14 +491,14 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleEditClick}
-                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-neutral-700 hover:bg-neutral-600 rounded-xl transition cursor-pointer"
+                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-xl transition cursor-pointer"
                 >
                   <EditIcon className="h-4 w-4" />
                   <span>Edit Trip</span>
                 </button>
                 <button
                   onClick={onClose}
-                  className="px-4 py-2 text-xs font-bold text-neutral-300 hover:text-white bg-neutral-800 hover:bg-neutral-700 rounded-xl transition cursor-pointer"
+                  className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition cursor-pointer"
                 >
                   Close
                 </button>
@@ -511,7 +508,7 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
             <div className="w-full flex justify-end">
               <button
                 onClick={onClose}
-                className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl transition cursor-pointer"
+                className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition cursor-pointer"
               >
                 Done
               </button>
@@ -544,9 +541,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   let context: any = null;
   try {
     context = useAppContext();
-  } catch {
-    // optional context
-  }
+  } catch {}
 
   const bookings = customBookings || context?.bookings || [];
   const users = customUsers || context?.users || [];
@@ -560,15 +555,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     return currentUser.role === 'Admin' || currentUser.role === 'SuperAdmin';
   }, [isPublic, currentUser]);
 
-  // View States
-  const [viewMode, setViewMode] = useState<CalendarViewMode>(() => {
-    // Auto default to 3days or day on narrow screens for superior legibility
-    if (typeof window !== 'undefined' && window.innerWidth < 640) {
-      return defaultView === 'month' ? 'month' : defaultView;
-    }
-    return defaultView;
-  });
-
+  const [viewMode, setViewMode] = useState<CalendarViewMode>(defaultView);
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [driverFilter, setDriverFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -576,10 +563,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
-  const [themeMode, setThemeMode] = useState<'dark' | 'light'>('dark');
 
-  // Timeline hours from 8:00 AM to 6:00 PM (18:00) with 1-hour buffer
-  const timelineHours = useMemo(() => [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18], []);
+  // Timeline container ref for auto-scrolling to daytime (~8am or current hour)
+  const timelineScrollRef = useRef<HTMLDivElement | null>(null);
+
+  // 24-hour array from 0 (12:00 AM) to 23 (11:00 PM)
+  const allDayHours = useMemo(() => {
+    return Array.from({ length: 24 }, (_, i) => i);
+  }, []);
 
   // Filtered drivers list
   const driversList = useMemo(() => {
@@ -630,13 +621,33 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       map.get(key)!.push(b);
     });
 
-    // Sort bookings by time in each day
     map.forEach(list => {
       list.sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
     });
 
     return map;
   }, [filteredBookings]);
+
+  // Auto-scroll timeline to 07:30 AM or first booking hour on view change / date change
+  useEffect(() => {
+    if (viewMode === 'day' || viewMode === '3days' || viewMode === 'week') {
+      const timer = setTimeout(() => {
+        if (timelineScrollRef.current) {
+          // Find earliest booking of current date or default to 8am (hour 8)
+          const key = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+          const dayBookings = bookingsByDay.get(key) || [];
+          let targetHour = 8;
+          if (dayBookings.length > 0) {
+            const firstHour = parseAsLocal(dayBookings[0].dateTime).getHours();
+            targetHour = Math.max(0, Math.min(23, firstHour - 1));
+          }
+          // Each hour row is ~64px
+          timelineScrollRef.current.scrollTop = targetHour * 64;
+        }
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [viewMode, currentDate]);
 
   // Navigation handlers
   const handlePrev = useCallback(() => {
@@ -688,7 +699,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     return bookings.find(b => b.id === selectedBookingId) || null;
   }, [selectedBookingId, bookings]);
 
-  // Computed Date Arrays for Different Views
+  // Computed Date Arrays
   const monthLabel = MONTH_NAMES[currentDate.getMonth()];
   const yearLabel = currentDate.getFullYear();
 
@@ -699,28 +710,24 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     const firstDayOfMonth = new Date(year, month, 1);
     const lastDayOfMonth = new Date(year, month + 1, 0);
 
-    // Monday start index (0=Mon, 6=Sun)
     let startDay = firstDayOfMonth.getDay() - 1;
     if (startDay === -1) startDay = 6;
 
     const days: { date: Date; dateKey: string; isCurrentMonth: boolean; isToday: boolean }[] = [];
     const todayStr = new Date().toDateString();
 
-    // Previous month filler days
     for (let i = startDay - 1; i >= 0; i--) {
       const d = new Date(year, month, -i);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       days.push({ date: d, dateKey: key, isCurrentMonth: false, isToday: d.toDateString() === todayStr });
     }
 
-    // Current month days
     for (let i = 1; i <= lastDayOfMonth.getDate(); i++) {
       const d = new Date(year, month, i);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       days.push({ date: d, dateKey: key, isCurrentMonth: true, isToday: d.toDateString() === todayStr });
     }
 
-    // Next month filler days (fill up to 35 or 42)
     const remaining = (days.length <= 35 ? 35 : 42) - days.length;
     for (let i = 1; i <= remaining; i++) {
       const d = new Date(year, month + 1, i);
@@ -748,7 +755,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const weekDays = useMemo(() => {
     const d = new Date(currentDate);
     const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
     const monday = new Date(d.setDate(diff));
 
     const days: { date: Date; dateKey: string; isToday: boolean }[] = [];
@@ -762,7 +769,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     return days;
   }, [currentDate]);
 
-  const isDarkMode = themeMode === 'dark';
+  // Format hour label: 0 -> 12 am, 1 -> 1 am, 12 -> 12 pm, 13 -> 1 pm, 23 -> 11 pm
+  const formatHourLabel = (hour: number) => {
+    if (hour === 0) return '12 am';
+    if (hour < 12) return `${hour} am`;
+    if (hour === 12) return '12 pm';
+    return `${hour - 12} pm`;
+  };
 
   return (
     <>
@@ -787,17 +800,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         />
       )}
 
-      {/* Main Calendar Container */}
-      <div className={`rounded-2xl shadow-xl overflow-hidden flex flex-col transition-colors ${
-        isDarkMode ? 'bg-[#181818] text-white border border-neutral-800' : 'bg-white text-slate-900 border border-slate-200'
-      }`}>
+      {/* Main Calendar Container - Clean White FleetFlow Design */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 text-slate-800 flex flex-col overflow-hidden">
         
         {/* ========================================================
-            TOP TOOLBAR (Matching Google Calendar Phone / PC Design)
+            TOP TOOLBAR
             ======================================================== */}
-        <div className={`p-3 sm:p-4 border-b ${
-          isDarkMode ? 'bg-[#1f1f1f] border-neutral-800' : 'bg-white border-slate-200'
-        }`}>
+        <div className="p-3 sm:p-4 border-b border-slate-200 bg-white">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
             
             {/* Left: Month Dropdown Title & Navigation */}
@@ -805,22 +814,18 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <div className="relative">
                 <button
                   onClick={() => setIsMonthPickerOpen(!isMonthPickerOpen)}
-                  className={`flex items-center gap-1.5 text-base sm:text-xl font-extrabold tracking-tight px-2.5 py-1.5 rounded-xl transition cursor-pointer ${
-                    isDarkMode ? 'hover:bg-neutral-800 text-white' : 'hover:bg-slate-100 text-slate-900'
-                  }`}
+                  className="flex items-center gap-1.5 text-base sm:text-xl font-bold tracking-tight px-2.5 py-1.5 rounded-xl hover:bg-slate-100 text-slate-900 transition cursor-pointer"
                 >
                   <span>{monthLabel} {yearLabel}</span>
-                  <span className="text-xs opacity-70">▼</span>
+                  <span className="text-xs text-slate-400">▾</span>
                 </button>
 
                 {/* Quick Month Selector Popup */}
                 {isMonthPickerOpen && (
-                  <div className={`absolute top-full left-0 mt-2 z-40 p-3 rounded-2xl shadow-2xl border w-64 ${
-                    isDarkMode ? 'bg-neutral-900 border-neutral-700 text-white' : 'bg-white border-slate-200 text-slate-900'
-                  }`}>
-                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-neutral-700/50">
-                      <span className="text-xs font-extrabold uppercase tracking-wider text-neutral-400">Select Month</span>
-                      <button onClick={() => setIsMonthPickerOpen(false)} className="text-xs text-neutral-400 hover:text-white">✕</button>
+                  <div className="absolute top-full left-0 mt-2 z-40 p-3 rounded-2xl shadow-xl border bg-white border-slate-200 text-slate-900 w-64">
+                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Select Month</span>
+                      <button onClick={() => setIsMonthPickerOpen(false)} className="text-xs text-slate-400 hover:text-slate-700">✕</button>
                     </div>
                     <div className="grid grid-cols-3 gap-1.5">
                       {MONTH_NAMES.map((m, idx) => (
@@ -832,10 +837,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                             setCurrentDate(d);
                             setIsMonthPickerOpen(false);
                           }}
-                          className={`py-1.5 px-2 rounded-lg text-xs font-bold transition cursor-pointer ${
+                          className={`py-1.5 px-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
                             currentDate.getMonth() === idx
-                              ? 'bg-indigo-600 text-white'
-                              : isDarkMode ? 'hover:bg-neutral-800 text-neutral-300' : 'hover:bg-slate-100 text-slate-700'
+                              ? 'bg-indigo-600 text-white shadow-xs'
+                              : 'hover:bg-slate-100 text-slate-700'
                           }`}
                         >
                           {m.substring(0, 3)}
@@ -850,32 +855,22 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={handleToday}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-xl transition active:scale-95 cursor-pointer border ${
-                    isDarkMode 
-                      ? 'bg-neutral-800 hover:bg-neutral-700 text-white border-neutral-700' 
-                      : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
-                  }`}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-xl transition active:scale-95 cursor-pointer bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs"
                 >
                   Today
                 </button>
 
-                <div className={`flex items-center p-0.5 rounded-xl border ${
-                  isDarkMode ? 'bg-neutral-800/80 border-neutral-700' : 'bg-slate-100 border-slate-200'
-                }`}>
+                <div className="flex items-center p-0.5 rounded-xl border border-slate-200 bg-slate-50">
                   <button
                     onClick={handlePrev}
-                    className={`p-1.5 rounded-lg transition active:scale-95 cursor-pointer ${
-                      isDarkMode ? 'hover:bg-neutral-700 text-neutral-200' : 'hover:bg-white text-slate-700'
-                    }`}
+                    className="p-1.5 rounded-lg hover:bg-white text-slate-600 transition active:scale-95 cursor-pointer"
                     title="Previous"
                   >
                     <span className="text-sm font-bold block px-1">‹</span>
                   </button>
                   <button
                     onClick={handleNext}
-                    className={`p-1.5 rounded-lg transition active:scale-95 cursor-pointer ${
-                      isDarkMode ? 'hover:bg-neutral-700 text-neutral-200' : 'hover:bg-white text-slate-700'
-                    }`}
+                    className="p-1.5 rounded-lg hover:bg-white text-slate-600 transition active:scale-95 cursor-pointer"
                     title="Next"
                   >
                     <span className="text-sm font-bold block px-1">›</span>
@@ -884,13 +879,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               </div>
             </div>
 
-            {/* Right: View Mode Switcher Pills & Theme Toggle */}
+            {/* Right: View Mode Switcher Pills & Action */}
             <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2">
               
               {/* Segmented View Switcher: Day, 3 Days, Week, Month, Schedule */}
-              <div className={`flex p-1 rounded-xl border text-xs font-bold overflow-x-auto ${
-                isDarkMode ? 'bg-neutral-900 border-neutral-700' : 'bg-slate-100 border-slate-200'
-              }`}>
+              <div className="flex p-1 rounded-xl border border-slate-200 bg-slate-100 text-xs font-semibold overflow-x-auto">
                 {(['day', '3days', 'week', 'month', 'schedule'] as CalendarViewMode[]).map(mode => {
                   const labels: Record<CalendarViewMode, string> = {
                     day: 'Day',
@@ -905,10 +898,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     <button
                       key={mode}
                       onClick={() => setViewMode(mode)}
-                      className={`px-2.5 sm:px-3 py-1.5 rounded-lg transition cursor-pointer shrink-0 ${
+                      className={`px-3 py-1.5 rounded-lg transition cursor-pointer shrink-0 ${
                         isActive
-                          ? 'bg-indigo-600 text-white shadow-xs'
-                          : isDarkMode ? 'text-neutral-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                          ? 'bg-white text-indigo-700 shadow-xs font-bold'
+                          : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
                       {labels[mode]}
@@ -917,22 +910,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 })}
               </div>
 
-              {/* Theme Toggle Button */}
-              <button
-                onClick={() => setThemeMode(isDarkMode ? 'light' : 'dark')}
-                className={`p-2 rounded-xl border text-xs transition cursor-pointer ${
-                  isDarkMode ? 'bg-neutral-800 text-amber-300 border-neutral-700 hover:bg-neutral-700' : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
-                }`}
-                title={isDarkMode ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
-              >
-                {isDarkMode ? '☀️' : '🌙'}
-              </button>
-
               {/* Primary Action Button (Add / Book) */}
               {onRequestBooking ? (
                 <button
                   onClick={onRequestBooking}
-                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs py-2 px-3.5 rounded-xl shadow-md transition active:scale-95 cursor-pointer ml-auto sm:ml-0"
+                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs py-2 px-3.5 rounded-xl shadow-xs transition active:scale-95 cursor-pointer ml-auto sm:ml-0"
                 >
                   <PlusIcon className="h-4 w-4" />
                   <span>Book Vehicle</span>
@@ -940,7 +922,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               ) : isAdmin && (
                 <button
                   onClick={handleCreateNewBooking}
-                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs py-2 px-3.5 rounded-xl shadow-md transition active:scale-95 cursor-pointer ml-auto sm:ml-0"
+                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs py-2 px-3.5 rounded-xl shadow-xs transition active:scale-95 cursor-pointer ml-auto sm:ml-0"
                 >
                   <PlusIcon className="h-4 w-4" />
                   <span>Add Booking</span>
@@ -951,17 +933,17 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           </div>
 
           {/* Search & Filter Strip */}
-          <div className="flex flex-wrap items-center justify-between gap-2 mt-3 pt-3 border-t border-neutral-800/60">
+          <div className="flex flex-wrap items-center justify-between gap-2 mt-3 pt-3 border-t border-slate-100">
             {/* Driver Filter Chips */}
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mr-1">Filter:</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Filter:</span>
               
               <button
                 onClick={() => setDriverFilter('all')}
-                className={`px-2.5 py-1 rounded-full text-xs font-semibold transition border cursor-pointer ${
+                className={`px-2.5 py-1 rounded-full text-xs font-medium transition border cursor-pointer ${
                   driverFilter === 'all'
-                    ? 'bg-indigo-600 text-white border-indigo-600'
-                    : isDarkMode ? 'bg-neutral-800 text-neutral-300 border-neutral-700 hover:bg-neutral-700' : 'bg-slate-100 text-slate-700 border-slate-200'
+                    ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
+                    : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
                 }`}
               >
                 All Trips
@@ -974,13 +956,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   <button
                     key={d.id}
                     onClick={() => setDriverFilter(d.id)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition border cursor-pointer ${
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition border cursor-pointer ${
                       isSelected
-                        ? `${dStyle.bg} text-white border-transparent shadow-xs`
-                        : isDarkMode ? 'bg-neutral-800 text-neutral-300 border-neutral-700 hover:bg-neutral-700' : 'bg-slate-100 text-slate-700 border-slate-200'
+                        ? `${dStyle.bg} ${dStyle.text} border-indigo-400 font-bold shadow-2xs`
+                        : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
                     }`}
                   >
-                    <span className={`w-2 h-2 rounded-full ${dStyle.bar}`} />
+                    <span className={`w-2 h-2 rounded-full ${dStyle.dot}`} />
                     <span>{d.name.split(' ')[0]}</span>
                   </button>
                 );
@@ -988,45 +970,41 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
               <button
                 onClick={() => setDriverFilter('self-drive')}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition border cursor-pointer ${
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition border cursor-pointer ${
                   driverFilter === 'self-drive'
-                    ? 'bg-[#546e7a] text-white border-transparent'
-                    : isDarkMode ? 'bg-neutral-800 text-neutral-300 border-neutral-700' : 'bg-slate-100 text-slate-700 border-slate-200'
+                    ? 'bg-slate-700 text-white border-slate-700 shadow-2xs'
+                    : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
                 }`}
               >
-                <span className="w-2 h-2 rounded-full bg-slate-300" />
+                <span className="w-2 h-2 rounded-full bg-slate-500" />
                 <span>Self-Drive</span>
               </button>
 
               <button
                 onClick={() => setDriverFilter('conflict')}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition border cursor-pointer ${
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition border cursor-pointer ${
                   driverFilter === 'conflict'
-                    ? 'bg-rose-600 text-white border-rose-600'
-                    : isDarkMode ? 'bg-rose-950/40 text-rose-300 border-rose-800/60' : 'bg-rose-50 text-rose-700 border-rose-200'
+                    ? 'bg-rose-600 text-white border-rose-600 shadow-2xs'
+                    : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
                 }`}
               >
-                <span className="w-2 h-2 rounded-full bg-rose-400" />
+                <span className="w-2 h-2 rounded-full bg-rose-500" />
                 <span>Conflict</span>
               </button>
             </div>
 
             {/* Search Input */}
             <div className="relative w-full sm:w-64">
-              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400" />
+              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search trip, staff, location..."
-                className={`w-full pl-8 pr-3 py-1.5 rounded-xl text-xs font-medium border transition focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                  isDarkMode 
-                    ? 'bg-neutral-900 border-neutral-700 text-white placeholder-neutral-500' 
-                    : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400'
-                }`}
+                placeholder="Search trip, requester, destination..."
+                className="w-full pl-8 pr-3 py-1.5 rounded-xl text-xs font-medium border border-slate-200 bg-slate-50 text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
               />
               {searchQuery && (
-                <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white text-xs">✕</button>
+                <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs">✕</button>
               )}
             </div>
           </div>
@@ -1034,92 +1012,68 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         </div>
 
         {/* ========================================================
-            VIEW 1: 1-DAY VIEW (Accurate Side-by-Side Timeline)
+            VIEW 1: 1-DAY VIEW (Scrollable 12:00 AM - 11:00 PM Timeline)
             ======================================================== */}
         {viewMode === 'day' && (
-          <div className="overflow-x-auto">
-            <div className="min-w-[320px] p-2 sm:p-4">
-              
-              {/* Day Header */}
-              <div className={`p-3 sm:p-4 rounded-2xl mb-3 flex items-center justify-between border ${
-                isDarkMode ? 'bg-neutral-900 border-neutral-800' : 'bg-indigo-50/60 border-indigo-100'
-              }`}>
-                <div>
-                  <p className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-400">
-                    {DAY_NAMES_FULL[currentDate.getDay()]}
-                  </p>
-                  <h3 className="text-base sm:text-xl font-extrabold">
-                    {currentDate.getDate()} {MONTH_NAMES[currentDate.getMonth()]} {currentDate.getFullYear()}
-                  </h3>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className={`px-3 py-1 rounded-xl text-xs font-extrabold border ${
-                    isDarkMode ? 'bg-neutral-800 text-neutral-200 border-neutral-700' : 'bg-white text-indigo-700 border-indigo-200'
-                  }`}>
-                    {(() => {
-                      const key = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
-                      return `${(bookingsByDay.get(key) || []).length} Trips`;
-                    })()}
-                  </span>
-                </div>
+          <div className="p-3 sm:p-5">
+            {/* Day Header */}
+            <div className="p-3 sm:p-4 rounded-xl mb-3 flex items-center justify-between bg-slate-50 border border-slate-200">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">
+                  {DAY_NAMES_FULL[currentDate.getDay()]}
+                </p>
+                <h3 className="text-base sm:text-xl font-extrabold text-slate-900">
+                  {currentDate.getDate()} {MONTH_NAMES[currentDate.getMonth()]} {currentDate.getFullYear()}
+                </h3>
               </div>
 
-              {/* Hourly Timeline with Collision Columns */}
+              <span className="px-3 py-1 rounded-xl text-xs font-bold bg-white text-indigo-700 border border-indigo-200 shadow-2xs">
+                {(() => {
+                  const key = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+                  return `${(bookingsByDay.get(key) || []).length} Scheduled Trips`;
+                })()}
+              </span>
+            </div>
+
+            {/* Scrollable 24-Hour Timeline */}
+            <div 
+              ref={timelineScrollRef}
+              className="relative border border-slate-200 rounded-xl overflow-y-auto max-h-[640px] sm:max-h-[720px] bg-white shadow-inner"
+            >
               {(() => {
                 const key = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
                 const dayBookings = bookingsByDay.get(key) || [];
-                const positionedEvents = calculateDayCollisionLayout(dayBookings, 8, 19);
+                // Full 24-hour range: 0 (12:00 AM) to 24 (12:00 AM next day)
+                const positionedEvents = calculateDayCollisionLayout(dayBookings, 0, 24);
 
                 return (
-                  <div className={`relative border rounded-2xl overflow-hidden ${
-                    isDarkMode ? 'bg-[#121212] border-neutral-800' : 'bg-white border-slate-200'
-                  }`}>
-                    {/* Hour Rows */}
-                    {timelineHours.map((hour, idx) => {
-                      const hourLabel = `${hour % 12 === 0 ? 12 : hour % 12} ${hour >= 12 ? 'pm' : 'am'}`;
+                  <div className="relative" style={{ height: `${24 * 64}px` }}>
+                    {/* 24 Hour Rows */}
+                    {allDayHours.map(hour => {
                       return (
-                        <div key={hour} className={`flex min-h-[68px] sm:min-h-[80px] border-b relative ${
-                          isDarkMode ? 'border-neutral-800/80' : 'border-slate-100'
-                        }`}>
+                        <div 
+                          key={hour} 
+                          className="flex h-[64px] border-b border-slate-100 relative group"
+                        >
                           {/* Time Gutter on Left */}
-                          <div className={`w-14 sm:w-20 shrink-0 p-2 text-right text-[10px] sm:text-xs font-mono font-bold select-none border-r ${
-                            isDarkMode ? 'bg-[#191919] text-neutral-400 border-neutral-800' : 'bg-slate-50 text-slate-400 border-slate-200'
-                          }`}>
-                            {hourLabel}
+                          <div className="w-16 sm:w-20 shrink-0 p-2 text-right text-[10px] sm:text-xs font-mono font-bold select-none border-r border-slate-200 bg-slate-50/80 text-slate-500">
+                            {formatHourLabel(hour)}
                           </div>
 
                           {/* Grid Track */}
-                          <div className="flex-1 relative" />
+                          <div className="flex-1 relative group-hover:bg-slate-50/40 transition" />
                         </div>
                       );
                     })}
 
-                    {/* Standard Lunch Break Block (12:00 PM - 2:00 PM or 1:00 PM - 2:00 PM) */}
-                    {/* Render Lunch Break across 12pm - 2pm (or 1pm - 2pm) */}
-                    <div 
-                      style={{
-                        top: `${((12 * 60 - 8 * 60) / ((19 - 8) * 60)) * 100}%`,
-                        height: `${((2 * 60) / ((19 - 8) * 60)) * 100}%`,
-                        left: '56px', // offset width of gutter
-                        right: '8px',
-                      }}
-                      className="absolute z-10 p-2.5 rounded-xl bg-[#e53935]/90 border border-red-700 text-white shadow-sm flex items-center justify-center font-bold text-xs sm:text-sm text-center select-none"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-base">🍱</span>
-                        <span>Lunch Break (No booking available) • 12:00 PM – 2:00 PM</span>
-                      </div>
-                    </div>
-
-                    {/* Render Positioned Event Cards Side-by-Side */}
+                    {/* Render Events Side-by-Side with Collision Columns */}
                     {positionedEvents.map(item => {
                       const { booking, topPercent, heightPercent, colIndex, totalCols } = item;
                       const dName = getDriverName(booking.driverId);
                       const style = getEventCardStyle(booking, dName);
                       const startDt = parseAsLocal(booking.dateTime);
                       const finishDt = booking.finishDateTime ? parseAsLocal(booking.finishDateTime) : null;
-                      const timeStr = `${startDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}${finishDt ? ' - ' + finishDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : ''}`;
+                      const timeStr = `${startDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}${finishDt ? ' – ' + finishDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : ''}`;
 
                       const colWidthPercent = 100 / totalCols;
                       const leftPercent = colIndex * colWidthPercent;
@@ -1131,36 +1085,34 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           style={{
                             top: `${topPercent}%`,
                             height: `${heightPercent}%`,
-                            left: `calc(56px + (100% - 56px) * ${leftPercent / 100} + 3px)`,
-                            width: `calc((100% - 56px) * ${colWidthPercent / 100} - 6px)`,
+                            left: `calc(64px + (100% - 64px) * ${leftPercent / 100} + 4px)`,
+                            width: `calc((100% - 64px) * ${colWidthPercent / 100} - 8px)`,
                           }}
-                          className={`absolute z-20 p-2 sm:p-2.5 rounded-xl border shadow-md transition cursor-pointer hover:scale-[1.01] flex flex-col justify-between overflow-hidden ${style.bg} ${style.border} ${style.text}`}
+                          className={`absolute z-20 p-2 sm:p-2.5 rounded-xl border shadow-xs transition cursor-pointer hover:shadow-md hover:scale-[1.005] flex flex-col justify-between overflow-hidden ${style.bg} ${style.border} ${style.text}`}
                         >
                           <div className="overflow-hidden">
-                            <div className="flex items-center justify-between gap-1 mb-0.5">
-                              <span className="text-[10px] font-extrabold uppercase bg-black/25 px-1.5 py-0.2 rounded font-mono truncate">
+                            <div className="flex items-center justify-between gap-1 mb-1">
+                              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded font-mono bg-white/80 border border-slate-200/60 text-slate-700">
                                 {timeStr}
                               </span>
-                              {booking.status === 'Conflict' && (
-                                <span className="text-[9px] bg-red-950 px-1 py-0.2 rounded font-bold">⚠️ Conflict</span>
-                              )}
+                              <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded uppercase ${style.badge}`}>
+                                {booking.serviceType === 'Self-Drive' ? 'Self-Drive' : dName.split(' ')[0]}
+                              </span>
                             </div>
 
-                            {/* Driver Prefix & Requester / Destination */}
-                            <p className="font-extrabold text-[11px] sm:text-xs leading-tight line-clamp-3">
-                              <span className="opacity-90 font-black">
-                                {booking.serviceType === 'Self-Drive' ? '(Self-Drive)' : `(${dName.split(' ')[0]})`}
-                              </span>{' '}
+                            <p className="font-extrabold text-xs sm:text-sm leading-snug line-clamp-2">
                               {booking.requesterName}
                               {booking.department ? ` (${booking.department})` : ''}{' '}
-                              <span className="text-white/90">→ {booking.destination}</span>
+                              <span className="font-normal text-slate-600">→</span>{' '}
+                              <span className="font-bold text-slate-900">{booking.destination}</span>
                             </p>
                           </div>
 
-                          {/* Location & Details Badge */}
-                          <div className="pt-1 mt-1 border-t border-white/15 flex items-center justify-between text-[9px] sm:text-[10px] opacity-90">
-                            <span className="truncate">{booking.purpose || 'Official Trip'}</span>
-                            <span className="font-bold shrink-0">{booking.shouldWait ? '⏳ Standby' : '🚗 Drop'}</span>
+                          <div className="pt-1 mt-1 border-t border-slate-200/70 flex items-center justify-between text-[10px] text-slate-500">
+                            <span className="truncate">{booking.purpose || 'Official Transport'}</span>
+                            <span className="font-semibold shrink-0 ml-1">
+                              {booking.shouldWait ? '⏳ Standby' : '🚗 Drop'}
+                            </span>
                           </div>
                         </div>
                       );
@@ -1168,24 +1120,19 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   </div>
                 );
               })()}
-
             </div>
           </div>
         )}
 
         {/* ========================================================
-            VIEW 2: 3-DAYS VIEW (Matching Screenshot 1 for Phones)
+            VIEW 2: 3-DAYS VIEW (Scrollable 12:00 AM - 11:00 PM)
             ======================================================== */}
         {viewMode === '3days' && (
-          <div className="overflow-x-auto">
-            <div className="min-w-[480px]">
+          <div className="p-3 sm:p-5">
+            <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
               {/* 3 Days Column Headers */}
-              <div className={`grid grid-cols-4 border-b sticky top-0 z-30 ${
-                isDarkMode ? 'bg-[#1e1e1e] border-neutral-800' : 'bg-slate-50 border-slate-200'
-              }`}>
-                <div className={`py-3 px-2 text-center text-[10px] font-bold uppercase border-r ${
-                  isDarkMode ? 'text-neutral-400 border-neutral-800' : 'text-slate-400 border-slate-200'
-                }`}>
+              <div className="grid grid-cols-4 border-b border-slate-200 bg-slate-50 sticky top-0 z-30">
+                <div className="py-2.5 px-2 text-center text-[10px] font-bold uppercase text-slate-400 border-r border-slate-200">
                   Time
                 </div>
 
@@ -1196,18 +1143,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       setCurrentDate(date);
                       setViewMode('day');
                     }}
-                    className={`py-2 px-1 text-center border-r transition cursor-pointer hover:bg-indigo-500/10 ${
-                      isDarkMode ? 'border-neutral-800' : 'border-slate-200'
-                    } ${isToday ? (isDarkMode ? 'bg-indigo-950/40' : 'bg-indigo-50') : ''}`}
+                    className={`py-2 px-1 text-center border-r border-slate-200 transition cursor-pointer hover:bg-slate-100 ${
+                      isToday ? 'bg-indigo-50/70' : ''
+                    }`}
                   >
-                    <p className={`text-[10px] font-bold uppercase ${
-                      isToday ? 'text-indigo-400' : isDarkMode ? 'text-neutral-400' : 'text-slate-500'
-                    }`}>
+                    <p className={`text-[10px] font-bold uppercase ${isToday ? 'text-indigo-600' : 'text-slate-500'}`}>
                       {DAY_NAMES_SHORT[date.getDay()]}
                     </p>
                     <span
-                      className={`inline-flex items-center justify-center h-7 w-7 rounded-full text-xs font-extrabold mt-0.5 ${
-                        isToday ? 'bg-amber-500 text-black shadow-md' : isDarkMode ? 'text-white' : 'text-slate-900'
+                      className={`inline-flex items-center justify-center h-6 w-6 rounded-full text-xs font-bold mt-0.5 ${
+                        isToday ? 'bg-indigo-600 text-white shadow-2xs' : 'text-slate-800'
                       }`}
                     >
                       {date.getDate()}
@@ -1216,19 +1161,17 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 ))}
               </div>
 
-              {/* 3-Days Hourly Matrix */}
-              <div className="relative">
-                {timelineHours.map(hour => {
-                  const hourLabel = `${hour % 12 === 0 ? 12 : hour % 12} ${hour >= 12 ? 'pm' : 'am'}`;
+              {/* 3-Days Hourly Scrollable Matrix */}
+              <div 
+                ref={timelineScrollRef}
+                className="overflow-y-auto max-h-[640px] sm:max-h-[720px] bg-white divide-y divide-slate-100"
+              >
+                {allDayHours.map(hour => {
                   return (
-                    <div key={hour} className={`grid grid-cols-4 min-h-[72px] border-b ${
-                      isDarkMode ? 'border-neutral-800/80' : 'border-slate-100'
-                    }`}>
+                    <div key={hour} className="grid grid-cols-4 min-h-[64px]">
                       {/* Time Gutter */}
-                      <div className={`text-[10px] font-mono font-bold text-center pt-1 border-r select-none ${
-                        isDarkMode ? 'bg-[#191919] text-neutral-400 border-neutral-800' : 'bg-slate-50 text-slate-400 border-slate-200'
-                      }`}>
-                        {hourLabel}
+                      <div className="text-[10px] font-mono font-bold text-center pt-1.5 border-r border-slate-200 bg-slate-50/80 text-slate-400 select-none">
+                        {formatHourLabel(hour)}
                       </div>
 
                       {/* 3 Days Columns */}
@@ -1239,23 +1182,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           return dt.getHours() === hour;
                         });
 
-                        const isLunchHour = hour === 12 || hour === 13;
-
                         return (
                           <div
                             key={idx}
-                            className={`border-r p-1 relative transition ${
-                              isDarkMode ? 'border-neutral-800/80 hover:bg-neutral-800/30' : 'border-slate-100 hover:bg-slate-50'
-                            } ${isToday ? (isDarkMode ? 'bg-indigo-950/10' : 'bg-indigo-50/20') : ''}`}
+                            className={`border-r border-slate-100 p-1 relative transition hover:bg-slate-50/60 ${
+                              isToday ? 'bg-indigo-50/20' : ''
+                            }`}
                           >
-                            {/* Lunch Break Chip */}
-                            {hour === 12 && (
-                              <div className="mb-1 p-1.5 rounded-lg bg-[#e53935] text-white text-[10px] font-bold text-center shadow-xs">
-                                Lunch Break (No booking available)
-                              </div>
-                            )}
-
-                            {/* Bookings In This Hour Slot */}
                             {hourBookings.map(b => {
                               const dName = getDriverName(b.driverId);
                               const style = getEventCardStyle(b, dName);
@@ -1268,14 +1201,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                     e.stopPropagation();
                                     setSelectedBookingId(b.id);
                                   }}
-                                  className={`p-1.5 mb-1 rounded-lg border shadow-sm text-[10px] font-bold leading-snug cursor-pointer transition hover:scale-[1.02] ${style.bg} ${style.border} ${style.text}`}
+                                  className={`p-1.5 mb-1 rounded-lg border shadow-2xs text-[10px] leading-snug cursor-pointer transition hover:shadow-xs ${style.bg} ${style.border} ${style.text}`}
                                 >
-                                  <div className="flex justify-between items-center opacity-90 text-[9px] mb-0.5">
+                                  <div className="flex justify-between items-center text-[9px] font-semibold text-slate-600 mb-0.5">
                                     <span>{timeStr}</span>
-                                    {b.status === 'Conflict' && <span>⚠️</span>}
+                                    <span>{b.serviceType === 'Self-Drive' ? 'Self' : dName.split(' ')[0]}</span>
                                   </div>
-                                  <p className="line-clamp-2">
-                                    <span className="font-extrabold">{b.serviceType === 'Self-Drive' ? '(Self-Drive)' : `(${dName.split(' ')[0]})`}</span>{' '}
+                                  <p className="font-bold line-clamp-2 text-slate-900">
                                     {b.requesterName} → {b.destination}
                                   </p>
                                 </div>
@@ -1288,143 +1220,129 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   );
                 })}
               </div>
-
             </div>
           </div>
         )}
 
         {/* ========================================================
-            VIEW 3: 7-DAYS WEEK VIEW (Matching Screenshot 2)
+            VIEW 3: 7-DAYS WEEK VIEW (Scrollable 12:00 AM - 11:00 PM)
             ======================================================== */}
         {viewMode === 'week' && (
-          <div className="overflow-x-auto">
-            <div className="min-w-[720px]">
-              {/* 7 Days Header */}
-              <div className={`grid grid-cols-8 border-b sticky top-0 z-30 ${
-                isDarkMode ? 'bg-[#1e1e1e] border-neutral-800' : 'bg-slate-50 border-slate-200'
-              }`}>
-                <div className={`py-3 px-2 text-center text-[10px] font-bold uppercase border-r ${
-                  isDarkMode ? 'text-neutral-400 border-neutral-800' : 'text-slate-400 border-slate-200'
-                }`}>
-                  Time
-                </div>
+          <div className="p-3 sm:p-5">
+            <div className="border border-slate-200 rounded-xl overflow-x-auto bg-white">
+              <div className="min-w-[720px]">
+                {/* 7 Days Header */}
+                <div className="grid grid-cols-8 border-b border-slate-200 bg-slate-50 sticky top-0 z-30">
+                  <div className="py-2.5 px-2 text-center text-[10px] font-bold uppercase text-slate-400 border-r border-slate-200">
+                    Time
+                  </div>
 
-                {weekDays.map(({ date, isToday }) => (
-                  <div
-                    key={date.toISOString()}
-                    onClick={() => {
-                      setCurrentDate(date);
-                      setViewMode('day');
-                    }}
-                    className={`py-2 px-1 text-center border-r transition cursor-pointer hover:bg-indigo-500/10 ${
-                      isDarkMode ? 'border-neutral-800' : 'border-slate-200'
-                    } ${isToday ? (isDarkMode ? 'bg-indigo-950/40' : 'bg-indigo-50') : ''}`}
-                  >
-                    <p className={`text-[10px] font-bold uppercase ${
-                      isToday ? 'text-indigo-400' : isDarkMode ? 'text-neutral-400' : 'text-slate-500'
-                    }`}>
-                      {DAY_NAMES_SHORT[date.getDay()]}
-                    </p>
-                    <span
-                      className={`inline-flex items-center justify-center h-6 w-6 rounded-full text-xs font-extrabold mt-0.5 ${
-                        isToday ? 'bg-amber-500 text-black shadow-md' : isDarkMode ? 'text-white' : 'text-slate-900'
+                  {weekDays.map(({ date, isToday }) => (
+                    <div
+                      key={date.toISOString()}
+                      onClick={() => {
+                        setCurrentDate(date);
+                        setViewMode('day');
+                      }}
+                      className={`py-2 px-1 text-center border-r border-slate-200 transition cursor-pointer hover:bg-slate-100 ${
+                        isToday ? 'bg-indigo-50/70' : ''
                       }`}
                     >
-                      {date.getDate()}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              {/* 7-Days Hourly Rows */}
-              <div className="relative">
-                {timelineHours.map(hour => {
-                  const hourLabel = `${hour % 12 === 0 ? 12 : hour % 12} ${hour >= 12 ? 'pm' : 'am'}`;
-                  return (
-                    <div key={hour} className={`grid grid-cols-8 min-h-[64px] border-b ${
-                      isDarkMode ? 'border-neutral-800/80' : 'border-slate-100'
-                    }`}>
-                      {/* Time Gutter */}
-                      <div className={`text-[10px] font-mono font-bold text-center pt-1 border-r select-none ${
-                        isDarkMode ? 'bg-[#191919] text-neutral-400 border-neutral-800' : 'bg-slate-50 text-slate-400 border-slate-200'
-                      }`}>
-                        {hourLabel}
-                      </div>
-
-                      {/* 7 Days Columns */}
-                      {weekDays.map(({ date, dateKey, isToday }, idx) => {
-                        const dayBookings = bookingsByDay.get(dateKey) || [];
-                        const hourBookings = dayBookings.filter(b => {
-                          const dt = parseAsLocal(b.dateTime);
-                          return dt.getHours() === hour;
-                        });
-
-                        return (
-                          <div
-                            key={idx}
-                            onClick={() => {
-                              setCurrentDate(date);
-                              setViewMode('day');
-                            }}
-                            className={`border-r p-0.5 relative transition cursor-pointer ${
-                              isDarkMode ? 'border-neutral-800/80 hover:bg-neutral-800/30' : 'border-slate-100 hover:bg-slate-50'
-                            } ${isToday ? (isDarkMode ? 'bg-indigo-950/10' : 'bg-indigo-50/20') : ''}`}
-                          >
-                            {hour === 12 && (
-                              <div className="mb-0.5 p-1 rounded bg-[#e53935] text-white text-[9px] font-bold truncate">
-                                Lunch Break
-                              </div>
-                            )}
-
-                            {hourBookings.map(b => {
-                              const dName = getDriverName(b.driverId);
-                              const style = getEventCardStyle(b, dName);
-                              return (
-                                <div
-                                  key={b.id}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedBookingId(b.id);
-                                  }}
-                                  className={`p-1 mb-0.5 rounded border text-[9px] font-bold leading-tight truncate ${style.bg} ${style.border} ${style.text}`}
-                                >
-                                  {b.serviceType === 'Self-Drive' ? '(Self-Drive)' : `(${dName.split(' ')[0]})`} {b.destination}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        );
-                      })}
+                      <p className={`text-[10px] font-bold uppercase ${isToday ? 'text-indigo-600' : 'text-slate-500'}`}>
+                        {DAY_NAMES_SHORT[date.getDay()]}
+                      </p>
+                      <span
+                        className={`inline-flex items-center justify-center h-6 w-6 rounded-full text-xs font-bold mt-0.5 ${
+                          isToday ? 'bg-indigo-600 text-white shadow-2xs' : 'text-slate-800'
+                        }`}
+                      >
+                        {date.getDate()}
+                      </span>
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
+
+                {/* 7-Days Hourly Rows */}
+                <div 
+                  ref={timelineScrollRef}
+                  className="overflow-y-auto max-h-[640px] sm:max-h-[720px] bg-white divide-y divide-slate-100"
+                >
+                  {allDayHours.map(hour => {
+                    return (
+                      <div key={hour} className="grid grid-cols-8 min-h-[60px]">
+                        {/* Time Gutter */}
+                        <div className="text-[10px] font-mono font-bold text-center pt-1.5 border-r border-slate-200 bg-slate-50/80 text-slate-400 select-none">
+                          {formatHourLabel(hour)}
+                        </div>
+
+                        {/* 7 Days Columns */}
+                        {weekDays.map(({ date, dateKey, isToday }, idx) => {
+                          const dayBookings = bookingsByDay.get(dateKey) || [];
+                          const hourBookings = dayBookings.filter(b => {
+                            const dt = parseAsLocal(b.dateTime);
+                            return dt.getHours() === hour;
+                          });
+
+                          return (
+                            <div
+                              key={idx}
+                              onClick={() => {
+                                setCurrentDate(date);
+                                setViewMode('day');
+                              }}
+                              className={`border-r border-slate-100 p-1 relative transition cursor-pointer hover:bg-slate-50 ${
+                                isToday ? 'bg-indigo-50/20' : ''
+                              }`}
+                            >
+                              {hourBookings.map(b => {
+                                const dName = getDriverName(b.driverId);
+                                const style = getEventCardStyle(b, dName);
+                                return (
+                                  <div
+                                    key={b.id}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedBookingId(b.id);
+                                    }}
+                                    className={`p-1 mb-1 rounded border text-[9px] font-medium leading-tight truncate ${style.monthChip}`}
+                                    title={`${b.requesterName} → ${b.destination}`}
+                                  >
+                                    <span className="font-bold">
+                                      {b.serviceType === 'Self-Drive' ? '[Self]' : `(${dName.split(' ')[0]})`}
+                                    </span>{' '}
+                                    {b.destination}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
         )}
 
         {/* ========================================================
-            VIEW 4: MONTH VIEW (Clean Legible Stacked Pills - Screenshot 3)
+            VIEW 4: MONTH VIEW (Original Clean FleetFlow Design)
             ======================================================== */}
         {viewMode === 'month' && (
           <div className="overflow-x-auto">
             <div className="min-w-[320px]">
-              
               {/* Day-of-week Headers */}
-              <div className={`grid grid-cols-7 border-b text-center ${
-                isDarkMode ? 'bg-[#1f1f1f] border-neutral-800' : 'bg-slate-50 border-slate-200'
-              }`}>
+              <div className="grid grid-cols-7 border-b border-slate-200 text-center bg-slate-50">
                 {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(name => (
-                  <div key={name} className="py-2.5 text-[10px] sm:text-xs font-extrabold uppercase tracking-wider text-neutral-400">
+                  <div key={name} className="py-2.5 text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-500">
                     {name}
                   </div>
                 ))}
               </div>
 
               {/* 7x6 Matrix Grid */}
-              <div className={`grid grid-cols-7 border-b gap-px ${
-                isDarkMode ? 'bg-neutral-800' : 'bg-slate-200'
-              }`}>
+              <div className="grid grid-cols-7 border-b border-slate-200 gap-px bg-slate-200">
                 {calendarGrid.map(({ date, dateKey, isCurrentMonth, isToday }, idx) => {
                   const dayBookings = bookingsByDay.get(dateKey) || [];
 
@@ -1435,45 +1353,39 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         setCurrentDate(date);
                         setViewMode('day');
                       }}
-                      className={`relative p-1 sm:p-1.5 min-h-[90px] sm:min-h-[120px] transition cursor-pointer ${
-                        isDarkMode
-                          ? (isCurrentMonth ? (isToday ? 'bg-neutral-900 ring-1 ring-amber-500/50' : 'bg-[#181818] hover:bg-neutral-800') : 'bg-[#121212] opacity-50')
-                          : (isCurrentMonth ? (isToday ? 'bg-indigo-50/60 ring-1 ring-indigo-500/40' : 'bg-white hover:bg-slate-50') : 'bg-slate-100 opacity-60')
+                      className={`relative p-1 sm:p-2 min-h-[90px] sm:min-h-[115px] transition cursor-pointer ${
+                        isCurrentMonth 
+                          ? (isToday ? 'bg-indigo-50/60 ring-1 ring-indigo-500' : 'bg-white hover:bg-slate-50') 
+                          : 'bg-slate-50/70 opacity-60'
                       }`}
                     >
-                      {/* Date Bubble */}
-                      <div className="flex items-center justify-between mb-1">
+                      {/* Date Header */}
+                      <div className="flex items-center justify-between mb-1.5">
                         <span
-                          className={`text-[10px] sm:text-xs font-black h-5 w-5 sm:h-6 sm:w-6 flex items-center justify-center rounded-full ${
+                          className={`text-xs font-bold h-6 w-6 flex items-center justify-center rounded-full ${
                             isToday
-                              ? 'bg-amber-500 text-black font-extrabold shadow-md'
+                              ? 'bg-indigo-600 text-white font-extrabold shadow-xs'
                               : isCurrentMonth
-                              ? (isDarkMode ? 'text-white' : 'text-slate-900')
-                              : 'text-neutral-500'
+                              ? 'text-slate-800'
+                              : 'text-slate-400'
                           }`}
                         >
                           {date.getDate()}
                         </span>
 
                         {dayBookings.length > 0 && (
-                          <span className="sm:hidden text-[9px] font-extrabold px-1.5 py-0.2 bg-indigo-600 text-white rounded-full">
+                          <span className="sm:hidden text-[9px] font-bold px-1.5 py-0.2 bg-indigo-100 text-indigo-800 rounded-full">
                             {dayBookings.length}
                           </span>
                         )}
                       </div>
 
-                      {/* Stacked Event Pills matching Screenshot 3 */}
+                      {/* Clean Event Badges */}
                       <div className="space-y-1">
-                        {/* Lunch Break indicator for weekdays */}
-                        {isCurrentMonth && date.getDay() !== 0 && date.getDay() !== 6 && (
-                          <div className="w-full text-left px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-bold truncate bg-[#e53935] text-white shadow-2xs">
-                            Lunch Break
-                          </div>
-                        )}
-
                         {dayBookings.slice(0, 3).map(b => {
                           const dName = getDriverName(b.driverId);
                           const style = getEventCardStyle(b, dName);
+                          const timeStr = parseAsLocal(b.dateTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 
                           return (
                             <button
@@ -1482,18 +1394,19 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                 e.stopPropagation();
                                 setSelectedBookingId(b.id);
                               }}
-                              className={`w-full text-left px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-bold leading-tight truncate border transition hover:opacity-90 flex items-center gap-1 cursor-pointer ${style.bg} ${style.border} ${style.text}`}
+                              className={`w-full text-left px-1.5 py-1 rounded-md text-[10px] leading-tight truncate border transition cursor-pointer font-medium ${style.monthChip}`}
                               title={`${b.requesterName} → ${b.destination} (${dName})`}
                             >
-                              <span className="truncate">
-                                {b.serviceType === 'Self-Drive' ? '[ALZA] (SELF)' : `(${dName.split(' ')[0]})`} {b.requesterName || b.destination}
-                              </span>
+                              <span className="font-bold">
+                                {b.serviceType === 'Self-Drive' ? '[Self]' : `(${dName.split(' ')[0]})`}
+                              </span>{' '}
+                              <span>{b.destination || b.requesterName}</span>
                             </button>
                           );
                         })}
 
                         {dayBookings.length > 3 && (
-                          <div className="text-[9px] font-extrabold text-indigo-400 pl-1">
+                          <div className="text-[10px] font-bold text-indigo-600 pl-1">
                             +{dayBookings.length - 3} more...
                           </div>
                         )}
@@ -1502,7 +1415,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   );
                 })}
               </div>
-
             </div>
           </div>
         )}
@@ -1514,9 +1426,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           <div className="p-3 sm:p-5 space-y-4">
             {Array.from(bookingsByDay.entries()).length === 0 ? (
               <div className="text-center py-12">
-                <CalendarIcon className="h-12 w-12 mx-auto text-neutral-500 mb-2" />
-                <p className="font-bold text-sm text-neutral-300">No Scheduled Trips Found</p>
-                <p className="text-xs text-neutral-500 mt-1">Try adjusting the filter or search keyword.</p>
+                <CalendarIcon className="h-12 w-12 mx-auto text-slate-300 mb-2" />
+                <p className="font-bold text-sm text-slate-700">No Scheduled Trips Found</p>
+                <p className="text-xs text-slate-400 mt-1">Try selecting another month or clearing search filters.</p>
               </div>
             ) : (
               Array.from(bookingsByDay.entries()).map(([dateKey, list]) => {
@@ -1524,10 +1436,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 return (
                   <div key={dateKey} className="space-y-2">
                     <div className="flex items-center gap-2 pt-2">
-                      <span className="h-2 w-2 rounded-full bg-amber-500" />
-                      <h4 className="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-amber-400">
+                      <span className="h-2 w-2 rounded-full bg-indigo-600" />
+                      <h4 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-700">
                         {DAY_NAMES_FULL[dateObj.getDay()]}, {dateObj.getDate()} {MONTH_NAMES[dateObj.getMonth()]} {dateObj.getFullYear()}
                       </h4>
+                      <span className="text-xs text-slate-400">({list.length} trips)</span>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -1540,19 +1453,21 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           <div
                             key={b.id}
                             onClick={() => setSelectedBookingId(b.id)}
-                            className={`p-3 rounded-xl border shadow-sm cursor-pointer transition hover:scale-[1.01] ${style.bg} ${style.border} ${style.text}`}
+                            className={`p-3 rounded-xl border shadow-2xs cursor-pointer transition hover:shadow-xs ${style.bg} ${style.border} ${style.text}`}
                           >
                             <div className="flex justify-between items-start">
-                              <span className="font-mono text-xs font-extrabold bg-black/30 px-2 py-0.5 rounded">
+                              <span className="font-mono text-xs font-bold bg-white/80 border border-slate-200 px-2 py-0.5 rounded text-slate-700">
                                 {startDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
                               </span>
-                              <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-white/20">
+                              <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${style.badge}`}>
                                 {b.serviceType === 'Self-Drive' ? 'Self-Drive' : dName}
                               </span>
                             </div>
 
-                            <p className="font-extrabold text-sm mt-2">{b.destination}</p>
-                            <p className="text-xs opacity-90">{b.requesterName} {b.department ? `(${b.department})` : ''}</p>
+                            <p className="font-bold text-sm mt-2 text-slate-900">{b.destination}</p>
+                            <p className="text-xs text-slate-600 mt-0.5">
+                              {b.requesterName} {b.department ? `(${b.department})` : ''}
+                            </p>
                           </div>
                         );
                       })}
@@ -1566,13 +1481,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
       </div>
 
-      {/* Floating Action Button (+) matching Google Calendar Mobile App */}
+      {/* Floating Action Button (+) for Easy Booking */}
       <button
         onClick={handleCreateNewBooking}
-        className="fixed bottom-6 right-6 z-40 h-14 w-14 rounded-2xl bg-amber-600 hover:bg-amber-500 active:scale-95 text-white shadow-2xl flex items-center justify-center transition border border-amber-400/40 cursor-pointer"
+        className="fixed bottom-6 right-6 z-40 h-14 w-14 rounded-2xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white shadow-xl flex items-center justify-center transition cursor-pointer"
         title="Create New Vehicle Booking"
       >
-        <PlusIcon className="h-7 w-7 stroke-[3]" />
+        <PlusIcon className="h-6 w-6 stroke-[2.5]" />
       </button>
     </>
   );
