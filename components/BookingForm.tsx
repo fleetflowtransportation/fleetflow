@@ -8,7 +8,7 @@ import { normalizeDate, normalizeTime, type AutoAssignResult } from '../services
 import { isOtherPickup } from '../utils';
 
 interface BookingFormProps {
-  isOpen: boolean;
+  isOpen?: boolean;
   onClose: () => void;
   bookingToEdit?: Booking | null;
 }
@@ -60,7 +60,7 @@ const fileToBase64 = (file: File): Promise<string> => {
   });
 };
 
-const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdit }) => {
+const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, bookingToEdit }) => {
   const { addBooking, updateBooking, vehicles, users } = useAppContext();
   const [formData, setFormData] = useState<FormData>(emptyFormData);
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
@@ -74,6 +74,11 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
   const [isUploading, setIsUploading] = useState(false);
   const [showDriveSetup, setShowDriveSetup] = useState(false);
 
+  // Track previous open state & target booking so we ONLY initialize once upon modal opening.
+  // This prevents periodic background reloading / context updates from wiping user inputs while typing.
+  const prevIsOpenRef = React.useRef(false);
+  const prevBookingIdRef = React.useRef<string | null | undefined>(undefined);
+
   const resetForm = useCallback(() => {
     setFormData(emptyFormData);
     setAttachmentFile(null);
@@ -83,45 +88,57 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen, onClose, bookingToEdi
   }, []);
 
   useEffect(() => {
-    if (isOpen && bookingToEdit) {
-      const { date, time: startTime } = splitIso(bookingToEdit.dateTime);
-      const { time: endTime } = splitIso(bookingToEdit.finishDateTime);
-      const staffCount = bookingToEdit.passengers?.find(p => p.category === 'Staff')?.count ?? '';
-      const kidsCount = bookingToEdit.passengers?.find(p => p.category === 'Kids')?.count ?? '';
-      const teenagersCount = bookingToEdit.passengers?.find(p => p.category === 'Teenagers')?.count ?? '';
+    const justOpened = isOpen && !prevIsOpenRef.current;
+    const bookingChanged = isOpen && (bookingToEdit ? bookingToEdit.id : null) !== prevBookingIdRef.current;
 
-      const existingVehicle = vehicles.find(v => v.id === bookingToEdit.vehicleId);
-      const initialVehiclePref = bookingToEdit.vehiclePreference || existingVehicle?.name || FREE_VEHICLE_CHOICE;
+    prevIsOpenRef.current = isOpen;
+    prevBookingIdRef.current = bookingToEdit ? bookingToEdit.id : null;
 
-      setFormData({
-        requesterName: bookingToEdit.requesterName || '',
-        requesterEmail: bookingToEdit.requesterEmail || '',
-        department: bookingToEdit.department || '',
-        purpose: bookingToEdit.purpose || '',
-        bookingDate: date,
-        startTime,
-        endTime,
-        destination: bookingToEdit.destination || '',
-        pickupPoint: isOtherPickup(bookingToEdit.pickupPoint) ? OTHER_PICKUP : (bookingToEdit.pickupPoint || ''),
-        address: (isOtherPickup(bookingToEdit.pickupPoint) || (bookingToEdit.address && bookingToEdit.address !== bookingToEdit.destination)) ? (bookingToEdit.address || '') : '',
-        staffCount: staffCount === '' ? '' : String(staffCount),
-        kidsCount: kidsCount === '' ? '' : String(kidsCount),
-        teenagersCount: teenagersCount === '' ? '' : String(teenagersCount),
-        serviceType: bookingToEdit.serviceType || '',
-        vehiclePreference: initialVehiclePref,
-        shouldWait: Boolean(bookingToEdit.shouldWait),
-        icNumber: bookingToEdit.icNumber || '',
-        remarks: bookingToEdit.remarks || '',
-      });
-      if (bookingToEdit.attachmentName && bookingToEdit.attachmentUrl) {
+    if (!isOpen) {
+      return;
+    }
+
+    if (justOpened || bookingChanged) {
+      if (bookingToEdit) {
+        const { date, time: startTime } = splitIso(bookingToEdit.dateTime);
+        const { time: endTime } = splitIso(bookingToEdit.finishDateTime);
+        const staffCount = bookingToEdit.passengers?.find(p => p.category === 'Staff')?.count ?? '';
+        const kidsCount = bookingToEdit.passengers?.find(p => p.category === 'Kids')?.count ?? '';
+        const teenagersCount = bookingToEdit.passengers?.find(p => p.category === 'Teenagers')?.count ?? '';
+
+        const existingVehicle = vehicles.find(v => v.id === bookingToEdit.vehicleId);
+        const initialVehiclePref = bookingToEdit.vehiclePreference || existingVehicle?.name || FREE_VEHICLE_CHOICE;
+
+        setFormData({
+          requesterName: bookingToEdit.requesterName || '',
+          requesterEmail: bookingToEdit.requesterEmail || '',
+          department: bookingToEdit.department || '',
+          purpose: bookingToEdit.purpose || '',
+          bookingDate: date,
+          startTime,
+          endTime,
+          destination: bookingToEdit.destination || '',
+          pickupPoint: isOtherPickup(bookingToEdit.pickupPoint) ? OTHER_PICKUP : (bookingToEdit.pickupPoint || ''),
+          address: (isOtherPickup(bookingToEdit.pickupPoint) || (bookingToEdit.address && bookingToEdit.address !== bookingToEdit.destination)) ? (bookingToEdit.address || '') : '',
+          staffCount: staffCount === '' ? '' : String(staffCount),
+          kidsCount: kidsCount === '' ? '' : String(kidsCount),
+          teenagersCount: teenagersCount === '' ? '' : String(teenagersCount),
+          serviceType: bookingToEdit.serviceType || '',
+          vehiclePreference: initialVehiclePref,
+          shouldWait: Boolean(bookingToEdit.shouldWait),
+          icNumber: bookingToEdit.icNumber || '',
+          remarks: bookingToEdit.remarks || '',
+        });
+        if (bookingToEdit.attachmentName && bookingToEdit.attachmentUrl) {
           setExistingAttachment({ name: bookingToEdit.attachmentName, url: bookingToEdit.attachmentUrl });
-      } else {
+        } else {
           setExistingAttachment(null);
+        }
+        setAttachmentFile(null);
+        setIsRecurring(false);
+      } else {
+        resetForm();
       }
-      setAttachmentFile(null);
-      setIsRecurring(false);
-    } else if (isOpen && !bookingToEdit) {
-      resetForm();
     }
   }, [isOpen, bookingToEdit, resetForm, vehicles]);
 

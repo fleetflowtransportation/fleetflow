@@ -406,17 +406,6 @@ export const BookingManagementList: React.FC = () => {
             <DocumentDownloadIcon className="h-4 w-4 mr-2 text-gray-500" />
             Export CSV
           </button>
-
-          <button
-            onClick={() => {
-              setEditingBooking(null);
-              setIsFormOpen(true);
-            }}
-            className="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg shadow-sm transition"
-          >
-            <PlusIcon className="h-5 w-5 mr-1.5" />
-            New Booking
-          </button>
         </div>
       </div>
 
@@ -1353,6 +1342,7 @@ export const BookingManagementList: React.FC = () => {
       {/* BOOKING EDIT / ADD FORM MODAL */}
       {isFormOpen && (
         <BookingForm
+          isOpen={isFormOpen}
           bookingToEdit={editingBooking}
           onClose={() => {
             setIsFormOpen(false);

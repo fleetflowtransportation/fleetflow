@@ -25,15 +25,18 @@ const IssueLogForm: React.FC<IssueLogFormProps> = ({ isOpen, onClose, reporterId
   const [formData, setFormData] = useState<FormData>(emptyFormData);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
 
+  const prevIsOpenRef = React.useRef(false);
+
   const resetForm = useCallback(() => {
     setFormData(emptyFormData);
     setPhotoFile(null);
   }, []);
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevIsOpenRef.current) {
       resetForm();
     }
+    prevIsOpenRef.current = isOpen;
   }, [isOpen, resetForm]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {

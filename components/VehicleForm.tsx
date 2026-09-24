@@ -23,6 +23,9 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ isOpen, onClose, vehicleToEdi
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [existingPhotoUrl, setExistingPhotoUrl] = useState<string | null>(null);
 
+  const prevIsOpenRef = React.useRef(false);
+  const prevVehicleIdRef = React.useRef<string | null | undefined>(undefined);
+
   const resetForm = useCallback(() => {
     setFormData(emptyFormData);
     setPhotoFile(null);
@@ -30,16 +33,26 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ isOpen, onClose, vehicleToEdi
   }, []);
 
   useEffect(() => {
-    if (isOpen && vehicleToEdit) {
-      setFormData({
-        name: vehicleToEdit.name,
-        plateNumber: vehicleToEdit.plateNumber,
-        specifications: vehicleToEdit.specifications || '',
-      });
-      setExistingPhotoUrl(vehicleToEdit.photoUrl || null);
-      setPhotoFile(null);
-    } else if (isOpen && !vehicleToEdit) {
-      resetForm();
+    const justOpened = isOpen && !prevIsOpenRef.current;
+    const vehicleChanged = isOpen && (vehicleToEdit ? vehicleToEdit.id : null) !== prevVehicleIdRef.current;
+
+    prevIsOpenRef.current = isOpen;
+    prevVehicleIdRef.current = vehicleToEdit ? vehicleToEdit.id : null;
+
+    if (!isOpen) return;
+
+    if (justOpened || vehicleChanged) {
+      if (vehicleToEdit) {
+        setFormData({
+          name: vehicleToEdit.name,
+          plateNumber: vehicleToEdit.plateNumber,
+          specifications: vehicleToEdit.specifications || '',
+        });
+        setExistingPhotoUrl(vehicleToEdit.photoUrl || null);
+        setPhotoFile(null);
+      } else {
+        resetForm();
+      }
     }
   }, [isOpen, vehicleToEdit, resetForm]);
 

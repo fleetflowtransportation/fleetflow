@@ -4,14 +4,25 @@ import { googleCalendarService } from '../services/googleCalendar';
 import { DEPARTMENTS, PICKUP_POINTS, Tenant, Booking, PassengerCount } from '../types';
 import { evaluateBookingAssignment, normalizeDate, normalizeTime, getDriverCalendarColor, type AutoAssignResult } from '../services/bookingEngine';
 import { isOtherPickup, getPickupLocationDisplay } from '../utils';
-import { ClockIcon, PaperClipIcon, CheckCircleIcon, CalendarIcon } from './icons/Icons';
+import { ClockIcon, PaperClipIcon, CheckCircleIcon, CalendarIcon, UserCircleIcon, TruckIcon, InformationCircleIcon, XCircleIcon } from './icons/Icons';
+import CalendarView from './CalendarView';
 
 interface PublicBookingPageProps {
   tenantId: string;
+  initialTab?: 'form' | 'calendar';
 }
 
 const OTHER_PICKUP = 'Other Location (Please Specify)';
 const FREE_VEHICLE_CHOICE = 'Any / Free Choice';
+
+const colorBadgeStyle: Record<string, string> = {
+  blue: 'bg-blue-100 text-blue-800 border-blue-300',
+  green: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+  grey: 'bg-gray-100 text-gray-800 border-gray-300',
+  purple: 'bg-purple-100 text-purple-800 border-purple-300',
+  amber: 'bg-amber-100 text-amber-800 border-amber-300',
+  teal: 'bg-teal-100 text-teal-800 border-teal-300',
+};
 
 const emptyFormData = {
   requesterName: '',
@@ -46,13 +57,14 @@ const fileToBase64 = (file: File): Promise<string> => {
   });
 };
 
-export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId }) => {
+export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, initialTab = 'form' }) => {
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
   const [driverSchedules, setDriverSchedules] = useState<any[]>([]);
   
+  const [activeTab, setActiveTab] = useState<'form' | 'calendar'>(initialTab);
   const [formData, setFormData] = useState(emptyFormData);
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -249,6 +261,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId }
     // Save booking
     try {
       await storageService.createBooking(newBooking);
+      setBookings(prev => [newBooking, ...prev]);
       setIsSuccess(true);
       setSubmitResult(result);
     } catch (err: any) {
@@ -263,7 +276,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId }
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin h-10 w-10 border-4 border-gray-300 border-t-gray-800 rounded-full mx-auto mb-4"></div>
-          <p className="text-gray-600">Please wait, loading booking form...</p>
+          <p className="text-gray-600">Please wait, loading fleet reservation portal...</p>
         </div>
       </div>
     );
@@ -282,93 +295,275 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId }
     );
   }
 
-  const calendarUrl = tenant.googleCalendarId
-    ? `https://calendar.google.com/calendar/embed?src=${encodeURIComponent(tenant.googleCalendarId)}&ctz=Asia%2FKuala_Lumpur`
-    : null;
-
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center py-8 px-4 sm:px-6">
-      <div className="w-full max-w-3xl">
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center py-6 sm:py-8 px-3 sm:px-6">
+      <div className={`w-full transition-all duration-300 ${activeTab === 'calendar' ? 'max-w-6xl' : 'max-w-3xl'}`}>
         
         {/* Banner/Header */}
-        <div className="bg-gradient-to-r from-indigo-700 to-indigo-950 rounded-2xl shadow-xl p-6 sm:p-8 text-white mb-8 relative overflow-hidden">
+        <div className="bg-gradient-to-r from-indigo-700 to-indigo-950 rounded-2xl shadow-xl p-6 sm:p-8 text-white mb-6 relative overflow-hidden">
           <div className="absolute right-0 bottom-0 opacity-10 transform translate-x-12 translate-y-12 scale-150">
             <CalendarIcon className="w-48 h-48 text-white" />
           </div>
           <div className="relative z-10">
-            <span className="bg-indigo-500/30 text-indigo-200 text-xs uppercase tracking-wider font-semibold px-3 py-1 rounded-full border border-indigo-400/20">
-              Smart Fleet Booking System
-            </span>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span className="bg-indigo-500/30 text-indigo-200 text-xs uppercase tracking-wider font-semibold px-3 py-1 rounded-full border border-indigo-400/20">
+                Smart Fleet Booking System
+              </span>
+
+              {/* View Switcher Pills */}
+              <div className="flex items-center bg-indigo-900/60 p-1 rounded-xl border border-indigo-500/30 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('form')}
+                  className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                    activeTab === 'form'
+                      ? 'bg-white text-indigo-950 shadow-sm'
+                      : 'text-indigo-200 hover:text-white'
+                  }`}
+                >
+                  📋 Reservation Form
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('calendar')}
+                  className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                    activeTab === 'calendar'
+                      ? 'bg-white text-indigo-950 shadow-sm'
+                      : 'text-indigo-200 hover:text-white'
+                  }`}
+                >
+                  📅 Live Fleet Calendar
+                </button>
+              </div>
+            </div>
+
             <h1 className="text-2xl sm:text-4xl font-extrabold mt-3 tracking-tight">
-              Vehicle Booking Request Form
+              {activeTab === 'calendar' ? 'Fleet Schedule & Live Calendar' : 'Vehicle Booking Request Form'}
             </h1>
             <p className="text-indigo-200 mt-2 text-sm sm:text-base max-w-xl font-medium">
-              Please complete the details below to request a vehicle reservation for <b>{tenant.name}</b>.
+              {activeTab === 'calendar'
+                ? `Real-time public calendar view for ${tenant.name}. Check scheduled vehicle trips and driver availability.`
+                : `Please complete the details below to request a vehicle reservation for ${tenant.name}.`}
             </p>
             
-            {calendarUrl && (
-              <div className="mt-6 flex flex-wrap gap-3">
-                <a
-                  href={calendarUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center bg-white hover:bg-gray-100 text-indigo-900 font-bold px-4 py-2 rounded-lg text-sm shadow-md transition"
-                >
-                  <CalendarIcon className="w-4 h-4 mr-2 text-indigo-700" />
-                  View Organization Calendar
-                </a>
-              </div>
-            )}
+            <div className="mt-6 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => setActiveTab(activeTab === 'form' ? 'calendar' : 'form')}
+                className="inline-flex items-center bg-white hover:bg-slate-100 text-indigo-950 font-bold px-4 py-2.5 rounded-xl text-sm shadow-md transition cursor-pointer active:scale-95"
+              >
+                <CalendarIcon className="w-4 h-4 mr-2 text-indigo-700" />
+                {activeTab === 'form' ? 'View Fleet Calendar & Availability' : 'Back to Booking Form'}
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Success View */}
-        {isSuccess ? (
-          <div className="bg-white rounded-2xl shadow-xl p-8 text-center border border-emerald-100 max-w-2xl mx-auto">
-            <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6 border border-emerald-100">
-              <CheckCircleIcon className="w-12 h-12 text-emerald-600" />
+        {/* Content View: Calendar Mode vs Form Mode */}
+        {activeTab === 'calendar' ? (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+              <div>
+                <h2 className="text-base sm:text-lg font-extrabold text-slate-900">Live Organization Calendar</h2>
+                <p className="text-xs text-slate-500">Public access • Real-time vehicle schedule & trip logs</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSuccess(false);
+                  setActiveTab('form');
+                }}
+                className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2.5 px-4 rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
+              >
+                <span>+ Submit New Booking</span>
+              </button>
             </div>
-            <h2 className="text-2xl font-black text-gray-950">Booking Submitted Successfully!</h2>
-            
-            <div className="my-6 p-4 bg-slate-50 rounded-xl text-left border border-slate-200 space-y-2">
-              <p className="text-sm text-gray-700"><b>Requester:</b> {formData.requesterName}</p>
-              <p className="text-sm text-gray-700"><b>Purpose:</b> {formData.purpose}</p>
-              <p className="text-sm text-gray-700"><b>Pickup Location:</b> {getPickupLocationDisplay(formData.pickupPoint, formData.address)}</p>
-              <p className="text-sm text-gray-700"><b>Destination:</b> {formData.destination}</p>
-              <p className="text-sm text-gray-700"><b>Date & Time:</b> {formData.bookingDate} ({formData.startTime} - {formData.endTime || 'Completion'})</p>
-              <p className="text-sm text-gray-700"><b>Booking Status:</b> 
-                <span className={`ml-1.5 inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${
-                  submitResult?.status === 'Auto-Assigned' 
-                    ? 'bg-emerald-100 text-emerald-800' 
-                    : submitResult?.status === 'Conflict'
-                    ? 'bg-red-100 text-red-800'
-                    : 'bg-amber-100 text-amber-800'
-                }`}>
-                  {submitResult?.status === 'Auto-Assigned' ? 'Confirmed (Auto-Assigned)' : 'Pending Admin Approval'}
-                </span>
-              </p>
-              {submitResult?.adminNotes && (
-                <p className="text-xs text-indigo-700 font-semibold bg-indigo-50 p-2.5 rounded-lg border border-indigo-100 mt-2">
-                  ℹ️ {submitResult.adminNotes}
-                </p>
+
+            <CalendarView
+              isPublic={true}
+              customBookings={bookings}
+              customUsers={users}
+              customVehicles={vehicles}
+              onRequestBooking={() => {
+                setIsSuccess(false);
+                setActiveTab('form');
+              }}
+            />
+          </div>
+        ) : isSuccess && submitResult ? (
+          /* Success / Confirmation View */
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden max-w-3xl mx-auto flex flex-col">
+            {/* Header */}
+            <div className={`p-6 flex items-start justify-between border-b ${submitResult.status === 'Confirmed' ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
+              <div className="flex items-center space-x-3.5">
+                {submitResult.status === 'Confirmed' ? (
+                  <div className="p-2.5 bg-emerald-100 rounded-full text-emerald-600 flex-shrink-0">
+                    <CheckCircleIcon className="h-8 w-8 text-emerald-600" />
+                  </div>
+                ) : (
+                  <div className="p-2.5 bg-rose-100 rounded-full text-rose-600 flex-shrink-0">
+                    <XCircleIcon className="h-8 w-8 text-rose-600" />
+                  </div>
+                )}
+                <div>
+                  <span className={`inline-block px-3 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${submitResult.status === 'Confirmed' ? 'bg-emerald-200 text-emerald-900' : 'bg-rose-200 text-rose-900'}`}>
+                    {submitResult.status === 'Confirmed' ? 'CONFIRMED' : 'REJECTED AUTOMATICALLY'}
+                  </span>
+                  <h3 className="text-xl font-extrabold text-gray-900 mt-1">
+                    {submitResult.status === 'Confirmed' ? 'Booking Confirmed Successfully' : 'Booking Automatically Rejected'}
+                  </h3>
+                </div>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 sm:p-8 space-y-5 text-sm text-gray-700">
+              {/* Main Status & Calendar Event Title */}
+              <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1.5">
+                  Google Calendar Event Title
+                </div>
+                <div className="font-mono text-sm font-bold text-gray-800 flex flex-wrap items-center justify-between gap-2">
+                  <span className="break-all">{submitResult.calendarEventTitle}</span>
+                  {submitResult.calendarColor && (
+                    <span className={`px-2.5 py-0.5 text-xs font-semibold rounded border ${colorBadgeStyle[submitResult.calendarColor] || 'bg-gray-100'}`}>
+                      {submitResult.calendarColor.toUpperCase()}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Assignment Details Grid */}
+              {submitResult.status === 'Confirmed' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
+                    <div className="flex items-center space-x-2 text-indigo-900 font-semibold mb-1">
+                      <UserCircleIcon className="h-5 w-5 text-indigo-700" />
+                      <span>Assigned Driver</span>
+                    </div>
+                    <div className="text-gray-900 font-extrabold text-lg">
+                      {submitResult.assignedDriverName || 'None (Self-Drive)'}
+                    </div>
+                    <div className="text-xs text-indigo-700 mt-1 font-medium">
+                      {submitResult.assignedDriverName ? 'Scheduled auto-assignment' : 'Self-drive reservation'}
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                    <div className="flex items-center space-x-2 text-blue-900 font-semibold mb-1">
+                      <TruckIcon className="h-5 w-5 text-blue-700" />
+                      <span>Allocated Vehicle</span>
+                    </div>
+                    <div className="text-gray-900 font-extrabold text-lg">
+                      {submitResult.assignedVehicleName || 'Any / Unassigned'}
+                    </div>
+                    <div className="text-xs text-blue-700 mt-1 font-medium">
+                      {submitResult.assignedVehicleName ? 'Vehicle slot confirmed available' : 'Driver selects vehicle upon odometer check-in'}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Pre-working-hour Warning */}
+              {submitResult.isPreWorkingHour && (
+                <div className="p-4 bg-amber-50 border-l-4 border-amber-500 text-amber-900 rounded-r-xl">
+                  <div className="font-bold flex items-center space-x-2">
+                    <ClockIcon className="h-5 w-5 text-amber-600" />
+                    <span>Warning: Pre-Working Hour Assignment</span>
+                  </div>
+                  <p className="text-xs mt-1.5 text-amber-800 leading-relaxed font-medium">
+                    This booking starts before official driver working hours. Please confirm manually with the on-duty driver ({submitResult.assignedDriverName}) and Head of Transportation prior to departure.
+                  </p>
+                </div>
+              )}
+
+              {/* System Notes */}
+              {submitResult.adminNotes && (
+                <div className="text-xs text-gray-600 bg-gray-50 p-3.5 rounded-xl border border-gray-200">
+                  <span className="font-bold text-gray-800">System Notes: </span>
+                  {submitResult.adminNotes}
+                </div>
+              )}
+
+              {/* Trip Summary Details */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs sm:text-sm">
+                <div className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                  Reservation Summary
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-gray-700">
+                  <p><b>Requester:</b> {formData.requesterName} {formData.department ? `(${formData.department})` : ''}</p>
+                  <p><b>Purpose:</b> {formData.purpose}</p>
+                  <p><b>Date & Time:</b> {formData.bookingDate} ({formData.startTime} - {formData.endTime || 'Completion'})</p>
+                  <p><b>Pickup:</b> {getPickupLocationDisplay(formData.pickupPoint, formData.address)}</p>
+                  <p className="sm:col-span-2"><b>Destination:</b> {formData.destination}</p>
+                  <p><b>Passengers:</b> {formData.staffCount || 0} Staff, {formData.kidsCount || 0} Children, {formData.teenagersCount || 0} Teenagers</p>
+                  <p><b>Driver Standby:</b> {formData.shouldWait ? 'Yes (Driver waiting on-site)' : 'No (Drop-off only)'}</p>
+                  {attachmentFile && (
+                    <p className="sm:col-span-2"><b>Attachment:</b> {attachmentFile.name}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Email Notification Preview */}
+              {submitResult.emailNotifications && (
+                <div className="pt-2 border-t border-gray-100 space-y-2">
+                  <div className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                    Automated Email Dispatch
+                  </div>
+                  <div className="space-y-1.5 text-xs">
+                    {submitResult.emailNotifications.requester && (
+                      <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg border border-gray-100">
+                        <span className="font-semibold text-gray-700">Requester Email:</span>
+                        <span className="text-gray-600 truncate max-w-xs">{submitResult.emailNotifications.requester.to}</span>
+                      </div>
+                    )}
+                    {submitResult.emailNotifications.driver && (
+                      <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg border border-gray-100">
+                        <span className="font-semibold text-gray-700">Driver Email:</span>
+                        <span className="text-gray-600 truncate max-w-xs">{submitResult.emailNotifications.driver.to}</span>
+                      </div>
+                    )}
+                    {submitResult.emailNotifications.admin && (
+                      <div className="flex items-center justify-between p-2.5 bg-rose-50 rounded-lg border border-rose-100">
+                        <span className="font-semibold text-rose-800">Admin Notification:</span>
+                        <span className="text-rose-700 truncate max-w-xs">{submitResult.emailNotifications.admin.to}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
 
-            <p className="text-gray-600 text-sm leading-relaxed mb-6">
-              Please contact the administrative team of {tenant.name} if you need to modify or cancel this reservation.
-            </p>
-
-            <button
-              onClick={() => {
-                setFormData(emptyFormData);
-                setAttachmentFile(null);
-                setIsSuccess(false);
-                setSubmitResult(null);
-              }}
-              className="w-full sm:w-auto px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-md hover:bg-indigo-700 transition"
-            >
-              Submit Another Booking
-            </button>
+            {/* Footer */}
+            <div className="p-6 bg-gray-50 border-t flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs text-gray-500 font-medium">
+                Please contact the administrative team of {tenant.name} for any amendments.
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSuccess(false);
+                    setActiveTab('calendar');
+                  }}
+                  className="px-4 py-2 bg-white hover:bg-slate-100 text-indigo-950 border border-indigo-200 font-semibold rounded-xl text-xs shadow-sm transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <CalendarIcon className="w-3.5 h-3.5 text-indigo-700" />
+                  View Fleet Calendar
+                </button>
+                <button
+                  onClick={() => {
+                    setFormData(emptyFormData);
+                    setAttachmentFile(null);
+                    setIsSuccess(false);
+                    setSubmitResult(null);
+                  }}
+                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-md transition text-xs cursor-pointer"
+                >
+                  Submit Another Booking
+                </button>
+              </div>
+            </div>
           </div>
         ) : (
           /* Main Form View */

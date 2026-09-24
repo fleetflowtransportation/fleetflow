@@ -32,7 +32,7 @@ export interface PassengerCount {
 
 export const DEPARTMENTS = ['Management', 'Program', 'ALPD', 'Care Provider', 'Social Worker', 'Warden', 'PJBA'];
 
-export const PICKUP_POINTS = ['YCK', 'PJBA', 'Lokasi Lain (Sila Nyatakan)'];
+export const PICKUP_POINTS = ['YCK', 'PJBA', 'Other Location (Please Specify)'];
 
 export interface Booking {
   id:string;

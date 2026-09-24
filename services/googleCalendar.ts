@@ -40,36 +40,36 @@ export const buildCalendarDescription = (booking: Booking, vehicles?: Vehicle[])
     staffCount > 0 ? `Staff: ${staffCount}` : '',
     kidsCount > 0 ? `Kids: ${kidsCount}` : '',
     teenagersCount > 0 ? `Teenagers: ${teenagersCount}` : ''
-  ].filter(Boolean).join(', ') || 'Tiada pecahan';
+  ].filter(Boolean).join(', ') || 'No breakdown';
 
   const waitStatus = booking.shouldWait
-    ? 'Ya (Pemandu perlu menunggu sehingga urusan selesai)'
-    : 'Tidak (Pemandu tidak perlu menunggu / Drop-off sahaja)';
+    ? 'Yes (Driver required to wait on-site until event completion)'
+    : 'No (Drop-off only / No standby required)';
 
   const matchedV = vehicles?.find(v => v.id === booking.vehicleId) ||
     vehicles?.find(v => v.name.toLowerCase() === (booking.vehiclePreference || '').toLowerCase());
   const vehicleText = matchedV
     ? `${matchedV.name} (${matchedV.plateNumber})`
     : (booking.serviceType === 'Self-Drive'
-        ? 'Perodua Alza (Pandu Sendiri)'
-        : (booking.vehiclePreference && booking.vehiclePreference !== 'Bebas'
+        ? 'Perodua Alza (Self-Drive)'
+        : (booking.vehiclePreference && booking.vehiclePreference !== 'Bebas' && booking.vehiclePreference !== 'Any / No Preference' && booking.vehiclePreference !== 'Any / Free Choice'
             ? booking.vehiclePreference
-            : 'Bebas / Belum Ditentu (Pemandu akan pilih kenderaan semasa trip)'));
+            : 'Any / Unassigned (Driver selects vehicle upon trip start)'));
 
   const pickupText = getPickupLocationDisplay(booking.pickupPoint, booking.address);
 
   return [
-    `Pemohon: ${booking.requesterName} (${booking.requesterEmail || 'Tiada E-mel'})`,
-    `Jabatan: ${booking.department || 'Tiada'}`,
-    `Destinasi: ${booking.destination}`,
-    `Lokasi Pickup: ${pickupText}`,
-    `Tujuan: ${booking.purpose}`,
-    `Bilangan Penumpang: ${totalPassengers} Orang (${passengerBreakdown})`,
-    `Pemandu Perlu Menunggu: ${waitStatus}`,
-    `Kenderaan: ${vehicleText}`,
+    `Requester: ${booking.requesterName} (${booking.requesterEmail || 'No Email'})`,
+    `Department: ${booking.department || 'N/A'}`,
+    `Destination: ${booking.destination}`,
+    `Pickup Location: ${pickupText}`,
+    `Purpose: ${booking.purpose}`,
+    `Passengers: ${totalPassengers} (${passengerBreakdown})`,
+    `Driver Standby Required: ${waitStatus}`,
+    `Vehicle: ${vehicleText}`,
     `Status: ${booking.status}`,
-    `Catatan: ${booking.remarks || 'Tiada'}`,
-    `ID Tempahan: ${booking.id}`,
+    `Remarks: ${booking.remarks || 'None'}`,
+    `Booking ID: ${booking.id}`,
   ].join('\n');
 };
 
@@ -226,9 +226,9 @@ export const googleCalendarService = {
     const scriptUrl = urls[0];
 
     if (!scriptUrl) {
-      const msg = 'Tiada URL Google Apps Script Web App yang sah dikonfigurasi. Sila masukkan URL Web App (berakhir dengan /exec) dalam Tetapan.';
+      const msg = 'No valid Google Apps Script Web App URL configured. Please enter a Web App URL (ending with /exec) in Settings.';
       addDiagnosticLog({
-        bookingTitle: '[UJIAN SAMBUNGAN GOOGLE]',
+        bookingTitle: '[GOOGLE CONNECTION TEST]',
         endpointUrl: 'N/A',
         payload: { action: 'ping' },
         status: 'ERROR',
@@ -271,28 +271,28 @@ export const googleCalendarService = {
       let specificError = errorMessage;
       if (isHtmlResponse) {
         if (scriptUrl.endsWith('/dev')) {
-          specificError = "URL Google Apps Script anda menggunakan '/dev'. Sila buka script.google.com > Deploy > Manage deployments dan salin URL Web App rasmi yang berakhir dengan '/exec'.";
+          specificError = "Your Google Apps Script URL ends with '/dev'. Please open script.google.com > Deploy > Manage deployments and copy the official Web App URL ending with '/exec'.";
         } else {
-          specificError = "Google meminta Log Masuk (Google Login Redirect). Sila semak: (1) Di script.google.com > Deploy > Manage deployments > Edit > Pastikan 'Who has access' = 'Anyone' (bukan Anyone with Google Account / Within domain) & 'Execute as' = 'Me' > Deploy (New version). (2) Jika menggunakan e-mel organisasi (Google Workspace), pastikan admin organisasi membenarkan perkongsian Web App luaran.";
+          specificError = "Google requested Login redirect. Please check: (1) In script.google.com > Deploy > Manage deployments > Edit > Ensure 'Who has access' = 'Anyone' & 'Execute as' = 'Me' > Deploy (New version). (2) If using an organization email (Google Workspace), verify external Web App sharing permissions.";
         }
       } else if (errorMessage && (errorMessage.toLowerCase().includes('permission') || errorMessage.toLowerCase().includes('authorization') || errorMessage.toLowerCase().includes('kebenaran'))) {
-        specificError = `Kebenaran Google diperlukan (${errorMessage}). Sila buka script.google.com, pilih fungsi testPermission(), tekan 'Run (Jalankan)' sekali dan klik 'Allow' untuk memberi kebenaran Calendar & Drive.`;
+        specificError = `Google permissions required (${errorMessage}). Please open script.google.com, run the testPermission() function once and click 'Allow' to grant Calendar & Drive access.`;
       }
 
       addDiagnosticLog({
-        bookingTitle: '[UJIAN SAMBUNGAN GOOGLE]',
+        bookingTitle: '[GOOGLE CONNECTION TEST]',
         endpointUrl: scriptUrl,
         payload: testPayload,
         status: isScriptError ? 'ERROR' : 'SUCCESS',
         httpStatus: res.status,
-        responseBody: isHtmlResponse ? 'HTML Google Login Page (Akses disekat: Who has access bukan "Anyone")' : resText.substring(0, 300),
-        errorMessage: isScriptError ? (specificError || 'Ralat dari Apps Script') : undefined
+        responseBody: isHtmlResponse ? 'HTML Google Login Page (Access blocked: Who has access is not "Anyone")' : resText.substring(0, 300),
+        errorMessage: isScriptError ? (specificError || 'Apps Script error') : undefined
       });
 
       if (!isScriptError) {
         return {
           success: true,
-          message: resJson?.message || 'Berjaya! Sambungan ke Google Apps Script (Calendar & Drive) beroperasi dengan cemerlang (tanpa mencipta acara dummy).',
+          message: resJson?.message || 'Success! Connection to Google Apps Script (Calendar & Drive) is operating properly.',
           response: resJson || resText
         };
       } else {
@@ -300,21 +300,21 @@ export const googleCalendarService = {
           success: false,
           message: isHtmlResponse
             ? specificError!
-            : `Sambungan ke Web App berjaya, tetapi Apps Script mengembalikan ralat: "${errorMessage || 'Sila semak kebenaran skrip di Google Apps Script anda'}".`,
+            : `Connection to Web App succeeded, but Apps Script returned an error: "${errorMessage || 'Please check script authorization in Google Apps Script'}".`,
           response: resJson || resText
         };
       }
     } catch (err: any) {
       addDiagnosticLog({
-        bookingTitle: '[UJIAN SAMBUNGAN GOOGLE]',
+        bookingTitle: '[GOOGLE CONNECTION TEST]',
         endpointUrl: scriptUrl,
         payload: testPayload,
         status: 'ERROR',
-        errorMessage: err.message || 'Ralat rangkaian'
+        errorMessage: err.message || 'Network error'
       });
       return {
         success: false,
-        message: `Gagal memanggil Web App Google: ${err.message || 'Sila semak URL atau kebenaran Web App (Anyone)'}`
+        message: `Failed to call Google Web App: ${err.message || 'Please check Web App URL and permissions (Anyone)'}`
       };
     }
   },

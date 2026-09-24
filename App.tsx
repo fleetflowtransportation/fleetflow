@@ -27,7 +27,11 @@ const App: React.FC = () => {
   const publicTenantId = urlParams.get('tenant_id') || 'yayasan-chow-kit';
 
   if (action === 'book') {
-    return <PublicBookingPage tenantId={publicTenantId} />;
+    return <PublicBookingPage tenantId={publicTenantId} initialTab="form" />;
+  }
+
+  if (action === 'calendar') {
+    return <PublicBookingPage tenantId={publicTenantId} initialTab="calendar" />;
   }
 
   if (action === 'odometer') {

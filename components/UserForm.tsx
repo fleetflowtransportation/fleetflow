@@ -27,25 +27,38 @@ const UserForm: React.FC<UserFormProps> = ({ isOpen, onClose, userToEdit }) => {
   const { addUser, updateUser } = useAppContext();
   const [formData, setFormData] = useState<FormData>(emptyFormData);
 
+  const prevIsOpenRef = React.useRef(false);
+  const prevUserIdRef = React.useRef<string | null | undefined>(undefined);
+
   const resetForm = useCallback(() => {
     setFormData({...emptyFormData, joiningDate: new Date().toISOString().split('T')[0]});
   }, []);
 
   useEffect(() => {
-    if (isOpen && userToEdit) {
-      setFormData({
-        name: userToEdit.name,
-        email: userToEdit.email,
-        phone: userToEdit.phone,
-        joiningDate: userToEdit.joiningDate,
-        address: userToEdit.address,
-        comments: userToEdit.comments || '',
-        role: userToEdit.role,
-        status: userToEdit.status,
-        password: '', // Always clear password for editing
-      });
-    } else if (isOpen && !userToEdit) {
-      resetForm();
+    const justOpened = isOpen && !prevIsOpenRef.current;
+    const userChanged = isOpen && (userToEdit ? userToEdit.id : null) !== prevUserIdRef.current;
+
+    prevIsOpenRef.current = isOpen;
+    prevUserIdRef.current = userToEdit ? userToEdit.id : null;
+
+    if (!isOpen) return;
+
+    if (justOpened || userChanged) {
+      if (userToEdit) {
+        setFormData({
+          name: userToEdit.name,
+          email: userToEdit.email,
+          phone: userToEdit.phone,
+          joiningDate: userToEdit.joiningDate,
+          address: userToEdit.address,
+          comments: userToEdit.comments || '',
+          role: userToEdit.role,
+          status: userToEdit.status,
+          password: '', // Always clear password for editing
+        });
+      } else {
+        resetForm();
+      }
     }
   }, [isOpen, userToEdit, resetForm]);
 

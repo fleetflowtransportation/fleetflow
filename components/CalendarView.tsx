@@ -55,10 +55,28 @@ interface BookingDetailModalProps {
   onEdit: (booking: Booking) => void;
   onDelete: (bookingId: string) => void;
   isAdmin: boolean;
+  users?: User[];
+  vehicles?: Vehicle[];
 }
 
-const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClose, onEdit, onDelete, isAdmin }) => {
-  const { users, vehicles, updateBooking } = useAppContext();
+const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ 
+  booking, 
+  onClose, 
+  onEdit, 
+  onDelete, 
+  isAdmin,
+  users: propUsers,
+  vehicles: propVehicles 
+}) => {
+  let context: any = null;
+  try {
+    context = useAppContext();
+  } catch {
+    // context optional
+  }
+  const users = (propUsers && propUsers.length > 0) ? propUsers : (context?.users || []);
+  const vehicles = (propVehicles && propVehicles.length > 0) ? propVehicles : (context?.vehicles || []);
+  const updateBooking = context?.updateBooking || (async () => {});
   const [isChangingDriver, setIsChangingDriver] = useState(false);
   const [newDriverId, setNewDriverId] = useState(booking?.driverId || '');
   const [isSavingDriver, setIsSavingDriver] = useState(false);
@@ -383,12 +401,36 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ booking, onClos
   );
 };
 
-interface CalendarViewProps {
+export interface CalendarViewProps {
   readOnly?: boolean;
+  isPublic?: boolean;
+  customBookings?: Booking[];
+  customUsers?: User[];
+  customVehicles?: Vehicle[];
+  onRequestBooking?: () => void;
 }
 
-const CalendarView: React.FC<CalendarViewProps> = ({ readOnly = false }) => {
-  const { bookings, users, currentUser, deleteBooking } = useAppContext();
+export const CalendarView: React.FC<CalendarViewProps> = ({ 
+  readOnly = false,
+  isPublic = false,
+  customBookings,
+  customUsers,
+  customVehicles,
+  onRequestBooking
+}) => {
+  let context: any = null;
+  try {
+    context = useAppContext();
+  } catch {
+    // context optional
+  }
+
+  const bookings = customBookings ?? context?.bookings ?? [];
+  const users = customUsers ?? context?.users ?? [];
+  const vehicles = customVehicles ?? context?.vehicles ?? [];
+  const currentUser = context?.currentUser ?? null;
+  const deleteBooking = context?.deleteBooking ?? (async () => {});
+
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<CalendarViewMode>('month');
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
@@ -400,9 +442,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({ readOnly = false }) => {
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
 
   const isAdmin = useMemo(() => {
-    if (readOnly) return false;
+    if (readOnly || isPublic) return false;
     return currentUser?.role === 'admin';
-  }, [currentUser, readOnly]);
+  }, [currentUser, readOnly, isPublic]);
 
   const selectedBooking = useMemo(() => {
     return bookings.find(b => b.id === selectedBookingId) || null;
@@ -613,6 +655,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({ readOnly = false }) => {
         onEdit={handleEditBooking}
         onDelete={deleteBooking}
         isAdmin={isAdmin}
+        users={users}
+        vehicles={vehicles}
       />
 
       {isAdmin && (
@@ -711,7 +755,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ readOnly = false }) => {
                 </button>
               </div>
 
-              {/* Admin Button */}
+              {/* Action Buttons */}
               {isAdmin && (
                 <button
                   onClick={handleCreateNewBooking}
@@ -720,6 +764,16 @@ const CalendarView: React.FC<CalendarViewProps> = ({ readOnly = false }) => {
                   <PlusIcon className="h-4 w-4" />
                   <span className="hidden sm:inline">Add Booking</span>
                   <span className="sm:hidden">Add</span>
+                </button>
+              )}
+
+              {onRequestBooking && (
+                <button
+                  onClick={onRequestBooking}
+                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2 px-3.5 rounded-xl shadow-xs transition active:scale-95 cursor-pointer ml-auto sm:ml-0"
+                >
+                  <PlusIcon className="h-4 w-4" />
+                  <span>Book Vehicle</span>
                 </button>
               )}
             </div>

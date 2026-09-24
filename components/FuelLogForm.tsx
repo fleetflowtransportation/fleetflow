@@ -25,15 +25,18 @@ const FuelLogForm: React.FC<FuelLogFormProps> = ({ isOpen, onClose, driverId }) 
   const [formData, setFormData] = useState<FormData>(emptyFormData);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
 
+  const prevIsOpenRef = React.useRef(false);
+
   const resetForm = useCallback(() => {
     setFormData({...emptyFormData, date: new Date().toISOString().split('T')[0]});
     setReceiptFile(null);
   }, []);
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevIsOpenRef.current) {
       resetForm();
     }
+    prevIsOpenRef.current = isOpen;
   }, [isOpen, resetForm]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {

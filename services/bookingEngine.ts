@@ -207,7 +207,7 @@ export function evaluateBookingAssignment({
   const startsDuringLunch = startTime >= lunchStart && startTime < lunchEnd;
 
   if (startsDuringLunch) {
-    const reason = `Waktu mula tempahan (${startTime12}) bertindih dengan waktu rehat ${isFriday ? 'Jumaat' : 'kakitangan'} (${formatTime12H(lunchStart)} - ${formatTime12H(lunchEnd)}).`;
+    const reason = `Booking start time (${startTime12}) overlaps with official ${isFriday ? 'Friday ' : ''}lunch break (${formatTime12H(lunchStart)} - ${formatTime12H(lunchEnd)}).`;
     return {
       status: 'Conflict',
       driverId: null,
@@ -220,26 +220,24 @@ export function evaluateBookingAssignment({
       emailNotifications: {
         requester: {
           to: requesterEmail,
-          subject: `[CONFLICT] Tempahan Van FleetFlow: ${destination} (${bookingDate})`,
-          body: `Salam ${requesterName},\n\nTempahan anda ke ${destination} pada ${bookingDate} (${startTime12} - ${endTime12}) TIDAK DAPAT DISAHKAN kerana bertindih dengan waktu rehat rasmi (${formatTime12H(lunchStart)} - ${formatTime12H(lunchEnd)}).\n\nSila pilih masa sebelum ${formatTime12H(lunchStart)} atau selepas ${formatTime12H(lunchEnd)}, atau hubungi Admin (${adminAin.name} di ${adminAin.email}) untuk bantuan manual.\n\nTerima kasih,\nFleetFlow System`,
+          subject: `[CONFLICT] FleetFlow Vehicle Booking: ${destination} (${bookingDate})`,
+          body: `Hello ${requesterName},\n\nYour booking request to ${destination} on ${bookingDate} (${startTime12} - ${endTime12}) COULD NOT BE CONFIRMED because it overlaps with the official break time (${formatTime12H(lunchStart)} - ${formatTime12H(lunchEnd)}).\n\nPlease choose a start time before ${formatTime12H(lunchStart)} or after ${formatTime12H(lunchEnd)}, or contact the Admin team (${adminAin.name} at ${adminAin.email}) for manual assistance.\n\nThank you,\nFleetFlow System`,
         },
         admin: {
           to: adminAin.email,
-          subject: `[PERLU TINDAKAN MANUAL] Konflik Waktu Rehat: ${requesterName} - ${destination}`,
-          body: `Perhatian Admin,\n\nTempahan baru dari ${requesterName} (${department}) ke ${destination} pada ${bookingDate} (${startTime12} - ${endTime12}) telah ditandakan sebagai CONFLICT kerana masa mula berada dalam waktu rehat (${formatTime12H(lunchStart)} - ${formatTime12H(lunchEnd)}).\n\nSila semak di dashboard untuk tindakan lanjut.`,
+          subject: `[MANUAL ACTION REQUIRED] Break Time Conflict: ${requesterName} - ${destination}`,
+          body: `Attention Admin,\n\nA new booking request from ${requesterName} (${department}) to ${destination} on ${bookingDate} (${startTime12} - ${endTime12}) has been flagged as a CONFLICT due to start time falling within lunch break hours (${formatTime12H(lunchStart)} - ${formatTime12H(lunchEnd)}).\n\nPlease review on the dashboard for manual action.`,
         },
       },
     };
   }
 
   // ==========================================
-  // STEP 4: KALAU SELF-DRIVE
+  // STEP 4: IF SELF-DRIVE
   // ==========================================
-  // Check sama ada Perodua Alza free pada slot tu (check existing calendar events / bookings dengan tag [ALZA])
-  // Free → confirm, create calendar event, warna grey, no driver assign
-  // Tak free → CONFLICT
+  // Check if Perodua Alza is free during this slot
   if (serviceType === 'Self-Drive') {
-    // Cari kenderaan Perodua Alza
+    // Find Perodua Alza vehicle
     const alzaVehicle = vehicles.find(v => v.name.toLowerCase().includes('alza') || v.plateNumber.toLowerCase().includes('alza')) ||
       vehicles[0] ||
       { id: 'alza-1', name: 'Perodua Alza', plateNumber: 'VAA 8821' };
@@ -259,7 +257,7 @@ export function evaluateBookingAssignment({
     });
 
     if (vehicleClash) {
-      const reason = `Kenderaan Perodua Alza telah ditempah oleh pemohon lain (${vehicleClash.requesterName}) pada slot masa ini (${startTime12} - ${endTime12}).`;
+      const reason = `The Perodua Alza vehicle is already booked by another requester (${vehicleClash.requesterName}) during this time slot (${startTime12} - ${endTime12}).`;
       return {
         status: 'Conflict',
         driverId: null,
@@ -272,13 +270,13 @@ export function evaluateBookingAssignment({
         emailNotifications: {
           requester: {
             to: requesterEmail,
-            subject: `[CONFLICT] Tempahan Self-Drive Alza: ${destination} (${bookingDate})`,
-            body: `Salam ${requesterName},\n\nTempahan Self-Drive anda ke ${destination} pada ${bookingDate} (${startTime12} - ${endTime12}) TIDAK DAPAT DISAHKAN kerana Perodua Alza telah ditempah pada slot ini.\n\nSila hubungi Admin (${adminAin.name} di ${adminAin.email}) untuk semakan kenderaan lain atau pertukaran masa.\n\nFleetFlow`,
+            subject: `[CONFLICT] Self-Drive Booking: ${destination} (${bookingDate})`,
+            body: `Hello ${requesterName},\n\nYour Self-Drive booking request to ${destination} on ${bookingDate} (${startTime12} - ${endTime12}) COULD NOT BE CONFIRMED because the Perodua Alza is already booked during this time slot.\n\nPlease contact Admin (${adminAin.name} at ${adminAin.email}) for an alternative vehicle or to reschedule.\n\nFleetFlow`,
           },
           admin: {
             to: adminAin.email,
-            subject: `[PERLU TINDAKAN MANUAL] Alza Clash: Self-Drive ${requesterName}`,
-            body: `Admin Ain,\n\nTempahan Self-Drive oleh ${requesterName} pada ${bookingDate} (${startTime12} - ${endTime12}) bertindih dengan tempahan Alza sedia ada.\nSila uruskan kenderaan alternatif jika ada.`,
+            subject: `[MANUAL ACTION REQUIRED] Self-Drive Conflict: ${requesterName}`,
+            body: `Admin,\n\nSelf-Drive booking request by ${requesterName} on ${bookingDate} (${startTime12} - ${endTime12}) conflicts with an existing reservation.\nPlease coordinate an alternative vehicle if available.`,
           },
         },
       };
@@ -295,26 +293,26 @@ export function evaluateBookingAssignment({
       calendarEventTitle: calendarTitle,
       calendarColor: 'grey',
       calendarEventId: `evt-alza-${Date.now()}`,
-      adminNotes: `CONFIRMED (Step 4): Self-Drive disahkan. Perodua Alza (${alzaVehicle.plateNumber}) diperuntukkan. Tiada pemandu ditugaskan.`,
+      adminNotes: `CONFIRMED: Self-Drive reservation confirmed. Perodua Alza (${alzaVehicle.plateNumber}) allocated. No driver required.`,
       emailNotifications: {
         requester: {
           to: requesterEmail,
-          subject: `[CONFIRMED] Tempahan Self-Drive Disahkan: ${destination}`,
-          body: `Salam ${requesterName},\n\nTempahan Self-Drive anda BERJAYA DISAHKAN!\n\n📅 Tarikh: ${bookingDate}\n⏰ Masa: ${startTime12} - ${endTime12}\n📍 Lokasi Pickup: ${getPickupLocationDisplay(pickupPoint, address)}\n🎯 Destinasi: ${destination}\n🚗 Kenderaan: ${alzaVehicle.name} (${alzaVehicle.plateNumber})\n👤 Servis: Self-Drive\n\nSila ambil kunci kenderaan di pejabat pentadbiran sebelum bertolak.\n\nFleetFlow`,
+          subject: `[CONFIRMED] Self-Drive Booking Confirmed: ${destination}`,
+          body: `Hello ${requesterName},\n\nYour Self-Drive reservation has been SUCCESSFULLY CONFIRMED!\n\n📅 Date: ${bookingDate}\n⏰ Time: ${startTime12} - ${endTime12}\n📍 Pickup Location: ${getPickupLocationDisplay(pickupPoint, address)}\n🎯 Destination: ${destination}\n🚗 Vehicle: ${alzaVehicle.name} (${alzaVehicle.plateNumber})\n👤 Service: Self-Drive\n\nPlease collect the vehicle keys from the administration office prior to departure.\n\nFleetFlow`,
         },
       },
     };
   }
 
   // ==========================================
-  // STEP 5: KALAU PERLUKAN DRIVER — AUTO-ASSIGN LOGIC
+  // STEP 5: IF DRIVER NEEDED — AUTO-ASSIGN LOGIC
   // ==========================================
   const activeDrivers = users.filter(u => u.role === 'driver' && u.status === 'active');
 
-  // a. Tarik jadual driver dari tab Jadual Pemandu untuk tarikh tu
+  // Pull driver schedules for date
   const schedulesOnDate = driverSchedules.filter(s => normalizeDate(s.Date) === bookingDate);
 
-  // Padankan driver aktif dengan jadual
+  // Match active drivers with schedules
   interface WorkingDriverInfo {
     driver: User;
     shiftStart: string;
@@ -333,41 +331,38 @@ export function evaluateBookingAssignment({
     })
     .filter((w): w is WorkingDriverInfo => w !== null);
 
-  // Sekiranya tiada driver berjadual dalam sistem pada tarikh ini:
-  // Semak jika ada jadual langsung. Kalau tiada satu pun driver bekerja pada tarikh itu -> CONFLICT!
+  // If no drivers on duty on this date
   if (workingDrivers.length === 0) {
-    const reason = `Tiada pemandu bertugas pada tarikh ini (${bookingDate}).`;
+    const reason = `No active drivers are scheduled on duty for this date (${bookingDate}).`;
     return {
       status: 'Conflict',
       driverId: null,
       vehicleId: null,
-      calendarEventTitle: `[CONFLICT] ${requesterName} → ${destination} (Tiada Pemandu)`,
+      calendarEventTitle: `[CONFLICT] ${requesterName} → ${destination} (No Driver Scheduled)`,
       calendarColor: 'grey',
       calendarEventId: `evt-no-driver-${Date.now()}`,
       conflictReason: reason,
-      adminNotes: `CONFLICT (Step 6b): ${reason}`,
+      adminNotes: `CONFLICT: ${reason}`,
       emailNotifications: {
         requester: {
           to: requesterEmail,
-          subject: `[CONFLICT] Tiada Pemandu Bertugas: ${destination} (${bookingDate})`,
-          body: `Salam ${requesterName},\n\nTempahan anda ke ${destination} pada ${bookingDate} tidak dapat disahkan kerana tiada pemandu yang berjadual bertugas pada tarikh tersebut.\n\nSila hubungi Admin (${adminAin.name} di ${adminAin.email}) untuk semakan manual.\n\nFleetFlow`,
+          subject: `[CONFLICT] No Driver On Duty: ${destination} (${bookingDate})`,
+          body: `Hello ${requesterName},\n\nYour booking request to ${destination} on ${bookingDate} could not be confirmed because no drivers are scheduled on duty for that date.\n\nPlease contact Admin (${adminAin.name} at ${adminAin.email}) for manual assistance.\n\nFleetFlow`,
         },
         admin: {
           to: adminAin.email,
-          subject: `[PERLU TINDAKAN MANUAL] Tiada Pemandu Bertugas: ${requesterName}`,
-          body: `Admin Ain,\n\nTempahan dari ${requesterName} pada ${bookingDate} gagal di-assign kerana tiada jadual pemandu aktif untuk tarikh ini. Sila semak tab Jadual Pemandu.`,
+          subject: `[MANUAL ACTION REQUIRED] No Driver Scheduled: ${requesterName}`,
+          body: `Admin,\n\nBooking request from ${requesterName} on ${bookingDate} could not be auto-assigned because there are no active driver duty schedules for this date. Please check the Driver Schedules tab.`,
         },
       },
     };
   }
 
-  // b. Filter driver yang shift MEMANG dah start pada waktu booking tu (shift-eligibility check)
-  // Kalau tiada driver yang shift dah start, fallback pakai driver paling awal punya shift
+  // b. Filter drivers whose shift has started
   let eligible = workingDrivers.filter(w => w.shiftStart <= startTime && w.shiftEnd > startTime);
   let isPreWorkingHour = false;
 
   if (eligible.length === 0) {
-    // Cari driver yang shift paling awal
     const sortedByEarliestShift = [...workingDrivers].sort((a, b) => a.shiftStart.localeCompare(b.shiftStart));
     const earliestShiftTime = sortedByEarliestShift[0].shiftStart;
 
@@ -375,11 +370,10 @@ export function evaluateBookingAssignment({
       isPreWorkingHour = true;
     }
 
-    // Fallback pakai driver paling awal punya shift
     eligible = sortedByEarliestShift.filter(w => w.shiftStart === earliestShiftTime);
   }
 
-  // c. Dari list eligible tu, check calendar — driver mana yang TAK ada booking lain clash dengan slot ni (isDriverBusy)
+  // c. Check calendar for available drivers without clash
   const availableDrivers = eligible.filter(w => {
     const driverActiveBookings = existingBookings.filter(b => {
       if (b.status === 'Cancelled') return false;
@@ -397,48 +391,43 @@ export function evaluateBookingAssignment({
     return !hasClash;
   });
 
-  // d. Kalau tiada satu pun driver available → CONFLICT ("semua driver ada booking lain")
+  // d. If no drivers available
   if (availableDrivers.length === 0) {
-    const reason = `Semua pemandu yang bertugas mempunyai tempahan lain pada slot masa ini (${startTime12} - ${endTime12}).`;
+    const reason = `All on-duty drivers have conflicting bookings during this time slot (${startTime12} - ${endTime12}).`;
     return {
       status: 'Conflict',
       driverId: null,
       vehicleId: null,
-      calendarEventTitle: `[CONFLICT] ${requesterName} → ${destination} (Semua Pemandu Sibuk)`,
+      calendarEventTitle: `[CONFLICT] ${requesterName} → ${destination} (All Drivers Busy)`,
       calendarColor: 'grey',
       calendarEventId: `evt-all-busy-${Date.now()}`,
       conflictReason: reason,
-      adminNotes: `CONFLICT (Step 5d): ${reason}`,
+      adminNotes: `CONFLICT: ${reason}`,
       emailNotifications: {
         requester: {
           to: requesterEmail,
-          subject: `[CONFLICT] Semua Pemandu Sibuk: ${destination} (${bookingDate})`,
-          body: `Salam ${requesterName},\n\nSemua pemandu bertugas mempunyai jadual perjalanan lain pada slot ${startTime12} - ${endTime12} pada ${bookingDate}.\n\nPermohonan anda telah dihantar kepada Admin (${adminAin.name} di ${adminAin.email}) untuk penyelarasan manual.\n\nFleetFlow`,
+          subject: `[CONFLICT] All Drivers Busy: ${destination} (${bookingDate})`,
+          body: `Hello ${requesterName},\n\nAll on-duty drivers are already assigned to other trips during ${startTime12} - ${endTime12} on ${bookingDate}.\n\nYour request has been forwarded to the Admin (${adminAin.name} at ${adminAin.email}) for manual review and carpooling coordination.\n\nFleetFlow`,
         },
         admin: {
           to: adminAin.email,
-          subject: `[PERLU TINDAKAN MANUAL] Pertindihan Tempahan Pemandu: ${requesterName}`,
-          body: `Admin Ain,\n\nSemua pemandu bertugas pada ${bookingDate} (${startTime12} - ${endTime12}) sibuk dengan tempahan sedia ada. Sila semak jadual untuk membuat penyesuaian atau carpooling.`,
+          subject: `[MANUAL ACTION REQUIRED] Driver Schedule Conflict: ${requesterName}`,
+          body: `Admin,\n\nAll drivers on duty for ${bookingDate} (${startTime12} - ${endTime12}) are fully booked with existing trips. Please review the schedule for manual reassignment or carpooling opportunities.`,
         },
       },
     };
   }
 
-  // e. Kalau ada lebih dari satu driver available:
-  // - Kalau booking sebelum waktu kerja semua driver (pre-working-hour) → pilih driver yang shift paling awal, round-robin di-ignore
-  // - Kalau dalam waktu kerja normal → round-robin: check driver terakhir yang dapat assignment (Last Driver Assigned), pilih driver lain (bukan yang last tu) dari list available
+  // e. Choose driver
   let chosen: WorkingDriverInfo;
 
   if (isPreWorkingHour) {
-    // Pilih driver yang shift paling awal, round-robin di-ignore
     availableDrivers.sort((a, b) => a.shiftStart.localeCompare(b.shiftStart));
     chosen = availableDrivers[0];
   } else {
-    // Normal working hours: round-robin check
     if (availableDrivers.length === 1) {
       chosen = availableDrivers[0];
     } else {
-      // Pilih driver yang bukan lastDriverAssignedId
       const otherDrivers = availableDrivers.filter(w => w.driver.id !== lastDriverAssignedId);
       if (otherDrivers.length > 0) {
         chosen = otherDrivers[0];
@@ -448,11 +437,9 @@ export function evaluateBookingAssignment({
     }
   }
 
-  // Peruntukkan kenderaan (Vehicle Allocation)
-  // Syarat: Jika pemohon pilih Bebas/tiada keutamaan, sistem jangan assign kenderaan (biarkan null).
-  // Kenderaan akan diambil daripada rekod lapor meter pemandu apabila selesai tugasan.
+  // Vehicle Allocation
   let allocatedVehicle: Vehicle | null = null;
-  const isFreeChoice = !vehiclePreference || vehiclePreference === 'Bebas';
+  const isFreeChoice = !vehiclePreference || vehiclePreference === 'Bebas' || vehiclePreference === 'Any / No Preference';
 
   if (!isFreeChoice) {
     const preferred = vehicles.find(v => v.name === vehiclePreference);
@@ -469,34 +456,33 @@ export function evaluateBookingAssignment({
     }
   }
 
-  // STEP 7: Google Calendar Event formatting
-  // Title format: (NamaDriver) Pemohon (Jabatan) → Destinasi
+  // Google Calendar Event formatting
   const deptStr = department ? ` (${department})` : '';
   const calendarEventTitle = `(${chosen.driver.name}) ${requesterName}${deptStr} → ${destination}`;
   const calendarColor = getDriverCalendarColor(chosen.driver.name);
 
   const preWorkingWarning = isPreWorkingHour
-    ? '⚠️ PERHATIAN: Booking sebelum waktu kerja pemandu bermula. Sila buat pengesahan manual dengan pemandu & Head of Transportation.'
+    ? '⚠️ ATTENTION: Booking starts before official driver working hours. Please confirm manually with the on-duty driver and Head of Transportation.'
     : '';
 
   const vehicleNotice = allocatedVehicle
-    ? `Kenderaan: ${allocatedVehicle.name} (${allocatedVehicle.plateNumber}).`
-    : `Kenderaan: Bebas (Belum di-assign. Pemandu akan pilih kenderaan semasa lapor meter/selesai trip).`;
+    ? `Vehicle: ${allocatedVehicle.name} (${allocatedVehicle.plateNumber}).`
+    : `Vehicle: Any / Unassigned (Driver will select vehicle upon odometer check-in).`;
 
   const adminNotes = isPreWorkingHour
-    ? `CONFIRMED (Pre-working-hour): Auto-assigned kepada ${chosen.driver.name} (Shift paling awal mula: ${formatTime12H(chosen.shiftStart)}). ${preWorkingWarning}`
-    : `CONFIRMED: Auto-assigned kepada ${chosen.driver.name} melalui kaedah ${availableDrivers.length > 1 ? 'Round-Robin' : 'Pemandu Tunggal Berkelayakan'}. ${vehicleNotice}`;
+    ? `CONFIRMED (Pre-working-hour): Auto-assigned to ${chosen.driver.name} (Earliest shift starts at: ${formatTime12H(chosen.shiftStart)}). ${preWorkingWarning}`
+    : `CONFIRMED: Auto-assigned to ${chosen.driver.name} via ${availableDrivers.length > 1 ? 'Round-Robin' : 'Single Eligible Driver'}. ${vehicleNotice}`;
 
   const totalPassengers = staffCount + kidsCount + teenagersCount;
   const passengerDetails = [
     staffCount > 0 ? `Staff: ${staffCount}` : '',
-    kidsCount > 0 ? `Kanak-kanak: ${kidsCount}` : '',
-    teenagersCount > 0 ? `Remaja: ${teenagersCount}` : '',
-  ].filter(Boolean).join(', ') || 'Tiada maklumat';
+    kidsCount > 0 ? `Children: ${kidsCount}` : '',
+    teenagersCount > 0 ? `Teenagers: ${teenagersCount}` : '',
+  ].filter(Boolean).join(', ') || 'No breakdown';
 
   const vehicleDisplay = allocatedVehicle
     ? `${allocatedVehicle.name} (${allocatedVehicle.plateNumber})`
-    : `Bebas (Akan ditentukan oleh pemandu semasa perjalanan)`;
+    : `Any / Unassigned (Driver will select upon trip check-in)`;
 
   return {
     status: 'Confirmed',
@@ -514,13 +500,13 @@ export function evaluateBookingAssignment({
     emailNotifications: {
       requester: {
         to: requesterEmail,
-        subject: `[CONFIRMED] Tempahan Pengangkutan Disahkan: ${destination}`,
-        body: `Salam ${requesterName},\n\nTempahan pengangkutan anda telah BERJAYA DISAHKAN!\n\n📅 Tarikh: ${bookingDate}\n⏰ Masa: ${startTime12} - ${endTime12}\n📍 Lokasi Pickup: ${getPickupLocationDisplay(pickupPoint, address)}\n🎯 Destinasi: ${destination}\n👥 Penumpang: ${totalPassengers} orang (${passengerDetails})\n👤 Pemandu Ditugaskan: ${chosen.driver.name} (No Tel: ${chosen.driver.phone})\n🚐 Kenderaan: ${vehicleDisplay}\n${shouldWait ? '⏳ Status: Pemandu dikehendaki menunggu di destinasi\n' : ''}${remarks ? '📝 Nota: ' + remarks + '\n' : ''}${isPreWorkingHour ? '\n' + preWorkingWarning + '\n' : ''}\nEvent telah dimasukkan ke dalam Google Calendar YCK dan emel anda dijemput sebagai tetamu.\n\nFleetFlow`,
+        subject: `[CONFIRMED] Transportation Booking Confirmed: ${destination}`,
+        body: `Hello ${requesterName},\n\nYour transportation booking has been SUCCESSFULLY CONFIRMED!\n\n📅 Date: ${bookingDate}\n⏰ Time: ${startTime12} - ${endTime12}\n📍 Pickup Location: ${getPickupLocationDisplay(pickupPoint, address)}\n🎯 Destination: ${destination}\n👥 Passengers: ${totalPassengers} (${passengerDetails})\n👤 Assigned Driver: ${chosen.driver.name} (Phone: ${chosen.driver.phone})\n🚐 Vehicle: ${vehicleDisplay}\n${shouldWait ? '⏳ Driver Waiting: YES (Driver will wait at destination)\n' : ''}${remarks ? '📝 Notes: ' + remarks + '\n' : ''}${isPreWorkingHour ? '\n' + preWorkingWarning + '\n' : ''}\nThe event has been added to Google Calendar and your email is invited as a guest.\n\nFleetFlow`,
       },
       driver: {
         to: chosen.driver.email,
-        subject: `[TUGASAN BARU] Perjalanan ke ${destination} (${bookingDate})`,
-        body: `Salam ${chosen.driver.name},\n\nAnda telah ditugaskan untuk perjalanan berikut:\n\n📅 Tarikh: ${bookingDate}\n⏰ Masa: ${startTime12} - ${endTime12}\n👤 Pemohon: ${requesterName} (${department})\n📞 Emel Pemohon: ${requesterEmail}\n📍 Pickup: ${getPickupLocationDisplay(pickupPoint, address)}\n🎯 Destinasi: ${destination}\n👥 Bilangan Penumpang: ${totalPassengers} (${passengerDetails})\n🚐 Kenderaan: ${vehicleDisplay}\n${shouldWait ? '⏳ Perlu Tunggu: YA (Sila tunggu penumpang sehingga urusan selesai)\n' : ''}${remarks ? '📝 Nota: ' + remarks : ''}\n${isPreWorkingHour ? '\n' + preWorkingWarning : ''}\n\nSila pastikan kenderaan berada dalam keadaan baik sebelum bertolak.\n\nFleetFlow`,
+        subject: `[NEW ASSIGNMENT] Trip to ${destination} (${bookingDate})`,
+        body: `Hello ${chosen.driver.name},\n\nYou have been assigned to the following trip:\n\n📅 Date: ${bookingDate}\n⏰ Time: ${startTime12} - ${endTime12}\n👤 Requester: ${requesterName} (${department})\n📞 Requester Email: ${requesterEmail}\n📍 Pickup: ${getPickupLocationDisplay(pickupPoint, address)}\n🎯 Destination: ${destination}\n👥 Passengers: ${totalPassengers} (${passengerDetails})\n🚐 Vehicle: ${vehicleDisplay}\n${shouldWait ? '⏳ Driver Waiting: YES (Please wait for passengers until completion)\n' : ''}${remarks ? '📝 Notes: ' + remarks : ''}\n${isPreWorkingHour ? '\n' + preWorkingWarning : ''}\n\nPlease ensure the vehicle is inspected and ready before departure.\n\nFleetFlow`,
       },
     },
   };
