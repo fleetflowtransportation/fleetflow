@@ -60,44 +60,55 @@ const fromDbVehicle = (row: any): Vehicle => ({
 });
 
 // Helper: Convert Booking TS to DB
-const toDbBooking = (b: Partial<Booking>) => ({
-  ...(b.id && { id: b.id }),
-  ...(b.destination !== undefined && { destination: b.destination }),
-  ...(b.purpose !== undefined && { purpose: b.purpose }),
-  ...(b.dateTime !== undefined && { date_time: b.dateTime }),
-  ...(b.finishDateTime !== undefined && { finish_date_time: b.finishDateTime }),
-  ...(b.pickupPoint !== undefined && { pickup_point: b.pickupPoint }),
-  ...(b.address !== undefined && { address: b.address }),
-  ...(b.passengers !== undefined && { passengers: b.passengers }),
-  ...(b.escort !== undefined && { escort: b.escort }),
-  ...(b.shouldWait !== undefined && { should_wait: b.shouldWait }),
-  ...(b.returnTrip !== undefined && { return_trip: b.returnTrip }),
-  ...(b.status !== undefined && { status: b.status }),
-  ...(b.driverId !== undefined && { driver_id: b.driverId }),
-  ...(b.vehicleId !== undefined && { vehicle_id: b.vehicleId }),
-  ...(b.attachmentName !== undefined && { attachment_name: b.attachmentName }),
-  ...(b.attachmentUrl !== undefined && { attachment_url: b.attachmentUrl }),
-  ...(b.remarks !== undefined && { remarks: b.remarks }),
-  ...(b.requesterName !== undefined && { requester_name: b.requesterName }),
-  ...(b.requesterEmail !== undefined && { requester_email: b.requesterEmail }),
-  ...(b.department !== undefined && { department: b.department }),
-  ...(b.serviceType !== undefined && { service_type: b.serviceType }),
-  ...(b.vehiclePreference !== undefined && { vehicle_preference: b.vehiclePreference }),
-  ...(b.icNumber !== undefined && { ic_number: b.icNumber }),
-  ...(b.recurrenceId !== undefined && { recurrence_id: b.recurrenceId }),
-  ...(b.recurrence !== undefined && { recurrence: b.recurrence }),
-  ...(b.startOdometer !== undefined && { start_odometer: b.startOdometer }),
-  ...(b.endOdometer !== undefined && { end_odometer: b.endOdometer }),
-  ...(b.distance !== undefined && { distance: b.distance }),
-  ...(b.calendarEventId !== undefined && { calendar_event_id: b.calendarEventId }),
-  ...(b.calendarEventTitle !== undefined && { calendar_event_title: b.calendarEventTitle }),
-  ...(b.calendarColor !== undefined && { calendar_color: b.calendarColor }),
-  ...(b.adminNotes !== undefined && { admin_notes: b.adminNotes }),
-  ...(b.conflictReason !== undefined && { conflict_reason: b.conflictReason }),
-  ...(b.isPreWorkingHour !== undefined && { is_pre_working_hour: b.isPreWorkingHour }),
-  ...(b.warningNotes !== undefined && { warning_notes: b.warningNotes }),
-  ...(b.tenantId !== undefined ? { tenant_id: b.tenantId } : (b.id ? {} : { tenant_id: getTenantId() })),
-});
+const toDbBooking = (b: Partial<Booking>) => {
+  const sDate = b.dateTime ? b.dateTime.split('T')[0] : '';
+  const sTime = (b.dateTime && b.dateTime.includes('T')) ? b.dateTime.split('T')[1].substring(0, 5) : '';
+  const eDate = b.finishDateTime ? b.finishDateTime.split('T')[0] : sDate;
+  const eTime = (b.finishDateTime && b.finishDateTime.includes('T')) ? b.finishDateTime.split('T')[1].substring(0, 5) : sTime;
+
+  return {
+    ...(b.id && { id: b.id }),
+    ...(b.destination !== undefined && { destination: b.destination }),
+    ...(b.purpose !== undefined && { purpose: b.purpose }),
+    ...(b.dateTime !== undefined && { date_time: b.dateTime }),
+    ...(b.finishDateTime !== undefined && { finish_date_time: b.finishDateTime }),
+    ...(sDate && { start_date: sDate }),
+    ...(sTime && { start_time: sTime }),
+    ...(eDate && { end_date: eDate }),
+    ...(eTime && { end_time: eTime }),
+    ...(b.pickupPoint !== undefined && { pickup_point: b.pickupPoint }),
+    ...(b.address !== undefined && { address: b.address }),
+    ...(b.passengers !== undefined && { passengers: b.passengers }),
+    ...(b.escort !== undefined && { escort: b.escort }),
+    ...(b.shouldWait !== undefined && { should_wait: b.shouldWait }),
+    ...(b.returnTrip !== undefined && { return_trip: b.returnTrip }),
+    ...(b.status !== undefined && { status: b.status }),
+    ...(b.driverId !== undefined && { driver_id: b.driverId }),
+    ...(b.vehicleId !== undefined && { vehicle_id: b.vehicleId }),
+    ...(b.attachmentName !== undefined && { attachment_name: b.attachmentName }),
+    ...(b.attachmentUrl !== undefined && { attachment_url: b.attachmentUrl }),
+    ...(b.remarks !== undefined && { remarks: b.remarks }),
+    ...(b.requesterName !== undefined && { requester_name: b.requesterName }),
+    ...(b.requesterEmail !== undefined && { requester_email: b.requesterEmail }),
+    ...(b.department !== undefined && { department: b.department }),
+    ...(b.serviceType !== undefined && { service_type: b.serviceType }),
+    ...(b.vehiclePreference !== undefined && { vehicle_preference: b.vehiclePreference }),
+    ...(b.icNumber !== undefined && { ic_number: b.icNumber }),
+    ...(b.recurrenceId !== undefined && { recurrence_id: b.recurrenceId }),
+    ...(b.recurrence !== undefined && { recurrence: b.recurrence }),
+    ...(b.startOdometer !== undefined && { start_odometer: b.startOdometer }),
+    ...(b.endOdometer !== undefined && { end_odometer: b.endOdometer }),
+    ...(b.distance !== undefined && { distance: b.distance }),
+    ...(b.calendarEventId !== undefined && { calendar_event_id: b.calendarEventId }),
+    ...(b.calendarEventTitle !== undefined && { calendar_event_title: b.calendarEventTitle }),
+    ...(b.calendarColor !== undefined && { calendar_color: b.calendarColor }),
+    ...(b.adminNotes !== undefined && { admin_notes: b.adminNotes }),
+    ...(b.conflictReason !== undefined && { conflict_reason: b.conflictReason }),
+    ...(b.isPreWorkingHour !== undefined && { is_pre_working_hour: b.isPreWorkingHour }),
+    ...(b.warningNotes !== undefined && { warning_notes: b.warningNotes }),
+    ...(b.tenantId !== undefined ? { tenant_id: b.tenantId } : (b.id ? {} : { tenant_id: getTenantId() })),
+  };
+};
 
 // Helper: Convert DB Booking to TS
 const fromDbBooking = (row: any): Booking => ({
@@ -241,7 +252,7 @@ const fromDbIssueLog = (row: any): IssueLog => ({
 // Helper: Convert DriverSchedule TS to DB
 const toDbDriverSchedule = (s: Partial<DriverSchedule>) => ({
   ...(s.id && { id: s.id }),
-  ...(s.Date !== undefined && { date: s.Date }),
+  ...(s.Date !== undefined && { date: s.Date, shift_date: s.Date, shift_type: 'Custom' }),
   ...(s.DriverId !== undefined && { driver_id: s.DriverId }),
   ...(s.Mula !== undefined && { mula: s.Mula }),
   ...(s.Tamat !== undefined && { tamat: s.Tamat }),
