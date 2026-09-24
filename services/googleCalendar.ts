@@ -73,7 +73,12 @@ export const buildCalendarDescription = (booking: Booking, vehicles?: Vehicle[])
   ].join('\n');
 };
 
-export const buildEmailHtml = (booking: Booking, type: 'CONFIRMATION' | 'UPDATED' | 'CANCELLED', vehicles?: Vehicle[]): { subject: string; html: string; text: string } => {
+export const buildEmailHtml = (
+  booking: Booking,
+  type: 'CONFIRMATION' | 'UPDATED' | 'CANCELLED',
+  vehicles?: Vehicle[],
+  users?: User[]
+): { subject: string; html: string; text: string } => {
   const dateStr = normalizeDate(booking.dateTime);
   const timeStr = normalizeTime(booking.dateTime);
   const finishTimeStr = booking.finishDateTime ? normalizeTime(booking.finishDateTime) : '';
@@ -82,6 +87,11 @@ export const buildEmailHtml = (booking: Booking, type: 'CONFIRMATION' | 'UPDATED
     vehicles?.find(v => v.name.toLowerCase() === (booking.vehiclePreference || '').toLowerCase());
   const vehicleText = matchedV ? `${matchedV.name} (${matchedV.plateNumber})` : (booking.serviceType === 'Self-Drive' ? 'Perodua Alza (Self-Drive)' : (booking.vehiclePreference || 'Any available'));
   const pickupText = getPickupLocationDisplay(booking.pickupPoint, booking.address);
+
+  const matchedDriver = users?.find(u => u.id === booking.driverId);
+  const driverDisplay = booking.serviceType === 'Self-Drive'
+    ? 'Self-Drive (Staff)'
+    : (matchedDriver ? `${matchedDriver.name}${matchedDriver.phone ? ' (' + matchedDriver.phone + ')' : ''}` : (booking.driverId || 'Scheduled'));
 
   let typeBadge = '<span style="background-color: #10b981; color: #ffffff; padding: 4px 12px; border-radius: 9999px; font-weight: bold; font-size: 12px;">CONFIRMED</span>';
   let subjectPrefix = '✅ Booking Confirmed';
@@ -150,7 +160,7 @@ export const buildEmailHtml = (booking: Booking, type: 'CONFIRMATION' | 'UPDATED
             </tr>
             <tr>
               <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #64748b;">Assigned Driver</td>
-              <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #3730a3;">${booking.serviceType === 'Self-Drive' ? 'Self-Drive (Staff)' : (booking.driverId || 'Scheduled')}</td>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #3730a3;">${driverDisplay}</td>
             </tr>
             <tr>
               <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #64748b;">Allocated Vehicle</td>
@@ -181,7 +191,104 @@ export const buildEmailHtml = (booking: Booking, type: 'CONFIRMATION' | 'UPDATED
     </html>
   `;
 
-  const text = `${headerTitle}\n\nRequester: ${booking.requesterName}\nDestination: ${booking.destination}\nDate & Time: ${dateStr} ${timeStr}\nPickup: ${pickupText}\nPurpose: ${booking.purpose}\nStatus: ${booking.status}\n\nFleetFlow Fleet Management`;
+  const text = `${headerTitle}\n\nRequester: ${booking.requesterName}\nDestination: ${booking.destination}\nDate & Time: ${dateStr} ${timeStr}\nPickup: ${pickupText}\nDriver: ${driverDisplay}\nPurpose: ${booking.purpose}\nStatus: ${booking.status}\n\nFleetFlow Fleet Management`;
+
+  return { subject, html, text };
+};
+
+export const buildDriverEmailHtml = (
+  booking: Booking,
+  driver?: User | null,
+  vehicles?: Vehicle[]
+): { subject: string; html: string; text: string } => {
+  const dateStr = normalizeDate(booking.dateTime);
+  const timeStr = normalizeTime(booking.dateTime);
+  const finishTimeStr = booking.finishDateTime ? normalizeTime(booking.finishDateTime) : '';
+  const totalPassengers = (booking.passengers || []).reduce((sum, p) => sum + (p.count || 0), 0);
+  const passengerBreakdown = (booking.passengers || []).map(p => `${p.category}: ${p.count}`).join(', ') || 'None';
+  const matchedV = vehicles?.find(v => v.id === booking.vehicleId) ||
+    vehicles?.find(v => v.name.toLowerCase() === (booking.vehiclePreference || '').toLowerCase());
+  const vehicleText = matchedV ? `${matchedV.name} (${matchedV.plateNumber})` : (booking.vehiclePreference || 'Any available (select upon odometer start)');
+  const pickupText = getPickupLocationDisplay(booking.pickupPoint, booking.address);
+
+  const subject = `🚐 New Trip Assignment: ${booking.destination} - ${dateStr} (${timeStr})`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>${subject}</title>
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #1e293b;">
+      <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border: 1px solid #e2e8f0;">
+        
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #0f766e, #134e4a); padding: 28px 24px; color: #ffffff; text-align: left;">
+          <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: #99f6e4; font-weight: bold; margin-bottom: 8px;">FleetFlow Fleet Management</div>
+          <h1 style="margin: 0; font-size: 22px; font-weight: 800; line-height: 1.3;">New Trip Assignment</h1>
+          <div style="margin-top: 12px;"><span style="background-color: #14b8a6; color: #ffffff; padding: 4px 12px; border-radius: 9999px; font-weight: bold; font-size: 12px;">DRIVER DUTY</span></div>
+        </div>
+
+        <!-- Body -->
+        <div style="padding: 24px;">
+          <p style="font-size: 14px; line-height: 1.6; color: #475569; margin-top: 0;">
+            Hello <strong>${driver?.name || 'Driver'}</strong>,<br>
+            You have been assigned as the driver for the following scheduled transportation task. Please review the details below:
+          </p>
+
+          <!-- Key Details Card -->
+          <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px; background-color: #f0fdfa; border-radius: 12px; overflow: hidden; border: 1px solid #ccfbf1;">
+            <tr>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #ccfbf1; font-weight: bold; color: #0f766e; width: 35%;">Destination</td>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #ccfbf1; font-weight: 800; color: #0f172a;">${booking.destination}</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #ccfbf1; font-weight: bold; color: #0f766e;">Date & Time</td>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #ccfbf1; font-weight: bold; color: #0f172a;">${dateStr} (${timeStr}${finishTimeStr ? ' – ' + finishTimeStr : ''})</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #ccfbf1; font-weight: bold; color: #0f766e;">Pickup Location</td>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #ccfbf1; font-weight: bold; color: #334155;">${pickupText}</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #ccfbf1; font-weight: bold; color: #0f766e;">Requester (PIC)</td>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #ccfbf1; color: #334155;">${booking.requesterName} ${booking.department ? '(' + booking.department + ')' : ''} ${booking.requesterEmail ? '&bull; ' + booking.requesterEmail : ''}</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #ccfbf1; font-weight: bold; color: #0f766e;">Trip Purpose</td>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #ccfbf1; color: #334155;">${booking.purpose}</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #ccfbf1; font-weight: bold; color: #0f766e;">Assigned Vehicle</td>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #ccfbf1; font-weight: bold; color: #0f766e;">${vehicleText}</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #ccfbf1; font-weight: bold; color: #0f766e;">Passengers</td>
+              <td style="padding: 12px 16px; border-bottom: 1px solid #ccfbf1; color: #334155;">${totalPassengers} Pax (${passengerBreakdown})</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 16px; font-weight: bold; color: #0f766e;">Driver Standby Required</td>
+              <td style="padding: 12px 16px; font-weight: bold; color: ${booking.shouldWait ? '#b45309' : '#334155'};">${booking.shouldWait ? '⏳ YES (Please wait for passengers at location)' : 'Drop-off only'}</td>
+            </tr>
+          </table>
+
+          ${booking.remarks ? `
+            <div style="margin-top: 16px; padding: 12px 16px; background-color: #fffbeb; border-left: 4px solid #f59e0b; border-radius: 6px; font-size: 13px; color: #92400e;">
+              <strong>Remarks:</strong> ${booking.remarks}
+            </div>
+          ` : ''}
+
+          <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; text-align: center;">
+            Please remember to log start odometer reading when taking the vehicle key and end odometer upon return.
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const text = `NEW TRIP ASSIGNMENT\n\nDriver: ${driver?.name || 'Driver'}\nDestination: ${booking.destination}\nDate & Time: ${dateStr} ${timeStr}\nPickup: ${pickupText}\nRequester: ${booking.requesterName} (${booking.requesterEmail})\nVehicle: ${vehicleText}\nStandby: ${booking.shouldWait ? 'YES' : 'NO'}\n\nFleetFlow Fleet Management`;
 
   return { subject, html, text };
 };
@@ -432,7 +539,54 @@ export const googleCalendarService = {
     }
   },
 
-  createEvent: async (tenant: Tenant, booking: Booking, vehicles?: Vehicle[]): Promise<string | null> => {
+  sendNotificationEmail: async (
+    tenant: Tenant,
+    to: string,
+    subject: string,
+    html: string,
+    recipientName?: string
+  ): Promise<boolean> => {
+    if (!to || !to.includes('@')) return false;
+    const uniqueScriptUrls = getValidGoogleScriptUrls(tenant);
+    if (uniqueScriptUrls.length === 0) return false;
+
+    for (const scriptUrl of uniqueScriptUrls) {
+      try {
+        const payload = {
+          action: 'sendEmail',
+          actionType: 'sendEmail',
+          type: 'sendEmail',
+          to,
+          recipientEmail: to,
+          recipientName: recipientName || '',
+          subject,
+          html,
+          htmlBody: html,
+          name: 'FleetFlow Transportation'
+        };
+
+        const res = await fetch(scriptUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          return true;
+        }
+      } catch (err) {
+        console.warn('[Google Apps Script] Direct sendNotificationEmail error:', err);
+      }
+    }
+    return false;
+  },
+
+  createEvent: async (
+    tenant: Tenant,
+    booking: Booking,
+    vehicles?: Vehicle[],
+    users?: User[]
+  ): Promise<string | null> => {
     const startIso = formatMalaysiaIso(booking.dateTime);
     let endIso = booking.finishDateTime ? formatMalaysiaIso(booking.finishDateTime) : '';
     if (!endIso) {
@@ -444,11 +598,27 @@ export const googleCalendarService = {
     const title = buildCalendarEventTitle(booking);
     const description = buildCalendarDescription(booking, vehicles);
     const location = booking.destination || '';
-    const emailData = buildEmailHtml(booking, 'CONFIRMATION', vehicles);
+    const emailData = buildEmailHtml(booking, 'CONFIRMATION', vehicles, users);
 
-    const attendees = booking.requesterEmail
-      ? [{ email: booking.requesterEmail, displayName: booking.requesterName }]
-      : [];
+    // Resolve assigned driver info
+    const assignedDriver = users?.find(u => u.id === booking.driverId);
+    const driverEmail = assignedDriver?.email;
+    const driverName = assignedDriver?.name;
+    const driverEmailData = assignedDriver ? buildDriverEmailHtml(booking, assignedDriver, vehicles) : null;
+
+    // Build attendees for both Requester and Driver
+    const attendees: Array<{ email: string; displayName: string }> = [];
+    if (booking.requesterEmail) {
+      attendees.push({ email: booking.requesterEmail, displayName: booking.requesterName || 'Requester' });
+    }
+    if (driverEmail && driverEmail.includes('@')) {
+      attendees.push({ email: driverEmail, displayName: `${driverName || 'Driver'} (FleetFlow Driver)` });
+    }
+
+    // Comma-separated list of guests for Google Calendar
+    const guestEmails = [booking.requesterEmail, driverEmail]
+      .filter((e): e is string => Boolean(e && e.includes('@')))
+      .join(', ');
 
     const eventPayload = {
       summary: title,
@@ -456,7 +626,7 @@ export const googleCalendarService = {
       description: description,
       location: location,
       attendees: attendees,
-      guests: booking.requesterEmail || '',
+      guests: guestEmails,
       guestEmail: booking.requesterEmail || '',
       sendInvites: true,
       sendUpdates: 'all',
@@ -502,7 +672,9 @@ export const googleCalendarService = {
           end: { dateTime: endIso, timeZone: 'Asia/Kuala_Lumpur' },
           requesterEmail: booking.requesterEmail || '',
           requesterName: booking.requesterName || '',
-          guests: booking.requesterEmail || '',
+          driverEmail: driverEmail || '',
+          driverName: driverName || '',
+          guests: guestEmails,
           attendees: attendees,
           sendInvites: true,
           sendUpdates: 'all',
@@ -510,6 +682,9 @@ export const googleCalendarService = {
           emailSubject: emailData.subject,
           emailHtml: emailData.html,
           emailText: emailData.text,
+          driverEmailSubject: driverEmailData?.subject || '',
+          driverEmailHtml: driverEmailData?.html || '',
+          driverEmailText: driverEmailData?.text || '',
           event: eventPayload,
         });
 
@@ -532,12 +707,20 @@ export const googleCalendarService = {
         addDiagnosticLog({
           bookingTitle: title,
           endpointUrl: scriptUrl,
-          payload: { action: 'createCalendarEvent', title, requesterEmail: booking.requesterEmail, startIso, endIso },
+          payload: { action: 'createCalendarEvent', title, requesterEmail: booking.requesterEmail, driverEmail, startIso, endIso },
           status: isSuccess ? 'SUCCESS' : 'ERROR',
           httpStatus: res.status,
           responseBody: resText.substring(0, 300),
           errorMessage: !isSuccess ? (data.error || `HTTP ${res.status}`) : undefined
         });
+
+        // Trigger direct individual email dispatches as an additional guarantee
+        if (booking.requesterEmail && booking.requesterEmail.includes('@')) {
+          googleCalendarService.sendNotificationEmail(tenant, booking.requesterEmail, emailData.subject, emailData.html, booking.requesterName).catch(() => {});
+        }
+        if (driverEmail && driverEmail.includes('@') && driverEmailData) {
+          googleCalendarService.sendNotificationEmail(tenant, driverEmail, driverEmailData.subject, driverEmailData.html, driverName).catch(() => {});
+        }
 
         if (isSuccess) {
           const eventId = data.eventId || data.id || data.event_id || `evt-apps-script-${Date.now()}`;
@@ -599,7 +782,12 @@ export const googleCalendarService = {
     return null;
   },
 
-  updateEvent: async (tenant: Tenant, booking: Booking, vehicles?: Vehicle[]): Promise<boolean> => {
+  updateEvent: async (
+    tenant: Tenant,
+    booking: Booking,
+    vehicles?: Vehicle[],
+    users?: User[]
+  ): Promise<boolean> => {
     const startIso = formatMalaysiaIso(booking.dateTime);
     let endIso = booking.finishDateTime ? formatMalaysiaIso(booking.finishDateTime) : '';
     if (!endIso) {
@@ -611,11 +799,25 @@ export const googleCalendarService = {
     const title = buildCalendarEventTitle(booking);
     const description = buildCalendarDescription(booking, vehicles);
     const location = booking.destination || '';
-    const emailData = buildEmailHtml(booking, 'UPDATED', vehicles);
+    const emailData = buildEmailHtml(booking, 'UPDATED', vehicles, users);
 
-    const attendees = booking.requesterEmail
-      ? [{ email: booking.requesterEmail, displayName: booking.requesterName }]
-      : [];
+    // Resolve assigned driver info
+    const assignedDriver = users?.find(u => u.id === booking.driverId);
+    const driverEmail = assignedDriver?.email;
+    const driverName = assignedDriver?.name;
+    const driverEmailData = assignedDriver ? buildDriverEmailHtml(booking, assignedDriver, vehicles) : null;
+
+    const attendees: Array<{ email: string; displayName: string }> = [];
+    if (booking.requesterEmail) {
+      attendees.push({ email: booking.requesterEmail, displayName: booking.requesterName || 'Requester' });
+    }
+    if (driverEmail && driverEmail.includes('@')) {
+      attendees.push({ email: driverEmail, displayName: `${driverName || 'Driver'} (FleetFlow Driver)` });
+    }
+
+    const guestEmails = [booking.requesterEmail, driverEmail]
+      .filter((e): e is string => Boolean(e && e.includes('@')))
+      .join(', ');
 
     const uniqueScriptUrls = getValidGoogleScriptUrls(tenant);
 
@@ -630,7 +832,9 @@ export const googleCalendarService = {
           bookingId: booking.id,
           requesterName: booking.requesterName,
           requesterEmail: booking.requesterEmail || '',
-          guests: booking.requesterEmail || '',
+          driverEmail: driverEmail || '',
+          driverName: driverName || '',
+          guests: guestEmails,
           attendees: attendees,
           sendInvites: true,
           sendUpdates: 'all',
@@ -638,6 +842,8 @@ export const googleCalendarService = {
           emailSubject: emailData.subject,
           emailHtml: emailData.html,
           emailText: emailData.text,
+          driverEmailSubject: driverEmailData?.subject || '',
+          driverEmailHtml: driverEmailData?.html || '',
           calendarId: tenant?.googleCalendarId && !tenant.googleCalendarId.startsWith('http') ? tenant.googleCalendarId : 'primary',
           title: title,
           summary: title,

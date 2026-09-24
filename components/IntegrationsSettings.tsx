@@ -295,13 +295,22 @@ function doPost(e) {
           title: event.getTitle()
         })).setMimeType(ContentService.MimeType.JSON);
       } else {
+        var guestList = [];
+        if (data.guests && typeof data.guests === 'string') {
+          guestList = data.guests.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s.indexOf('@') !== -1; });
+        } else {
+          if (requesterEmail && requesterEmail.indexOf("@") !== -1) guestList.push(requesterEmail);
+          if (data.driverEmail && data.driverEmail.indexOf("@") !== -1) guestList.push(data.driverEmail);
+        }
+        guestList = guestList.filter(function(item, pos) { return guestList.indexOf(item) === pos; });
+
         var eventOptions = {
           description: description,
           location: location,
           sendInvites: true
         };
-        if (requesterEmail && requesterEmail.indexOf("@") !== -1) {
-          eventOptions.guests = requesterEmail;
+        if (guestList.length > 0) {
+          eventOptions.guests = guestList.join(',');
         }
         var newEv = cal.createEvent(title, startTime, endTime, eventOptions);
         
@@ -313,7 +322,23 @@ function doPost(e) {
               htmlBody: data.emailHtml || ("<p>Your booking <strong>" + title + "</strong> has been updated.</p>"),
               name: "FleetFlow Transport"
             });
-          } catch (mErr) {}
+          } catch (mErr) {
+            Logger.log("Requester email err: " + mErr.toString());
+          }
+        }
+
+        var driverEmail = data.driverEmail || "";
+        if (driverEmail && driverEmail.indexOf("@") !== -1) {
+          try {
+            MailApp.sendEmail({
+              to: driverEmail,
+              subject: data.driverEmailSubject || ("📝 Trip Updated: " + title),
+              htmlBody: data.driverEmailHtml || data.emailHtml || ("<p>Trip <strong>" + title + "</strong> has been updated.</p>"),
+              name: "FleetFlow Transport"
+            });
+          } catch (dErr) {
+            Logger.log("Driver email err: " + dErr.toString());
+          }
         }
 
         return ContentService.createTextOutput(JSON.stringify({
@@ -336,6 +361,7 @@ function doPost(e) {
         : CalendarApp.getDefaultCalendar();
 
       var requesterEmail = data.requesterEmail || data.guests || data.guestEmail || "";
+      var driverEmail = data.driverEmail || "";
       var eventId = data.eventId || data.id;
       if (eventId) {
         try {
@@ -346,13 +372,25 @@ function doPost(e) {
         } catch (delErr) {}
       }
 
-      // Dispatch cancellation notification email
+      // Dispatch cancellation notification email to requester
       if (requesterEmail && (data.emailHtml || data.sendEmail)) {
         try {
           MailApp.sendEmail({
             to: requesterEmail,
             subject: data.emailSubject || ("❌ Booking Cancelled: " + (data.title || "Vehicle Booking")),
             htmlBody: data.emailHtml || ("<p>Your booking for <strong>" + (data.title || "Vehicle Booking") + "</strong> has been cancelled.</p>"),
+            name: "FleetFlow Transport"
+          });
+        } catch (mErr) {}
+      }
+
+      // Dispatch cancellation notification email to driver
+      if (driverEmail && driverEmail.indexOf("@") !== -1) {
+        try {
+          MailApp.sendEmail({
+            to: driverEmail,
+            subject: "❌ Trip Cancelled: " + (data.title || "Vehicle Booking"),
+            htmlBody: "<p>The trip <strong>" + (data.title || "Vehicle Booking") + "</strong> has been cancelled. Your schedule is now released.</p>",
             name: "FleetFlow Transport"
           });
         } catch (mErr) {}
@@ -370,19 +408,27 @@ function doPost(e) {
     // 3. ACTION: sendEmail (Direct notification dispatch)
     // -----------------------------------------------------------------------
     if (data.action === "sendEmail" || data.actionType === "sendEmail") {
-      var recipient = data.to || data.requesterEmail || data.guestEmail;
+      var recipient = data.to || data.recipientEmail || data.requesterEmail || data.guestEmail;
       if (recipient && recipient.indexOf("@") !== -1) {
-        MailApp.sendEmail({
-          to: recipient,
-          subject: data.subject || "[FleetFlow] Vehicle Reservation Notice",
-          htmlBody: data.html || data.htmlBody || ("<pre>" + (data.body || data.text || "Booking notification") + "</pre>"),
-          name: "FleetFlow Transport"
-        });
-        return ContentService.createTextOutput(JSON.stringify({
-          status: "success",
-          success: true,
-          message: "Email sent to " + recipient
-        })).setMimeType(ContentService.MimeType.JSON);
+        try {
+          MailApp.sendEmail({
+            to: recipient,
+            subject: data.subject || "[FleetFlow] Vehicle Reservation Notice",
+            htmlBody: data.html || data.htmlBody || ("<pre>" + (data.body || data.text || "Booking notification") + "</pre>"),
+            name: "FleetFlow Transport"
+          });
+          return ContentService.createTextOutput(JSON.stringify({
+            status: "success",
+            success: true,
+            message: "Email sent to " + recipient
+          })).setMimeType(ContentService.MimeType.JSON);
+        } catch (sendErr) {
+          return ContentService.createTextOutput(JSON.stringify({
+            status: "error",
+            success: false,
+            error: sendErr.toString()
+          })).setMimeType(ContentService.MimeType.JSON);
+        }
       }
     }
 
@@ -397,7 +443,8 @@ function doPost(e) {
     var title = data.title || data.summary || ("Vehicle Booking - " + (data.requesterName || "User"));
     var description = data.description || "";
     var location = data.location || "";
-    var requesterEmail = data.requesterEmail || data.guests || data.guestEmail || "";
+    var requesterEmail = data.requesterEmail || data.guestEmail || "";
+    var driverEmail = data.driverEmail || "";
     
     var startStr = data.startTime || data.startIso || (data.start && data.start.dateTime);
     var endStr = data.endTime || data.endIso || (data.end && data.end.dateTime);
@@ -406,18 +453,28 @@ function doPost(e) {
     if (isNaN(startTime.getTime())) startTime = new Date();
     if (isNaN(endTime.getTime())) endTime = new Date(startTime.getTime() + 60 * 60 * 1000);
 
+    // Build unique guest emails list for calendar invites
+    var guestList = [];
+    if (data.guests && typeof data.guests === 'string') {
+      guestList = data.guests.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s.indexOf('@') !== -1; });
+    } else {
+      if (requesterEmail && requesterEmail.indexOf("@") !== -1) guestList.push(requesterEmail);
+      if (driverEmail && driverEmail.indexOf("@") !== -1) guestList.push(driverEmail);
+    }
+    guestList = guestList.filter(function(item, pos) { return guestList.indexOf(item) === pos; });
+
     var eventOptions = {
       description: description,
       location: location,
       sendInvites: true
     };
-    if (requesterEmail && requesterEmail.indexOf("@") !== -1) {
-      eventOptions.guests = requesterEmail;
+    if (guestList.length > 0) {
+      eventOptions.guests = guestList.join(',');
     }
 
     var createdEvent = cal.createEvent(title, startTime, endTime, eventOptions);
 
-    // Also dispatch direct confirmation HTML email to requester
+    // 1. Dispatch confirmation HTML email to Requester
     if (requesterEmail && (data.emailHtml || data.sendEmail)) {
       try {
         MailApp.sendEmail({
@@ -427,7 +484,21 @@ function doPost(e) {
           name: "FleetFlow Transport"
         });
       } catch (mailErr) {
-        Logger.log("MailApp error: " + mailErr.toString());
+        Logger.log("Requester MailApp error: " + mailErr.toString());
+      }
+    }
+
+    // 2. Dispatch duty notification HTML email to Driver
+    if (driverEmail && driverEmail.indexOf("@") !== -1) {
+      try {
+        MailApp.sendEmail({
+          to: driverEmail,
+          subject: data.driverEmailSubject || ("🚐 New Trip Assignment: " + title),
+          htmlBody: data.driverEmailHtml || data.emailHtml || ("<p>You have been assigned to trip: <strong>" + title + "</strong></p>"),
+          name: "FleetFlow Transport"
+        });
+      } catch (driverErr) {
+        Logger.log("Driver MailApp error: " + driverErr.toString());
       }
     }
 
@@ -436,7 +507,7 @@ function doPost(e) {
       success: true,
       id: createdEvent.getId(),
       title: createdEvent.getTitle(),
-      guestInvited: Boolean(requesterEmail)
+      guestsInvited: guestList
     })).setMimeType(ContentService.MimeType.JSON);
 
   } catch (error) {

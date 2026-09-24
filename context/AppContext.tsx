@@ -465,7 +465,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setBookings(prev => [...newBookings, ...prev]);
       if (activeTenant) {
         newBookings.forEach(b => {
-          googleCalendarService.createEvent(activeTenant, b).then(eventId => {
+          googleCalendarService.createEvent(activeTenant, b, vehicles, users).then(eventId => {
             if (eventId) {
               setBookings(prev => prev.map(x => (x.id === b.id ? { ...x, calendarEventId: eventId } : x)));
               storageService.updateBooking({ id: b.id, calendarEventId: eventId }).catch(() => {});
@@ -531,7 +531,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       setBookings(prev => [newBooking, ...prev]);
       if (activeTenant) {
-        googleCalendarService.createEvent(activeTenant, newBooking, vehicles).then(eventId => {
+        googleCalendarService.createEvent(activeTenant, newBooking, vehicles, users).then(eventId => {
           if (eventId) {
             newBooking.calendarEventId = eventId;
             setBookings(prev => prev.map(b => (b.id === newBooking.id ? { ...b, calendarEventId: eventId } : b)));
@@ -566,7 +566,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
 
     if (activeTenant) {
-      googleCalendarService.updateEvent(activeTenant, updatedFullBooking, vehicles).catch(err => {
+      googleCalendarService.updateEvent(activeTenant, updatedFullBooking, vehicles, users).catch(err => {
         console.warn('Gagal sync kemaskini kalendar:', err);
       });
     }
@@ -575,7 +575,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       console.error('Gagal kemaskini booking di pangkalan data:', err);
       alert('Gagal kemaskini booking: ' + err.message);
     });
-  }, [bookings, vehicles, setUndoableAction, activeTenant]);
+  }, [bookings, vehicles, users, setUndoableAction, activeTenant]);
 
   const deleteBooking = useCallback((bookingId: string) => {
     clearUndoState();

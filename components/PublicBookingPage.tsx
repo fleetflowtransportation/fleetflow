@@ -249,7 +249,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
     // Google Calendar Sync
     if (tenant) {
       try {
-        const calEventId = await googleCalendarService.createEvent(tenant, newBooking);
+        const calEventId = await googleCalendarService.createEvent(tenant, newBooking, vehicles, users);
         if (calEventId) {
           newBooking.calendarEventId = calEventId;
         }
