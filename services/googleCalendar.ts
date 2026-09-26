@@ -1,4 +1,4 @@
-import { Tenant, Booking, Vehicle } from '../types';
+import { Tenant, Booking, Vehicle, User } from '../types';
 import { parseAsLocal, getPickupLocationDisplay } from '../utils';
 import { normalizeDate, normalizeTime } from './bookingEngine';
 

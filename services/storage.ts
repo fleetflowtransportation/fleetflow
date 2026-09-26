@@ -1136,6 +1136,10 @@ export const storageService = {
         console.warn('[Supabase] getTenant warning:', error.message);
       }
 
+      if (!data && id !== 'yayasan-chow-kit') {
+        return null;
+      }
+
       let scriptUrl = data?.google_apps_script_url || localProfile.googleAppsScriptUrl || '';
       let calendarId = data?.google_calendar_id || localProfile.googleCalendarId || '';
       let driveId = data?.google_drive_id || localProfile.googleDriveId || '';
