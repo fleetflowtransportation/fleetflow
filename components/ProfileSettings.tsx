@@ -36,22 +36,22 @@ export const ProfileSettings: React.FC = () => {
 
     const actualTenantId = activeTenant?.id;
     if (!actualTenantId) {
-      setDeleteError('Sila log masuk semula untuk memadam.');
+      setDeleteError('Please log in again to delete your organization.');
       return;
     }
 
     if (actualTenantId === 'yayasan-chow-kit') {
-      setDeleteError('Akaun demo lalai ("yayasan-chow-kit") tidak dibenarkan untuk dipadam.');
+      setDeleteError('The default demo organization ("yayasan-chow-kit") is protected and cannot be deleted.');
       return;
     }
 
     if (deleteInputTenantId.trim().toLowerCase() !== actualTenantId.toLowerCase()) {
-      setDeleteError(`ID Organisasi mestilah sepadan dengan "${actualTenantId}" secara tepat.`);
+      setDeleteError(`Organization ID must match "${actualTenantId}" exactly.`);
       return;
     }
 
     if (deleteInputPhrase.trim().toUpperCase() !== 'DELETE') {
-      setDeleteError('Sila taip perkataan "DELETE" dengan betul untuk mengesahkan.');
+      setDeleteError('Please type the word "DELETE" exactly to confirm.');
       return;
     }
 
@@ -59,13 +59,13 @@ export const ProfileSettings: React.FC = () => {
     try {
       const success = await deleteTenantCompletely(actualTenantId);
       if (success) {
-        alert('Organisasi anda dan semua rekod pangkalan data berkaitan telah dipadamkan sepenuhnya.');
+        alert('Your organization and all related database records have been permanently deleted.');
         logout();
       } else {
-        setDeleteError('Gagal memadam organisasi. Sila cuba lagi.');
+        setDeleteError('Failed to delete organization. Please try again.');
       }
     } catch (err: any) {
-      setDeleteError(err.message || 'Ralat luar jangkaan berlaku semasa pemadaman.');
+      setDeleteError(err.message || 'An unexpected error occurred during deletion.');
     } finally {
       setDeleteLoading(false);
     }
@@ -1041,7 +1041,7 @@ export const ProfileSettings: React.FC = () => {
         </div>
       </div>
 
-      {/* Danger Zone: Padam Organisasi & Akaun */}
+      {/* Danger Zone: Delete Organization & Account */}
       {currentUser?.role === 'admin' && (
         <div className="bg-white rounded-2xl shadow-sm border border-red-200 p-6 space-y-6">
           <div className="flex items-start gap-4">
@@ -1051,16 +1051,16 @@ export const ProfileSettings: React.FC = () => {
               </svg>
             </div>
             <div className="space-y-1">
-              <h3 className="text-lg font-bold text-red-700">Zon Bahaya: Padam Organisasi & Akaun</h3>
+              <h3 className="text-lg font-bold text-red-700">Danger Zone: Delete Organization & Account</h3>
               <p className="text-xs text-gray-500 leading-relaxed">
-                Tindakan ini adalah kekal dan tidak boleh diundur. Memadam organisasi akan memadamkan secara kekal semua kenderaan, tempahan, log bahan api, log odometer, jadual pemandu, log isu, kakitangan pandu-sendiri, profil penyelenggaraan, dan seluruh akaun pengguna di bawah ID organisasi ini.
+                This action is permanent and cannot be undone. Deleting your organization will permanently erase all vehicles, bookings, fuel logs, odometer logs, driver schedules, issue logs, self-drive staff records, maintenance profiles, and all user accounts under this organization ID.
               </p>
             </div>
           </div>
 
           {activeTenant?.id === 'yayasan-chow-kit' ? (
             <div className="p-3 bg-gray-50 text-gray-600 rounded-xl text-xs border border-gray-200">
-              🔒 <strong>Nota Keselamatan:</strong> Akaun demo lalai ("yayasan-chow-kit") dilindungi dan tidak boleh dipadamkan.
+              🔒 <strong>Security Note:</strong> The default demo organization ("yayasan-chow-kit") is protected and cannot be deleted.
             </div>
           ) : (
             <>
@@ -1074,40 +1074,40 @@ export const ProfileSettings: React.FC = () => {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                     </svg>
-                    Mula Proses Pemadaman Akaun
+                    Begin Account Deletion Process
                   </button>
                 </div>
               ) : (
                 <form onSubmit={handleDeleteAccountSubmit} className="pt-4 border-t border-red-100 space-y-4 max-w-xl">
                   {deleteError && (
                     <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 font-semibold leading-relaxed">
-                      ⚠️ Ralat: {deleteError}
+                      ⚠️ Error: {deleteError}
                     </div>
                   )}
 
                   <div className="space-y-1">
                     <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Langkah 1: Masukkan ID Organisasi Anda
+                      Step 1: Enter Your Organization ID
                     </p>
                     <p className="text-[11px] text-gray-500 mb-1">
-                      Sila taip <strong>{activeTenant?.id}</strong> untuk mengesahkan:
+                      Please type <strong>{activeTenant?.id}</strong> to confirm:
                     </p>
                     <input
                       type="text"
                       required
                       value={deleteInputTenantId}
                       onChange={(e) => setDeleteInputTenantId(e.target.value)}
-                      placeholder={activeTenant?.id || 'id-organisasi-anda'}
+                      placeholder={activeTenant?.id || 'your-organization-id'}
                       className="block w-full border border-red-200 focus:ring-red-500 focus:border-red-500 rounded-xl shadow-sm p-3 text-sm outline-none font-mono"
                     />
                   </div>
 
                   <div className="space-y-1">
                     <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Langkah 2: Masukkan Frasa Pengesahan
+                      Step 2: Enter Confirmation Phrase
                     </p>
                     <p className="text-[11px] text-gray-500 mb-1">
-                      Sila taip perkataan <strong>DELETE</strong> dalam huruf besar:
+                      Please type the word <strong>DELETE</strong> in all uppercase letters:
                     </p>
                     <input
                       type="text"
@@ -1125,7 +1125,7 @@ export const ProfileSettings: React.FC = () => {
                       disabled={deleteLoading || deleteInputTenantId.trim().toLowerCase() !== activeTenant?.id?.toLowerCase() || deleteInputPhrase.trim().toUpperCase() !== 'DELETE'}
                       className="px-5 py-3 bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-30 disabled:pointer-events-none flex items-center gap-2 cursor-pointer"
                     >
-                      {deleteLoading ? 'Sedang Memadam...' : 'Padam Akaun & Semua Data Selamanya'}
+                      {deleteLoading ? 'Deleting...' : 'Delete Account & All Data Permanently'}
                     </button>
                     <button
                       type="button"
@@ -1137,7 +1137,7 @@ export const ProfileSettings: React.FC = () => {
                       }}
                       className="px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs rounded-xl transition"
                     >
-                      Batal
+                      Cancel
                     </button>
                   </div>
                 </form>
