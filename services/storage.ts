@@ -423,21 +423,24 @@ export const storageService = {
       const { data, error } = await supabase.from('fleet_users').select('*').eq('tenant_id', getTenantId()).order('created_at', { ascending: true });
       if (error) {
         console.warn('[Supabase] getUsers query error, falling back to defaults:', error.message);
-        return USERS;
+        return getTenantId() === 'yayasan-chow-kit' ? USERS : [];
       }
       if (!data || data.length === 0) {
-        console.log('[Supabase] Seeding initial users into fleet_users table...');
-        const dbRows = USERS.map(toDbUser);
-        const { error: insertError } = await supabase.from('fleet_users').insert(dbRows);
-        if (insertError) {
-          console.error('[Supabase] Failed to seed initial users:', insertError.message);
+        if (getTenantId() === 'yayasan-chow-kit') {
+          console.log('[Supabase] Seeding initial users into fleet_users table...');
+          const dbRows = USERS.map(toDbUser);
+          const { error: insertError } = await supabase.from('fleet_users').insert(dbRows);
+          if (insertError) {
+            console.error('[Supabase] Failed to seed initial users:', insertError.message);
+          }
+          return USERS;
         }
-        return USERS;
+        return [];
       }
       return data.map(fromDbUser);
     } catch (err: any) {
       console.warn('[Supabase] getUsers network exception:', err.message);
-      return USERS;
+      return getTenantId() === 'yayasan-chow-kit' ? USERS : [];
     }
   },
 
@@ -446,21 +449,24 @@ export const storageService = {
       const { data, error } = await supabase.from('vehicles').select('*').eq('tenant_id', getTenantId()).order('created_at', { ascending: true });
       if (error) {
         console.warn('[Supabase] getVehicles query error, falling back to defaults:', error.message);
-        return VEHICLES;
+        return getTenantId() === 'yayasan-chow-kit' ? VEHICLES : [];
       }
       if (!data || data.length === 0) {
-        console.log('[Supabase] Seeding initial vehicles into vehicles table...');
-        const dbRows = VEHICLES.map(toDbVehicle);
-        const { error: insertError } = await supabase.from('vehicles').insert(dbRows);
-        if (insertError) {
-          console.error('[Supabase] Failed to seed initial vehicles:', insertError.message);
+        if (getTenantId() === 'yayasan-chow-kit') {
+          console.log('[Supabase] Seeding initial vehicles into vehicles table...');
+          const dbRows = VEHICLES.map(toDbVehicle);
+          const { error: insertError } = await supabase.from('vehicles').insert(dbRows);
+          if (insertError) {
+            console.error('[Supabase] Failed to seed initial vehicles:', insertError.message);
+          }
+          return VEHICLES;
         }
-        return VEHICLES;
+        return [];
       }
       return data.map(fromDbVehicle);
     } catch (err: any) {
       console.warn('[Supabase] getVehicles network exception:', err.message);
-      return VEHICLES;
+      return getTenantId() === 'yayasan-chow-kit' ? VEHICLES : [];
     }
   },
 
@@ -469,7 +475,7 @@ export const storageService = {
       const { data, error } = await supabase.from('bookings').select('*').eq('tenant_id', getTenantId()).order('date_time', { ascending: true });
       if (error) {
         console.warn('[Supabase] getBookings fallback:', error.message);
-        return INITIAL_BOOKINGS;
+        return getTenantId() === 'yayasan-chow-kit' ? INITIAL_BOOKINGS : [];
       }
       if (!data || data.length === 0) {
         return [];
@@ -477,7 +483,7 @@ export const storageService = {
       return data.map(fromDbBooking);
     } catch (err: any) {
       console.warn('[Supabase] getBookings network exception:', err.message);
-      return INITIAL_BOOKINGS;
+      return getTenantId() === 'yayasan-chow-kit' ? INITIAL_BOOKINGS : [];
     }
   },
 
@@ -928,7 +934,6 @@ export const storageService = {
     return { id };
   },
 
-  // ---- MAINTENANCE INTERVALS ----
   getMaintenanceIntervals: async (): Promise<MaintenanceInterval[]> => {
     const tenantId = getTenantId();
     let localList: MaintenanceInterval[] = [];
@@ -936,12 +941,14 @@ export const storageService = {
       const raw = localStorage.getItem(`fleetflow_maintenance_intervals_${tenantId}`);
       if (raw) {
         localList = JSON.parse(raw);
-      } else {
+      } else if (tenantId === 'yayasan-chow-kit') {
         localList = INITIAL_MAINTENANCE_INTERVALS.map(m => ({ ...m, tenantId }));
         localStorage.setItem(`fleetflow_maintenance_intervals_${tenantId}`, JSON.stringify(localList));
       }
     } catch {
-      localList = INITIAL_MAINTENANCE_INTERVALS.map(m => ({ ...m, tenantId }));
+      if (tenantId === 'yayasan-chow-kit') {
+        localList = INITIAL_MAINTENANCE_INTERVALS.map(m => ({ ...m, tenantId }));
+      }
     }
 
     try {
@@ -1022,7 +1029,6 @@ export const storageService = {
     return { id };
   },
 
-  // ---- MAINTENANCE LOGS ----
   getMaintenanceLogs: async (): Promise<MaintenanceLog[]> => {
     const tenantId = getTenantId();
     let localList: MaintenanceLog[] = [];
@@ -1030,12 +1036,14 @@ export const storageService = {
       const raw = localStorage.getItem(`fleetflow_maintenance_logs_${tenantId}`);
       if (raw) {
         localList = JSON.parse(raw);
-      } else {
+      } else if (tenantId === 'yayasan-chow-kit') {
         localList = INITIAL_MAINTENANCE_LOGS.map(l => ({ ...l, tenantId }));
         localStorage.setItem(`fleetflow_maintenance_logs_${tenantId}`, JSON.stringify(localList));
       }
     } catch {
-      localList = INITIAL_MAINTENANCE_LOGS.map(l => ({ ...l, tenantId }));
+      if (tenantId === 'yayasan-chow-kit') {
+        localList = INITIAL_MAINTENANCE_LOGS.map(l => ({ ...l, tenantId }));
+      }
     }
 
     try {
@@ -1343,6 +1351,62 @@ export const storageService = {
     } catch (err: any) {
       console.error('[Supabase] signUpTenant exception:', err.message);
       return false;
+    }
+  },
+
+  deleteTenantCompletely: async (tenantId: string): Promise<boolean> => {
+    try {
+      if (!tenantId || tenantId === 'yayasan-chow-kit') {
+        throw new Error('Cannot delete the default demo tenant.');
+      }
+
+      const tables = [
+        'bookings',
+        'fuel_logs',
+        'odometer_logs',
+        'issue_logs',
+        'driver_schedules',
+        'self_drive_staff',
+        'maintenance_intervals',
+        'maintenance_logs',
+        'vehicles',
+        'fleet_users'
+      ];
+
+      for (const table of tables) {
+        const { error } = await supabase
+          .from(table)
+          .delete()
+          .eq('tenant_id', tenantId);
+        if (error) {
+          console.error(`[Supabase] Failed to delete from ${table}:`, error.message);
+        }
+      }
+
+      const { error: tenantError } = await supabase
+        .from('tenants')
+        .delete()
+        .eq('id', tenantId);
+
+      if (tenantError) {
+        console.error('[Supabase] Failed to delete tenant record:', tenantError.message);
+        throw new Error(tenantError.message);
+      }
+
+      try {
+        localStorage.removeItem(`fleetflow_tenant_config_${tenantId}`);
+        localStorage.removeItem(`fleetflow_profile_draft_${tenantId}`);
+        localStorage.removeItem(`fleetflow_self_drive_staff_${tenantId}`);
+        localStorage.removeItem(`fleetflow_maintenance_intervals_${tenantId}`);
+        localStorage.removeItem(`fleetflow_maintenance_logs_${tenantId}`);
+      } catch {
+        // ignore
+      }
+
+      return true;
+    } catch (err: any) {
+      console.error('[Supabase] deleteTenantCompletely exception:', err);
+      throw err;
     }
   },
 };

@@ -57,6 +57,7 @@ interface AppContextType {
   updateTenantGoogleIntegrations: (settings: { googleAppsScriptUrl?: string; googleCalendarId?: string; googleDriveId?: string }) => Promise<boolean>;
   updateTenantProfile: (profileData: Partial<Tenant>) => Promise<boolean>;
   registerOrganization: (tenantId: string, tenantName: string, adminName: string, adminEmail: string, adminPassword?: string) => Promise<boolean>;
+  deleteTenantCompletely: (tenantId: string) => Promise<boolean>;
   selfDriveStaff: SelfDriveStaff[];
   addSelfDriveStaff: (staff: Omit<SelfDriveStaff, 'id' | 'createdAt'>) => Promise<SelfDriveStaff>;
   updateSelfDriveStaff: (staffId: string, updatedData: Partial<Omit<SelfDriveStaff, 'id'>>) => Promise<void>;
@@ -287,6 +288,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
     return success;
   }, [reload]);
+
+  const deleteTenantCompletely = useCallback(async (tenantId: string): Promise<boolean> => {
+    return await storageService.deleteTenantCompletely(tenantId);
+  }, []);
 
   const clearUndoState = useCallback(() => {
     if (undoTimeoutRef.current) {
@@ -1243,6 +1248,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       updateTenantGoogleIntegrations,
       updateTenantProfile,
       registerOrganization,
+      deleteTenantCompletely,
       selfDriveStaff,
       addSelfDriveStaff,
       updateSelfDriveStaff,
