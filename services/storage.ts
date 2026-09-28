@@ -40,24 +40,85 @@ const fromDbUser = (row: any): User => ({
 });
 
 // Helper: Convert Vehicle TS to DB
-const toDbVehicle = (v: Partial<Vehicle>) => ({
-  ...(v.id && { id: v.id }),
-  ...(v.name !== undefined && { name: v.name }),
-  ...(v.plateNumber !== undefined && { plate_number: v.plateNumber }),
-  ...(v.photoUrl !== undefined && { photo_url: v.photoUrl }),
-  ...(v.specifications !== undefined && { specifications: v.specifications }),
-  tenant_id: v.tenantId || getTenantId(),
-});
+const toDbVehicle = (v: Partial<Vehicle>) => {
+  const meta = {
+    vinChassisNumber: v.vinChassisNumber,
+    engineNumber: v.engineNumber,
+    photoName: v.photoName,
+    vehicleType: v.vehicleType,
+    brandMake: v.brandMake,
+    manufactureYear: v.manufactureYear,
+    ownershipType: v.ownershipType,
+    vehicleStatus: v.vehicleStatus,
+    assignedBranch: v.assignedBranch,
+    assignedDriverId: v.assignedDriverId,
+    fuelType: v.fuelType,
+    fuelCardNumber: v.fuelCardNumber,
+    currentOdometer: v.currentOdometer,
+    maxPayloadCapacityKg: v.maxPayloadCapacityKg,
+    engineCapacityCc: v.engineCapacityCc,
+    roadTaxExpiry: v.roadTaxExpiry,
+    insuranceExpiry: v.insuranceExpiry,
+    puspakomExpiry: v.puspakomExpiry,
+    permitExpiry: v.permitExpiry,
+    grantAttachmentUrl: v.grantAttachmentUrl,
+    grantAttachmentName: v.grantAttachmentName,
+    rawSpecs: v.specifications,
+  };
+
+  const packedSpecs = JSON.stringify(meta);
+
+  return {
+    ...(v.id && { id: v.id }),
+    ...(v.name !== undefined && { name: v.name }),
+    ...(v.plateNumber !== undefined && { plate_number: v.plateNumber }),
+    ...(v.photoUrl !== undefined && { photo_url: v.photoUrl }),
+    specifications: packedSpecs,
+    tenant_id: v.tenantId || getTenantId(),
+  };
+};
 
 // Helper: Convert DB Vehicle to TS
-const fromDbVehicle = (row: any): Vehicle => ({
-  id: row.id,
-  name: row.name,
-  plateNumber: row.plate_number,
-  photoUrl: row.photo_url || undefined,
-  specifications: row.specifications || undefined,
-  tenantId: row.tenant_id || getTenantId(),
-});
+const fromDbVehicle = (row: any): Vehicle => {
+  let meta: any = {};
+  if (row.specifications && typeof row.specifications === 'string' && row.specifications.startsWith('{')) {
+    try {
+      meta = JSON.parse(row.specifications);
+    } catch {
+      meta = {};
+    }
+  }
+
+  return {
+    id: row.id,
+    name: row.name || meta.name || '',
+    plateNumber: row.plate_number || meta.plateNumber || '',
+    photoUrl: row.photo_url || meta.photoUrl || undefined,
+    photoName: row.photo_name || meta.photoName || undefined,
+    specifications: meta.rawSpecs !== undefined ? meta.rawSpecs : (row.specifications && !row.specifications.startsWith('{') ? row.specifications : undefined),
+    vinChassisNumber: row.vin_chassis_number || meta.vinChassisNumber || undefined,
+    engineNumber: row.engine_number || meta.engineNumber || undefined,
+    vehicleType: row.vehicle_type || meta.vehicleType || 'Van',
+    brandMake: row.brand_make || meta.brandMake || '',
+    manufactureYear: row.manufacture_year ? Number(row.manufacture_year) : (meta.manufactureYear ? Number(meta.manufactureYear) : undefined),
+    ownershipType: row.ownership_type || meta.ownershipType || 'Owned',
+    vehicleStatus: row.vehicle_status || meta.vehicleStatus || 'Active',
+    assignedBranch: row.assigned_branch || meta.assignedBranch || undefined,
+    assignedDriverId: row.assigned_driver_id || meta.assignedDriverId || undefined,
+    fuelType: row.fuel_type || meta.fuelType || 'Diesel',
+    fuelCardNumber: row.fuel_card_number || meta.fuelCardNumber || undefined,
+    currentOdometer: row.current_odometer !== undefined && row.current_odometer !== null ? Number(row.current_odometer) : (meta.currentOdometer !== undefined ? Number(meta.currentOdometer) : 0),
+    maxPayloadCapacityKg: row.max_payload_capacity_kg ? Number(row.max_payload_capacity_kg) : (meta.maxPayloadCapacityKg ? Number(meta.maxPayloadCapacityKg) : undefined),
+    engineCapacityCc: row.engine_capacity_cc ? Number(row.engine_capacity_cc) : (meta.engineCapacityCc ? Number(meta.engineCapacityCc) : undefined),
+    roadTaxExpiry: row.road_tax_expiry || meta.roadTaxExpiry || '',
+    insuranceExpiry: row.insurance_expiry || meta.insuranceExpiry || '',
+    puspakomExpiry: row.puspakom_expiry || meta.puspakomExpiry || undefined,
+    permitExpiry: row.permit_expiry || meta.permitExpiry || undefined,
+    grantAttachmentUrl: row.grant_attachment_url || meta.grantAttachmentUrl || undefined,
+    grantAttachmentName: row.grant_attachment_name || meta.grantAttachmentName || undefined,
+    tenantId: row.tenant_id || getTenantId(),
+  };
+};
 
 // Helper: Convert Booking TS to DB
 const toDbBooking = (b: Partial<Booking>) => {

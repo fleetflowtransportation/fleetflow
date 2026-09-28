@@ -12,11 +12,64 @@ export interface User {
   tenantId?: string;
 }
 
+export type VehicleType = 
+  | 'Sedan' 
+  | 'SUV' 
+  | 'MPV' 
+  | 'Van' 
+  | 'Lorry 1-Ton' 
+  | 'Lorry 3-Ton' 
+  | 'Prime Mover' 
+  | 'Motorcycle' 
+  | 'Pickup Truck';
+
+export const VEHICLE_TYPES: VehicleType[] = [
+  'Sedan',
+  'SUV',
+  'MPV',
+  'Van',
+  'Lorry 1-Ton',
+  'Lorry 3-Ton',
+  'Prime Mover',
+  'Motorcycle',
+  'Pickup Truck'
+];
+
+export type VehicleOwnershipType = 'Owned' | 'Leased' | 'Rented';
+export const VEHICLE_OWNERSHIP_TYPES: VehicleOwnershipType[] = ['Owned', 'Leased', 'Rented'];
+
+export type VehicleOperationalStatus = 'Active' | 'Under Maintenance' | 'Inactive' | 'Sold';
+export const VEHICLE_OPERATIONAL_STATUSES: VehicleOperationalStatus[] = ['Active', 'Under Maintenance', 'Inactive', 'Sold'];
+
+export type FuelType = 'Diesel' | 'Petrol' | 'EV' | 'Hybrid';
+export const FUEL_TYPES: FuelType[] = ['Diesel', 'Petrol', 'EV', 'Hybrid'];
+
 export interface Vehicle {
   id: string;
-  name: string;
-  plateNumber: string;
-  photoUrl?: string;
+  name: string; // vehicle_name
+  plateNumber: string; // plate_number (unique)
+  vinChassisNumber?: string; // vin_chassis_number
+  engineNumber?: string; // engine_number
+  photoUrl?: string; // vehicle_photo URL / blob
+  photoName?: string;
+  vehicleType?: VehicleType; // vehicle_type
+  brandMake?: string; // brand_make
+  manufactureYear?: number; // manufacture_year
+  ownershipType?: VehicleOwnershipType; // ownership_type
+  vehicleStatus?: VehicleOperationalStatus; // vehicle_status
+  assignedBranch?: string; // assigned_branch
+  assignedDriverId?: string; // assigned_driver_id
+  fuelType?: FuelType; // fuel_type
+  fuelCardNumber?: string; // fuel_card_number
+  currentOdometer?: number; // current_odometer (km)
+  maxPayloadCapacityKg?: number; // max_payload_capacity_kg
+  engineCapacityCc?: number; // engine_capacity_cc
+  roadTaxExpiry?: string; // road_tax_expiry (YYYY-MM-DD)
+  insuranceExpiry?: string; // insurance_expiry (YYYY-MM-DD)
+  puspakomExpiry?: string; // puspakom_expiry (YYYY-MM-DD)
+  permitExpiry?: string; // permit_expiry (YYYY-MM-DD)
+  grantAttachmentUrl?: string; // grant_document
+  grantAttachmentName?: string;
   specifications?: string;
   tenantId?: string;
 }

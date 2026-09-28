@@ -1055,9 +1055,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     storageService.createVehicle(newVehicle)
       .then(saved => {
         setVehicles(prev => prev.map(v => (v.id === newVehicle.id ? saved : v)));
+        if (newVehicle.currentOdometer && Number(newVehicle.currentOdometer) > 0) {
+          const initialOdo: OdometerLog = {
+            id: tempId('odo'),
+            vehicleId: newVehicle.id,
+            driverId: newVehicle.assignedDriverId || '',
+            date: new Date().toISOString().split('T')[0],
+            odometer: Number(newVehicle.currentOdometer),
+            startOdometer: Number(newVehicle.currentOdometer),
+            distance: 0,
+            purpose: 'Initial Vehicle Registration Odometer',
+            tenantId: newVehicle.tenantId || storageService.getTenantId()
+          };
+          setOdometerLogs(prev => [initialOdo, ...prev]);
+          storageService.createOdometerLog(initialOdo).catch(console.warn);
+        }
       })
       .catch(err => {
-        alert('Gagal simpan vehicle: ' + err.message);
+        alert('Failed to save vehicle: ' + err.message);
         setVehicles(prev => prev.filter(v => v.id !== newVehicle.id));
       });
   }, []);

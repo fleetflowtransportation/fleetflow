@@ -184,10 +184,31 @@ const VehicleManagement: React.FC = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [viewingLogsFor, setViewingLogsFor] = useState<Vehicle | null>(null);
-  const { vehicles, deleteVehicle, odometerLogs, bookings, issueLogs } = useAppContext();
+  const { vehicles, deleteVehicle, odometerLogs, bookings, issueLogs, users } = useAppContext();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+
+  const getExpiryBadge = (dateStr?: string, label: string = 'Expiry') => {
+    if (!dateStr) return null;
+    const target = new Date(dateStr);
+    const now = new Date();
+    const diffDays = Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    let colorClass = 'bg-slate-100 text-slate-700 border-slate-200';
+    let text = `${label}: ${dateStr}`;
+    if (diffDays < 0) {
+      colorClass = 'bg-rose-50 text-rose-700 border-rose-200 font-bold';
+      text = `⚠️ ${label}: Expired (${Math.abs(diffDays)}d ago)`;
+    } else if (diffDays <= 30) {
+      colorClass = 'bg-amber-50 text-amber-800 border-amber-200 font-semibold';
+      text = `⏳ ${label}: ${diffDays}d left`;
+    }
+    return (
+      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] border ${colorClass}`}>
+        {text}
+      </span>
+    );
+  };
 
   const latestOdometerReadings = useMemo(() => {
     const readings = new Map<string, number>();
@@ -378,33 +399,99 @@ const VehicleManagement: React.FC = () => {
                         <TruckIcon className="h-8 w-8 text-gray-400"/>
                       </div>
                     )}
-                    <div className="flex-grow">
-                      <p className="text-lg font-bold text-gray-900">{vehicle.name}</p>
-                      <p className="text-sm text-gray-500 font-mono">{vehicle.plateNumber}</p>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {status?.statusLabel === 'On Trip' && <span className="text-xs font-semibold bg-blue-100 text-blue-800 px-2 py-1 rounded-full">On Trip</span>}
-                        {status?.hasIssues && !status.isOutOfService && <span className="text-xs font-semibold bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">Has Issue</span>}
-                        {status?.isOutOfService && <span className="text-xs font-semibold bg-red-100 text-red-800 px-2 py-1 rounded-full">Out of Service</span>}
-                        {status?.statusLabel === 'Available' && <span className="text-xs font-semibold bg-green-100 text-green-800 px-2 py-1 rounded-full">Available</span>}
+                    <div className="flex-grow min-w-0">
+                      <div className="flex items-start justify-between gap-1">
+                        <p className="text-base font-bold text-gray-900 truncate" title={vehicle.name}>
+                          {vehicle.name}
+                        </p>
+                        {vehicle.vehicleType && (
+                          <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 flex-shrink-0">
+                            {vehicle.vehicleType}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-0.5 text-xs text-gray-500">
+                        <span className="font-mono font-bold text-gray-800 tracking-wider uppercase">{vehicle.plateNumber}</span>
+                        {vehicle.brandMake && (
+                          <span>• {vehicle.brandMake} {vehicle.manufactureYear ? `(${vehicle.manufactureYear})` : ''}</span>
+                        )}
+                      </div>
+
+                      <div className="mt-2 flex flex-wrap gap-1.5 items-center">
+                        {status?.statusLabel === 'On Trip' && <span className="text-[11px] font-semibold bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">On Trip</span>}
+                        {status?.hasIssues && !status.isOutOfService && <span className="text-[11px] font-semibold bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">Has Issue</span>}
+                        {status?.isOutOfService && <span className="text-[11px] font-semibold bg-red-100 text-red-800 px-2 py-0.5 rounded-full">Out of Service</span>}
+                        {status?.statusLabel === 'Available' && <span className="text-[11px] font-semibold bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Available</span>}
+
+                        {vehicle.ownershipType && (
+                          <span className="text-[10px] font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200">
+                            {vehicle.ownershipType}
+                          </span>
+                        )}
+                        {vehicle.fuelType && (
+                          <span className="text-[10px] font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200">
+                            ⛽ {vehicle.fuelType}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
+
+                  {/* Assigned Driver and Branch info */}
+                  {(vehicle.assignedDriverId || vehicle.assignedBranch) && (
+                    <div className="mt-3 pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between text-xs text-slate-600 gap-2">
+                      {vehicle.assignedDriverId && (
+                        <div className="flex items-center gap-1.5">
+                          <UserCircleIcon className="w-4 h-4 text-slate-400" />
+                          <span>Driver: <strong className="text-slate-800">{users.find(u => u.id === vehicle.assignedDriverId)?.name || 'Assigned'}</strong></span>
+                        </div>
+                      )}
+                      {vehicle.assignedBranch && (
+                        <div className="text-[11px] text-slate-500 font-medium">
+                          📍 {vehicle.assignedBranch}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Compliance & Expiry Badges */}
+                  {(vehicle.roadTaxExpiry || vehicle.insuranceExpiry || vehicle.puspakomExpiry) && (
+                    <div className="mt-2.5 pt-2 border-t border-slate-100 flex flex-wrap gap-1.5 items-center">
+                      {getExpiryBadge(vehicle.roadTaxExpiry, 'Road Tax')}
+                      {getExpiryBadge(vehicle.insuranceExpiry, 'Insurance')}
+                      {vehicle.puspakomExpiry && getExpiryBadge(vehicle.puspakomExpiry, 'PUSPAKOM')}
+                      {vehicle.grantAttachmentUrl && (
+                        <a
+                          href={vehicle.grantAttachmentUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold px-2 py-0.5 rounded bg-indigo-50 border border-indigo-100"
+                        >
+                          📄 VOC / Grant
+                        </a>
+                      )}
+                    </div>
+                  )}
+
                   {status?.onTrip && (
-                      <div className="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-sm">
+                      <div className="mt-3 p-2.5 bg-blue-50 border-l-4 border-blue-400 text-xs rounded-r-md">
                           <p className="font-semibold text-blue-800">Current Trip</p>
-                          <p className="text-blue-700">To: {status.onTrip.destination}</p>
+                          <p className="text-blue-700 truncate">To: {status.onTrip.destination}</p>
                       </div>
                   )}
+
                   <div 
                       onClick={() => handleViewLogs(vehicle)} 
-                      className="mt-4 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                      className="mt-3 p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors border border-gray-100"
                   >
                       <div className="flex justify-between items-center">
                           <div>
-                              <p className="text-xs text-gray-500">Latest Odometer</p>
-                              <p className="text-lg font-semibold text-gray-800">{latestOdo ? `${latestOdo.toLocaleString()} km` : 'N/A'}</p>
+                              <p className="text-[11px] text-gray-500 font-medium">Current Odometer</p>
+                              <p className="text-base font-bold text-gray-900">
+                                {latestOdo ? `${latestOdo.toLocaleString()} km` : (vehicle.currentOdometer ? `${vehicle.currentOdometer.toLocaleString()} km` : '0 km')}
+                              </p>
                           </div>
-                          <GaugeIcon className="h-6 w-6 text-gray-400" />
+                          <GaugeIcon className="h-5 w-5 text-gray-400" />
                       </div>
                   </div>
                 </div>
