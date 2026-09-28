@@ -1,4 +1,4 @@
-import type { Booking, FuelLog, OdometerLog, User, Vehicle, IssueLog, DriverSchedule, Tenant, SelfDriveStaff, MaintenanceInterval, MaintenanceLog } from '../types';
+import type { Booking, FuelLog, OdometerLog, User, Vehicle, IssueLog, DriverSchedule, Tenant, SelfDriveStaff, MaintenanceInterval, MaintenanceLog, VehicleRenewal, ComplianceType } from '../types';
 import { USERS, VEHICLES, INITIAL_BOOKINGS, INITIAL_DRIVER_SCHEDULES, INITIAL_MAINTENANCE_INTERVALS, INITIAL_MAINTENANCE_LOGS } from '../constants';
 import { supabase } from './supabaseClient';
 
@@ -359,6 +359,42 @@ const fromDbSelfDriveStaff = (row: any): SelfDriveStaff => ({
   notes: row.notes || undefined,
   status: (row.status as 'active' | 'inactive') || 'active',
   createdAt: row.created_at || new Date().toISOString(),
+  tenantId: row.tenant_id || getTenantId(),
+});
+
+// Helper: Convert VehicleRenewal TS to DB
+const toDbRenewal = (r: Partial<VehicleRenewal>) => ({
+  ...(r.id && { id: r.id }),
+  ...(r.vehicleId !== undefined && { vehicle_id: r.vehicleId }),
+  ...(r.complianceType !== undefined && { compliance_type: r.complianceType }),
+  ...(r.oldExpiryDate !== undefined && { old_expiry_date: r.oldExpiryDate }),
+  ...(r.newExpiryDate !== undefined && { new_expiry_date: r.newExpiryDate }),
+  ...(r.renewalDate !== undefined && { renewal_date: r.renewalDate }),
+  ...(r.costAmount !== undefined && { cost_amount: r.costAmount }),
+  ...(r.providerAgentName !== undefined && { provider_agent_name: r.providerAgentName }),
+  ...(r.receiptPolicyDocumentUrl !== undefined && { receipt_policy_document_url: r.receiptPolicyDocumentUrl }),
+  ...(r.receiptPolicyDocumentName !== undefined && { receipt_policy_document_name: r.receiptPolicyDocumentName }),
+  ...(r.remarks !== undefined && { remarks: r.remarks }),
+  ...(r.createdBy !== undefined && { created_by: r.createdBy }),
+  tenant_id: r.tenantId || getTenantId(),
+});
+
+// Helper: Convert DB VehicleRenewal to TS
+const fromDbRenewal = (row: any): VehicleRenewal => ({
+  id: row.id,
+  vehicleId: row.vehicle_id,
+  complianceType: row.compliance_type as ComplianceType,
+  oldExpiryDate: row.old_expiry_date || undefined,
+  newExpiryDate: row.new_expiry_date,
+  renewalDate: row.renewal_date,
+  costAmount: Number(row.cost_amount || 0),
+  providerAgentName: row.provider_agent_name || undefined,
+  receiptPolicyDocumentUrl: row.receipt_policy_document_url || undefined,
+  receiptPolicyDocumentName: row.receipt_policy_document_name || undefined,
+  remarks: row.remarks || undefined,
+  createdBy: row.created_by || undefined,
+  createdAt: row.created_at || undefined,
+  updatedAt: row.updated_at || undefined,
   tenantId: row.tenant_id || getTenantId(),
 });
 
@@ -1186,6 +1222,146 @@ export const storageService = {
     return { id };
   },
 
+  // ---- VEHICLE COMPLIANCE RENEWALS ----
+  getVehicleRenewals: async (vehicleId?: string): Promise<VehicleRenewal[]> => {
+    const tenantId = getTenantId();
+    let localList: VehicleRenewal[] = [];
+    try {
+      const raw = localStorage.getItem(`fleetflow_vehicle_renewals_${tenantId}`);
+      if (raw) {
+        localList = JSON.parse(raw);
+      }
+    } catch {}
+
+    try {
+      let query = supabase
+        .from('vehicle_renewals')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('renewal_date', { ascending: false });
+
+      if (vehicleId) {
+        query = query.eq('vehicle_id', vehicleId);
+      }
+
+      const { data, error } = await query;
+      if (!error && data && data.length > 0) {
+        const dbItems = data.map(fromDbRenewal);
+        try {
+          if (!vehicleId) {
+            localStorage.setItem(`fleetflow_vehicle_renewals_${tenantId}`, JSON.stringify(dbItems));
+          }
+        } catch {}
+        return dbItems;
+      }
+    } catch (err: any) {
+      console.warn('[Supabase] getVehicleRenewals query error:', err.message);
+    }
+
+    if (vehicleId) {
+      return localList.filter(item => item.vehicleId === vehicleId);
+    }
+    return localList;
+  },
+
+  createVehicleRenewal: async (data: VehicleRenewal): Promise<VehicleRenewal> => {
+    const tenantId = getTenantId();
+    const itemWithTenant: VehicleRenewal = {
+      ...data,
+      tenantId: data.tenantId || tenantId,
+      createdAt: data.createdAt || new Date().toISOString(),
+      updatedAt: data.updatedAt || new Date().toISOString(),
+    };
+
+    try {
+      const raw = localStorage.getItem(`fleetflow_vehicle_renewals_${tenantId}`);
+      const list: VehicleRenewal[] = raw ? JSON.parse(raw) : [];
+      list.unshift(itemWithTenant);
+      localStorage.setItem(`fleetflow_vehicle_renewals_${tenantId}`, JSON.stringify(list));
+    } catch {}
+
+    try {
+      const dbRow = toDbRenewal(itemWithTenant);
+      const { error } = await supabase.from('vehicle_renewals').insert([dbRow]);
+      if (error) console.warn('[Supabase] createVehicleRenewal note:', error.message);
+    } catch (err: any) {
+      console.warn('[Supabase] createVehicleRenewal exception:', err.message);
+    }
+
+    return itemWithTenant;
+  },
+
+  deleteVehicleRenewal: async (id: string): Promise<{ id: string }> => {
+    const tenantId = getTenantId();
+    try {
+      const raw = localStorage.getItem(`fleetflow_vehicle_renewals_${tenantId}`);
+      if (raw) {
+        const list: VehicleRenewal[] = JSON.parse(raw);
+        const updated = list.filter(item => item.id !== id);
+        localStorage.setItem(`fleetflow_vehicle_renewals_${tenantId}`, JSON.stringify(updated));
+      }
+    } catch {}
+
+    try {
+      const { error } = await supabase.from('vehicle_renewals').delete().eq('id', id);
+      if (error) console.warn('[Supabase] deleteVehicleRenewal note:', error.message);
+    } catch {}
+
+    return { id };
+  },
+
+  renewVehicle: async (
+    vehicleId: string,
+    data: Omit<VehicleRenewal, 'id' | 'createdAt' | 'updatedAt'>
+  ): Promise<{ success: boolean; renewal: VehicleRenewal; updatedVehicle: Vehicle }> => {
+    const tenantId = getTenantId();
+    const newRenewalId = `renew-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const nowIso = new Date().toISOString();
+
+    const newRenewal: VehicleRenewal = {
+      ...data,
+      id: newRenewalId,
+      vehicleId,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+      tenantId: data.tenantId || tenantId,
+    };
+
+    // 1. Create renewal record in vehicle_renewals table to log history and cost
+    const savedRenewal = await storageService.createVehicleRenewal(newRenewal);
+
+    // 2. Map compliance_type to the corresponding vehicle expiry date field
+    const vehicleUpdate: Partial<Vehicle> = {};
+    if (data.complianceType === 'Insurance') {
+      vehicleUpdate.insuranceExpiry = data.newExpiryDate;
+    } else if (data.complianceType === 'Road Tax') {
+      vehicleUpdate.roadTaxExpiry = data.newExpiryDate;
+    } else if (data.complianceType === 'PUSPAKOM') {
+      vehicleUpdate.puspakomExpiry = data.newExpiryDate;
+    } else if (data.complianceType === 'Permit') {
+      vehicleUpdate.permitExpiry = data.newExpiryDate;
+    }
+
+    // 3. Update main vehicles table with the new expiry date
+    let updatedVehicle: Vehicle = { id: vehicleId, ...vehicleUpdate } as any;
+    try {
+      await storageService.updateVehicle({ id: vehicleId, ...vehicleUpdate });
+      const currentList = await storageService.getVehicles();
+      const found = currentList.find(v => v.id === vehicleId);
+      if (found) {
+        updatedVehicle = found;
+      }
+    } catch (err: any) {
+      console.warn('[Storage] renewVehicle vehicle update note:', err.message);
+    }
+
+    return {
+      success: true,
+      renewal: savedRenewal,
+      updatedVehicle,
+    };
+  },
+
   // ---- TENANTS & MULTITENANCY ----
   getTenant: async (id: string): Promise<Tenant | null> => {
     try {
@@ -1430,6 +1606,7 @@ export const storageService = {
         'self_drive_staff',
         'maintenance_intervals',
         'maintenance_logs',
+        'vehicle_renewals',
         'vehicles',
         'fleet_users'
       ];
@@ -1460,6 +1637,7 @@ export const storageService = {
         localStorage.removeItem(`fleetflow_self_drive_staff_${tenantId}`);
         localStorage.removeItem(`fleetflow_maintenance_intervals_${tenantId}`);
         localStorage.removeItem(`fleetflow_maintenance_logs_${tenantId}`);
+        localStorage.removeItem(`fleetflow_vehicle_renewals_${tenantId}`);
       } catch {
         // ignore
       }

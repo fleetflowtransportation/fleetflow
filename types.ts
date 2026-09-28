@@ -74,6 +74,27 @@ export interface Vehicle {
   tenantId?: string;
 }
 
+export type ComplianceType = 'Insurance' | 'Road Tax' | 'PUSPAKOM' | 'Permit';
+export const COMPLIANCE_TYPES: ComplianceType[] = ['Insurance', 'Road Tax', 'PUSPAKOM', 'Permit'];
+
+export interface VehicleRenewal {
+  id: string;
+  vehicleId: string; // Foreign Key -> vehicles.id
+  complianceType: ComplianceType; // Enum: Insurance, Road Tax, PUSPAKOM, Permit
+  oldExpiryDate?: string; // Date (YYYY-MM-DD)
+  newExpiryDate: string; // Date, Required (YYYY-MM-DD)
+  renewalDate: string; // Date, Required - Defaults to Today (YYYY-MM-DD)
+  costAmount: number; // Decimal/Currency RM, Required
+  providerAgentName?: string; // Text, Optional - e.g., Etiqa, Allianz, MyEG
+  receiptPolicyDocumentUrl?: string; // File Upload - PDF/Image, Optional
+  receiptPolicyDocumentName?: string;
+  remarks?: string; // Textarea, Optional
+  createdBy?: string; // User ID / Name of the Admin
+  createdAt?: string; // Timestamps
+  updatedAt?: string;
+  tenantId?: string;
+}
+
 export type PassengerCategory = 'Staff' | 'Kids' | 'Teenagers' | 'Adults' | 'Others';
 
 export const PASSENGER_CATEGORIES: PassengerCategory[] = ['Staff', 'Kids', 'Teenagers', 'Adults', 'Others'];

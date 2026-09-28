@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode, useCallback, useRef, useEffect } from 'react';
-import type { Booking, FuelLog, OdometerLog, User, Vehicle, BookingHistory, CurrentUser, IssueLog, DriverSchedule, Tenant, SelfDriveStaff, MaintenanceInterval, MaintenanceLog } from '../types';
+import type { Booking, FuelLog, OdometerLog, User, Vehicle, BookingHistory, CurrentUser, IssueLog, DriverSchedule, Tenant, SelfDriveStaff, MaintenanceInterval, MaintenanceLog, VehicleRenewal } from '../types';
 import { storageService } from '../services/storage';
+import { postVehicleRenew } from '../services/renewalApi';
 import { parseAsLocal } from '../utils';
 import { evaluateBookingAssignment, normalizeDate, normalizeTime, getDriverCalendarColor, type AutoAssignResult } from '../services/bookingEngine';
 import { googleCalendarService } from '../services/googleCalendar';
@@ -70,6 +71,9 @@ interface AppContextType {
   addMaintenanceLog: (data: Omit<MaintenanceLog, 'id'>, intervalIdToUpdate?: string) => Promise<MaintenanceLog>;
   updateMaintenanceLog: (id: string, updatedData: Partial<Omit<MaintenanceLog, 'id'>>) => Promise<void>;
   deleteMaintenanceLog: (id: string) => Promise<void>;
+  vehicleRenewals: VehicleRenewal[];
+  renewVehicleCompliance: (vehicleId: string, renewalData: Omit<VehicleRenewal, 'id' | 'createdAt' | 'updatedAt'>) => Promise<{ success: boolean; renewal: VehicleRenewal; updatedVehicle: Vehicle }>;
+  deleteVehicleRenewal: (id: string) => Promise<boolean>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -86,6 +90,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [selfDriveStaff, setSelfDriveStaff] = useState<SelfDriveStaff[]>([]);
   const [maintenanceIntervals, setMaintenanceIntervals] = useState<MaintenanceInterval[]>([]);
   const [maintenanceLogs, setMaintenanceLogs] = useState<MaintenanceLog[]>([]);
+  const [vehicleRenewals, setVehicleRenewals] = useState<VehicleRenewal[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
@@ -162,8 +167,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       storageService.getSelfDriveStaff(),
       storageService.getMaintenanceIntervals(),
       storageService.getMaintenanceLogs(),
+      storageService.getVehicleRenewals(),
     ])
-      .then(([u, v, b, f, o, i, s, sds, mi, ml]) => {
+      .then(([u, v, b, f, o, i, s, sds, mi, ml, vr]) => {
         if (cancelled) return;
         setUsers(u);
         setVehicles(v);
@@ -175,6 +181,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setSelfDriveStaff(sds);
         setMaintenanceIntervals(mi);
         setMaintenanceLogs(ml);
+        setVehicleRenewals(vr);
       })
       .catch(err => {
         if (cancelled) return;
@@ -1080,7 +1087,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const updateVehicle = useCallback((vehicleId: string, updatedData: Partial<Omit<Vehicle, 'id'>>) => {
     setVehicles(prev => prev.map(v => (v.id === vehicleId ? { ...v, ...updatedData } : v)));
     storageService.updateVehicle({ id: vehicleId, ...updatedData }).catch(err => {
-      alert('Gagal kemaskini vehicle: ' + err.message);
+      alert('Failed to update vehicle: ' + err.message);
     });
   }, []);
 
@@ -1210,6 +1217,41 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     await storageService.deleteMaintenanceLog(id);
   }, []);
 
+  const renewVehicleCompliance = useCallback(async (
+    vehicleId: string,
+    renewalData: Omit<VehicleRenewal, 'id' | 'createdAt' | 'updatedAt'>
+  ): Promise<{ success: boolean; renewal: VehicleRenewal; updatedVehicle: Vehicle }> => {
+    const result = await postVehicleRenew(vehicleId, renewalData);
+
+    if (result.success && result.data) {
+      // 1. Immediately prepend renewal record to log history & cost
+      setVehicleRenewals(prev => [result.data.renewal, ...prev.filter(r => r.id !== result.data.renewal.id)]);
+
+      // 2. Immediately update vehicles in React state so badges switch immediately from Expired to Active
+      setVehicles(prev => prev.map(v => {
+        if (v.id !== vehicleId) return v;
+        const updated: Vehicle = { ...v };
+        if (renewalData.complianceType === 'Insurance') updated.insuranceExpiry = renewalData.newExpiryDate;
+        if (renewalData.complianceType === 'Road Tax') updated.roadTaxExpiry = renewalData.newExpiryDate;
+        if (renewalData.complianceType === 'PUSPAKOM') updated.puspakomExpiry = renewalData.newExpiryDate;
+        if (renewalData.complianceType === 'Permit') updated.permitExpiry = renewalData.newExpiryDate;
+        return updated;
+      }));
+    }
+
+    return {
+      success: result.success,
+      renewal: result.data.renewal,
+      updatedVehicle: result.data.vehicle,
+    };
+  }, []);
+
+  const deleteVehicleRenewal = useCallback(async (id: string): Promise<boolean> => {
+    setVehicleRenewals(prev => prev.filter(r => r.id !== id));
+    await storageService.deleteVehicleRenewal(id);
+    return true;
+  }, []);
+
   return (
     <AppContext.Provider value={{
       users,
@@ -1276,6 +1318,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addMaintenanceLog,
       updateMaintenanceLog,
       deleteMaintenanceLog,
+      vehicleRenewals,
+      renewVehicleCompliance,
+      deleteVehicleRenewal,
     }}>
       {children}
     </AppContext.Provider>

@@ -3,8 +3,9 @@ import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import VehicleForm from './VehicleForm';
 import { PlusIcon, EditIcon, TrashIcon, TruckIcon, GaugeIcon, XIcon, UserCircleIcon, PrinterIcon, DocumentDownloadIcon, RouteIcon, ExclamationIcon, XCircleIcon, SearchIcon } from './icons/Icons';
-import type { Vehicle, OdometerLog, Booking } from '../types';
+import type { Vehicle, OdometerLog, Booking, ComplianceType } from '../types';
 import OdometerLogEditForm from './OdometerLogEditForm';
+import VehicleRenewalModal from './VehicleRenewalModal';
 
 declare global {
   interface Window {
@@ -189,24 +190,57 @@ const VehicleManagement: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
-  const getExpiryBadge = (dateStr?: string, label: string = 'Expiry') => {
+  const [isRenewalModalOpen, setIsRenewalModalOpen] = useState(false);
+  const [selectedVehicleForRenewal, setSelectedVehicleForRenewal] = useState<Vehicle | null>(null);
+  const [selectedComplianceType, setSelectedComplianceType] = useState<ComplianceType>('Insurance');
+
+  const handleOpenRenewal = (vehicle: Vehicle, type: ComplianceType = 'Insurance') => {
+    setSelectedVehicleForRenewal(vehicle);
+    setSelectedComplianceType(type);
+    setIsRenewalModalOpen(true);
+  };
+
+  const renderComplianceBadge = (vehicle: Vehicle, type: ComplianceType, dateStr?: string, label: string = type) => {
     if (!dateStr) return null;
     const target = new Date(dateStr);
     const now = new Date();
     const diffDays = Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
     let colorClass = 'bg-slate-100 text-slate-700 border-slate-200';
     let text = `${label}: ${dateStr}`;
+    let isUrgent = false;
+
     if (diffDays < 0) {
       colorClass = 'bg-rose-50 text-rose-700 border-rose-200 font-bold';
       text = `⚠️ ${label}: Expired (${Math.abs(diffDays)}d ago)`;
+      isUrgent = true;
     } else if (diffDays <= 30) {
       colorClass = 'bg-amber-50 text-amber-800 border-amber-200 font-semibold';
       text = `⏳ ${label}: ${diffDays}d left`;
+      isUrgent = true;
     }
+
     return (
-      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] border ${colorClass}`}>
-        {text}
-      </span>
+      <div key={type} className="inline-flex items-center gap-1 bg-white p-0.5 rounded-md border border-slate-200 shadow-2xs">
+        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] border ${colorClass}`}>
+          {text}
+        </span>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleOpenRenewal(vehicle, type);
+          }}
+          className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded transition ${
+            isUrgent
+              ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-2xs'
+              : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200'
+          }`}
+          title={`Renew ${label} for ${vehicle.name}`}
+        >
+          <span>🔄</span>
+          <span>Renew</span>
+        </button>
+      </div>
     );
   };
 
@@ -296,6 +330,20 @@ const VehicleManagement: React.FC = () => {
         if (statusFilter === 'with_issues') return status.hasIssues;
         if (statusFilter === 'out_of_service') return status.isOutOfService;
 
+        // Compliance expiry filters
+        const now = new Date().getTime();
+        const dates = [vehicle.roadTaxExpiry, vehicle.insuranceExpiry, vehicle.puspakomExpiry, vehicle.permitExpiry].filter(Boolean) as string[];
+        if (statusFilter === 'expired_compliance') {
+          return dates.some(d => new Date(d).getTime() < now);
+        }
+        if (statusFilter === 'expiring_soon') {
+          const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+          return dates.some(d => {
+            const t = new Date(d).getTime();
+            return t >= now && (t - now <= thirtyDaysMs);
+          });
+        }
+
         return true;
     }).sort((a,b) => a.name.localeCompare(b.name));
   }, [vehicles, searchQuery, statusFilter, vehicleStatuses]);
@@ -370,6 +418,8 @@ const VehicleManagement: React.FC = () => {
               <option value="on_trip">On Trip</option>
               <option value="with_issues">With Issues</option>
               <option value="out_of_service">Out of Service</option>
+              <option value="expired_compliance">⚠️ Expired Compliance</option>
+              <option value="expiring_soon">⏳ Expiring Soon (≤30 Days)</option>
           </select>
       </div>
 
@@ -381,6 +431,15 @@ const VehicleManagement: React.FC = () => {
       <OdometerHistoryModal 
         vehicle={viewingLogsFor}
         onClose={() => setViewingLogsFor(null)}
+      />
+      <VehicleRenewalModal
+        isOpen={isRenewalModalOpen}
+        onClose={() => {
+          setIsRenewalModalOpen(false);
+          setSelectedVehicleForRenewal(null);
+        }}
+        vehicle={selectedVehicleForRenewal}
+        defaultComplianceType={selectedComplianceType}
       />
       
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -454,22 +513,37 @@ const VehicleManagement: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Compliance & Expiry Badges */}
-                  {(vehicle.roadTaxExpiry || vehicle.insuranceExpiry || vehicle.puspakomExpiry) && (
-                    <div className="mt-2.5 pt-2 border-t border-slate-100 flex flex-wrap gap-1.5 items-center">
-                      {getExpiryBadge(vehicle.roadTaxExpiry, 'Road Tax')}
-                      {getExpiryBadge(vehicle.insuranceExpiry, 'Insurance')}
-                      {vehicle.puspakomExpiry && getExpiryBadge(vehicle.puspakomExpiry, 'PUSPAKOM')}
-                      {vehicle.grantAttachmentUrl && (
-                        <a
-                          href={vehicle.grantAttachmentUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold px-2 py-0.5 rounded bg-indigo-50 border border-indigo-100"
+                  {/* Compliance & Expiry Badges with Renew Button */}
+                  {(vehicle.roadTaxExpiry || vehicle.insuranceExpiry || vehicle.puspakomExpiry || vehicle.permitExpiry || vehicle.grantAttachmentUrl) && (
+                    <div className="mt-2.5 pt-2 border-t border-slate-100 space-y-1.5">
+                      <div className="flex flex-wrap gap-1.5 items-center">
+                        {renderComplianceBadge(vehicle, 'Road Tax', vehicle.roadTaxExpiry, 'Road Tax')}
+                        {renderComplianceBadge(vehicle, 'Insurance', vehicle.insuranceExpiry, 'Insurance')}
+                        {vehicle.puspakomExpiry && renderComplianceBadge(vehicle, 'PUSPAKOM', vehicle.puspakomExpiry, 'PUSPAKOM')}
+                        {vehicle.permitExpiry && renderComplianceBadge(vehicle, 'Permit', vehicle.permitExpiry, 'Permit')}
+                        {vehicle.grantAttachmentUrl && (
+                          <a
+                            href={vehicle.grantAttachmentUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold px-2 py-0.5 rounded bg-indigo-50 border border-indigo-100"
+                          >
+                            📄 VOC / Grant
+                          </a>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between pt-0.5">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenRenewal(vehicle, 'Insurance');
+                          }}
+                          className="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-600 hover:text-indigo-800 transition"
                         >
-                          📄 VOC / Grant
-                        </a>
-                      )}
+                          <span>📋 View / Manage Renewal History</span>
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -495,9 +569,20 @@ const VehicleManagement: React.FC = () => {
                       </div>
                   </div>
                 </div>
-                <div className="bg-gray-50 px-5 py-3 flex justify-end items-center gap-2 border-t">
-                  <button onClick={(e) => { e.stopPropagation(); handleEditVehicle(vehicle); }} className="text-gray-600 hover:text-indigo-800 p-1.5 rounded-full hover:bg-indigo-100 transition" title="Edit Vehicle"><EditIcon className="h-5 w-5" /></button>
-                  <button onClick={(e) => { e.stopPropagation(); handleDeleteVehicle(vehicle.id); }} className="text-red-600 hover:text-red-800 p-1.5 rounded-full hover:bg-red-100 transition" title="Delete Vehicle"><TrashIcon className="h-5 w-5"/></button>
+                <div className="bg-gray-50 px-5 py-3 flex justify-between items-center gap-2 border-t">
+                  <button 
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleOpenRenewal(vehicle, 'Insurance'); }}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800 px-2.5 py-1 rounded-md hover:bg-indigo-50 border border-indigo-200 transition"
+                    title="Renew Compliance"
+                  >
+                    <span>🔄</span>
+                    <span>Renew</span>
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <button onClick={(e) => { e.stopPropagation(); handleEditVehicle(vehicle); }} className="text-gray-600 hover:text-indigo-800 p-1.5 rounded-full hover:bg-indigo-100 transition" title="Edit Vehicle"><EditIcon className="h-5 w-5" /></button>
+                    <button onClick={(e) => { e.stopPropagation(); handleDeleteVehicle(vehicle.id); }} className="text-red-600 hover:text-red-800 p-1.5 rounded-full hover:bg-red-100 transition" title="Delete Vehicle"><TrashIcon className="h-5 w-5"/></button>
+                  </div>
                 </div>
               </div>
             )
