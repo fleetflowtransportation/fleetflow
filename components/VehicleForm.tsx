@@ -12,6 +12,7 @@ import {
   FUEL_TYPES 
 } from '../types';
 import { XIcon, TruckIcon, CheckCircleIcon } from './icons/Icons';
+import { uploadToGoogleDrive, getDriveDirectImageUrl, GoogleDriveUploadResult } from '../services/googleDrive';
 
 interface VehicleFormProps {
   isOpen: boolean;
@@ -89,7 +90,7 @@ const COMMON_BRANDS = ['Toyota', 'Perodua', 'Isuzu', 'Nissan', 'Ford', 'Honda', 
 const COMMON_BRANCHES = ['HQ Kuala Lumpur', 'PJBA Center', 'Central Depot', 'Northern Branch', 'Southern Branch'];
 
 export const VehicleForm: React.FC<VehicleFormProps> = ({ isOpen, onClose, vehicleToEdit }) => {
-  const { addVehicle, updateVehicle, vehicles, users } = useAppContext();
+  const { addVehicle, updateVehicle, vehicles, users, activeTenant } = useAppContext();
 
   const [activeStep, setActiveStep] = useState<1 | 2 | 3 | 4>(1);
   const [formData, setFormData] = useState<FormState>(defaultFormState);
@@ -97,6 +98,12 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({ isOpen, onClose, vehic
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [grantFile, setGrantFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Google Drive upload states (folder: 'vehicle')
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [photoUploadResult, setPhotoUploadResult] = useState<GoogleDriveUploadResult | null>(null);
+  const [isUploadingGrant, setIsUploadingGrant] = useState(false);
+  const [grantUploadResult, setGrantUploadResult] = useState<GoogleDriveUploadResult | null>(null);
 
   // Available drivers from user list
   const drivers = useMemo(() => {
@@ -109,6 +116,10 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({ isOpen, onClose, vehic
     setFormErrors({});
     setPhotoFile(null);
     setGrantFile(null);
+    setIsUploadingPhoto(false);
+    setPhotoUploadResult(null);
+    setIsUploadingGrant(false);
+    setGrantUploadResult(null);
 
     if (vehicleToEdit) {
       setFormData({
@@ -166,47 +177,96 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({ isOpen, onClose, vehic
     }
   };
 
-  // Image file handler
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Image file handler with Google Drive 'vehicle' folder upload
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setPhotoFile(file);
+      // Immediate local preview while upload proceeds
+      const tempPreviewUrl = URL.createObjectURL(file);
       setFormData(prev => ({
         ...prev,
-        photoUrl: URL.createObjectURL(file),
+        photoUrl: tempPreviewUrl,
         photoName: file.name
       }));
+
+      // Upload to Google Drive under dedicated 'vehicle' folder
+      setIsUploadingPhoto(true);
+      try {
+        const res = await uploadToGoogleDrive(file, {
+          folderName: 'vehicle',
+          tenant: activeTenant,
+        });
+        setPhotoUploadResult(res);
+        if (res.success && res.url) {
+          URL.revokeObjectURL(tempPreviewUrl);
+          setFormData(prev => ({
+            ...prev,
+            photoUrl: res.url,
+            photoName: res.name,
+          }));
+        }
+      } catch (err: any) {
+        console.warn('Error uploading vehicle photo to Google Drive:', err.message);
+      } finally {
+        setIsUploadingPhoto(false);
+      }
     }
   };
 
   const removePhoto = () => {
-    if (photoFile && formData.photoUrl) {
+    if (photoFile && formData.photoUrl && formData.photoUrl.startsWith('blob:')) {
       URL.revokeObjectURL(formData.photoUrl);
     }
     setPhotoFile(null);
+    setPhotoUploadResult(null);
     setFormData(prev => ({ ...prev, photoUrl: undefined, photoName: undefined }));
     const input = document.getElementById('vehicle-photo-upload') as HTMLInputElement;
     if (input) input.value = '';
   };
 
-  // Grant Document handler (PDF / Image)
-  const handleGrantChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Grant Document handler (PDF / Image) with Google Drive 'vehicle' folder upload
+  const handleGrantChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setGrantFile(file);
+      const tempPreviewUrl = URL.createObjectURL(file);
       setFormData(prev => ({
         ...prev,
-        grantAttachmentUrl: URL.createObjectURL(file),
+        grantAttachmentUrl: tempPreviewUrl,
         grantAttachmentName: file.name
       }));
+
+      // Upload to Google Drive under dedicated 'vehicle' folder
+      setIsUploadingGrant(true);
+      try {
+        const res = await uploadToGoogleDrive(file, {
+          folderName: 'vehicle',
+          tenant: activeTenant,
+        });
+        setGrantUploadResult(res);
+        if (res.success && res.url) {
+          URL.revokeObjectURL(tempPreviewUrl);
+          setFormData(prev => ({
+            ...prev,
+            grantAttachmentUrl: res.url,
+            grantAttachmentName: res.name,
+          }));
+        }
+      } catch (err: any) {
+        console.warn('Error uploading grant to Google Drive:', err.message);
+      } finally {
+        setIsUploadingGrant(false);
+      }
     }
   };
 
   const removeGrant = () => {
-    if (grantFile && formData.grantAttachmentUrl) {
+    if (grantFile && formData.grantAttachmentUrl && formData.grantAttachmentUrl.startsWith('blob:')) {
       URL.revokeObjectURL(formData.grantAttachmentUrl);
     }
     setGrantFile(null);
+    setGrantUploadResult(null);
     setFormData(prev => ({ ...prev, grantAttachmentUrl: undefined, grantAttachmentName: undefined }));
     const input = document.getElementById('grant-doc-upload') as HTMLInputElement;
     if (input) input.value = '';
@@ -612,16 +672,27 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({ isOpen, onClose, vehic
 
               {/* Vehicle Photo Upload */}
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                  Vehicle Photo <span className="text-slate-400 font-normal">(Optional)</span>
-                </label>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Vehicle Photo <span className="text-slate-400 font-normal">(Optional)</span>
+                  </label>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95C8.08 7.14 9.94 6 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11c1.56.1 2.78 1.41 2.78 2.96 0 1.65-1.35 3-3 3z"/></svg>
+                    Google Drive: /vehicle
+                  </span>
+                </div>
+
+                <div className="flex items-start gap-4">
                   {formData.photoUrl ? (
-                    <div className="relative group">
+                    <div className="relative group flex-shrink-0">
                       <img 
-                        src={formData.photoUrl} 
+                        src={getDriveDirectImageUrl(formData.photoUrl)} 
                         alt="Vehicle preview" 
                         className="h-20 w-24 rounded-xl object-cover border border-slate-200 shadow-xs" 
+                        onError={(e) => {
+                          // Fallback to placeholder if link fails
+                          (e.currentTarget as any).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="80" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>';
+                        }}
                       />
                       <button
                         type="button"
@@ -633,22 +704,48 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({ isOpen, onClose, vehic
                       </button>
                     </div>
                   ) : (
-                    <div className="h-20 w-24 rounded-xl bg-slate-200/70 border border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400">
+                    <div className="h-20 w-24 rounded-xl bg-slate-200/70 border border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 flex-shrink-0">
                       <TruckIcon className="h-8 w-8 mb-0.5" />
                       <span className="text-[10px] font-semibold">No Image</span>
                     </div>
                   )}
 
-                  <div className="flex-1">
+                  <div className="flex-1 space-y-1.5">
                     <input
                       id="vehicle-photo-upload"
                       type="file"
                       accept="image/*"
+                      disabled={isUploadingPhoto}
                       onChange={handlePhotoChange}
-                      className="block w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
+                      className="block w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer disabled:opacity-50"
                     />
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      Upload JPEG or PNG. Max resolution recommended: 1920x1080px.
+
+                    {isUploadingPhoto && (
+                      <div className="flex items-center gap-2 text-xs text-indigo-600 font-medium py-1 animate-pulse">
+                        <div className="w-3.5 h-3.5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                        <span>Uploading photo directly to Google Drive (folder: vehicle)...</span>
+                      </div>
+                    )}
+
+                    {!isUploadingPhoto && photoUploadResult && (
+                      <div className="flex items-center gap-2 text-[11px] text-emerald-700 font-medium">
+                        <CheckCircleIcon className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Saved to Drive folder <strong>vehicle</strong></span>
+                        {photoUploadResult.webViewLink && (
+                          <a 
+                            href={photoUploadResult.webViewLink} 
+                            target="_blank" 
+                            rel="noreferrer" 
+                            className="text-indigo-600 hover:underline inline-flex items-center ml-1"
+                          >
+                            Open in Drive ↗
+                          </a>
+                        )}
+                      </div>
+                    )}
+
+                    <p className="text-[11px] text-slate-400">
+                      Vehicle images are stored in the dedicated <strong>vehicle</strong> folder so they remain separated from fuel log receipts and booking attachments.
                     </p>
                   </div>
                 </div>
@@ -948,17 +1045,30 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({ isOpen, onClose, vehic
 
               {/* Grant Document Upload */}
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                  Vehicle Grant / Registration Card (VOC) <span className="text-slate-400 font-normal">(Optional PDF/Image)</span>
-                </label>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Vehicle Grant / Registration Card (VOC) <span className="text-slate-400 font-normal">(Optional PDF/Image)</span>
+                  </label>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95C8.08 7.14 9.94 6 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11c1.56.1 2.78 1.41 2.78 2.96 0 1.65-1.35 3-3 3z"/></svg>
+                    Google Drive: /vehicle
+                  </span>
+                </div>
+
+                <div className="flex items-start gap-4">
                   {formData.grantAttachmentUrl ? (
                     <div className="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between gap-3 flex-1 shadow-xs">
                       <div className="flex items-center gap-2 truncate">
                         <span className="text-indigo-600 font-bold text-xs uppercase px-2 py-0.5 bg-indigo-50 rounded">VOC Document</span>
-                        <span className="text-xs text-slate-700 truncate font-medium">
+                        <a 
+                          href={formData.grantAttachmentUrl} 
+                          target="_blank" 
+                          rel="noreferrer" 
+                          className="text-xs text-indigo-700 hover:underline truncate font-medium flex items-center gap-1"
+                        >
                           {formData.grantAttachmentName || 'Vehicle_Grant_Document.pdf'}
-                        </span>
+                          <span className="text-[10px] text-indigo-500">↗</span>
+                        </a>
                       </div>
                       <button
                         type="button"
@@ -969,14 +1079,43 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({ isOpen, onClose, vehic
                       </button>
                     </div>
                   ) : (
-                    <div className="flex-1">
+                    <div className="flex-1 space-y-1.5">
                       <input
                         id="grant-doc-upload"
                         type="file"
                         accept=".pdf,image/*"
+                        disabled={isUploadingGrant}
                         onChange={handleGrantChange}
-                        className="block w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-200/70 file:text-slate-700 hover:file:bg-slate-300 cursor-pointer"
+                        className="block w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-200/70 file:text-slate-700 hover:file:bg-slate-300 cursor-pointer disabled:opacity-50"
                       />
+
+                      {isUploadingGrant && (
+                        <div className="flex items-center gap-2 text-xs text-indigo-600 font-medium py-1 animate-pulse">
+                          <div className="w-3.5 h-3.5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                          <span>Uploading grant document to Google Drive (folder: vehicle)...</span>
+                        </div>
+                      )}
+
+                      {!isUploadingGrant && grantUploadResult && (
+                        <div className="flex items-center gap-2 text-[11px] text-emerald-700 font-medium">
+                          <CheckCircleIcon className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Saved to Drive folder <strong>vehicle</strong></span>
+                          {grantUploadResult.webViewLink && (
+                            <a 
+                              href={grantUploadResult.webViewLink} 
+                              target="_blank" 
+                              rel="noreferrer" 
+                              className="text-indigo-600 hover:underline inline-flex items-center ml-1"
+                            >
+                              Open in Drive ↗
+                            </a>
+                          )}
+                        </div>
+                      )}
+
+                      <p className="text-[11px] text-slate-400">
+                        Registration grant (VOC) is safely uploaded directly to your Google Drive <strong>vehicle</strong> folder.
+                      </p>
                     </div>
                   )}
                 </div>

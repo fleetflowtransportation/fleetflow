@@ -6,6 +6,7 @@ import { PlusIcon, EditIcon, TrashIcon, TruckIcon, GaugeIcon, XIcon, UserCircleI
 import type { Vehicle, OdometerLog, Booking, ComplianceType } from '../types';
 import OdometerLogEditForm from './OdometerLogEditForm';
 import VehicleRenewalModal from './VehicleRenewalModal';
+import { getDriveDirectImageUrl } from '../services/googleDrive';
 
 declare global {
   interface Window {
@@ -373,17 +374,115 @@ const VehicleManagement: React.FC = () => {
     setViewingLogsFor(vehicle);
   };
 
+  // SQL Schema modal state for database syncing
+  const [isSqlSchemaModalOpen, setIsSqlSchemaModalOpen] = useState(false);
+  const [copiedSql, setCopiedSql] = useState(false);
+
+  const VEHICLE_SQL_SCHEMA = `-- =========================================================================
+-- FLEETFLOW VEHICLES TABLE PRODUCTION SCHEMA
+-- =========================================================================
+-- Run this in your Supabase SQL Editor (Dashboard > SQL Editor)
+-- This creates/updates all 29 columns on the 'vehicles' table so data
+-- can be retrieved, edited, and opened on all devices (mobile, desktop, etc.)
+
+CREATE TABLE IF NOT EXISTS vehicles (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  plate_number TEXT NOT NULL,
+  vin_chassis_number TEXT,
+  engine_number TEXT,
+  photo_url TEXT,
+  photo_name TEXT,
+  vehicle_type TEXT DEFAULT 'Van',
+  brand_make TEXT,
+  manufacture_year INTEGER,
+  ownership_type TEXT DEFAULT 'Owned',
+  vehicle_status TEXT DEFAULT 'Active',
+  assigned_branch TEXT,
+  assigned_driver_id TEXT,
+  fuel_type TEXT DEFAULT 'Diesel',
+  fuel_card_number TEXT,
+  current_odometer NUMERIC DEFAULT 0,
+  max_payload_capacity_kg NUMERIC,
+  engine_capacity_cc INTEGER,
+  road_tax_expiry TEXT,
+  insurance_expiry TEXT,
+  puspakom_expiry TEXT,
+  permit_expiry TEXT,
+  grant_attachment_url TEXT,
+  grant_attachment_name TEXT,
+  specifications TEXT,
+  tenant_id TEXT DEFAULT 'yayasan-chow-kit',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Upgrades existing tables without losing data:
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS vin_chassis_number TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS engine_number TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS photo_url TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS photo_name TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS vehicle_type TEXT DEFAULT 'Van';
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS brand_make TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS manufacture_year INTEGER;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS ownership_type TEXT DEFAULT 'Owned';
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS vehicle_status TEXT DEFAULT 'Active';
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS assigned_branch TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS assigned_driver_id TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS fuel_type TEXT DEFAULT 'Diesel';
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS fuel_card_number TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS current_odometer NUMERIC DEFAULT 0;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS max_payload_capacity_kg NUMERIC;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS engine_capacity_cc INTEGER;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS road_tax_expiry TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS insurance_expiry TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS puspakom_expiry TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS permit_expiry TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS grant_attachment_url TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS grant_attachment_name TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS specifications TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'yayasan-chow-kit';
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+
+-- Indexes & Permissions for multi-device performance
+CREATE INDEX IF NOT EXISTS idx_vehicles_tenant_id ON vehicles(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_vehicles_plate_number ON vehicles(plate_number);
+CREATE INDEX IF NOT EXISTS idx_vehicles_vehicle_status ON vehicles(vehicle_status);
+ALTER TABLE vehicles DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON TABLE vehicles TO anon, authenticated, service_role;`;
+
+  const handleCopySql = () => {
+    navigator.clipboard.writeText(VEHICLE_SQL_SCHEMA);
+    setCopiedSql(true);
+    setTimeout(() => setCopiedSql(false), 2500);
+  };
+
   return (
     <div className="max-w-7xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Vehicle Fleet</h2>
-        <button
-          onClick={handleCreateVehicle}
-          className="flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105"
-        >
-          <PlusIcon className="h-5 w-5 mr-2" />
-          Add Vehicle
-        </button>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div>
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Vehicle Fleet</h2>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Fleet assets, Google Drive vehicle photos, and comprehensive database synchronization across all devices.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsSqlSchemaModalOpen(true)}
+            className="flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2 px-3.5 rounded-lg border border-slate-300 text-xs transition shadow-xs"
+            title="View complete PostgreSQL/Supabase table schema"
+          >
+            <span className="font-mono font-bold mr-1.5 text-indigo-600">SQL</span>
+            Table Schema
+          </button>
+          <button
+            onClick={handleCreateVehicle}
+            className="flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 text-sm"
+          >
+            <PlusIcon className="h-5 w-5 mr-2" />
+            Add Vehicle
+          </button>
+        </div>
       </div>
 
       {/* Dashboard Stats */}
@@ -441,6 +540,69 @@ const VehicleManagement: React.FC = () => {
         vehicle={selectedVehicleForRenewal}
         defaultComplianceType={selectedComplianceType}
       />
+
+      {/* SQL Table Schema & Database Sync Modal */}
+      {isSqlSchemaModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-3xl w-full p-6 space-y-4 shadow-2xl border border-gray-200 flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-indigo-50 text-indigo-600 font-mono font-bold text-sm">SQL</span>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">Vehicles Database Table Schema</h3>
+                  <p className="text-xs text-gray-500">PostgreSQL schema for Supabase to sync 29 fleet properties across all devices.</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsSqlSchemaModalOpen(false)} 
+                className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <div className="space-y-0.5">
+                <span className="font-semibold text-slate-700 block">✓ 29 Core Columns</span>
+                <span className="text-slate-500">Chassis, Engine, Specs, Odometer & Expiries</span>
+              </div>
+              <div className="space-y-0.5">
+                <span className="font-semibold text-slate-700 block">✓ Google Drive Images</span>
+                <span className="text-slate-500">Separated in folder <code>/vehicle</code></span>
+              </div>
+              <div className="space-y-0.5">
+                <span className="font-semibold text-slate-700 block">✓ Multi-Device Sync</span>
+                <span className="text-slate-500">Available across phones, tablets & desktops</span>
+              </div>
+            </div>
+
+            <div className="relative flex-1 overflow-hidden flex flex-col min-h-0 bg-slate-950 rounded-xl p-3 border border-slate-800">
+              <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800 text-xs">
+                <span className="font-mono text-slate-400">supabase_vehicles_setup.sql</span>
+                <button
+                  onClick={handleCopySql}
+                  className="px-3 py-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition flex items-center gap-1.5 shadow-xs"
+                >
+                  {copiedSql ? '✓ Copied to Clipboard!' : 'Copy SQL Script'}
+                </button>
+              </div>
+              <pre className="flex-1 overflow-y-auto font-mono text-[11px] leading-relaxed text-slate-200 select-all p-2 rounded bg-black/40">
+                {VEHICLE_SQL_SCHEMA}
+              </pre>
+            </div>
+
+            <div className="pt-2 flex items-center justify-between border-t border-gray-100 text-xs text-gray-500">
+              <span>Paste this in <strong>Supabase Dashboard &gt; SQL Editor</strong> and click Run.</span>
+              <button
+                onClick={() => setIsSqlSchemaModalOpen(false)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-medium transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {filteredVehicles.length > 0 ? (
@@ -452,7 +614,21 @@ const VehicleManagement: React.FC = () => {
                 <div className="p-5 flex-grow">
                   <div className="flex items-start gap-4">
                     {vehicle.photoUrl ? (
-                      <img src={vehicle.photoUrl} alt={vehicle.name} className="h-16 w-16 rounded-lg object-cover flex-shrink-0" />
+                      <div className="relative h-16 w-16 rounded-lg overflow-hidden flex-shrink-0 border border-slate-200 bg-slate-100">
+                        <img 
+                          src={getDriveDirectImageUrl(vehicle.photoUrl)} 
+                          alt={vehicle.name} 
+                          className="h-16 w-16 object-cover" 
+                          onError={(e) => {
+                            (e.currentTarget as any).style.display = 'none';
+                            const fallback = (e.currentTarget as any).parentElement?.querySelector('.photo-fallback');
+                            if (fallback) fallback.classList.remove('hidden');
+                          }}
+                        />
+                        <div className="photo-fallback hidden absolute inset-0 flex items-center justify-center bg-slate-100 text-slate-400">
+                          <TruckIcon className="h-8 w-8 text-gray-400"/>
+                        </div>
+                      </div>
                     ) : (
                       <div className="h-16 w-16 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
                         <TruckIcon className="h-8 w-8 text-gray-400"/>

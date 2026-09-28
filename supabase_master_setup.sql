@@ -46,16 +46,63 @@ CREATE TABLE IF NOT EXISTS vehicles (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   plate_number TEXT NOT NULL,
+  vin_chassis_number TEXT,
+  engine_number TEXT,
   photo_url TEXT,
+  photo_name TEXT,
+  vehicle_type TEXT DEFAULT 'Van',
+  brand_make TEXT,
+  manufacture_year INTEGER,
+  ownership_type TEXT DEFAULT 'Owned',
+  vehicle_status TEXT DEFAULT 'Active',
+  assigned_branch TEXT,
+  assigned_driver_id TEXT,
+  fuel_type TEXT DEFAULT 'Diesel',
+  fuel_card_number TEXT,
+  current_odometer NUMERIC DEFAULT 0,
+  max_payload_capacity_kg NUMERIC,
+  engine_capacity_cc INTEGER,
+  road_tax_expiry TEXT,
+  insurance_expiry TEXT,
+  puspakom_expiry TEXT,
+  permit_expiry TEXT,
+  grant_attachment_url TEXT,
+  grant_attachment_name TEXT,
   specifications TEXT,
   tenant_id TEXT DEFAULT 'yayasan-chow-kit',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS specifications TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS vin_chassis_number TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS engine_number TEXT;
 ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS photo_url TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS photo_name TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS vehicle_type TEXT DEFAULT 'Van';
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS brand_make TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS manufacture_year INTEGER;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS ownership_type TEXT DEFAULT 'Owned';
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS vehicle_status TEXT DEFAULT 'Active';
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS assigned_branch TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS assigned_driver_id TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS fuel_type TEXT DEFAULT 'Diesel';
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS fuel_card_number TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS current_odometer NUMERIC DEFAULT 0;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS max_payload_capacity_kg NUMERIC;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS engine_capacity_cc INTEGER;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS road_tax_expiry TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS insurance_expiry TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS puspakom_expiry TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS permit_expiry TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS grant_attachment_url TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS grant_attachment_name TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS specifications TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'yayasan-chow-kit';
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
 ALTER TABLE vehicles DISABLE ROW LEVEL SECURITY;
 GRANT ALL ON TABLE vehicles TO anon, authenticated, service_role;
 CREATE INDEX IF NOT EXISTS idx_vehicles_tenant_id ON vehicles(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_vehicles_plate_number ON vehicles(plate_number);
+CREATE INDEX IF NOT EXISTS idx_vehicles_vehicle_status ON vehicles(vehicle_status);
 
 -- 4. BOOKINGS TABLE
 CREATE TABLE IF NOT EXISTS bookings (

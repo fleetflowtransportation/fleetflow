@@ -502,6 +502,64 @@ function doPost(e) {
       }
     }
 
+    // -----------------------------------------------------------------------
+    // 5. ACTION: uploadFile / Save to Google Drive (with subfolder: vehicle, fuel_logs, etc.)
+    // -----------------------------------------------------------------------
+    if (data.action === "uploadFile" || data.actionType === "uploadFile" || (data.base64 && !data.action)) {
+      var rootFolderId = data.driveId || data.folderId || "";
+      var targetFolder = null;
+
+      if (rootFolderId && rootFolderId !== "primary") {
+        try {
+          targetFolder = DriveApp.getFolderById(rootFolderId);
+        } catch (errF) {
+          targetFolder = DriveApp.getRootFolder();
+        }
+      } else {
+        targetFolder = DriveApp.getRootFolder();
+      }
+
+      // Route to dedicated subfolder (e.g. 'vehicle', 'fuel_logs', 'bookings')
+      var subFolderName = data.folder || data.folderName || data.subFolder || "vehicle";
+      if (subFolderName) {
+        var subFolders = targetFolder.getFoldersByName(subFolderName);
+        if (subFolders.hasNext()) {
+          targetFolder = subFolders.next();
+        } else {
+          targetFolder = targetFolder.createFolder(subFolderName);
+        }
+      }
+
+      var base64Data = data.base64;
+      var fileName = data.fileName || ("upload_" + new Date().getTime());
+      var mimeType = data.mimeType || "application/octet-stream";
+
+      var decodedBlob = Utilities.newBlob(Utilities.base64Decode(base64Data), mimeType, fileName);
+      var createdFile = targetFolder.createFile(decodedBlob);
+
+      try {
+        createdFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      } catch (shareErr) {}
+
+      var fileId = createdFile.getId();
+      var directUrl = "https://lh3.googleusercontent.com/d/" + fileId;
+      var fileUrl = createdFile.getUrl();
+
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success",
+        success: true,
+        action: "uploadFile",
+        fileId: fileId,
+        id: fileId,
+        url: directUrl,
+        directUrl: directUrl,
+        webViewLink: fileUrl,
+        name: createdFile.getName(),
+        folder: subFolderName,
+        size: createdFile.getSize()
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     return ContentService.createTextOutput(JSON.stringify({
       status: "success",
       success: true,

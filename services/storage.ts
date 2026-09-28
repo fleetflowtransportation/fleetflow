@@ -72,7 +72,28 @@ const toDbVehicle = (v: Partial<Vehicle>) => {
     ...(v.id && { id: v.id }),
     ...(v.name !== undefined && { name: v.name }),
     ...(v.plateNumber !== undefined && { plate_number: v.plateNumber }),
+    ...(v.vinChassisNumber !== undefined && { vin_chassis_number: v.vinChassisNumber }),
+    ...(v.engineNumber !== undefined && { engine_number: v.engineNumber }),
     ...(v.photoUrl !== undefined && { photo_url: v.photoUrl }),
+    ...(v.photoName !== undefined && { photo_name: v.photoName }),
+    ...(v.vehicleType !== undefined && { vehicle_type: v.vehicleType }),
+    ...(v.brandMake !== undefined && { brand_make: v.brandMake }),
+    ...(v.manufactureYear !== undefined && { manufacture_year: v.manufactureYear }),
+    ...(v.ownershipType !== undefined && { ownership_type: v.ownershipType }),
+    ...(v.vehicleStatus !== undefined && { vehicle_status: v.vehicleStatus }),
+    ...(v.assignedBranch !== undefined && { assigned_branch: v.assignedBranch }),
+    ...(v.assignedDriverId !== undefined && { assigned_driver_id: v.assignedDriverId }),
+    ...(v.fuelType !== undefined && { fuel_type: v.fuelType }),
+    ...(v.fuelCardNumber !== undefined && { fuel_card_number: v.fuelCardNumber }),
+    ...(v.currentOdometer !== undefined && { current_odometer: v.currentOdometer }),
+    ...(v.maxPayloadCapacityKg !== undefined && { max_payload_capacity_kg: v.maxPayloadCapacityKg }),
+    ...(v.engineCapacityCc !== undefined && { engine_capacity_cc: v.engineCapacityCc }),
+    ...(v.roadTaxExpiry !== undefined && { road_tax_expiry: v.roadTaxExpiry }),
+    ...(v.insuranceExpiry !== undefined && { insurance_expiry: v.insuranceExpiry }),
+    ...(v.puspakomExpiry !== undefined && { puspakom_expiry: v.puspakomExpiry }),
+    ...(v.permitExpiry !== undefined && { permit_expiry: v.permitExpiry }),
+    ...(v.grantAttachmentUrl !== undefined && { grant_attachment_url: v.grantAttachmentUrl }),
+    ...(v.grantAttachmentName !== undefined && { grant_attachment_name: v.grantAttachmentName }),
     specifications: packedSpecs,
     tenant_id: v.tenantId || getTenantId(),
   };
@@ -883,9 +904,24 @@ export const storageService = {
   // ---- WRITE (VEHICLES) ----
   createVehicle: async (data: Vehicle): Promise<Vehicle> => {
     try {
-      const dbRow = toDbVehicle(data);
+      const dbRow: any = toDbVehicle(data);
       const { error } = await supabase.from('vehicles').insert([dbRow]);
-      if (error) console.error('[Supabase] createVehicle error:', error.message);
+      if (error) {
+        console.warn('[Supabase] createVehicle full column insert error:', error.message);
+        // Fallback to legacy minimal columns if SQL migration has not run yet
+        if (error.message && (error.message.includes('column') || error.message.includes('schema'))) {
+          const fallbackRow = {
+            id: dbRow.id,
+            name: dbRow.name,
+            plate_number: dbRow.plate_number,
+            photo_url: dbRow.photo_url,
+            specifications: dbRow.specifications,
+            tenant_id: dbRow.tenant_id,
+          };
+          const { error: fallbackErr } = await supabase.from('vehicles').insert([fallbackRow]);
+          if (fallbackErr) console.error('[Supabase] createVehicle fallback error:', fallbackErr.message);
+        }
+      }
     } catch (err: any) {
       console.error('[Supabase] createVehicle exception:', err.message);
     }
@@ -894,9 +930,23 @@ export const storageService = {
 
   updateVehicle: async (data: Partial<Vehicle> & { id: string }): Promise<any> => {
     try {
-      const dbRow = toDbVehicle(data);
+      const dbRow: any = toDbVehicle(data);
       const { error } = await supabase.from('vehicles').update(dbRow).eq('id', data.id);
-      if (error) console.error('[Supabase] updateVehicle error:', error.message);
+      if (error) {
+        console.warn('[Supabase] updateVehicle full column update error:', error.message);
+        // Fallback to legacy minimal columns if SQL migration has not run yet
+        if (error.message && (error.message.includes('column') || error.message.includes('schema'))) {
+          const fallbackRow: any = {
+            name: dbRow.name,
+            plate_number: dbRow.plate_number,
+            photo_url: dbRow.photo_url,
+            specifications: dbRow.specifications,
+            tenant_id: dbRow.tenant_id,
+          };
+          const { error: fallbackErr } = await supabase.from('vehicles').update(fallbackRow).eq('id', data.id);
+          if (fallbackErr) console.error('[Supabase] updateVehicle fallback error:', fallbackErr.message);
+        }
+      }
     } catch (err: any) {
       console.error('[Supabase] updateVehicle exception:', err.message);
     }
