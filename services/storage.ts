@@ -10,34 +10,56 @@ export const setTenantId = (id: string) => {
 };
 
 // Helper: Convert User TS to DB
-const toDbUser = (u: Partial<User>) => ({
-  ...(u.id && { id: u.id }),
-  ...(u.name !== undefined && { name: u.name }),
-  ...(u.email !== undefined && { email: u.email }),
-  ...(u.phone !== undefined && { phone: u.phone }),
-  ...(u.joiningDate !== undefined && { joining_date: u.joiningDate }),
-  ...(u.address !== undefined && { address: u.address }),
-  ...(u.comments !== undefined && { comments: u.comments }),
-  ...(u.role !== undefined && { role: u.role }),
-  ...(u.status !== undefined && { status: u.status }),
-  ...(u.password !== undefined && { password: u.password }),
-  tenant_id: u.tenantId || getTenantId(),
-});
+const toDbUser = (u: Partial<User>) => {
+  let comments = u.comments || '';
+  if (u.isOwner && !comments.includes('[OWNER]')) {
+    comments = comments ? `${comments} [OWNER]` : '[OWNER]';
+  } else if (u.isOwner === false && comments.includes('[OWNER]')) {
+    comments = comments.replace(/\[OWNER\]/g, '').trim();
+  }
+
+  return {
+    ...(u.id && { id: u.id }),
+    ...(u.name !== undefined && { name: u.name }),
+    ...(u.email !== undefined && { email: u.email }),
+    ...(u.phone !== undefined && { phone: u.phone }),
+    ...(u.joiningDate !== undefined && { joining_date: u.joiningDate }),
+    ...(u.address !== undefined && { address: u.address }),
+    ...(u.comments !== undefined && { comments: comments || null }),
+    ...(u.role !== undefined && { role: u.role }),
+    ...(u.status !== undefined && { status: u.status }),
+    ...(u.password !== undefined && { password: u.password }),
+    tenant_id: u.tenantId || getTenantId(),
+  };
+};
 
 // Helper: Convert DB User to TS
-const fromDbUser = (row: any): User => ({
-  id: row.id,
-  name: row.name,
-  email: row.email,
-  phone: row.phone || '',
-  joiningDate: row.joining_date || new Date().toISOString().split('T')[0],
-  address: row.address || '',
-  comments: row.comments || undefined,
-  role: row.role as 'admin' | 'driver',
-  status: row.status as 'active' | 'inactive',
-  password: row.password || undefined,
-  tenantId: row.tenant_id || getTenantId(),
-});
+const fromDbUser = (row: any): User => {
+  const isOwnerFromComment = typeof row.comments === 'string' && row.comments.includes('[OWNER]');
+  const isDefaultOwner = (row.tenant_id === 'yayasan-chow-kit' && (row.email === 'aziz@yck.org.my' || row.id === 'admin-ain')) ||
+    (row.tenant_id === 'bukujalananchowkit' && (row.email === 'aziznurmin@gmail.com' || row.email?.includes('aziznurmin'))) ||
+    isOwnerFromComment;
+
+  let cleanComments = row.comments;
+  if (cleanComments && typeof cleanComments === 'string' && cleanComments.includes('[OWNER]')) {
+    cleanComments = cleanComments.replace(/\[OWNER\]/g, '').trim() || undefined;
+  }
+
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    phone: row.phone || '',
+    joiningDate: row.joining_date || new Date().toISOString().split('T')[0],
+    address: row.address || '',
+    comments: cleanComments || undefined,
+    role: row.role as 'admin' | 'driver',
+    status: row.status as 'active' | 'inactive',
+    password: row.password || undefined,
+    tenantId: row.tenant_id || getTenantId(),
+    isOwner: isDefaultOwner,
+  };
+};
 
 // Helper: Convert Vehicle TS to DB
 const toDbVehicle = (v: Partial<Vehicle>) => {
@@ -634,7 +656,14 @@ export const storageService = {
       if (!data || data.length === 0) {
         return [];
       }
-      return data.map(fromDbUser);
+      const users = data.map(fromDbUser);
+      // Ensure the tenant has an identified owner
+      const hasOwner = users.some(u => u.isOwner);
+      if (!hasOwner && users.length > 0) {
+        const primaryAdmin = users.find(u => u.role === 'admin') || users[0];
+        if (primaryAdmin) primaryAdmin.isOwner = true;
+      }
+      return users;
     } catch (err: any) {
       console.warn('[Supabase] getUsers network exception:', err.message);
       return [];
@@ -977,10 +1006,18 @@ export const storageService = {
 
   deleteUser: async (id: string): Promise<{ id: string }> => {
     try {
+      const { data: targetUser } = await supabase.from('fleet_users').select('*').eq('id', id).maybeSingle();
+      if (targetUser) {
+        const u = fromDbUser(targetUser);
+        if (u.isOwner) {
+          throw new Error('Organization owner account cannot be deleted.');
+        }
+      }
       const { error } = await supabase.from('fleet_users').delete().eq('id', id);
       if (error) console.error('[Supabase] deleteUser error:', error.message);
     } catch (err: any) {
       console.error('[Supabase] deleteUser exception:', err.message);
+      throw err;
     }
     return { id };
   },
@@ -1744,10 +1781,12 @@ export const storageService = {
         phone: '',
         joiningDate: new Date().toISOString().split('T')[0],
         address: '',
+        comments: '[OWNER]',
         role: 'admin',
         status: 'active',
         password: (adminPassword || '123456').trim(),
-        tenantId: cleanTenantId
+        tenantId: cleanTenantId,
+        isOwner: true,
       };
       
       const savedUser = await storageService.createUser(adminUser);

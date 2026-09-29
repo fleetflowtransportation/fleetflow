@@ -2,35 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { 
   googleCalendarService, 
-  getDiagnosticLogs, 
-  clearDiagnosticLogs, 
-  CalendarDiagnosticLog,
-  cleanGoogleScriptUrl,
-  isGoogleScriptUrl 
+  cleanGoogleScriptUrl 
 } from '../services/googleCalendar';
-import { 
-  getActiveSupabaseUrl, 
-  getActiveSupabaseAnonKey, 
-  testSupabaseConnection, 
-  DEFAULT_SUPABASE_URL, 
-  DEFAULT_SUPABASE_ANON_KEY,
-  type SupabaseHealthCheckResult 
-} from '../services/supabaseClient';
 
 export const IntegrationsSettings: React.FC = () => {
-  const { activeTenant, updateTenantGoogleIntegrations, updateSupabaseDatabaseConfig, resetSupabaseDatabaseConfig } = useAppContext();
+  const { activeTenant, updateTenantGoogleIntegrations } = useAppContext();
   
-  // Supabase Database States
-  const [dbUrl, setDbUrl] = useState(getActiveSupabaseUrl());
-  const [dbAnonKey, setDbAnonKey] = useState(getActiveSupabaseAnonKey());
-  const [testingDb, setTestingDb] = useState(false);
-  const [dbTestResult, setDbTestResult] = useState<SupabaseHealthCheckResult | null>(null);
-  const [isDbModalOpen, setIsDbModalOpen] = useState(false);
-  const [tempDbUrl, setTempDbUrl] = useState(getActiveSupabaseUrl());
-  const [tempDbKey, setTempDbKey] = useState(getActiveSupabaseAnonKey());
-  const [dbSaveSuccess, setDbSaveSuccess] = useState(false);
-  const [dbSaveError, setDbSaveError] = useState<string | null>(null);
-
   // Real values in state
   const [calendarId, setCalendarId] = useState('');
   const [driveId, setDriveId] = useState('');
@@ -53,10 +30,9 @@ export const IntegrationsSettings: React.FC = () => {
   const [codeCopied, setCodeCopied] = useState(false);
   const [showCodeGuide, setShowCodeGuide] = useState(false);
 
-  // Diagnostic Logs & Testing state
+  // Testing state
   const [testingConnection, setTestingConnection] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
-  const [diagnosticLogs, setDiagnosticLogs] = useState<CalendarDiagnosticLog[]>([]);
 
   useEffect(() => {
     if (activeTenant) {
@@ -78,17 +54,7 @@ export const IntegrationsSettings: React.FC = () => {
         setTempAppsScriptUrl(savedScriptUrl);
       }
     }
-    setDiagnosticLogs(getDiagnosticLogs());
   }, [activeTenant, isModalOpen]);
-
-  const refreshLogs = () => {
-    setDiagnosticLogs(getDiagnosticLogs());
-  };
-
-  const handleClearLogs = () => {
-    clearDiagnosticLogs();
-    setDiagnosticLogs([]);
-  };
 
   const openModal = () => {
     setTempCalendarId(calendarId);
@@ -134,7 +100,6 @@ export const IntegrationsSettings: React.FC = () => {
       } else {
         setSaveError('Failed to save settings. Please verify your internet connection.');
       }
-      refreshLogs();
     } catch (err: any) {
       console.error('Error saving integrations:', err);
       setSaveError(err.message || 'An error occurred while saving integration settings.');
@@ -151,82 +116,13 @@ export const IntegrationsSettings: React.FC = () => {
       const targetUrl = isLocked ? appsScriptUrl : tempAppsScriptUrl;
       const res = await googleCalendarService.testConnection(activeTenant, targetUrl.trim());
       setTestResult(res);
-      refreshLogs();
     } catch (err: any) {
       setTestResult({
         success: false,
         message: err.message || 'Connection error'
       });
-      refreshLogs();
     } finally {
       setTestingConnection(false);
-    }
-  };
-
-  const handleTestSupabaseDb = async () => {
-    setTestingDb(true);
-    setDbTestResult(null);
-    try {
-      const res = await testSupabaseConnection();
-      setDbTestResult(res);
-    } catch (err: any) {
-      setDbTestResult({
-        success: false,
-        message: err.message || 'Database connection error',
-        url: dbUrl,
-        region: 'Singapore (ap-southeast-1)',
-        latencyMs: 0,
-        tables: {
-          fleet_users: { accessible: false },
-          vehicles: { accessible: false },
-          tenants: { accessible: false },
-          bookings: { accessible: false },
-        }
-      });
-    } finally {
-      setTestingDb(false);
-    }
-  };
-
-  const handleSaveDbSettings = (e: React.FormEvent) => {
-    e.preventDefault();
-    setDbSaveSuccess(false);
-    setDbSaveError(null);
-    try {
-      if (!tempDbUrl.trim().startsWith('http')) {
-        setDbSaveError('Please enter a valid Supabase project URL (e.g. https://xxxx.supabase.co)');
-        return;
-      }
-      if (!tempDbKey.trim()) {
-        setDbSaveError('Please enter a valid Supabase anon public key');
-        return;
-      }
-      const ok = updateSupabaseDatabaseConfig(tempDbUrl.trim(), tempDbKey.trim());
-      if (ok) {
-        setDbUrl(tempDbUrl.trim());
-        setDbAnonKey(tempDbKey.trim());
-        setDbSaveSuccess(true);
-        setTimeout(() => {
-          setDbSaveSuccess(false);
-          setIsDbModalOpen(false);
-        }, 1500);
-      } else {
-        setDbSaveError('Failed to update Supabase configuration.');
-      }
-    } catch (err: any) {
-      setDbSaveError(err.message || 'Failed to save settings.');
-    }
-  };
-
-  const handleResetDbToDefault = () => {
-    if (window.confirm('Reset database connection to the default Singapore Supabase server?')) {
-      resetSupabaseDatabaseConfig();
-      setDbUrl(DEFAULT_SUPABASE_URL);
-      setDbAnonKey(DEFAULT_SUPABASE_ANON_KEY);
-      setTempDbUrl(DEFAULT_SUPABASE_URL);
-      setTempDbKey(DEFAULT_SUPABASE_ANON_KEY);
-      setIsDbModalOpen(false);
-      setDbTestResult(null);
     }
   };
 
@@ -743,119 +639,6 @@ function doPost(e) {
         </div>
       </div>
 
-      {/* Supabase Cloud Database (Singapore Server) Card */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-gray-100">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 font-mono font-bold text-xs">SQL</span>
-              <h3 className="text-lg font-semibold text-gray-900">Supabase Cloud Database (Singapore Server)</h3>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                Singapore (ap-southeast-1)
-              </span>
-            </div>
-            <p className="text-sm text-gray-500">
-              Primary cloud PostgreSQL database powering fleet data (vehicles, users, bookings, renewals) across Google AI Studio previews and production deployments.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleTestSupabaseDb}
-              disabled={testingDb}
-              className="inline-flex items-center px-3.5 py-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-semibold transition disabled:opacity-50 cursor-pointer shadow-2xs"
-            >
-              {testingDb ? (
-                <>
-                  <div className="w-3 h-3 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin mr-1.5"></div>
-                  <span>Testing Database...</span>
-                </>
-              ) : (
-                <>
-                  <span>⚡ Test Database Connection</span>
-                </>
-              )}
-            </button>
-            <button
-              onClick={() => {
-                setTempDbUrl(dbUrl);
-                setTempDbKey(dbAnonKey);
-                setDbSaveError(null);
-                setDbSaveSuccess(false);
-                setIsDbModalOpen(true);
-              }}
-              className="inline-flex items-center px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-900 text-white text-xs font-semibold shadow-sm transition cursor-pointer"
-            >
-              ⚙️ Custom Credentials
-            </button>
-          </div>
-        </div>
-
-        {/* Database Health Check Test Banner */}
-        {dbTestResult && (
-          <div className={`p-4 rounded-xl text-xs space-y-3 ${dbTestResult.success ? 'bg-emerald-50 text-emerald-900 border border-emerald-200' : 'bg-red-50 text-red-900 border border-red-200'}`}>
-            <div className="flex items-center justify-between">
-              <span className="font-bold flex items-center gap-1.5 text-sm">
-                {dbTestResult.success ? '✓' : '✗'} {dbTestResult.message}
-              </span>
-              <span className="font-mono text-[11px] bg-white/70 px-2 py-0.5 rounded border">
-                Ping: {dbTestResult.latencyMs}ms
-              </span>
-            </div>
-            
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-emerald-200/60">
-              <div className="p-2 bg-white rounded-lg border border-emerald-100">
-                <span className="text-[10px] text-gray-500 uppercase font-bold block">Vehicles Table</span>
-                <span className="font-semibold text-gray-800">
-                  {dbTestResult.tables.vehicles.accessible ? `Online (${dbTestResult.tables.vehicles.count ?? 0} records)` : 'Error'}
-                </span>
-              </div>
-              <div className="p-2 bg-white rounded-lg border border-emerald-100">
-                <span className="text-[10px] text-gray-500 uppercase font-bold block">Fleet Users</span>
-                <span className="font-semibold text-gray-800">
-                  {dbTestResult.tables.fleet_users.accessible ? `Online (${dbTestResult.tables.fleet_users.count ?? 0} accounts)` : 'Error'}
-                </span>
-              </div>
-              <div className="p-2 bg-white rounded-lg border border-emerald-100">
-                <span className="text-[10px] text-gray-500 uppercase font-bold block">Tenants</span>
-                <span className="font-semibold text-gray-800">
-                  {dbTestResult.tables.tenants.accessible ? `Online (${dbTestResult.tables.tenants.count ?? 0} orgs)` : 'Error'}
-                </span>
-              </div>
-              <div className="p-2 bg-white rounded-lg border border-emerald-100">
-                <span className="text-[10px] text-gray-500 uppercase font-bold block">Bookings</span>
-                <span className="font-semibold text-gray-800">
-                  {dbTestResult.tables.bookings.accessible ? `Online (${dbTestResult.tables.bookings.count ?? 0} items)` : 'Error'}
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-4 rounded-xl bg-gray-50 border border-gray-100 space-y-1">
-            <span className="text-xs text-gray-500 font-semibold uppercase tracking-wider block">Database Endpoint</span>
-            <span className="font-mono text-xs text-gray-800 truncate select-all font-medium block">
-              {dbUrl}
-            </span>
-          </div>
-
-          <div className="p-4 rounded-xl bg-gray-50 border border-gray-100 space-y-1">
-            <span className="text-xs text-gray-500 font-semibold uppercase tracking-wider block">Hosting Region</span>
-            <span className="font-mono text-xs text-emerald-800 font-semibold block flex items-center gap-1">
-              <span>🇸🇬</span> Singapore (ap-southeast-1)
-            </span>
-          </div>
-
-          <div className="p-4 rounded-xl bg-gray-50 border border-gray-100 space-y-1">
-            <span className="text-xs text-gray-500 font-semibold uppercase tracking-wider block">Client Sync Mode</span>
-            <span className="font-mono text-xs text-gray-800 font-medium block">
-              Live REST API & Auto-Sync (15s)
-            </span>
-          </div>
-        </div>
-      </div>
-
       {/* Integration Overview Card */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-gray-100">
@@ -939,43 +722,6 @@ function doPost(e) {
             </div>
           )}
         </div>
-      </div>
-
-      {/* Diagnostics Logs Card */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <h4 className="text-sm font-semibold text-gray-900">Calendar Diagnostic Logs</h4>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={refreshLogs}
-              className="text-xs text-indigo-600 hover:underline"
-            >
-              Refresh
-            </button>
-            <span className="text-gray-300">|</span>
-            <button
-              onClick={handleClearLogs}
-              className="text-xs text-red-600 hover:underline"
-            >
-              Clear Logs
-            </button>
-          </div>
-        </div>
-
-        {diagnosticLogs.length === 0 ? (
-          <p className="text-xs text-gray-500 italic py-2">No diagnostic records logged yet.</p>
-        ) : (
-          <div className="max-h-48 overflow-y-auto space-y-2">
-            {diagnosticLogs.slice(-8).reverse().map((log, idx) => (
-              <div key={idx} className="p-2.5 rounded-lg bg-gray-50 border border-gray-100 text-xs flex items-center justify-between">
-                <span className="font-mono text-gray-600">{log.action}</span>
-                <span className={`font-semibold ${log.status === 'success' ? 'text-emerald-600' : 'text-red-600'}`}>
-                  {log.status.toUpperCase()}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Settings Modal */}
@@ -1068,97 +814,6 @@ function doPost(e) {
                 >
                   {saveLoading ? 'Saving...' : 'Save Changes'}
                 </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-      {/* Supabase Database Settings Modal */}
-      {isDbModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl max-w-xl w-full p-6 space-y-6 shadow-2xl border border-gray-100">
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-              <div className="flex items-center gap-2">
-                <span className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 font-mono font-bold text-xs">SQL</span>
-                <h3 className="text-lg font-bold text-gray-900">Configure Supabase Database</h3>
-              </div>
-              <button onClick={() => setIsDbModalOpen(false)} className="text-gray-400 hover:text-gray-600">✕</button>
-            </div>
-
-            {dbSaveSuccess && (
-              <div className="p-3 bg-emerald-50 text-emerald-800 text-xs rounded-lg font-medium">
-                ✓ Supabase credentials updated and database reconnected!
-              </div>
-            )}
-
-            {dbSaveError && (
-              <div className="p-3 bg-red-50 text-red-800 text-xs rounded-lg font-medium">
-                {dbSaveError}
-              </div>
-            )}
-
-            <form onSubmit={handleSaveDbSettings} className="space-y-4">
-              <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 space-y-1">
-                <p className="font-semibold flex items-center gap-1.5">
-                  <span>🇸🇬</span> Singapore Server Default Active
-                </p>
-                <p className="text-[11px] text-emerald-700 leading-relaxed">
-                  Default project is hosted on Supabase Singapore (<code>ydmeokfmsfgwrpbgmarv.supabase.co</code>). You can customize the URL or public anon key below if using another database project.
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
-                  Supabase Project URL
-                </label>
-                <input
-                  type="url"
-                  value={tempDbUrl}
-                  onChange={(e) => setTempDbUrl(e.target.value)}
-                  placeholder="https://ydmeokfmsfgwrpbgmarv.supabase.co"
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 text-xs font-mono focus:ring-2 focus:ring-emerald-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
-                  Supabase Anon Public API Key
-                </label>
-                <textarea
-                  rows={3}
-                  value={tempDbKey}
-                  onChange={(e) => setTempDbKey(e.target.value)}
-                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 text-xs font-mono focus:ring-2 focus:ring-emerald-500 leading-relaxed"
-                  required
-                />
-              </div>
-
-              <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={handleResetDbToDefault}
-                  className="px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 border border-rose-200 rounded-lg transition"
-                >
-                  Reset to Default Singapore Server
-                </button>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsDbModalOpen(false)}
-                    className="px-4 py-2 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition"
-                  >
-                    Save & Reconnect
-                  </button>
-                </div>
               </div>
             </form>
           </div>

@@ -1060,6 +1060,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const userToDelete = users.find(u => u.id === userId);
     if (!userToDelete) return;
 
+    if (userToDelete.isOwner) {
+      alert("Organization Owner account cannot be deleted.");
+      return;
+    }
+
     if (userToDelete.role === 'driver' && bookings.some(b => b.driverId === userId)) {
       alert("Cannot delete driver. They are assigned to one or more bookings.");
       return;

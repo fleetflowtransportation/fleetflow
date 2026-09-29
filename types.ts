@@ -10,6 +10,7 @@ export interface User {
   status: 'active' | 'inactive';
   password?: string;
   tenantId?: string;
+  isOwner?: boolean;
 }
 
 export type VehicleType = 

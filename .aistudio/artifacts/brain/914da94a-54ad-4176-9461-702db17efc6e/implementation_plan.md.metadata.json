@@ -1,0 +1,6 @@
+{
+  "summary":  "Implementation plan to protect organization owner users from deletion in User Management and simplify Settings UI by removing Supabase database tester and calendar diagnostic logs.",
+  "updatedAt":  "2026-09-29T07:17:15.461077797Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

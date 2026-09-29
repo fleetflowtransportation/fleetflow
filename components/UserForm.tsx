@@ -130,31 +130,60 @@ const UserForm: React.FC<UserFormProps> = ({ isOpen, onClose, userToEdit }) => {
           
           {/* Section 2: Access Control & Credentials */}
           <div>
-            <h3 className="text-lg font-medium leading-6 text-gray-900">Access & Credentials</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-medium leading-6 text-gray-900">Access & Credentials</h3>
+              {userToEdit?.isOwner && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300">
+                  Organization Owner (Admin Required)
+                </span>
+              )}
+            </div>
              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Role</label>
-                  <select name="role" value={formData.role} onChange={handleChange} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
-                    <option value="driver">Driver</option>
-                    <option value="admin">Admin</option>
-                  </select>
+                  {userToEdit?.isOwner ? (
+                    <div className="mt-1">
+                      <input 
+                        type="text" 
+                        disabled 
+                        value="Admin (Organization Owner)" 
+                        className="block w-full border-gray-300 rounded-md shadow-sm bg-gray-100 text-gray-600 cursor-not-allowed text-sm" 
+                      />
+                      <p className="mt-1 text-xs text-amber-700">Primary organization owner must remain an Administrator.</p>
+                    </div>
+                  ) : (
+                    <select name="role" value={formData.role} onChange={handleChange} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                      <option value="driver">Driver</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Status</label>
                   <div className="mt-2 flex items-center">
-                    <button
-                      type="button"
-                      onClick={handleStatusToggle}
-                      className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${
-                        formData.status === 'active' ? 'bg-indigo-600' : 'bg-gray-200'
-                      }`}
-                      aria-label="Toggle user status"
-                    >
-                      <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${
-                        formData.status === 'active' ? 'translate-x-6' : 'translate-x-1'
-                      }`}/>
-                    </button>
-                    <span className="ml-3 text-sm text-gray-600 capitalize">{formData.status}</span>
+                    {userToEdit?.isOwner ? (
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                          Active (Always Active)
+                        </span>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={handleStatusToggle}
+                          className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${
+                            formData.status === 'active' ? 'bg-indigo-600' : 'bg-gray-200'
+                          }`}
+                          aria-label="Toggle user status"
+                        >
+                          <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${
+                            formData.status === 'active' ? 'translate-x-6' : 'translate-x-1'
+                          }`}/>
+                        </button>
+                        <span className="ml-3 text-sm text-gray-600 capitalize">{formData.status}</span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

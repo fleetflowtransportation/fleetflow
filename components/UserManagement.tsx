@@ -74,7 +74,16 @@ const UserManagement: React.FC = () => {
                     <div className="text-sm text-gray-500">{user.email}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{user.phone}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">{user.role}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <div className="flex items-center gap-2">
+                      <span className="capitalize">{user.role}</span>
+                      {user.isOwner && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300" title="Primary Organization Owner">
+                          Owner
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                       user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
@@ -86,8 +95,31 @@ const UserManagement: React.FC = () => {
                     {new Date(user.joiningDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button onClick={() => handleEditUser(user)} className="text-gray-600 hover:text-indigo-800 p-1.5 rounded-full hover:bg-indigo-100 transition" title="Edit User"><EditIcon className="h-5 w-5" /></button>
-                    <button onClick={() => handleDeleteUser(user.id)} className="text-red-600 hover:text-red-800 p-1.5 rounded-full hover:bg-red-100 transition ml-2" title="Delete User"><TrashIcon className="h-5 w-5"/></button>
+                    <button 
+                      onClick={() => handleEditUser(user)} 
+                      className="text-gray-600 hover:text-indigo-800 p-1.5 rounded-full hover:bg-indigo-100 transition" 
+                      title="Edit User"
+                    >
+                      <EditIcon className="h-5 w-5" />
+                    </button>
+                    {user.isOwner ? (
+                      <button 
+                        disabled
+                        className="text-gray-300 cursor-not-allowed p-1.5 rounded-full ml-2" 
+                        title="Organization Owner cannot be deleted"
+                        aria-label="Cannot delete organization owner"
+                      >
+                        <TrashIcon className="h-5 w-5"/>
+                      </button>
+                    ) : (
+                      <button 
+                        onClick={() => handleDeleteUser(user.id)} 
+                        className="text-red-600 hover:text-red-800 p-1.5 rounded-full hover:bg-red-100 transition ml-2" 
+                        title="Delete User"
+                      >
+                        <TrashIcon className="h-5 w-5"/>
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))
