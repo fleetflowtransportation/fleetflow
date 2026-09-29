@@ -21,7 +21,7 @@ interface AppContextType {
   loadError: string | null;
   lastDriverAssignedId: string | null;
   reload: () => void;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   addBooking: (booking: Omit<Booking, 'id'>) => AutoAssignResult;
   updateBooking: (bookingId: string, updatedData: Partial<Omit<Booking, 'id'>>) => void;
@@ -208,23 +208,42 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => clearInterval(interval);
   }, [reload]);
 
-  const login = useCallback(async (email: string, password: string): Promise<boolean> => {
+  const login = useCallback(async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      const user = await storageService.getUserByEmailGlobal(email);
-      if (user && String(user.password).trim() === String(password).trim() && String(user.status).trim().toLowerCase() === 'active') {
-        const tenantId = user.tenantId;
-        storageService.setTenantId(tenantId);
-        localStorage.setItem('fleetflow_tenant_id', tenantId);
-        localStorage.setItem('fleetflow_user_data', JSON.stringify({ id: user.id, name: user.name, role: user.role, tenantId }));
-        
-        setCurrentUser({ id: user.id, name: user.name, role: user.role, tenantId });
-        reload();
-        return true;
+      const cleanEmail = email.trim().toLowerCase();
+      const cleanPassword = password.trim();
+
+      const user = await storageService.getUserByEmailGlobal(cleanEmail);
+      if (!user) {
+        console.warn('[Auth] No user account found for email:', cleanEmail);
+        return { success: false, error: 'No account found with this email address. Please register your organization first.' };
       }
-      return false;
-    } catch (err) {
+
+      const storedPassword = String(user.password || '').trim();
+      const isPasswordValid = storedPassword === cleanPassword;
+      const isActive = String(user.status || 'active').trim().toLowerCase() !== 'inactive';
+
+      if (!isPasswordValid) {
+        console.warn('[Auth] Password mismatch for:', cleanEmail);
+        return { success: false, error: 'Incorrect password. Please verify and try again.' };
+      }
+
+      if (!isActive) {
+        console.warn('[Auth] Inactive user account for:', cleanEmail);
+        return { success: false, error: 'This user account has been deactivated. Please contact your administrator.' };
+      }
+
+      const tenantId = user.tenantId || 'yayasan-chow-kit';
+      storageService.setTenantId(tenantId);
+      localStorage.setItem('fleetflow_tenant_id', tenantId);
+      localStorage.setItem('fleetflow_user_data', JSON.stringify({ id: user.id, name: user.name, role: user.role, tenantId }));
+      
+      setCurrentUser({ id: user.id, name: user.name, role: user.role, tenantId });
+      reload();
+      return { success: true };
+    } catch (err: any) {
       console.error('Login error:', err);
-      return false;
+      return { success: false, error: err.message || 'Login failed due to a connection error.' };
     }
   }, [reload]);
 

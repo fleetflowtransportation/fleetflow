@@ -9,8 +9,8 @@ export function getActiveSupabaseUrl(): string {
     const local = localStorage.getItem('fleetflow_supabase_url');
     if (local && local.trim().startsWith('http')) {
       const clean = local.trim().replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
-      // If user had stored the old deleted South Korea database URL, clean it up immediately
-      if (clean.includes('gcpeiwucgeocfghwkscn')) {
+      // If user had stored an old or invalid database URL, clean it up immediately
+      if (!clean.includes('ydmeokfmsfgwrpbgmarv')) {
         localStorage.removeItem('fleetflow_supabase_url');
         localStorage.removeItem('fleetflow_supabase_anon_key');
         return DEFAULT_SUPABASE_URL;
@@ -24,7 +24,7 @@ export function getActiveSupabaseUrl(): string {
   const rawEnv = (import.meta as any).env?.VITE_SUPABASE_URL;
   if (rawEnv && rawEnv.trim().startsWith('http')) {
     const cleanEnv = rawEnv.trim().replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
-    if (!cleanEnv.includes('gcpeiwucgeocfghwkscn')) {
+    if (cleanEnv.includes('ydmeokfmsfgwrpbgmarv')) {
       return cleanEnv;
     }
   }
@@ -35,7 +35,7 @@ export function getActiveSupabaseUrl(): string {
 export function getActiveSupabaseAnonKey(): string {
   try {
     const localUrl = localStorage.getItem('fleetflow_supabase_url');
-    if (localUrl && localUrl.includes('gcpeiwucgeocfghwkscn')) {
+    if (localUrl && !localUrl.includes('ydmeokfmsfgwrpbgmarv')) {
       localStorage.removeItem('fleetflow_supabase_url');
       localStorage.removeItem('fleetflow_supabase_anon_key');
       return DEFAULT_SUPABASE_ANON_KEY;
@@ -56,8 +56,25 @@ export function getActiveSupabaseAnonKey(): string {
   return DEFAULT_SUPABASE_ANON_KEY;
 }
 
+export function createDirectSupabaseClient(url: string = DEFAULT_SUPABASE_URL, anonKey: string = DEFAULT_SUPABASE_ANON_KEY): SupabaseClient {
+  return createClient(url, anonKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+      storageKey: 'fleetflow_direct_auth'
+    },
+    global: {
+      headers: {
+        'apikey': anonKey,
+        'Authorization': `Bearer ${anonKey}`
+      }
+    }
+  });
+}
+
 // Current client instance
-let currentClient: SupabaseClient = createClient(
+let currentClient: SupabaseClient = createDirectSupabaseClient(
   getActiveSupabaseUrl(),
   getActiveSupabaseAnonKey()
 );
@@ -74,7 +91,7 @@ export function updateSupabaseConfig(url: string, anonKey: string): { success: b
     localStorage.setItem('fleetflow_supabase_url', cleanUrl);
     localStorage.setItem('fleetflow_supabase_anon_key', cleanKey);
 
-    currentClient = createClient(cleanUrl, cleanKey);
+    currentClient = createDirectSupabaseClient(cleanUrl, cleanKey);
     return { success: true, client: currentClient };
   } catch (err: any) {
     console.error('Failed to update Supabase configuration:', err);
@@ -86,7 +103,7 @@ export function resetSupabaseConfig(): void {
   try {
     localStorage.removeItem('fleetflow_supabase_url');
     localStorage.removeItem('fleetflow_supabase_anon_key');
-    currentClient = createClient(DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_ANON_KEY);
+    currentClient = createDirectSupabaseClient(DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_ANON_KEY);
   } catch {
     // ignore
   }

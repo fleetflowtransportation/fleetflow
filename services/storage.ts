@@ -1,6 +1,6 @@
 import type { Booking, FuelLog, OdometerLog, User, Vehicle, IssueLog, DriverSchedule, Tenant, SelfDriveStaff, MaintenanceInterval, MaintenanceLog, VehicleRenewal, ComplianceType } from '../types';
 import { USERS, VEHICLES, INITIAL_BOOKINGS, INITIAL_DRIVER_SCHEDULES, INITIAL_MAINTENANCE_INTERVALS, INITIAL_MAINTENANCE_LOGS } from '../constants';
-import { supabase } from './supabaseClient';
+import { supabase, DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_ANON_KEY } from './supabaseClient';
 
 let currentTenantId = 'yayasan-chow-kit';
 
@@ -538,91 +538,146 @@ export const storageService = {
   getUserByEmailGlobal: async (email: string): Promise<User | null> => {
     const cleanEmail = email.trim().toLowerCase();
     try {
+      // 1. Case-insensitive query via Supabase SDK
       const { data, error } = await supabase
         .from('fleet_users')
         .select('*')
-        .ilike('email', cleanEmail)
-        .maybeSingle();
+        .ilike('email', cleanEmail);
 
-      if (error) {
-        console.warn('[Supabase] getUserByEmailGlobal query error:', error.message);
-        return null;
+      if (!error && data && data.length > 0) {
+        const exact = data.find(u => (u.email || '').trim().toLowerCase() === cleanEmail) || data[0];
+        return fromDbUser(exact);
       }
-      if (!data) {
-        return null;
+
+      // 2. Direct equality fallback via Supabase SDK
+      const { data: eqData } = await supabase
+        .from('fleet_users')
+        .select('*')
+        .eq('email', cleanEmail);
+
+      if (eqData && eqData.length > 0) {
+        return fromDbUser(eqData[0]);
       }
-      return fromDbUser(data);
+
+      // 3. Direct HTTPS REST fetch to bypass any SDK/token caching in iframe sandbox
+      try {
+        const restRes = await fetch(`${DEFAULT_SUPABASE_URL}/rest/v1/fleet_users?select=*`, {
+          headers: {
+            'apikey': DEFAULT_SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${DEFAULT_SUPABASE_ANON_KEY}`,
+          },
+        });
+        if (restRes.ok) {
+          const restUsers = await restRes.json();
+          if (Array.isArray(restUsers) && restUsers.length > 0) {
+            const found = restUsers.find((u: any) => (u.email || '').trim().toLowerCase() === cleanEmail);
+            if (found) {
+              return fromDbUser(found);
+            }
+          }
+        }
+      } catch (restErr: any) {
+        console.warn('[Supabase REST Fallback] fetch error:', restErr.message);
+      }
+
+      // 4. Fallback scan of recent fleet users
+      const { data: allUsers } = await supabase
+        .from('fleet_users')
+        .select('*')
+        .limit(100);
+
+      if (allUsers && allUsers.length > 0) {
+        const found = allUsers.find(u => (u.email || '').trim().toLowerCase() === cleanEmail);
+        if (found) {
+          return fromDbUser(found);
+        }
+      }
+
+      return null;
     } catch (err: any) {
       console.warn('[Supabase] getUserByEmailGlobal exception:', err.message);
+      // Last chance direct REST call
+      try {
+        const restRes = await fetch(`${DEFAULT_SUPABASE_URL}/rest/v1/fleet_users?select=*`, {
+          headers: {
+            'apikey': DEFAULT_SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${DEFAULT_SUPABASE_ANON_KEY}`,
+          },
+        });
+        if (restRes.ok) {
+          const restUsers = await restRes.json();
+          if (Array.isArray(restUsers)) {
+            const found = restUsers.find((u: any) => (u.email || '').trim().toLowerCase() === cleanEmail);
+            if (found) return fromDbUser(found);
+          }
+        }
+      } catch {
+        // ignore
+      }
       return null;
     }
   },
   // ---- READ ----
   getUsers: async (): Promise<User[]> => {
     try {
-      const { data, error } = await supabase.from('fleet_users').select('*').eq('tenant_id', getTenantId()).order('created_at', { ascending: true });
+      const tid = getTenantId();
+      const { data, error } = await supabase
+        .from('fleet_users')
+        .select('*')
+        .eq('tenant_id', tid)
+        .order('created_at', { ascending: true });
+
       if (error) {
-        console.warn('[Supabase] getUsers query error, falling back to defaults:', error.message);
-        return getTenantId() === 'yayasan-chow-kit' ? USERS : [];
+        console.warn('[Supabase] getUsers error:', error.message);
+        return [];
       }
       if (!data || data.length === 0) {
-        if (getTenantId() === 'yayasan-chow-kit') {
-          console.log('[Supabase] Seeding initial users into fleet_users table...');
-          const dbRows = USERS.map(toDbUser);
-          const { error: insertError } = await supabase.from('fleet_users').insert(dbRows);
-          if (insertError) {
-            console.error('[Supabase] Failed to seed initial users:', insertError.message);
-          }
-          return USERS;
-        }
         return [];
       }
       return data.map(fromDbUser);
     } catch (err: any) {
       console.warn('[Supabase] getUsers network exception:', err.message);
-      return getTenantId() === 'yayasan-chow-kit' ? USERS : [];
+      return [];
     }
   },
 
   getVehicles: async (): Promise<Vehicle[]> => {
     try {
-      const tid = getTenantId() || 'yayasan-chow-kit';
-      let { data, error } = await supabase
+      const tid = getTenantId();
+      const { data, error } = await supabase
         .from('vehicles')
         .select('*')
-        .eq('tenant_id', tid);
+        .eq('tenant_id', tid)
+        .order('created_at', { ascending: true });
 
       if (error) {
-        console.warn('[Supabase] getVehicles query error, trying all vehicles:', error.message);
-        const { data: allData, error: allErr } = await supabase.from('vehicles').select('*');
-        if (!allErr && allData && allData.length > 0) {
-          return allData.map(fromDbVehicle);
-        }
-        return tid === 'yayasan-chow-kit' ? VEHICLES : [];
+        console.warn('[Supabase] getVehicles query error:', error.message);
+        return [];
       }
 
       if (!data || data.length === 0) {
-        // Check if vehicles exist in database under any tenant
-        const { data: allData } = await supabase.from('vehicles').select('*');
-        if (allData && allData.length > 0) {
-          return allData.map(fromDbVehicle);
-        }
-        return tid === 'yayasan-chow-kit' ? VEHICLES : [];
+        return [];
       }
 
       return data.map(fromDbVehicle);
     } catch (err: any) {
       console.warn('[Supabase] getVehicles network exception:', err.message);
-      return getTenantId() === 'yayasan-chow-kit' ? VEHICLES : [];
+      return [];
     }
   },
 
   getBookings: async (): Promise<Booking[]> => {
     try {
-      const { data, error } = await supabase.from('bookings').select('*').eq('tenant_id', getTenantId()).order('date_time', { ascending: true });
+      const tid = getTenantId();
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('tenant_id', tid)
+        .order('date_time', { ascending: true });
+
       if (error) {
-        console.warn('[Supabase] getBookings fallback:', error.message);
-        return getTenantId() === 'yayasan-chow-kit' ? INITIAL_BOOKINGS : [];
+        console.warn('[Supabase] getBookings error:', error.message);
+        return [];
       }
       if (!data || data.length === 0) {
         return [];
@@ -630,7 +685,7 @@ export const storageService = {
       return data.map(fromDbBooking);
     } catch (err: any) {
       console.warn('[Supabase] getBookings network exception:', err.message);
-      return getTenantId() === 'yayasan-chow-kit' ? INITIAL_BOOKINGS : [];
+      return [];
     }
   },
 
