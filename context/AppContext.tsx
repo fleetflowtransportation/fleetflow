@@ -5,6 +5,7 @@ import { postVehicleRenew } from '../services/renewalApi';
 import { parseAsLocal } from '../utils';
 import { evaluateBookingAssignment, normalizeDate, normalizeTime, getDriverCalendarColor, type AutoAssignResult } from '../services/bookingEngine';
 import { googleCalendarService } from '../services/googleCalendar';
+import { updateSupabaseConfig, resetSupabaseConfig } from '../services/supabaseClient';
 
 interface AppContextType {
   users: User[];
@@ -74,6 +75,8 @@ interface AppContextType {
   vehicleRenewals: VehicleRenewal[];
   renewVehicleCompliance: (vehicleId: string, renewalData: Omit<VehicleRenewal, 'id' | 'createdAt' | 'updatedAt'>) => Promise<{ success: boolean; renewal: VehicleRenewal; updatedVehicle: Vehicle }>;
   deleteVehicleRenewal: (id: string) => Promise<boolean>;
+  updateSupabaseDatabaseConfig: (url: string, anonKey: string) => boolean;
+  resetSupabaseDatabaseConfig: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -1252,6 +1255,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return true;
   }, []);
 
+  const updateSupabaseDatabaseConfig = useCallback((url: string, anonKey: string): boolean => {
+    const res = updateSupabaseConfig(url, anonKey);
+    if (res.success) {
+      reload();
+      return true;
+    }
+    return false;
+  }, [reload]);
+
+  const resetSupabaseDatabaseConfig = useCallback((): void => {
+    resetSupabaseConfig();
+    reload();
+  }, [reload]);
+
   return (
     <AppContext.Provider value={{
       users,
@@ -1321,6 +1338,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       vehicleRenewals,
       renewVehicleCompliance,
       deleteVehicleRenewal,
+      updateSupabaseDatabaseConfig,
+      resetSupabaseDatabaseConfig,
     }}>
       {children}
     </AppContext.Provider>

@@ -10,7 +10,7 @@ export const USERS: User[] = [
     address: 'HQ Yayasan Chow Kit, KL',
     role: 'admin',
     status: 'active',
-    password: 'admin' 
+    password: 'lolipop7' 
   },
   { 
     id: 'driver-syafiq', 
@@ -35,26 +35,26 @@ export const USERS: User[] = [
     password: 'password123' 
   },
   { 
-    id: 'driver-aziz', 
-    name: 'Aziz', 
+    id: 'admin-1790082731961-zw0up3bz6yq', 
+    name: 'Aziz Nurmin', 
     email: 'aziz@yck.org.my',
     phone: '017-3131604',
-    joiningDate: '2023-05-10',
+    joiningDate: '2014-09-15',
     address: 'Selangor',
     role: 'admin',
     status: 'active',
-    password: 'password123' 
+    password: 'admin123' 
   },
   { 
-    id: 'driver-1', 
-    name: 'John Doe', 
-    email: 'john.doe@email.com',
-    phone: '011-1234567',
-    joiningDate: '2023-05-15',
-    address: '456 Driver Avenue, PJ',
-    role: 'driver',
+    id: 'user-1790429313454', 
+    name: 'Aziz Nurmin', 
+    email: 'aziznurmin@gmail.com',
+    phone: '',
+    joiningDate: '2026-09-26',
+    address: '',
+    role: 'admin',
     status: 'active',
-    password: 'password123' 
+    password: 'admin123' 
   },
 ];
 

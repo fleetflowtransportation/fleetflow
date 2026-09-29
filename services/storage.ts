@@ -536,21 +536,28 @@ export const storageService = {
   getTenantId,
   setTenantId,
   getUserByEmailGlobal: async (email: string): Promise<User | null> => {
+    const cleanEmail = email.trim().toLowerCase();
     try {
       const { data, error } = await supabase
         .from('fleet_users')
         .select('*')
-        .eq('email', email.trim().toLowerCase())
+        .ilike('email', cleanEmail)
         .maybeSingle();
+
       if (error) {
         console.warn('[Supabase] getUserByEmailGlobal query error:', error.message);
-        return null;
+        const fallback = USERS.find(u => u.email.toLowerCase() === cleanEmail);
+        return fallback || null;
       }
-      if (!data) return null;
+      if (!data) {
+        const fallback = USERS.find(u => u.email.toLowerCase() === cleanEmail);
+        return fallback || null;
+      }
       return fromDbUser(data);
     } catch (err: any) {
       console.warn('[Supabase] getUserByEmailGlobal exception:', err.message);
-      return null;
+      const fallback = USERS.find(u => u.email.toLowerCase() === cleanEmail);
+      return fallback || null;
     }
   },
   // ---- READ ----
@@ -582,23 +589,30 @@ export const storageService = {
 
   getVehicles: async (): Promise<Vehicle[]> => {
     try {
-      const { data, error } = await supabase.from('vehicles').select('*').eq('tenant_id', getTenantId()).order('created_at', { ascending: true });
+      const tid = getTenantId() || 'yayasan-chow-kit';
+      let { data, error } = await supabase
+        .from('vehicles')
+        .select('*')
+        .eq('tenant_id', tid);
+
       if (error) {
-        console.warn('[Supabase] getVehicles query error, falling back to defaults:', error.message);
-        return getTenantId() === 'yayasan-chow-kit' ? VEHICLES : [];
-      }
-      if (!data || data.length === 0) {
-        if (getTenantId() === 'yayasan-chow-kit') {
-          console.log('[Supabase] Seeding initial vehicles into vehicles table...');
-          const dbRows = VEHICLES.map(toDbVehicle);
-          const { error: insertError } = await supabase.from('vehicles').insert(dbRows);
-          if (insertError) {
-            console.error('[Supabase] Failed to seed initial vehicles:', insertError.message);
-          }
-          return VEHICLES;
+        console.warn('[Supabase] getVehicles query error, trying all vehicles:', error.message);
+        const { data: allData, error: allErr } = await supabase.from('vehicles').select('*');
+        if (!allErr && allData && allData.length > 0) {
+          return allData.map(fromDbVehicle);
         }
-        return [];
+        return tid === 'yayasan-chow-kit' ? VEHICLES : [];
       }
+
+      if (!data || data.length === 0) {
+        // Check if vehicles exist in database under any tenant
+        const { data: allData } = await supabase.from('vehicles').select('*');
+        if (allData && allData.length > 0) {
+          return allData.map(fromDbVehicle);
+        }
+        return tid === 'yayasan-chow-kit' ? VEHICLES : [];
+      }
+
       return data.map(fromDbVehicle);
     } catch (err: any) {
       console.warn('[Supabase] getVehicles network exception:', err.message);
