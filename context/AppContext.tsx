@@ -118,7 +118,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // ---- Load session and active tenant on startup ----
   useEffect(() => {
-    const savedTenantId = localStorage.getItem('fleetflow_tenant_id') || 'yayasan-chow-kit';
+    const savedTenantId = localStorage.getItem('fleetflow_tenant_id') || 'yayasan-chow-kit-demo';
     const savedUserData = localStorage.getItem('fleetflow_user_data');
     
     storageService.setTenantId(savedTenantId);
@@ -250,7 +250,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const logout = useCallback(() => {
     localStorage.removeItem('fleetflow_tenant_id');
     localStorage.removeItem('fleetflow_user_data');
-    storageService.setTenantId('yayasan-chow-kit');
+    storageService.setTenantId('yayasan-chow-kit-demo');
     setCurrentUser(null);
     reload();
   }, [reload]);

@@ -36,7 +36,7 @@ export const IntegrationsSettings: React.FC = () => {
 
   useEffect(() => {
     if (activeTenant) {
-      const isYCK = activeTenant.id === 'yayasan-chow-kit';
+      const isYCK = activeTenant.id === 'yayasan-chow-kit-demo' || activeTenant.id === 'yayasan-chow-kit';
       const cal = activeTenant.googleCalendarId || '';
       const drv = activeTenant.googleDriveId || '';
       const script = activeTenant.googleAppsScriptUrl || (isYCK ? (import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL || '') : '');
@@ -133,8 +133,8 @@ export const IntegrationsSettings: React.FC = () => {
     }
   };
 
-  const publicBookingUrl = `${window.location.origin}/?action=book&tenant_id=${activeTenant?.id || 'yayasan-chow-kit'}`;
-  const publicOdometerUrl = `${window.location.origin}/?action=odometer&tenant_id=${activeTenant?.id || 'yayasan-chow-kit'}`;
+  const publicBookingUrl = `${window.location.origin}/?action=book&tenant_id=${activeTenant?.id || 'yayasan-chow-kit-demo'}`;
+  const publicOdometerUrl = `${window.location.origin}/?action=odometer&tenant_id=${activeTenant?.id || 'yayasan-chow-kit-demo'}`;
   const [copiedOdometer, setCopiedOdometer] = useState(false);
 
   const handleCopyLink = () => {

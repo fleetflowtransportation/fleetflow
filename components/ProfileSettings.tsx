@@ -76,8 +76,8 @@ export const ProfileSettings: React.FC = () => {
 
   // Form state
   const [formData, setFormData] = useState<Partial<Tenant>>(() => {
-    const isYCK = activeTenant?.id === 'yayasan-chow-kit';
-    const tenantId = activeTenant?.id || 'yayasan-chow-kit';
+    const isYCK = activeTenant?.id === 'yayasan-chow-kit-demo' || activeTenant?.id === 'yayasan-chow-kit';
+    const tenantId = activeTenant?.id || 'yayasan-chow-kit-demo';
     try {
       const draft = localStorage.getItem(`fleetflow_profile_draft_${tenantId}`);
       if (draft) {
@@ -87,7 +87,7 @@ export const ProfileSettings: React.FC = () => {
       // ignore
     }
     return {
-      companyName: activeTenant?.companyName || activeTenant?.name || (isYCK ? 'Yayasan Chow Kit' : ''),
+      companyName: activeTenant?.companyName || activeTenant?.name || (isYCK ? 'Yayasan Chow Kit - Demo' : ''),
       registrationNumber: activeTenant?.registrationNumber || (isYCK ? 'PPM-012-14-11012011' : ''),
       description: activeTenant?.description || (isYCK ? 'Child Crisis Shelter & Community Welfare Transportation Management' : ''),
       phone: activeTenant?.phone || (isYCK ? '+603-4045 5550' : ''),
@@ -127,9 +127,9 @@ export const ProfileSettings: React.FC = () => {
         // ignore
       }
 
-      const isYCK = activeTenant.id === 'yayasan-chow-kit';
+      const isYCK = activeTenant.id === 'yayasan-chow-kit-demo' || activeTenant.id === 'yayasan-chow-kit';
       setFormData({
-        companyName: draftData?.companyName ?? (activeTenant.companyName || activeTenant.name || (isYCK ? 'Yayasan Chow Kit' : '')),
+        companyName: draftData?.companyName ?? (activeTenant.companyName || activeTenant.name || (isYCK ? 'Yayasan Chow Kit - Demo' : '')),
         registrationNumber: draftData?.registrationNumber ?? (activeTenant.registrationNumber || (isYCK ? 'PPM-012-14-11012011' : '')),
         description: draftData?.description ?? (activeTenant.description || (isYCK ? 'Child Crisis Shelter & Community Welfare Transportation Management' : '')),
         phone: draftData?.phone ?? (activeTenant.phone || (isYCK ? '+603-4045 5550' : '')),

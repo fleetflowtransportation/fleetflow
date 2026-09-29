@@ -2,7 +2,7 @@ import type { Booking, FuelLog, OdometerLog, User, Vehicle, IssueLog, DriverSche
 import { USERS, VEHICLES, INITIAL_BOOKINGS, INITIAL_DRIVER_SCHEDULES, INITIAL_MAINTENANCE_INTERVALS, INITIAL_MAINTENANCE_LOGS } from '../constants';
 import { supabase, DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_ANON_KEY } from './supabaseClient';
 
-let currentTenantId = 'yayasan-chow-kit';
+let currentTenantId = 'yayasan-chow-kit-demo';
 
 export const getTenantId = () => currentTenantId;
 export const setTenantId = (id: string) => {
@@ -36,7 +36,7 @@ const toDbUser = (u: Partial<User>) => {
 // Helper: Convert DB User to TS
 const fromDbUser = (row: any): User => {
   const isOwnerFromComment = typeof row.comments === 'string' && row.comments.includes('[OWNER]');
-  const isDefaultOwner = (row.tenant_id === 'yayasan-chow-kit' && (row.email === 'aziz@yck.org.my' || row.id === 'admin-ain')) ||
+  const isDefaultOwner = ((row.tenant_id === 'yayasan-chow-kit-demo' || row.tenant_id === 'yayasan-chow-kit') && (row.email === 'aziz@yck.org.my' || row.id === 'admin-ain')) ||
     (row.tenant_id === 'bukujalananchowkit' && (row.email === 'aziznurmin@gmail.com' || row.email?.includes('aziznurmin'))) ||
     isOwnerFromComment;
 
@@ -471,7 +471,7 @@ const INITIAL_SELF_DRIVE_STAFF: SelfDriveStaff[] = [
     status: 'active',
     notes: 'Authorized self-drive staff for community outreach and errand trips.',
     createdAt: '2026-01-10T08:00:00.000Z',
-    tenantId: 'yayasan-chow-kit'
+    tenantId: 'yayasan-chow-kit-demo'
   },
   {
     id: 'staff-sds-02',
@@ -484,7 +484,7 @@ const INITIAL_SELF_DRIVE_STAFF: SelfDriveStaff[] = [
     status: 'active',
     notes: 'Approved for Alza usage during official youth development activities.',
     createdAt: '2026-02-15T09:30:00.000Z',
-    tenantId: 'yayasan-chow-kit'
+    tenantId: 'yayasan-chow-kit-demo'
   }
 ];
 
@@ -1552,11 +1552,11 @@ export const storageService = {
         console.warn('[Supabase] getTenant warning:', error.message);
       }
 
-      if (!data && id !== 'yayasan-chow-kit') {
+      if (!data && id !== 'yayasan-chow-kit-demo' && id !== 'yayasan-chow-kit') {
         return null;
       }
 
-      const isYCK = id === 'yayasan-chow-kit';
+      const isYCK = id === 'yayasan-chow-kit-demo' || id === 'yayasan-chow-kit';
       let scriptUrl = data?.google_apps_script_url !== undefined && data.google_apps_script_url !== null
         ? data.google_apps_script_url
         : (localProfile.googleAppsScriptUrl !== undefined ? localProfile.googleAppsScriptUrl : (isYCK ? (import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL || '') : ''));
@@ -1588,12 +1588,12 @@ export const storageService = {
 
       const merged: Tenant = {
         id,
-        name: dbMetaProfile.companyName || data?.name || localProfile.companyName || localProfile.name || (isYCK ? 'Yayasan Chow Kit' : id),
+        name: dbMetaProfile.companyName || data?.name || localProfile.companyName || localProfile.name || (isYCK ? 'Yayasan Chow Kit - Demo' : id),
         status: data?.status || 'active',
         googleAppsScriptUrl: scriptUrl,
         googleCalendarId: calendarId,
         googleDriveId: driveId,
-        companyName: dbMetaProfile.companyName || data?.company_name || localProfile.companyName || data?.name || (isYCK ? 'Yayasan Chow Kit' : id),
+        companyName: dbMetaProfile.companyName || data?.company_name || localProfile.companyName || data?.name || (isYCK ? 'Yayasan Chow Kit - Demo' : id),
         registrationNumber: dbMetaProfile.registrationNumber || data?.registration_number || localProfile.registrationNumber || (isYCK ? 'PPM-012-14-11012011' : ''),
         phone: dbMetaProfile.phone || data?.phone || localProfile.phone || (isYCK ? '+603-4045 5550' : ''),
         whatsapp: dbMetaProfile.whatsapp || data?.whatsapp || localProfile.whatsapp || (isYCK ? '+6012-3456789' : ''),
@@ -1649,9 +1649,9 @@ export const storageService = {
       }
 
       // 2. Prepare metadata JSON payload for database cloud persistence
-      const isYCK = id === 'yayasan-chow-kit';
+      const isYCK = id === 'yayasan-chow-kit-demo' || id === 'yayasan-chow-kit';
       const metaPayload = {
-        companyName: mergedProfile.companyName || mergedProfile.name || (isYCK ? 'Yayasan Chow Kit' : id),
+        companyName: mergedProfile.companyName || mergedProfile.name || (isYCK ? 'Yayasan Chow Kit - Demo' : id),
         registrationNumber: mergedProfile.registrationNumber || '',
         phone: mergedProfile.phone || '',
         whatsapp: mergedProfile.whatsapp || '',
@@ -1680,7 +1680,7 @@ export const storageService = {
       try {
         const primaryRow: any = {
           id,
-          name: mergedProfile.companyName || mergedProfile.name || (isYCK ? 'Yayasan Chow Kit' : id),
+          name: mergedProfile.companyName || mergedProfile.name || (isYCK ? 'Yayasan Chow Kit - Demo' : id),
           status: mergedProfile.status || 'active',
           google_drive_id: packedDriveId,
           google_apps_script_url: mergedProfile.googleAppsScriptUrl ?? null,
