@@ -58,7 +58,7 @@ interface AppContextType {
   updateGoogleAppsScriptUrl: (url: string) => Promise<boolean>;
   updateTenantGoogleIntegrations: (settings: { googleAppsScriptUrl?: string; googleCalendarId?: string; googleDriveId?: string }) => Promise<boolean>;
   updateTenantProfile: (profileData: Partial<Tenant>) => Promise<boolean>;
-  registerOrganization: (tenantId: string, tenantName: string, adminName: string, adminEmail: string, adminPassword?: string) => Promise<boolean>;
+  registerOrganization: (tenantId: string, tenantName: string, adminName: string, adminEmail: string, adminPassword?: string) => Promise<{ success: boolean; error?: string }>;
   deleteTenantCompletely: (tenantId: string) => Promise<boolean>;
   selfDriveStaff: SelfDriveStaff[];
   addSelfDriveStaff: (staff: Omit<SelfDriveStaff, 'id' | 'createdAt'>) => Promise<SelfDriveStaff>;
@@ -291,12 +291,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return false;
   }, [currentUser]);
 
-  const registerOrganization = useCallback(async (tenantId: string, tenantName: string, adminName: string, adminEmail: string, adminPassword?: string): Promise<boolean> => {
-    const success = await storageService.signUpTenant(tenantId, tenantName, adminName, adminEmail, adminPassword);
-    if (success) {
+  const registerOrganization = useCallback(async (tenantId: string, tenantName: string, adminName: string, adminEmail: string, adminPassword?: string): Promise<{ success: boolean; error?: string }> => {
+    const result = await storageService.signUpTenant(tenantId, tenantName, adminName, adminEmail, adminPassword);
+    if (result.success) {
       reload();
     }
-    return success;
+    return result;
   }, [reload]);
 
   const deleteTenantCompletely = useCallback(async (tenantId: string): Promise<boolean> => {

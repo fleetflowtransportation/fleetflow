@@ -59,7 +59,7 @@ export const AuthPage: React.FC = () => {
 
     setRegLoading(true);
     try {
-      const success = await registerOrganization(
+      const result = await registerOrganization(
         regTenantId.trim().toLowerCase(),
         regTenantName.trim(),
         regAdminName.trim(),
@@ -67,7 +67,7 @@ export const AuthPage: React.FC = () => {
         regAdminPassword.trim()
       );
 
-      if (success) {
+      if (result.success) {
         setRegSuccess(`Organization "${regTenantName}" registered successfully! Please log in using the administrator email "${regAdminEmail}".`);
         setRegTenantId('');
         setRegTenantName('');
@@ -76,9 +76,9 @@ export const AuthPage: React.FC = () => {
         setRegAdminPassword('');
         setTimeout(() => {
           setIsLoginView(true);
-        }, 5000);
+        }, 4000);
       } else {
-        setRegError('Registration failed. The Organization ID may already be registered by another tenant.');
+        setRegError(result.error || 'Registration failed. Please check your credentials and try again.');
       }
     } catch (err: any) {
       setRegError(err.message || 'Registration failed due to an unexpected error.');

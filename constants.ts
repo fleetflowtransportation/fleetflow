@@ -45,17 +45,6 @@ export const USERS: User[] = [
     status: 'active',
     password: 'admin123' 
   },
-  { 
-    id: 'user-1790429313454', 
-    name: 'Aziz Nurmin', 
-    email: 'aziznurmin@gmail.com',
-    phone: '',
-    joiningDate: '2026-09-26',
-    address: '',
-    role: 'admin',
-    status: 'active',
-    password: 'admin123' 
-  },
 ];
 
 export const VEHICLES: Vehicle[] = [

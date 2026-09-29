@@ -546,18 +546,15 @@ export const storageService = {
 
       if (error) {
         console.warn('[Supabase] getUserByEmailGlobal query error:', error.message);
-        const fallback = USERS.find(u => u.email.toLowerCase() === cleanEmail);
-        return fallback || null;
+        return null;
       }
       if (!data) {
-        const fallback = USERS.find(u => u.email.toLowerCase() === cleanEmail);
-        return fallback || null;
+        return null;
       }
       return fromDbUser(data);
     } catch (err: any) {
       console.warn('[Supabase] getUserByEmailGlobal exception:', err.message);
-      const fallback = USERS.find(u => u.email.toLowerCase() === cleanEmail);
-      return fallback || null;
+      return null;
     }
   },
   // ---- READ ----
@@ -1601,7 +1598,6 @@ export const storageService = {
 
   createTenant: async (data: Tenant): Promise<Tenant | null> => {
     try {
-      // Save local config
       try {
         localStorage.setItem(`fleetflow_tenant_config_${data.id}`, JSON.stringify({
           googleCalendarId: data.googleCalendarId || '',
@@ -1619,57 +1615,95 @@ export const storageService = {
       const { error } = await supabase.from('tenants').insert([dbRow]);
       if (error) {
         console.error('[Supabase] createTenant error:', error.message);
+        return null;
       }
       return data;
     } catch (err: any) {
       console.error('[Supabase] createTenant exception:', err.message);
-      return data;
+      return null;
     }
   },
 
-  signUpTenant: async (tenantId: string, tenantName: string, adminName: string, adminEmail: string, adminPassword?: string): Promise<boolean> => {
+  signUpTenant: async (tenantId: string, tenantName: string, adminName: string, adminEmail: string, adminPassword?: string): Promise<{ success: boolean; error?: string }> => {
+    const cleanTenantId = tenantId.trim().toLowerCase();
+    const cleanEmail = adminEmail.trim().toLowerCase();
+
     try {
-      // Check if tenant ID is already taken
-      const existingTenant = await storageService.getTenant(tenantId);
+      // 1. Check if tenant ID is currently active in Supabase
+      const { data: existingTenant } = await supabase
+        .from('tenants')
+        .select('id')
+        .eq('id', cleanTenantId)
+        .maybeSingle();
+
       if (existingTenant) {
-        console.warn('[Supabase] Tenant ID already exists:', tenantId);
-        return false;
+        return { success: false, error: `Organization ID "${cleanTenantId}" is already registered.` };
       }
 
-      // Check if user email is already taken
-      const existingUser = await storageService.getUserByEmailGlobal(adminEmail);
+      // 2. Check if admin email already exists in Supabase
+      const { data: existingUser } = await supabase
+        .from('fleet_users')
+        .select('id, email, tenant_id')
+        .ilike('email', cleanEmail)
+        .maybeSingle();
+
       if (existingUser) {
-        console.warn('[Supabase] Admin email already exists globally:', adminEmail);
-        return false;
+        // Check if the tenant for this user still exists
+        const { data: userTenant } = await supabase
+          .from('tenants')
+          .select('id')
+          .eq('id', existingUser.tenant_id)
+          .maybeSingle();
+
+        if (!userTenant || existingUser.tenant_id === cleanTenantId) {
+          // The previous tenant was deleted in Supabase. Delete the orphaned user row so they can re-register!
+          await supabase.from('fleet_users').delete().eq('id', existingUser.id);
+        } else {
+          return { success: false, error: `Email "${cleanEmail}" is already registered under organization "${existingUser.tenant_id}".` };
+        }
       }
 
-      // 1. Create the tenant
+      // Clean local drafts
+      try {
+        localStorage.removeItem(`fleetflow_tenant_config_${cleanTenantId}`);
+        localStorage.removeItem(`fleetflow_profile_draft_${cleanTenantId}`);
+      } catch {
+        // ignore
+      }
+
+      // 3. Create the tenant
       const tenant = await storageService.createTenant({
-        id: tenantId,
-        name: tenantName,
+        id: cleanTenantId,
+        name: tenantName.trim(),
         status: 'active'
       });
-      if (!tenant) return false;
+      if (!tenant) {
+        return { success: false, error: 'Database failed to create organization. Please verify database connection.' };
+      }
 
-      // 2. Create the admin user for the tenant
+      // 4. Create the admin user for the tenant
       const adminUser: User = {
         id: `user-${Date.now()}`,
-        name: adminName,
-        email: adminEmail,
+        name: adminName.trim(),
+        email: cleanEmail,
         phone: '',
         joiningDate: new Date().toISOString().split('T')[0],
         address: '',
         role: 'admin',
         status: 'active',
-        password: adminPassword || '123456',
-        tenantId: tenantId
+        password: (adminPassword || '123456').trim(),
+        tenantId: cleanTenantId
       };
       
       const savedUser = await storageService.createUser(adminUser);
-      return !!savedUser;
+      if (!savedUser) {
+        return { success: false, error: 'Failed to create administrator account in database.' };
+      }
+
+      return { success: true };
     } catch (err: any) {
       console.error('[Supabase] signUpTenant exception:', err.message);
-      return false;
+      return { success: false, error: err.message || 'Registration failed due to an unexpected server error.' };
     }
   },
 
