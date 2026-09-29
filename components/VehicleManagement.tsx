@@ -208,40 +208,23 @@ const VehicleManagement: React.FC = () => {
     const diffDays = Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
     let colorClass = 'bg-slate-100 text-slate-700 border-slate-200';
     let text = `${label}: ${dateStr}`;
-    let isUrgent = false;
 
     if (diffDays < 0) {
       colorClass = 'bg-rose-50 text-rose-700 border-rose-200 font-bold';
       text = `⚠️ ${label}: Expired (${Math.abs(diffDays)}d ago)`;
-      isUrgent = true;
     } else if (diffDays <= 30) {
       colorClass = 'bg-amber-50 text-amber-800 border-amber-200 font-semibold';
       text = `⏳ ${label}: ${diffDays}d left`;
-      isUrgent = true;
     }
 
     return (
-      <div key={type} className="inline-flex items-center gap-1 bg-white p-0.5 rounded-md border border-slate-200 shadow-2xs">
-        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] border ${colorClass}`}>
-          {text}
-        </span>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleOpenRenewal(vehicle, type);
-          }}
-          className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded transition ${
-            isUrgent
-              ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-2xs'
-              : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200'
-          }`}
-          title={`Renew ${label} for ${vehicle.name}`}
-        >
-          <span>🔄</span>
-          <span>Renew</span>
-        </button>
-      </div>
+      <span
+        key={type}
+        className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] border ${colorClass} shadow-2xs font-medium`}
+        title={`${label} Expiry: ${dateStr}`}
+      >
+        {text}
+      </span>
     );
   };
 
@@ -614,11 +597,15 @@ GRANT ALL ON TABLE vehicles TO anon, authenticated, service_role;`;
                 <div className="p-5 flex-grow">
                   <div className="flex items-start gap-4">
                     {vehicle.photoUrl ? (
-                      <div className="relative h-16 w-16 rounded-lg overflow-hidden flex-shrink-0 border border-slate-200 bg-slate-100">
+                      <div 
+                        onClick={() => handleEditVehicle(vehicle)}
+                        className="relative h-16 w-16 rounded-lg overflow-hidden flex-shrink-0 border border-slate-200 bg-slate-100 cursor-pointer group hover:ring-2 hover:ring-indigo-500 transition shadow-2xs"
+                        title="Click to edit vehicle or change/delete photo"
+                      >
                         <img 
                           src={getDriveDirectImageUrl(vehicle.photoUrl)} 
                           alt={vehicle.name} 
-                          className="h-16 w-16 object-cover" 
+                          className="h-16 w-16 object-cover group-hover:scale-105 transition-transform duration-200" 
                           onError={(e) => {
                             (e.currentTarget as any).style.display = 'none';
                             const fallback = (e.currentTarget as any).parentElement?.querySelector('.photo-fallback');
@@ -628,10 +615,18 @@ GRANT ALL ON TABLE vehicles TO anon, authenticated, service_role;`;
                         <div className="photo-fallback hidden absolute inset-0 flex items-center justify-center bg-slate-100 text-slate-400">
                           <TruckIcon className="h-8 w-8 text-gray-400"/>
                         </div>
+                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[9px] font-bold text-white transition-opacity">
+                          Edit
+                        </div>
                       </div>
                     ) : (
-                      <div className="h-16 w-16 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-                        <TruckIcon className="h-8 w-8 text-gray-400"/>
+                      <div 
+                        onClick={() => handleEditVehicle(vehicle)}
+                        className="h-16 w-16 rounded-lg bg-gray-100 hover:bg-indigo-50 border border-dashed border-gray-300 hover:border-indigo-300 flex flex-col items-center justify-center flex-shrink-0 cursor-pointer transition group"
+                        title="Click to add photo"
+                      >
+                        <TruckIcon className="h-7 w-7 text-gray-400 group-hover:text-indigo-600 transition-colors"/>
+                        <span className="text-[8px] text-gray-400 group-hover:text-indigo-600 font-bold transition-colors">+ Photo</span>
                       </div>
                     )}
                     <div className="flex-grow min-w-0">
@@ -689,7 +684,7 @@ GRANT ALL ON TABLE vehicles TO anon, authenticated, service_role;`;
                     </div>
                   )}
 
-                  {/* Compliance & Expiry Badges with Renew Button */}
+                  {/* Compliance & Expiry Badges (Single Renew button is in the card footer below) */}
                   {(vehicle.roadTaxExpiry || vehicle.insuranceExpiry || vehicle.puspakomExpiry || vehicle.permitExpiry || vehicle.grantAttachmentUrl) && (
                     <div className="mt-2.5 pt-2 border-t border-slate-100 space-y-1.5">
                       <div className="flex flex-wrap gap-1.5 items-center">
@@ -707,18 +702,6 @@ GRANT ALL ON TABLE vehicles TO anon, authenticated, service_role;`;
                             📄 VOC / Grant
                           </a>
                         )}
-                      </div>
-                      <div className="flex items-center justify-between pt-0.5">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenRenewal(vehicle, 'Insurance');
-                          }}
-                          className="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-600 hover:text-indigo-800 transition"
-                        >
-                          <span>📋 View / Manage Renewal History</span>
-                        </button>
                       </div>
                     </div>
                   )}

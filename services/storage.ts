@@ -44,7 +44,8 @@ const toDbVehicle = (v: Partial<Vehicle>) => {
   const meta = {
     vinChassisNumber: v.vinChassisNumber,
     engineNumber: v.engineNumber,
-    photoName: v.photoName,
+    photoUrl: v.photoUrl ? v.photoUrl : null,
+    photoName: v.photoName ? v.photoName : null,
     vehicleType: v.vehicleType,
     brandMake: v.brandMake,
     manufactureYear: v.manufactureYear,
@@ -61,8 +62,8 @@ const toDbVehicle = (v: Partial<Vehicle>) => {
     insuranceExpiry: v.insuranceExpiry,
     puspakomExpiry: v.puspakomExpiry,
     permitExpiry: v.permitExpiry,
-    grantAttachmentUrl: v.grantAttachmentUrl,
-    grantAttachmentName: v.grantAttachmentName,
+    grantAttachmentUrl: v.grantAttachmentUrl ? v.grantAttachmentUrl : null,
+    grantAttachmentName: v.grantAttachmentName ? v.grantAttachmentName : null,
     rawSpecs: v.specifications,
   };
 
@@ -74,8 +75,8 @@ const toDbVehicle = (v: Partial<Vehicle>) => {
     ...(v.plateNumber !== undefined && { plate_number: v.plateNumber }),
     ...(v.vinChassisNumber !== undefined && { vin_chassis_number: v.vinChassisNumber }),
     ...(v.engineNumber !== undefined && { engine_number: v.engineNumber }),
-    ...(v.photoUrl !== undefined && { photo_url: v.photoUrl }),
-    ...(v.photoName !== undefined && { photo_name: v.photoName }),
+    photo_url: v.photoUrl ? v.photoUrl : null,
+    photo_name: v.photoName ? v.photoName : null,
     ...(v.vehicleType !== undefined && { vehicle_type: v.vehicleType }),
     ...(v.brandMake !== undefined && { brand_make: v.brandMake }),
     ...(v.manufactureYear !== undefined && { manufacture_year: v.manufactureYear }),
@@ -92,8 +93,8 @@ const toDbVehicle = (v: Partial<Vehicle>) => {
     ...(v.insuranceExpiry !== undefined && { insurance_expiry: v.insuranceExpiry }),
     ...(v.puspakomExpiry !== undefined && { puspakom_expiry: v.puspakomExpiry }),
     ...(v.permitExpiry !== undefined && { permit_expiry: v.permitExpiry }),
-    ...(v.grantAttachmentUrl !== undefined && { grant_attachment_url: v.grantAttachmentUrl }),
-    ...(v.grantAttachmentName !== undefined && { grant_attachment_name: v.grantAttachmentName }),
+    grant_attachment_url: v.grantAttachmentUrl ? v.grantAttachmentUrl : null,
+    grant_attachment_name: v.grantAttachmentName ? v.grantAttachmentName : null,
     specifications: packedSpecs,
     tenant_id: v.tenantId || getTenantId(),
   };
@@ -110,12 +111,29 @@ const fromDbVehicle = (row: any): Vehicle => {
     }
   }
 
+  // If column exists and is explicitly null/empty string, it was cleared
+  const resolvedPhotoUrl = row.photo_url !== undefined && row.photo_url !== null
+    ? (row.photo_url ? row.photo_url : undefined)
+    : (row.photo_url === null ? undefined : (meta.photoUrl || undefined));
+
+  const resolvedPhotoName = row.photo_name !== undefined && row.photo_name !== null
+    ? (row.photo_name ? row.photo_name : undefined)
+    : (row.photo_name === null ? undefined : (meta.photoName || undefined));
+
+  const resolvedGrantUrl = row.grant_attachment_url !== undefined && row.grant_attachment_url !== null
+    ? (row.grant_attachment_url ? row.grant_attachment_url : undefined)
+    : (row.grant_attachment_url === null ? undefined : (meta.grantAttachmentUrl || undefined));
+
+  const resolvedGrantName = row.grant_attachment_name !== undefined && row.grant_attachment_name !== null
+    ? (row.grant_attachment_name ? row.grant_attachment_name : undefined)
+    : (row.grant_attachment_name === null ? undefined : (meta.grantAttachmentName || undefined));
+
   return {
     id: row.id,
     name: row.name || meta.name || '',
     plateNumber: row.plate_number || meta.plateNumber || '',
-    photoUrl: row.photo_url || meta.photoUrl || undefined,
-    photoName: row.photo_name || meta.photoName || undefined,
+    photoUrl: resolvedPhotoUrl,
+    photoName: resolvedPhotoName,
     specifications: meta.rawSpecs !== undefined ? meta.rawSpecs : (row.specifications && !row.specifications.startsWith('{') ? row.specifications : undefined),
     vinChassisNumber: row.vin_chassis_number || meta.vinChassisNumber || undefined,
     engineNumber: row.engine_number || meta.engineNumber || undefined,
@@ -135,8 +153,8 @@ const fromDbVehicle = (row: any): Vehicle => {
     insuranceExpiry: row.insurance_expiry || meta.insuranceExpiry || '',
     puspakomExpiry: row.puspakom_expiry || meta.puspakomExpiry || undefined,
     permitExpiry: row.permit_expiry || meta.permitExpiry || undefined,
-    grantAttachmentUrl: row.grant_attachment_url || meta.grantAttachmentUrl || undefined,
-    grantAttachmentName: row.grant_attachment_name || meta.grantAttachmentName || undefined,
+    grantAttachmentUrl: resolvedGrantUrl,
+    grantAttachmentName: resolvedGrantName,
     tenantId: row.tenant_id || getTenantId(),
   };
 };
