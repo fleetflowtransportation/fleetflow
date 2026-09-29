@@ -1556,9 +1556,18 @@ export const storageService = {
         return null;
       }
 
-      let scriptUrl = data?.google_apps_script_url || localProfile.googleAppsScriptUrl || '';
-      let calendarId = data?.google_calendar_id || localProfile.googleCalendarId || '';
-      let driveId = data?.google_drive_id || localProfile.googleDriveId || '';
+      const isYCK = id === 'yayasan-chow-kit';
+      let scriptUrl = data?.google_apps_script_url !== undefined && data.google_apps_script_url !== null
+        ? data.google_apps_script_url
+        : (localProfile.googleAppsScriptUrl !== undefined ? localProfile.googleAppsScriptUrl : (isYCK ? (import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL || '') : ''));
+
+      let calendarId = data?.google_calendar_id !== undefined && data.google_calendar_id !== null
+        ? data.google_calendar_id
+        : (localProfile.googleCalendarId || '');
+
+      let driveId = data?.google_drive_id !== undefined && data.google_drive_id !== null
+        ? data.google_drive_id
+        : (localProfile.googleDriveId || '');
       
       let dbMetaProfile: Partial<Tenant> = {};
       if (typeof driveId === 'string' && driveId.includes(':::FF_META:::')) {
@@ -1579,24 +1588,24 @@ export const storageService = {
 
       const merged: Tenant = {
         id,
-        name: dbMetaProfile.companyName || data?.name || localProfile.companyName || localProfile.name || (id === 'yayasan-chow-kit' ? 'Yayasan Chow Kit' : id),
+        name: dbMetaProfile.companyName || data?.name || localProfile.companyName || localProfile.name || (isYCK ? 'Yayasan Chow Kit' : id),
         status: data?.status || 'active',
         googleAppsScriptUrl: scriptUrl,
         googleCalendarId: calendarId,
         googleDriveId: driveId,
-        companyName: dbMetaProfile.companyName || data?.company_name || localProfile.companyName || data?.name || (id === 'yayasan-chow-kit' ? 'Yayasan Chow Kit' : id),
-        registrationNumber: dbMetaProfile.registrationNumber || data?.registration_number || localProfile.registrationNumber || (id === 'yayasan-chow-kit' ? 'PPM-012-14-11012011' : ''),
-        phone: dbMetaProfile.phone || data?.phone || localProfile.phone || (id === 'yayasan-chow-kit' ? '+603-4045 5550' : ''),
-        whatsapp: dbMetaProfile.whatsapp || data?.whatsapp || localProfile.whatsapp || (id === 'yayasan-chow-kit' ? '+6012-3456789' : ''),
-        email: dbMetaProfile.email || data?.email || localProfile.email || (id === 'yayasan-chow-kit' ? 'info@yck.org.my' : ''),
-        address: dbMetaProfile.address || data?.address || localProfile.address || (id === 'yayasan-chow-kit' ? 'No. 22B, Jalan Chow Kit, 50350 Kuala Lumpur' : ''),
-        postcode: dbMetaProfile.postcode || data?.postcode || localProfile.postcode || (id === 'yayasan-chow-kit' ? '50350' : ''),
-        city: dbMetaProfile.city || data?.city || localProfile.city || (id === 'yayasan-chow-kit' ? 'Kuala Lumpur' : ''),
-        state: dbMetaProfile.state || data?.state || localProfile.state || (id === 'yayasan-chow-kit' ? 'Wilayah Persekutuan Kuala Lumpur' : ''),
-        website: dbMetaProfile.website || data?.website || localProfile.website || (id === 'yayasan-chow-kit' ? 'https://www.yck.org.my' : ''),
-        picName: dbMetaProfile.picName || data?.pic_name || localProfile.picName || (id === 'yayasan-chow-kit' ? 'En. Syafiq (Pengurus Pengangkutan)' : ''),
-        picPhone: dbMetaProfile.picPhone || data?.pic_phone || localProfile.picPhone || (id === 'yayasan-chow-kit' ? '+6012-3456789' : ''),
-        description: dbMetaProfile.description || data?.description || localProfile.description || (id === 'yayasan-chow-kit' ? 'Pusat Perlindungan Kanak-kanak & Pengurusan Pengangkutan Kebajikan Chow Kit' : ''),
+        companyName: dbMetaProfile.companyName || data?.company_name || localProfile.companyName || data?.name || (isYCK ? 'Yayasan Chow Kit' : id),
+        registrationNumber: dbMetaProfile.registrationNumber || data?.registration_number || localProfile.registrationNumber || (isYCK ? 'PPM-012-14-11012011' : ''),
+        phone: dbMetaProfile.phone || data?.phone || localProfile.phone || (isYCK ? '+603-4045 5550' : ''),
+        whatsapp: dbMetaProfile.whatsapp || data?.whatsapp || localProfile.whatsapp || (isYCK ? '+6012-3456789' : ''),
+        email: dbMetaProfile.email || data?.email || localProfile.email || (isYCK ? 'info@yck.org.my' : ''),
+        address: dbMetaProfile.address || data?.address || localProfile.address || (isYCK ? 'No. 22B, Jalan Chow Kit, 50350 Kuala Lumpur' : ''),
+        postcode: dbMetaProfile.postcode || data?.postcode || localProfile.postcode || (isYCK ? '50350' : ''),
+        city: dbMetaProfile.city || data?.city || localProfile.city || (isYCK ? 'Kuala Lumpur' : ''),
+        state: dbMetaProfile.state || data?.state || localProfile.state || (isYCK ? 'Wilayah Persekutuan Kuala Lumpur' : ''),
+        website: dbMetaProfile.website || data?.website || localProfile.website || (isYCK ? 'https://www.yck.org.my' : ''),
+        picName: dbMetaProfile.picName || data?.pic_name || localProfile.picName || (isYCK ? 'En. Syafiq (Pengurus Pengangkutan)' : ''),
+        picPhone: dbMetaProfile.picPhone || data?.pic_phone || localProfile.picPhone || (isYCK ? '+6012-3456789' : ''),
+        description: dbMetaProfile.description || data?.description || localProfile.description || (isYCK ? 'Pusat Perlindungan Kanak-kanak & Pengurusan Pengangkutan Kebajikan Chow Kit' : ''),
       };
 
       return merged;
@@ -1608,6 +1617,13 @@ export const storageService = {
 
   updateTenant: async (id: string, updatedData: Partial<Omit<Tenant, 'id'>>): Promise<boolean> => {
     try {
+      // Clear global legacy key
+      try {
+        localStorage.removeItem('fleetflow_google_script_url');
+      } catch {
+        // ignore
+      }
+
       // 1. Retrieve current cached local profile to merge cleanly
       let existingLocal: Partial<Tenant> = {};
       try {
@@ -1622,9 +1638,20 @@ export const storageService = {
         ...updatedData,
       };
 
+      if (updatedData.googleAppsScriptUrl !== undefined) {
+        mergedProfile.googleAppsScriptUrl = updatedData.googleAppsScriptUrl;
+      }
+      if (updatedData.googleCalendarId !== undefined) {
+        mergedProfile.googleCalendarId = updatedData.googleCalendarId;
+      }
+      if (updatedData.googleDriveId !== undefined) {
+        mergedProfile.googleDriveId = updatedData.googleDriveId;
+      }
+
       // 2. Prepare metadata JSON payload for database cloud persistence
+      const isYCK = id === 'yayasan-chow-kit';
       const metaPayload = {
-        companyName: mergedProfile.companyName || mergedProfile.name || '',
+        companyName: mergedProfile.companyName || mergedProfile.name || (isYCK ? 'Yayasan Chow Kit' : id),
         registrationNumber: mergedProfile.registrationNumber || '',
         phone: mergedProfile.phone || '',
         whatsapp: mergedProfile.whatsapp || '',
@@ -1645,9 +1672,6 @@ export const storageService = {
       // 3. Save to localStorage immediately for instant local retrieval
       try {
         localStorage.setItem(`fleetflow_tenant_config_${id}`, JSON.stringify(mergedProfile));
-        if (updatedData.googleAppsScriptUrl) {
-          localStorage.setItem('fleetflow_google_script_url', updatedData.googleAppsScriptUrl);
-        }
       } catch {
         // ignore
       }
@@ -1656,11 +1680,11 @@ export const storageService = {
       try {
         const primaryRow: any = {
           id,
-          name: mergedProfile.companyName || mergedProfile.name || 'Yayasan Chow Kit',
+          name: mergedProfile.companyName || mergedProfile.name || (isYCK ? 'Yayasan Chow Kit' : id),
           status: mergedProfile.status || 'active',
           google_drive_id: packedDriveId,
-          ...(mergedProfile.googleAppsScriptUrl !== undefined && { google_apps_script_url: mergedProfile.googleAppsScriptUrl }),
-          ...(mergedProfile.googleCalendarId !== undefined && { google_calendar_id: mergedProfile.googleCalendarId }),
+          google_apps_script_url: mergedProfile.googleAppsScriptUrl ?? null,
+          google_calendar_id: mergedProfile.googleCalendarId ?? null,
         };
 
         const { error: upsertErr } = await supabase
@@ -1755,10 +1779,11 @@ export const storageService = {
         }
       }
 
-      // Clean local drafts
+      // Clean local drafts & global overrides
       try {
         localStorage.removeItem(`fleetflow_tenant_config_${cleanTenantId}`);
         localStorage.removeItem(`fleetflow_profile_draft_${cleanTenantId}`);
+        localStorage.removeItem('fleetflow_google_script_url');
       } catch {
         // ignore
       }
@@ -1767,11 +1792,21 @@ export const storageService = {
       const tenant = await storageService.createTenant({
         id: cleanTenantId,
         name: tenantName.trim(),
+        companyName: tenantName.trim(),
         status: 'active'
       });
       if (!tenant) {
         return { success: false, error: 'Database failed to create organization. Please verify database connection.' };
       }
+
+      // Initialize organization profile & clear integrations
+      await storageService.updateTenant(cleanTenantId, {
+        companyName: tenantName.trim(),
+        email: cleanEmail,
+        googleAppsScriptUrl: '',
+        googleCalendarId: '',
+        googleDriveId: '',
+      });
 
       // 4. Create the admin user for the tenant
       const adminUser: User = {

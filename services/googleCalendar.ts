@@ -371,13 +371,12 @@ export const isGoogleScriptUrl = (url?: string | null): boolean => {
 };
 
 export const getValidGoogleScriptUrls = (tenant?: Tenant | null, overrideUrl?: string | null): string[] => {
-  const customLocalUrl = localStorage.getItem('fleetflow_google_script_url');
-  const envUrl = import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL;
+  const isYCK = tenant?.id === 'yayasan-chow-kit';
+  const envUrl = isYCK ? import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL : null;
 
   const candidates = [
     overrideUrl,
     tenant?.googleAppsScriptUrl,
-    customLocalUrl,
     envUrl,
     // Only consider tenant fields if they are actually Google Script URLs
     isGoogleScriptUrl(tenant?.googleCalendarId) ? tenant?.googleCalendarId : null,

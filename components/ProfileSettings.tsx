@@ -76,6 +76,7 @@ export const ProfileSettings: React.FC = () => {
 
   // Form state
   const [formData, setFormData] = useState<Partial<Tenant>>(() => {
+    const isYCK = activeTenant?.id === 'yayasan-chow-kit';
     const tenantId = activeTenant?.id || 'yayasan-chow-kit';
     try {
       const draft = localStorage.getItem(`fleetflow_profile_draft_${tenantId}`);
@@ -86,19 +87,19 @@ export const ProfileSettings: React.FC = () => {
       // ignore
     }
     return {
-      companyName: activeTenant?.companyName || activeTenant?.name || 'Yayasan Chow Kit',
-      registrationNumber: activeTenant?.registrationNumber || 'PPM-012-14-11012011',
-      description: activeTenant?.description || 'Child Crisis Shelter & Community Welfare Transportation Management',
-      phone: activeTenant?.phone || '+603-4045 5550',
-      whatsapp: activeTenant?.whatsapp || '+6012-3456789',
-      email: activeTenant?.email || 'info@yck.org.my',
-      website: activeTenant?.website || 'https://www.yck.org.my',
-      address: activeTenant?.address || 'No. 22B, Jalan Chow Kit, 50350 Kuala Lumpur',
-      postcode: activeTenant?.postcode || '50350',
-      city: activeTenant?.city || 'Kuala Lumpur',
-      state: activeTenant?.state || 'Wilayah Persekutuan Kuala Lumpur',
-      picName: activeTenant?.picName || 'En. Syafiq (Transport Coordinator)',
-      picPhone: activeTenant?.picPhone || '+6012-3456789',
+      companyName: activeTenant?.companyName || activeTenant?.name || (isYCK ? 'Yayasan Chow Kit' : ''),
+      registrationNumber: activeTenant?.registrationNumber || (isYCK ? 'PPM-012-14-11012011' : ''),
+      description: activeTenant?.description || (isYCK ? 'Child Crisis Shelter & Community Welfare Transportation Management' : ''),
+      phone: activeTenant?.phone || (isYCK ? '+603-4045 5550' : ''),
+      whatsapp: activeTenant?.whatsapp || (isYCK ? '+6012-3456789' : ''),
+      email: activeTenant?.email || (isYCK ? 'info@yck.org.my' : ''),
+      website: activeTenant?.website || (isYCK ? 'https://www.yck.org.my' : ''),
+      address: activeTenant?.address || (isYCK ? 'No. 22B, Jalan Chow Kit, 50350 Kuala Lumpur' : ''),
+      postcode: activeTenant?.postcode || (isYCK ? '50350' : ''),
+      city: activeTenant?.city || (isYCK ? 'Kuala Lumpur' : ''),
+      state: activeTenant?.state || (isYCK ? 'Wilayah Persekutuan Kuala Lumpur' : ''),
+      picName: activeTenant?.picName || (isYCK ? 'En. Syafiq (Transport Coordinator)' : ''),
+      picPhone: activeTenant?.picPhone || (isYCK ? '+6012-3456789' : ''),
     };
   });
 
@@ -126,20 +127,21 @@ export const ProfileSettings: React.FC = () => {
         // ignore
       }
 
+      const isYCK = activeTenant.id === 'yayasan-chow-kit';
       setFormData({
-        companyName: draftData?.companyName ?? (activeTenant.companyName || activeTenant.name || 'Yayasan Chow Kit'),
-        registrationNumber: draftData?.registrationNumber ?? (activeTenant.registrationNumber || ''),
-        description: draftData?.description ?? (activeTenant.description || ''),
-        phone: draftData?.phone ?? (activeTenant.phone || ''),
-        whatsapp: draftData?.whatsapp ?? (activeTenant.whatsapp || ''),
-        email: draftData?.email ?? (activeTenant.email || ''),
-        website: draftData?.website ?? (activeTenant.website || ''),
-        address: draftData?.address ?? (activeTenant.address || ''),
-        postcode: draftData?.postcode ?? (activeTenant.postcode || ''),
-        city: draftData?.city ?? (activeTenant.city || ''),
-        state: draftData?.state ?? (activeTenant.state || ''),
-        picName: draftData?.picName ?? (activeTenant.picName || ''),
-        picPhone: draftData?.picPhone ?? (activeTenant.picPhone || ''),
+        companyName: draftData?.companyName ?? (activeTenant.companyName || activeTenant.name || (isYCK ? 'Yayasan Chow Kit' : '')),
+        registrationNumber: draftData?.registrationNumber ?? (activeTenant.registrationNumber || (isYCK ? 'PPM-012-14-11012011' : '')),
+        description: draftData?.description ?? (activeTenant.description || (isYCK ? 'Child Crisis Shelter & Community Welfare Transportation Management' : '')),
+        phone: draftData?.phone ?? (activeTenant.phone || (isYCK ? '+603-4045 5550' : '')),
+        whatsapp: draftData?.whatsapp ?? (activeTenant.whatsapp || (isYCK ? '+6012-3456789' : '')),
+        email: draftData?.email ?? (activeTenant.email || (isYCK ? 'info@yck.org.my' : '')),
+        website: draftData?.website ?? (activeTenant.website || (isYCK ? 'https://www.yck.org.my' : '')),
+        address: draftData?.address ?? (activeTenant.address || (isYCK ? 'No. 22B, Jalan Chow Kit, 50350 Kuala Lumpur' : '')),
+        postcode: draftData?.postcode ?? (activeTenant.postcode || (isYCK ? '50350' : '')),
+        city: draftData?.city ?? (activeTenant.city || (isYCK ? 'Kuala Lumpur' : '')),
+        state: draftData?.state ?? (activeTenant.state || (isYCK ? 'Wilayah Persekutuan Kuala Lumpur' : '')),
+        picName: draftData?.picName ?? (activeTenant.picName || (isYCK ? 'En. Syafiq (Transport Coordinator)' : '')),
+        picPhone: draftData?.picPhone ?? (activeTenant.picPhone || (isYCK ? '+6012-3456789' : '')),
       });
     }
   }, [activeTenant, isEditing]);

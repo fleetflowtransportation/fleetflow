@@ -36,9 +36,10 @@ export const IntegrationsSettings: React.FC = () => {
 
   useEffect(() => {
     if (activeTenant) {
+      const isYCK = activeTenant.id === 'yayasan-chow-kit';
       const cal = activeTenant.googleCalendarId || '';
       const drv = activeTenant.googleDriveId || '';
-      const script = activeTenant.googleAppsScriptUrl || localStorage.getItem('fleetflow_google_script_url') || import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL || '';
+      const script = activeTenant.googleAppsScriptUrl || (isYCK ? (import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL || '') : '');
       setCalendarId(cal);
       setDriveId(drv);
       setAppsScriptUrl(script);
@@ -48,10 +49,9 @@ export const IntegrationsSettings: React.FC = () => {
         setTempAppsScriptUrl(script);
       }
     } else {
-      const savedScriptUrl = localStorage.getItem('fleetflow_google_script_url') || import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL || '';
-      setAppsScriptUrl(savedScriptUrl);
+      setAppsScriptUrl('');
       if (!isModalOpen) {
-        setTempAppsScriptUrl(savedScriptUrl);
+        setTempAppsScriptUrl('');
       }
     }
   }, [activeTenant, isModalOpen]);
@@ -79,7 +79,14 @@ export const IntegrationsSettings: React.FC = () => {
     try {
       const cleanCal = tempCalendarId.trim();
       const cleanDrv = tempDriveId.trim();
-      const cleanUrl = cleanGoogleScriptUrl(tempAppsScriptUrl);
+      const cleanUrl = tempAppsScriptUrl ? cleanGoogleScriptUrl(tempAppsScriptUrl) : '';
+
+      // Clear any global legacy storage
+      try {
+        localStorage.removeItem('fleetflow_google_script_url');
+      } catch {
+        // ignore
+      }
 
       // Save all 3 to cloud storage for the active organization
       const success = await updateTenantGoogleIntegrations({
