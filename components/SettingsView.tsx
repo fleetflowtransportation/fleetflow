@@ -57,6 +57,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
     }
   }, [initialSubTab]);
 
+  // Guard: Restrict Integrations to Super Admin only
+  useEffect(() => {
+    if (activeTab === 'integrations' && !currentUser?.isOwner) {
+      setActiveTab('profile');
+    }
+  }, [activeTab, currentUser]);
+
   // Counts for sidebar badges
   const archivedCount = useMemo(() => 
     bookings.filter(b => b.status === 'Completed' || b.status === 'Cancelled' || b.status === 'Rejected').length, 
@@ -86,8 +93,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
   const [profileSuccess, setProfileSuccess] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
 
+  const isProfileDirtyRef = React.useRef(false);
+  const prevTenantIdRef = React.useRef<string | null>(null);
+
   useEffect(() => {
-    if (activeTenant) {
+    if (!activeTenant) return;
+    // Only update form if organization ID changed or user has not made uncommitted edits
+    if (prevTenantIdRef.current !== activeTenant.id || !isProfileDirtyRef.current) {
+      prevTenantIdRef.current = activeTenant.id;
       setProfileForm({
         companyName: activeTenant.companyName || activeTenant.name || '',
         regNumber: activeTenant.regNumber || '',
@@ -106,6 +119,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
     }
   }, [activeTenant]);
 
+  const handleProfileChange = (key: keyof Tenant, val: string) => {
+    isProfileDirtyRef.current = true;
+    setProfileForm(prev => ({ ...prev, [key]: val }));
+  };
+
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setProfileSaving(true);
@@ -119,6 +137,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
       };
       const ok = await updateTenantProfile(payload);
       if (ok) {
+        isProfileDirtyRef.current = false;
         setProfileSuccess(true);
         setTimeout(() => setProfileSuccess(false), 4000);
       } else {
@@ -160,8 +179,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
   const [integrationSuccess, setIntegrationSuccess] = useState(false);
   const [integrationError, setIntegrationError] = useState<string | null>(null);
 
+  const isIntegrationDirtyRef = React.useRef(false);
+  const prevIntegrationTenantIdRef = React.useRef<string | null>(null);
+
   useEffect(() => {
-    if (activeTenant) {
+    if (!activeTenant) return;
+    if (prevIntegrationTenantIdRef.current !== activeTenant.id || !isIntegrationDirtyRef.current) {
+      prevIntegrationTenantIdRef.current = activeTenant.id;
       setIntegrationForm({
         calendarId: activeTenant.googleCalendarId || '',
         appsScriptUrl: activeTenant.googleAppsScriptUrl || '',
@@ -169,6 +193,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
       });
     }
   }, [activeTenant]);
+
+  const handleIntegrationChange = (key: 'calendarId' | 'appsScriptUrl' | 'driveId', val: string) => {
+    isIntegrationDirtyRef.current = true;
+    setIntegrationForm(prev => ({ ...prev, [key]: val }));
+  };
 
   const handleIntegrationSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -183,6 +212,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
         googleDriveId: integrationForm.driveId.trim()
       });
       if (ok) {
+        isIntegrationDirtyRef.current = false;
         setIntegrationSuccess(true);
         setTimeout(() => setIntegrationSuccess(false), 4000);
       } else {
@@ -283,7 +313,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
       items: [
         { id: 'profile', label: 'General Profile', icon: <BuildingOfficeIcon className="w-4 h-4" /> },
         { id: 'portals', label: 'Public Portals & Links', icon: <DocumentTextIcon className="w-4 h-4" /> },
-        { id: 'integrations', label: 'Integrations & Sync', icon: <ClockIcon className="w-4 h-4" /> },
+        ...(currentUser?.isOwner ? [
+          { id: 'integrations', label: 'Integrations & Sync', icon: <ClockIcon className="w-4 h-4" /> }
+        ] : []),
       ]
     },
     {
@@ -418,7 +450,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
                       type="text"
                       required
                       value={profileForm.companyName || ''}
-                      onChange={(e) => setProfileForm({ ...profileForm, companyName: e.target.value })}
+                      onChange={(e) => handleProfileChange('companyName', e.target.value)}
                       className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
                       placeholder="e.g. Yayasan Chow Kit"
                     />
@@ -431,7 +463,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
                     <input
                       type="text"
                       value={profileForm.regNumber || ''}
-                      onChange={(e) => setProfileForm({ ...profileForm, regNumber: e.target.value })}
+                      onChange={(e) => handleProfileChange('regNumber', e.target.value)}
                       className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
                       placeholder="e.g. PPM-012-14-12345678"
                     />
@@ -447,7 +479,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
                       type="email"
                       required
                       value={profileForm.email || ''}
-                      onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+                      onChange={(e) => handleProfileChange('email', e.target.value)}
                       className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
                       placeholder="e.g. info@organization.org"
                     />
@@ -460,7 +492,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
                     <input
                       type="tel"
                       value={profileForm.phone || ''}
-                      onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
+                      onChange={(e) => handleProfileChange('phone', e.target.value)}
                       className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition font-mono"
                       placeholder="e.g. +603-4043 2345"
                     />
@@ -474,7 +506,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
                   <textarea
                     rows={2}
                     value={profileForm.address || ''}
-                    onChange={(e) => setProfileForm({ ...profileForm, address: e.target.value })}
+                    onChange={(e) => handleProfileChange('address', e.target.value)}
                     className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
                     placeholder="Physical headquarters or dispatch center address"
                   />
@@ -488,7 +520,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
                     <input
                       type="text"
                       value={profileForm.city || ''}
-                      onChange={(e) => setProfileForm({ ...profileForm, city: e.target.value })}
+                      onChange={(e) => handleProfileChange('city', e.target.value)}
                       className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
                       placeholder="Kuala Lumpur"
                     />
@@ -500,7 +532,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
                     <input
                       type="text"
                       value={profileForm.postcode || ''}
-                      onChange={(e) => setProfileForm({ ...profileForm, postcode: e.target.value })}
+                      onChange={(e) => handleProfileChange('postcode', e.target.value)}
                       className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition font-mono"
                       placeholder="50350"
                     />
@@ -512,7 +544,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
                     <input
                       type="text"
                       value={profileForm.state || ''}
-                      onChange={(e) => setProfileForm({ ...profileForm, state: e.target.value })}
+                      onChange={(e) => handleProfileChange('state', e.target.value)}
                       className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
                       placeholder="Wilayah Persekutuan"
                     />
@@ -527,7 +559,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
                     <input
                       type="text"
                       value={profileForm.picName || ''}
-                      onChange={(e) => setProfileForm({ ...profileForm, picName: e.target.value })}
+                      onChange={(e) => handleProfileChange('picName', e.target.value)}
                       className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
                       placeholder="Transport Coordinator Name"
                     />
@@ -539,7 +571,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
                     <input
                       type="text"
                       value={profileForm.operatingHours || ''}
-                      onChange={(e) => setProfileForm({ ...profileForm, operatingHours: e.target.value })}
+                      onChange={(e) => handleProfileChange('operatingHours', e.target.value)}
                       className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
                       placeholder="08:00 - 17:00 (Mon - Fri)"
                     />
@@ -678,73 +710,125 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
             </div>
           )}
 
-          {/* TAB 3: Integrations & Cloud Sync */}
+          {/* TAB 3: Integrations & Cloud Sync (Super Admin Only) */}
           {activeTab === 'integrations' && (
-            <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-6 space-y-6">
-              <div>
-                <h2 className="text-lg font-bold text-slate-900">Google Calendar & Cloud Sync</h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Synchronize approved vehicle bookings directly to your organization Google Calendar.
+            !currentUser?.isOwner ? (
+              <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-8 text-center space-y-3">
+                <div className="w-12 h-12 rounded-full bg-amber-50 text-amber-600 mx-auto flex items-center justify-center font-bold text-lg">
+                  🔒
+                </div>
+                <h2 className="text-base font-bold text-slate-900">Super Admin Access Only</h2>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  Google Calendar, Drive, and Cloud Sync configurations are restricted and can only be accessed by the Super Admin.
                 </p>
               </div>
-
-              {integrationSuccess && (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-semibold text-emerald-800 flex items-center gap-2">
-                  <CheckCircleIcon className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                  Integration settings saved successfully.
-                </div>
-              )}
-
-              {integrationError && (
-                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-800">
-                  ⚠️ {integrationError}
-                </div>
-              )}
-
-              <form onSubmit={handleIntegrationSubmit} className="space-y-4">
+            ) : (
+              <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-6 space-y-6">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Google Calendar ID
-                  </label>
-                  <input
-                    type="text"
-                    value={integrationForm.calendarId}
-                    onChange={(e) => setIntegrationForm({ ...integrationForm, calendarId: e.target.value })}
-                    className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
-                    placeholder="e.g. c_1234567890@group.calendar.google.com or primary"
-                  />
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    Enter your Google Calendar ID or leave as "primary" to write events to your default organization calendar.
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-bold text-slate-900">Google Calendar, Drive & Cloud Sync</h2>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+                      👑 Super Admin
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Synchronize vehicle reservations to Google Calendar and attach inspection sheets to your organization Google Drive.
                   </p>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Google Apps Script Webhook Endpoint
-                  </label>
-                  <input
-                    type="url"
-                    value={integrationForm.appsScriptUrl}
-                    onChange={(e) => setIntegrationForm({ ...integrationForm, appsScriptUrl: e.target.value })}
-                    className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
-                    placeholder="https://script.google.com/macros/s/.../exec"
-                  />
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    Automated webhook that syncs approved booking dispatch notices to your staff Google Calendar.
-                  </p>
-                </div>
+                {integrationSuccess && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-semibold text-emerald-800 flex items-center gap-2">
+                    <CheckCircleIcon className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                    Integration settings saved successfully.
+                  </div>
+                )}
 
-                <div className="pt-2 flex justify-end">
-                  <button
-                    type="submit"
-                    disabled={integrationSaving}
-                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm transition shadow-xs disabled:opacity-50 cursor-pointer"
-                  >
-                    {integrationSaving ? 'Saving...' : 'Save Integration Settings'}
-                  </button>
-                </div>
-              </form>
-            </div>
+                {integrationError && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-800">
+                    ⚠️ {integrationError}
+                  </div>
+                )}
+
+                <form onSubmit={handleIntegrationSubmit} className="space-y-4">
+                  {/* Google Calendar ID */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      Google Calendar ID
+                    </label>
+                    <input
+                      type="text"
+                      value={integrationForm.calendarId}
+                      onChange={(e) => handleIntegrationChange('calendarId', e.target.value)}
+                      className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                      placeholder="e.g. c_1234567890@group.calendar.google.com or primary"
+                    />
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Enter your Google Calendar ID or leave as "primary" to write events to your default organization calendar.
+                    </p>
+                  </div>
+
+                  {/* Google Drive Folder ID / Link */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                        Google Drive Folder Link / ID
+                      </label>
+                      {integrationForm.driveId && (
+                        <a
+                          href={
+                            integrationForm.driveId.startsWith('http')
+                              ? integrationForm.driveId
+                              : `https://drive.google.com/drive/folders/${integrationForm.driveId}`
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold"
+                        >
+                          Open Drive Folder ↗
+                        </a>
+                      )}
+                    </div>
+                    <input
+                      type="text"
+                      value={integrationForm.driveId}
+                      onChange={(e) => handleIntegrationChange('driveId', e.target.value)}
+                      className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                      placeholder="e.g. 1A2b3C4d5E6F... or https://drive.google.com/drive/folders/..."
+                    />
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Google Drive folder ID or shareable link to store vehicle inspection sheets, fuel receipts, and trip logs.
+                    </p>
+                  </div>
+
+                  {/* Google Apps Script Webhook Endpoint */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      Google Apps Script Webhook Endpoint
+                    </label>
+                    <input
+                      type="url"
+                      value={integrationForm.appsScriptUrl}
+                      onChange={(e) => handleIntegrationChange('appsScriptUrl', e.target.value)}
+                      className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                      placeholder="https://script.google.com/macros/s/.../exec"
+                    />
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Automated webhook endpoint syncing approved dispatch notices and booking reminders to staff.
+                    </p>
+                  </div>
+
+                  <div className="pt-2 flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={integrationSaving}
+                      className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm transition shadow-xs disabled:opacity-50 cursor-pointer"
+                    >
+                      {integrationSaving ? 'Saving...' : 'Save Integration Settings'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )
           )}
 
           {/* TAB 4: Users & Drivers */}

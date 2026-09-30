@@ -260,6 +260,7 @@ export interface Tenant {
   // Profile fields for company/organization
   companyName?: string;
   registrationNumber?: string;
+  regNumber?: string;
   phone?: string;
   whatsapp?: string;
   email?: string;
@@ -272,6 +273,8 @@ export interface Tenant {
   picPhone?: string;
   description?: string;
   logoUrl?: string;
+  operatingHours?: string;
+  timezone?: string;
 }
 
 export interface BookingHistory {
