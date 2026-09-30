@@ -1,6 +1,6 @@
 import type { Booking, FuelLog, OdometerLog, User, Vehicle, IssueLog, DriverSchedule, Tenant, SelfDriveStaff, MaintenanceInterval, MaintenanceLog, VehicleRenewal, ComplianceType } from '../types';
 import { USERS, VEHICLES, INITIAL_BOOKINGS, INITIAL_DRIVER_SCHEDULES, INITIAL_MAINTENANCE_INTERVALS, INITIAL_MAINTENANCE_LOGS } from '../constants';
-import { supabase, DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_ANON_KEY } from './supabaseClient';
+import { supabase, DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_ANON_KEY, createDirectSupabaseClient, getActiveSupabaseUrl, getActiveSupabaseAnonKey } from './supabaseClient';
 
 let currentTenantId = 'yayasan-chow-kit-demo';
 
@@ -984,11 +984,37 @@ export const storageService = {
   // ---- WRITE (USERS) ----
   createUser: async (data: User): Promise<User> => {
     try {
+      const cleanEmail = data.email.trim().toLowerCase();
+      const cleanPassword = (data.password || '123456').trim();
+
+      // If it is a new user with a client-generated temporary ID, register in Supabase Auth first
+      if (data.id.startsWith('user-')) {
+        try {
+          const transientClient = createDirectSupabaseClient(getActiveSupabaseUrl(), getActiveSupabaseAnonKey());
+          const { data: authData, error: authError } = await transientClient.auth.signUp({
+            email: cleanEmail,
+            password: cleanPassword,
+          });
+
+          if (!authError && authData.user) {
+            data.id = authData.user.id; // Assign actual Supabase Auth UUID to profile ID
+          } else if (authError) {
+            console.warn('[Supabase Auth Sync] Could not create auth user, using fallback ID:', authError.message);
+          }
+        } catch (authExc: any) {
+          console.warn('[Supabase Auth Sync] Exception during transient signup:', authExc.message);
+        }
+      }
+
       const dbRow = toDbUser(data);
       const { error } = await supabase.from('fleet_users').insert([dbRow]);
-      if (error) console.error('[Supabase] createUser error:', error.message);
+      if (error) {
+        console.error('[Supabase] createUser error:', error.message);
+        throw new Error(error.message);
+      }
     } catch (err: any) {
       console.error('[Supabase] createUser exception:', err.message);
+      throw err;
     }
     return data;
   },
@@ -1743,6 +1769,7 @@ export const storageService = {
   signUpTenant: async (tenantId: string, tenantName: string, adminName: string, adminEmail: string, adminPassword?: string): Promise<{ success: boolean; error?: string }> => {
     const cleanTenantId = tenantId.trim().toLowerCase();
     const cleanEmail = adminEmail.trim().toLowerCase();
+    const cleanPassword = (adminPassword || '123456').trim();
 
     try {
       // 1. Check if tenant ID is currently active in Supabase
@@ -1779,6 +1806,28 @@ export const storageService = {
         }
       }
 
+      // 3. Register user in Supabase Auth (auth.users) using a transient client
+      // This is crucial to prevent the current user's session from being terminated/signed out.
+      let authUserId = `user-${Date.now()}`;
+      try {
+        const transientClient = createDirectSupabaseClient(getActiveSupabaseUrl(), getActiveSupabaseAnonKey());
+        const { data: authData, error: authError } = await transientClient.auth.signUp({
+          email: cleanEmail,
+          password: cleanPassword,
+        });
+
+        if (authError) {
+          return { success: false, error: `Supabase Auth registration failed: ${authError.message}` };
+        }
+
+        if (authData.user) {
+          authUserId = authData.user.id; // Assign the real Supabase Auth UUID
+        }
+      } catch (authExc: any) {
+        console.error('[Supabase Auth Sign Up Exception]:', authExc);
+        return { success: false, error: `Auth registry failed: ${authExc.message}` };
+      }
+
       // Clean local drafts & global overrides
       try {
         localStorage.removeItem(`fleetflow_tenant_config_${cleanTenantId}`);
@@ -1788,7 +1837,7 @@ export const storageService = {
         // ignore
       }
 
-      // 3. Create the tenant
+      // 4. Create the tenant
       const tenant = await storageService.createTenant({
         id: cleanTenantId,
         name: tenantName.trim(),
@@ -1808,9 +1857,9 @@ export const storageService = {
         googleDriveId: '',
       });
 
-      // 4. Create the admin user for the tenant
+      // 5. Create the admin user profile for the tenant using the Supabase Auth UUID
       const adminUser: User = {
-        id: `user-${Date.now()}`,
+        id: authUserId,
         name: adminName.trim(),
         email: cleanEmail,
         phone: '',
@@ -1819,7 +1868,7 @@ export const storageService = {
         comments: '[OWNER]',
         role: 'admin',
         status: 'active',
-        password: (adminPassword || '123456').trim(),
+        password: cleanPassword,
         tenantId: cleanTenantId,
         isOwner: true,
       };
@@ -1838,8 +1887,8 @@ export const storageService = {
 
   deleteTenantCompletely: async (tenantId: string): Promise<boolean> => {
     try {
-      if (!tenantId || tenantId === 'yayasan-chow-kit') {
-        throw new Error('Cannot delete the default demo tenant.');
+      if (!tenantId) {
+        throw new Error('Tenant ID is required.');
       }
 
       const tables = [

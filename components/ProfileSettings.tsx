@@ -40,8 +40,8 @@ export const ProfileSettings: React.FC = () => {
       return;
     }
 
-    if (actualTenantId === 'yayasan-chow-kit') {
-      setDeleteError('The default demo organization ("yayasan-chow-kit") is protected and cannot be deleted.');
+    if (actualTenantId === 'yayasan-chow-kit' || actualTenantId === 'yayasan-chow-kit-demo') {
+      setDeleteError('The default demo organization is protected and cannot be deleted.');
       return;
     }
 

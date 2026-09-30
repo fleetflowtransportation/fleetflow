@@ -5,7 +5,7 @@ import { postVehicleRenew } from '../services/renewalApi';
 import { parseAsLocal } from '../utils';
 import { evaluateBookingAssignment, normalizeDate, normalizeTime, getDriverCalendarColor, type AutoAssignResult } from '../services/bookingEngine';
 import { googleCalendarService } from '../services/googleCalendar';
-import { updateSupabaseConfig, resetSupabaseConfig } from '../services/supabaseClient';
+import { updateSupabaseConfig, resetSupabaseConfig, getSupabase } from '../services/supabaseClient';
 
 interface AppContextType {
   users: User[];
@@ -118,10 +118,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // ---- Load session and active tenant on startup ----
   useEffect(() => {
-    const savedTenantId = localStorage.getItem('fleetflow_tenant_id') || 'yayasan-chow-kit-demo';
+    const savedTenantId = localStorage.getItem('fleetflow_tenant_id') || '';
     const savedUserData = localStorage.getItem('fleetflow_user_data');
     
-    storageService.setTenantId(savedTenantId);
+    if (savedTenantId) {
+      storageService.setTenantId(savedTenantId);
+    }
     
     if (savedUserData) {
       try {
@@ -132,10 +134,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     }
     
-    storageService.getTenant(savedTenantId).then(tenant => {
-      setActiveTenant(tenant);
+    if (savedTenantId) {
+      storageService.getTenant(savedTenantId).then(tenant => {
+        setActiveTenant(tenant);
+        setTenantInitialized(true);
+      });
+    } else {
       setTenantInitialized(true);
-    });
+    }
   }, []);
 
   // Sync activeTenant when currentUser changes or reloadTick occurs
@@ -213,27 +219,55 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const cleanEmail = email.trim().toLowerCase();
       const cleanPassword = password.trim();
 
-      const user = await storageService.getUserByEmailGlobal(cleanEmail);
+      let user = null;
+      let authSuccessful = false;
+
+      // 1. Attempt standard Supabase Auth Sign In first
+      try {
+        const supabase = getSupabase();
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password: cleanPassword
+        });
+
+        if (!authError && authData.user) {
+          // If auth succeeds, retrieve their profile from fleet_users using their Auth UUID
+          user = await storageService.getUsers().then(allUsers => 
+            allUsers.find(u => u.id === authData.user.id || (u.email || '').trim().toLowerCase() === cleanEmail)
+          );
+          authSuccessful = !!user;
+        } else if (authError) {
+          console.log('[Supabase Auth] Attempt failed, trying local fallback:', authError.message);
+        }
+      } catch (authExc: any) {
+        console.warn('[Supabase Auth] Exception during signInWithPassword:', authExc.message);
+      }
+
+      // 2. Legacy / Seeding fallback: Check direct table database profile
+      if (!authSuccessful) {
+        const foundUser = await storageService.getUserByEmailGlobal(cleanEmail);
+        if (foundUser) {
+          const storedPassword = String(foundUser.password || '').trim();
+          if (storedPassword === cleanPassword) {
+            user = foundUser;
+          } else {
+            return { success: false, error: 'Incorrect password. Please verify and try again.' };
+          }
+        }
+      }
+
       if (!user) {
-        console.warn('[Auth] No user account found for email:', cleanEmail);
-        return { success: false, error: 'No account found with this email address. Please register your organization first.' };
+        console.warn('[Auth] No user account found or credentials invalid for:', cleanEmail);
+        return { success: false, error: 'No account found with this email and password. Please check your credentials.' };
       }
 
-      const storedPassword = String(user.password || '').trim();
-      const isPasswordValid = storedPassword === cleanPassword;
       const isActive = String(user.status || 'active').trim().toLowerCase() !== 'inactive';
-
-      if (!isPasswordValid) {
-        console.warn('[Auth] Password mismatch for:', cleanEmail);
-        return { success: false, error: 'Incorrect password. Please verify and try again.' };
-      }
-
       if (!isActive) {
         console.warn('[Auth] Inactive user account for:', cleanEmail);
         return { success: false, error: 'This user account has been deactivated. Please contact your administrator.' };
       }
 
-      const tenantId = user.tenantId || 'yayasan-chow-kit';
+      const tenantId = user.tenantId || '';
       storageService.setTenantId(tenantId);
       localStorage.setItem('fleetflow_tenant_id', tenantId);
       localStorage.setItem('fleetflow_user_data', JSON.stringify({ id: user.id, name: user.name, role: user.role, tenantId }));
@@ -250,7 +284,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const logout = useCallback(() => {
     localStorage.removeItem('fleetflow_tenant_id');
     localStorage.removeItem('fleetflow_user_data');
-    storageService.setTenantId('yayasan-chow-kit-demo');
+    storageService.setTenantId('');
     setCurrentUser(null);
     reload();
   }, [reload]);
