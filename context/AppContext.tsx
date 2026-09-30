@@ -214,6 +214,48 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => clearInterval(interval);
   }, [reload]);
 
+  // Active session watcher: Instantly detects if the currently logged-in account
+  // has been deleted or deactivated in the database and terminates their session immediately.
+  useEffect(() => {
+    if (!currentUser || isLoading || !hasLoadedOnceRef.current) return;
+    if (users.length === 0) return;
+
+    const loggedInUserRecord = users.find(u => u.id === currentUser.id);
+    if (!loggedInUserRecord) {
+      console.warn('[Session Terminated] User account was deleted. Terminating active session.');
+      localStorage.removeItem('fleetflow_tenant_id');
+      localStorage.removeItem('fleetflow_user_data');
+      storageService.setTenantId('');
+      setCurrentUser(null);
+      alert('Your account has been deleted by an administrator. You have been logged out.');
+      return;
+    }
+
+    if (String(loggedInUserRecord.status || 'active').trim().toLowerCase() === 'inactive') {
+      console.warn('[Session Terminated] User account has been deactivated. Terminating active session.');
+      localStorage.removeItem('fleetflow_tenant_id');
+      localStorage.removeItem('fleetflow_user_data');
+      storageService.setTenantId('');
+      setCurrentUser(null);
+      alert('Your account has been deactivated. Please contact your administrator.');
+      return;
+    }
+
+    // Keep currentUser fields in sync with database (e.g. role or Super Admin status)
+    if (
+      loggedInUserRecord.isOwner !== currentUser.isOwner ||
+      loggedInUserRecord.name !== currentUser.name ||
+      loggedInUserRecord.role !== currentUser.role
+    ) {
+      setCurrentUser(prev => prev ? {
+        ...prev,
+        name: loggedInUserRecord.name,
+        role: loggedInUserRecord.role,
+        isOwner: !!loggedInUserRecord.isOwner
+      } : null);
+    }
+  }, [users, currentUser, isLoading]);
+
   const login = useCallback(async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
       const cleanEmail = email.trim().toLowerCase();
@@ -268,11 +310,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
 
       const tenantId = user.tenantId || '';
+      const isOwner = !!user.isOwner;
       storageService.setTenantId(tenantId);
       localStorage.setItem('fleetflow_tenant_id', tenantId);
-      localStorage.setItem('fleetflow_user_data', JSON.stringify({ id: user.id, name: user.name, role: user.role, tenantId }));
+      localStorage.setItem('fleetflow_user_data', JSON.stringify({ id: user.id, name: user.name, role: user.role, tenantId, isOwner }));
       
-      setCurrentUser({ id: user.id, name: user.name, role: user.role, tenantId });
+      setCurrentUser({ id: user.id, name: user.name, role: user.role, tenantId, isOwner });
       reload();
       return { success: true };
     } catch (err: any) {
@@ -1095,7 +1138,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!userToDelete) return;
 
     if (userToDelete.isOwner) {
-      alert("Organization Owner account cannot be deleted.");
+      alert("Super Admin account cannot be deleted.");
+      return;
+    }
+
+    if (currentUser?.id === userId) {
+      alert("You cannot delete your own account.");
+      return;
+    }
+
+    if (!currentUser?.isOwner && userToDelete.role === 'admin') {
+      alert("Access Denied: Only Super Admin can delete administrator accounts.");
       return;
     }
 
@@ -1105,16 +1158,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     if (userToDelete.role === 'admin' && users.filter(u => u.role === 'admin' && u.status === 'active').length <= 1) {
-      alert("Cannot delete the last active admin.");
+      alert("Cannot delete the last active administrator.");
       return;
     }
 
     clearUndoState();
     setUsers(prev => prev.filter(d => d.id !== userId));
-    storageService.deleteUser(userId).catch(err => {
-      alert('Gagal padam user: ' + err.message);
-    });
-  }, [users, bookings, clearUndoState]);
+    storageService.deleteUser(userId)
+      .then(() => {
+        reload();
+      })
+      .catch(err => {
+        alert('Failed to delete user: ' + err.message);
+        reload();
+      });
+  }, [users, bookings, currentUser, clearUndoState, reload]);
 
   // ---- Vehicles ----
   const addVehicle = useCallback((vehicleData: Omit<Vehicle, 'id'>) => {

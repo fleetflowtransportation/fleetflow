@@ -247,6 +247,7 @@ export type CurrentUser = {
   name: string;
   role: 'admin' | 'driver' | 'staff';
   tenantId?: string;
+  isOwner?: boolean;
 };
 
 export interface Tenant {

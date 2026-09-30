@@ -1043,8 +1043,8 @@ export const ProfileSettings: React.FC = () => {
         </div>
       </div>
 
-      {/* Danger Zone: Delete Organization & Account */}
-      {currentUser?.role === 'admin' && (
+      {/* Danger Zone: Delete Organization & Account (Super Admin only) */}
+      {currentUser?.isOwner && (
         <div className="bg-white rounded-2xl shadow-sm border border-red-200 p-6 space-y-6">
           <div className="flex items-start gap-4">
             <div className="p-3 bg-red-50 rounded-xl text-red-600 border border-red-100 flex-shrink-0">

@@ -88,8 +88,8 @@ const Header: React.FC<HeaderProps> = ({ activeView, setActiveView }) => {
                                     <UserCircleIcon className="h-5 w-5 text-indigo-300 mr-2"/>
                                     <div className="text-left">
                                         <span className="text-xs sm:text-sm font-semibold block leading-tight">{currentUser.name}</span>
-                                        <span className="text-[10px] text-indigo-300 uppercase font-medium block">
-                                            {currentUser.role === 'admin' ? 'System Administrator' : currentUser.role === 'driver' ? 'Driver' : 'Staff'}
+                                        <span className="text-[10px] text-indigo-300 uppercase font-semibold block">
+                                            {currentUser.isOwner ? '👑 Super Admin' : currentUser.role === 'admin' ? 'Administrator' : currentUser.role === 'driver' ? 'Driver' : 'Staff'}
                                         </span>
                                     </div>
                                 </div>

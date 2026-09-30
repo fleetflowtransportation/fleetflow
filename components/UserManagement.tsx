@@ -29,7 +29,7 @@ const UserManagement: React.FC = () => {
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'driver'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   
-  const { users, deleteUser } = useAppContext();
+  const { users, deleteUser, currentUser } = useAppContext();
 
   const handleCreateUser = () => {
     setEditingUser(null);
@@ -37,12 +37,38 @@ const UserManagement: React.FC = () => {
   };
 
   const handleEditUser = (user: User) => {
+    if (user.isOwner && !currentUser?.isOwner) {
+      alert("Access Denied: Only Super Admin can edit the Super Admin account.");
+      return;
+    }
+    if (!currentUser?.isOwner && user.role === 'admin' && user.id !== currentUser?.id) {
+      alert("Access Denied: Additional administrators can only manage Drivers.");
+      return;
+    }
     setEditingUser(user);
     setIsFormOpen(true);
   };
 
   const handleDeleteUser = (userId: string) => {
-    if (window.confirm('Are you sure you want to delete this user?')) {
+    const target = users.find(u => u.id === userId);
+    if (!target) return;
+
+    if (target.isOwner) {
+      alert("Super Admin account cannot be deleted.");
+      return;
+    }
+
+    if (currentUser?.id === userId) {
+      alert("You cannot delete your own account.");
+      return;
+    }
+
+    if (!currentUser?.isOwner && target.role === 'admin') {
+      alert("Access Denied: Only Super Admin can delete administrator accounts.");
+      return;
+    }
+
+    if (window.confirm(`Are you sure you want to delete "${target.name}"? This action cannot be undone.`)) {
       deleteUser(userId);
     }
   };
@@ -212,8 +238,8 @@ const UserManagement: React.FC = () => {
                           {user.role === 'admin' ? '🛡️ Administrator' : '🚙 Driver'}
                         </span>
                         {user.isOwner && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300" title="Primary Organization Owner">
-                            👑 Owner
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300" title="Primary Organization Super Admin">
+                            👑 Super Admin
                           </span>
                         )}
                       </div>
@@ -233,31 +259,67 @@ const UserManagement: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-1.5">
-                        <button 
-                          onClick={() => handleEditUser(user)} 
-                          className="text-slate-600 hover:text-indigo-600 p-2 rounded-xl hover:bg-indigo-50 border border-transparent hover:border-indigo-100 transition" 
-                          title="Edit User Profile"
-                        >
-                          <EditIcon className="h-4 w-4" />
-                        </button>
-                        {user.isOwner ? (
-                          <button 
-                            disabled
-                            className="text-slate-300 cursor-not-allowed p-2 rounded-xl" 
-                            title="Organization Owner cannot be deleted"
-                            aria-label="Cannot delete organization owner"
-                          >
-                            <TrashIcon className="h-4 w-4"/>
-                          </button>
-                        ) : (
-                          <button 
-                            onClick={() => handleDeleteUser(user.id)} 
-                            className="text-slate-400 hover:text-rose-600 p-2 rounded-xl hover:bg-rose-50 border border-transparent hover:border-rose-100 transition" 
-                            title="Delete User"
-                          >
-                            <TrashIcon className="h-4 w-4"/>
-                          </button>
-                        )}
+                        {/* Edit Action Button */}
+                        {(() => {
+                          const canEdit = currentUser?.isOwner || (currentUser?.role === 'admin' && user.role === 'driver') || (user.id === currentUser?.id);
+                          if (!canEdit) {
+                            return (
+                              <button 
+                                disabled
+                                className="text-slate-300 cursor-not-allowed p-2 rounded-xl"
+                                title={user.isOwner ? "Only Super Admin can edit Super Admin account" : "Additional administrators can only edit Drivers"}
+                                aria-label="Cannot edit user"
+                              >
+                                <EditIcon className="h-4 w-4" />
+                              </button>
+                            );
+                          }
+                          return (
+                            <button 
+                              onClick={() => handleEditUser(user)} 
+                              className="text-slate-600 hover:text-indigo-600 p-2 rounded-xl hover:bg-indigo-50 border border-transparent hover:border-indigo-100 transition cursor-pointer" 
+                              title="Edit User Profile"
+                            >
+                              <EditIcon className="h-4 w-4" />
+                            </button>
+                          );
+                        })()}
+
+                        {/* Delete Action Button */}
+                        {(() => {
+                          const isSelf = user.id === currentUser?.id;
+                          const isSuperAdmin = !!user.isOwner;
+                          const isCoAdminTargetingAdmin = !currentUser?.isOwner && user.role === 'admin';
+                          const canDelete = !isSelf && !isSuperAdmin && !isCoAdminTargetingAdmin;
+
+                          if (!canDelete) {
+                            return (
+                              <button 
+                                disabled
+                                className="text-slate-300 cursor-not-allowed p-2 rounded-xl" 
+                                title={
+                                  isSuperAdmin 
+                                    ? "Super Admin account cannot be deleted" 
+                                    : isSelf 
+                                    ? "You cannot delete your own account" 
+                                    : "Only Super Admin can delete administrator accounts"
+                                }
+                                aria-label="Cannot delete user"
+                              >
+                                <TrashIcon className="h-4 w-4"/>
+                              </button>
+                            );
+                          }
+                          return (
+                            <button 
+                              onClick={() => handleDeleteUser(user.id)} 
+                              className="text-slate-400 hover:text-rose-600 p-2 rounded-xl hover:bg-rose-50 border border-transparent hover:border-rose-100 transition cursor-pointer" 
+                              title="Delete User"
+                            >
+                              <TrashIcon className="h-4 w-4"/>
+                            </button>
+                          );
+                        })()}
                       </div>
                     </td>
                   </tr>

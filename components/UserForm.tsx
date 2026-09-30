@@ -91,6 +91,22 @@ const UserForm: React.FC<UserFormProps> = ({ isOpen, onClose, userToEdit }) => {
     e.preventDefault();
     setFormError(null);
 
+    // Permission checks
+    if (userToEdit?.isOwner && !currentUser?.isOwner) {
+      setFormError('Access Denied: Only Super Admin can modify the Super Admin account.');
+      return;
+    }
+
+    if (userToEdit?.role === 'admin' && !isSelf && !currentUser?.isOwner) {
+      setFormError('Access Denied: Additional administrators can only manage Drivers.');
+      return;
+    }
+
+    if (!currentUser?.isOwner && formData.role === 'admin' && !isSelf) {
+      setFormError('Access Denied: Only Super Admin can assign or create Administrator accounts.');
+      return;
+    }
+
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailPattern.test(formData.email.trim())) {
       setFormError('Please enter a valid email address (e.g. name@domain.com).');
@@ -251,23 +267,47 @@ const UserForm: React.FC<UserFormProps> = ({ isOpen, onClose, userToEdit }) => {
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Access Roles & Credentials</h3>
               {userToEdit?.isOwner && (
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                  👑 Primary Organization Owner
+                  👑 Super Admin
                 </span>
               )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">System Role</label>
-                {userToEdit?.isOwner || isSelf ? (
+                {userToEdit?.isOwner ? (
                   <div className="mt-1">
                     <input 
                       type="text" 
                       disabled 
-                      value={userToEdit?.isOwner ? "Admin (Organization Owner)" : "Admin (Your Current Account)"} 
+                      value="Admin (Super Admin)" 
                       className="block w-full border border-slate-200 rounded-xl shadow-xs bg-slate-50 text-slate-500 cursor-not-allowed p-3 text-sm outline-none" 
                     />
                     <p className="mt-1.5 text-[10px] text-indigo-600 font-semibold">
-                      {userToEdit?.isOwner ? 'Owner accounts must remain Administrators.' : 'You cannot change your own administrative role.'}
+                      Super Admin accounts must remain Administrators.
+                    </p>
+                  </div>
+                ) : isSelf ? (
+                  <div className="mt-1">
+                    <input 
+                      type="text" 
+                      disabled 
+                      value={currentUser?.isOwner ? "Admin (Super Admin)" : "Admin (Your Current Account)"} 
+                      className="block w-full border border-slate-200 rounded-xl shadow-xs bg-slate-50 text-slate-500 cursor-not-allowed p-3 text-sm outline-none" 
+                    />
+                    <p className="mt-1.5 text-[10px] text-indigo-600 font-semibold">
+                      You cannot change your own administrative role.
+                    </p>
+                  </div>
+                ) : !currentUser?.isOwner ? (
+                  <div className="mt-1">
+                    <input 
+                      type="text" 
+                      disabled 
+                      value="🚙 Transport Driver" 
+                      className="block w-full border border-slate-200 rounded-xl shadow-xs bg-slate-50 text-slate-600 cursor-not-allowed p-3 text-sm outline-none" 
+                    />
+                    <p className="mt-1.5 text-[10px] text-slate-500 font-semibold">
+                      Additional administrators can only manage Transport Drivers.
                     </p>
                   </div>
                 ) : (
@@ -286,14 +326,24 @@ const UserForm: React.FC<UserFormProps> = ({ isOpen, onClose, userToEdit }) => {
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Account Status</label>
                 <div className="mt-2.5 flex items-center">
-                  {userToEdit?.isOwner || isSelf ? (
+                  {userToEdit?.isOwner ? (
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                        Active (Super Admin Account)
+                      </span>
+                      <p className="text-[10px] text-indigo-600 font-semibold">
+                        Super Admin cannot be deactivated.
+                      </p>
+                    </div>
+                  ) : isSelf ? (
                     <div className="flex items-center gap-2">
                       <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                         Active (Protected Account)
                       </span>
                       <p className="text-[10px] text-indigo-600 font-semibold">
-                        {userToEdit?.isOwner ? 'Owners cannot be deactivated.' : 'You cannot deactivate your own account.'}
+                        You cannot deactivate your own account.
                       </p>
                     </div>
                   ) : (
