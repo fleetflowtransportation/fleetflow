@@ -6,6 +6,7 @@ import VehicleManagement from './VehicleManagement';
 import BookingArchive from './BookingArchive';
 import SelfDriveStaffManagement from './SelfDriveStaffManagement';
 import type { Tenant } from '../types';
+import { googleCalendarService } from '../services/googleCalendar';
 import { 
   BuildingOfficeIcon,
   ClockIcon,
@@ -29,6 +30,423 @@ export type SettingsSubTab =
   | 'archive' 
   | 'account' 
   | 'danger';
+
+export const GOOGLE_APPS_SCRIPT_CODE = `// =========================================================================
+// FleetFlow Google Apps Script (Code.gs)
+// Supports: Google Calendar (Create, Update, Delete), Drive & Connection Testing
+// =========================================================================
+
+function doGet(e) {
+  return ContentService.createTextOutput(JSON.stringify({
+    status: "success",
+    success: true,
+    message: "FleetFlow Google Apps Script Web App is active and ready to receive requests.",
+    timestamp: new Date().toISOString()
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
+  try {
+    var contents = e && e.postData ? e.postData.contents : "";
+    var data = {};
+    if (contents) {
+      try {
+        data = JSON.parse(contents);
+      } catch (err) {
+        data = {};
+      }
+    }
+    
+    // -----------------------------------------------------------------------
+    // 0. ACTION: ping / testConnection
+    // -----------------------------------------------------------------------
+    if (data.action === "ping" || data.actionType === "ping" || data.type === "ping" || data.action === "testConnection" || !data.action) {
+      var calName = "Default Calendar";
+      var calendarOk = false;
+      try {
+        var cal = CalendarApp.getDefaultCalendar();
+        if (cal) {
+          calendarOk = true;
+          calName = cal.getName();
+        }
+      } catch (errCal) {
+        calName = "CalendarApp: " + errCal.toString();
+      }
+
+      var driveOk = false;
+      try {
+        var root = DriveApp.getRootFolder();
+        if (root) driveOk = true;
+      } catch (errDrive) {
+        driveOk = false;
+      }
+
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success",
+        success: true,
+        message: "Google Apps Script connection successful! Web service is ready.",
+        calendar: calName,
+        calendarReady: calendarOk,
+        driveReady: driveOk,
+        timestamp: new Date().toISOString()
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // -----------------------------------------------------------------------
+    // 1. ACTION: updateCalendarEvent
+    // -----------------------------------------------------------------------
+    if (data.action === "updateCalendarEvent" || data.actionType === "updateCalendarEvent") {
+      var calendarId = data.calendarId || "primary";
+      var cal = (calendarId && calendarId !== "primary" && calendarId.indexOf("@") !== -1)
+        ? (CalendarApp.getCalendarById(calendarId) || CalendarApp.getDefaultCalendar())
+        : CalendarApp.getDefaultCalendar();
+
+      var eventId = data.eventId || data.id;
+      var event = null;
+      if (eventId) {
+        try {
+          event = cal.getEventById(eventId);
+        } catch (err) {}
+      }
+
+      var title = data.title || data.summary || "FleetFlow Vehicle Booking";
+      var description = data.description || "";
+      var location = data.location || "";
+      var requesterEmail = data.requesterEmail || data.guests || data.guestEmail || "";
+      
+      var startStr = data.startTime || data.startIso || (data.start && data.start.dateTime);
+      var endStr = data.endTime || data.endIso || (data.end && data.end.dateTime);
+      var startTime = startStr ? new Date(startStr) : new Date();
+      var endTime = endStr ? new Date(endStr) : new Date(startTime.getTime() + 60 * 60 * 1000);
+      if (isNaN(startTime.getTime())) startTime = new Date();
+      if (isNaN(endTime.getTime())) endTime = new Date(startTime.getTime() + 60 * 60 * 1000);
+
+      if (!event && startStr) {
+        var searchStart = new Date(startTime.getTime() - 24 * 60 * 60 * 1000);
+        var searchEnd = new Date(endTime.getTime() + 24 * 60 * 60 * 1000);
+        var list = cal.getEvents(searchStart, searchEnd);
+        for (var i = 0; i < list.length; i++) {
+          var desc = list[i].getDescription() || "";
+          var curTitle = list[i].getTitle() || "";
+          if ((data.bookingId && desc.indexOf(data.bookingId) !== -1) || curTitle === title || (data.requesterName && (curTitle.indexOf(data.requesterName) !== -1 || desc.indexOf(data.requesterName) !== -1))) {
+            event = list[i];
+            break;
+          }
+        }
+      }
+
+      if (event) {
+        event.setTitle(title);
+        event.setTime(startTime, endTime);
+        if (description) event.setDescription(description);
+        if (location) event.setLocation(location);
+        if (requesterEmail && requesterEmail.indexOf("@") !== -1) {
+          try {
+            event.addGuest(requesterEmail);
+          } catch (e) {}
+        }
+        
+        // Dispatch update notification email
+        if (requesterEmail && (data.emailHtml || data.sendEmail)) {
+          try {
+            MailApp.sendEmail({
+              to: requesterEmail,
+              subject: data.emailSubject || ("📝 Booking Updated: " + title),
+              htmlBody: data.emailHtml || ("<p>Your booking <strong>" + title + "</strong> has been updated.</p>"),
+              name: "FleetFlow Transport"
+            });
+          } catch (mErr) {}
+        }
+
+        return ContentService.createTextOutput(JSON.stringify({
+          status: "success",
+          success: true,
+          action: "updated",
+          id: event.getId(),
+          title: event.getTitle()
+        })).setMimeType(ContentService.MimeType.JSON);
+      } else {
+        var guestList = [];
+        if (data.guests && typeof data.guests === 'string') {
+          guestList = data.guests.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s.indexOf('@') !== -1; });
+        } else {
+          if (requesterEmail && requesterEmail.indexOf("@") !== -1) guestList.push(requesterEmail);
+          if (data.driverEmail && data.driverEmail.indexOf("@") !== -1) guestList.push(data.driverEmail);
+        }
+        guestList = guestList.filter(function(item, pos) { return guestList.indexOf(item) === pos; });
+
+        var eventOptions = {
+          description: description,
+          location: location,
+          sendInvites: true
+        };
+        if (guestList.length > 0) {
+          eventOptions.guests = guestList.join(',');
+        }
+        var newEv = cal.createEvent(title, startTime, endTime, eventOptions);
+        
+        if (requesterEmail && (data.emailHtml || data.sendEmail)) {
+          try {
+            MailApp.sendEmail({
+              to: requesterEmail,
+              subject: data.emailSubject || ("📝 Booking Updated: " + title),
+              htmlBody: data.emailHtml || ("<p>Your booking <strong>" + title + "</strong> has been updated.</p>"),
+              name: "FleetFlow Transport"
+            });
+          } catch (mErr) {
+            Logger.log("Requester email err: " + mErr.toString());
+          }
+        }
+
+        var driverEmail = data.driverEmail || "";
+        if (driverEmail && driverEmail.indexOf("@") !== -1) {
+          try {
+            MailApp.sendEmail({
+              to: driverEmail,
+              subject: data.driverEmailSubject || ("📝 Trip Updated: " + title),
+              htmlBody: data.driverEmailHtml || data.emailHtml || ("<p>Trip <strong>" + title + "</strong> has been updated.</p>"),
+              name: "FleetFlow Transport"
+            });
+          } catch (dErr) {
+            Logger.log("Driver email err: " + dErr.toString());
+          }
+        }
+
+        return ContentService.createTextOutput(JSON.stringify({
+          status: "success",
+          success: true,
+          action: "created_fallback",
+          id: newEv.getId(),
+          title: newEv.getTitle()
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // 2. ACTION: deleteCalendarEvent
+    // -----------------------------------------------------------------------
+    if (data.action === "deleteCalendarEvent" || data.actionType === "deleteCalendarEvent") {
+      var calendarId = data.calendarId || "primary";
+      var cal = (calendarId && calendarId !== "primary" && calendarId.indexOf("@") !== -1)
+        ? (CalendarApp.getCalendarById(calendarId) || CalendarApp.getDefaultCalendar())
+        : CalendarApp.getDefaultCalendar();
+
+      var requesterEmail = data.requesterEmail || data.guests || data.guestEmail || "";
+      var driverEmail = data.driverEmail || "";
+      var eventId = data.eventId || data.id;
+      if (eventId) {
+        try {
+          var event = cal.getEventById(eventId);
+          if (event) {
+            event.deleteEvent();
+          }
+        } catch (delErr) {}
+      }
+
+      // Dispatch cancellation notification email to requester
+      if (requesterEmail && (data.emailHtml || data.sendEmail)) {
+        try {
+          MailApp.sendEmail({
+            to: requesterEmail,
+            subject: data.emailSubject || ("❌ Booking Cancelled: " + (data.title || "Vehicle Booking")),
+            htmlBody: data.emailHtml || ("<p>Your booking for <strong>" + (data.title || "Vehicle Booking") + "</strong> has been cancelled.</p>"),
+            name: "FleetFlow Transport"
+          });
+        } catch (mErr) {}
+      }
+
+      // Dispatch cancellation notification email to driver
+      if (driverEmail && driverEmail.indexOf("@") !== -1) {
+        try {
+          MailApp.sendEmail({
+            to: driverEmail,
+            subject: "❌ Trip Cancelled: " + (data.title || "Vehicle Booking"),
+            htmlBody: "<p>The trip <strong>" + (data.title || "Vehicle Booking") + "</strong> has been cancelled. Your schedule is now released.</p>",
+            name: "FleetFlow Transport"
+          });
+        } catch (mErr) {}
+      }
+
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success",
+        success: true,
+        action: "deleted",
+        id: eventId || "done"
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // -----------------------------------------------------------------------
+    // 3. ACTION: sendEmail (Direct notification dispatch)
+    // -----------------------------------------------------------------------
+    if (data.action === "sendEmail" || data.actionType === "sendEmail") {
+      var recipient = data.to || data.recipientEmail || data.requesterEmail || data.guestEmail;
+      if (recipient && recipient.indexOf("@") !== -1) {
+        try {
+          MailApp.sendEmail({
+            to: recipient,
+            subject: data.subject || "[FleetFlow] Vehicle Reservation Notice",
+            htmlBody: data.html || data.htmlBody || ("<pre>" + (data.body || data.text || "Booking notification") + "</pre>"),
+            name: "FleetFlow Transport"
+          });
+          return ContentService.createTextOutput(JSON.stringify({
+            status: "success",
+            success: true,
+            message: "Email sent to " + recipient
+          })).setMimeType(ContentService.MimeType.JSON);
+        } catch (sendErr) {
+          return ContentService.createTextOutput(JSON.stringify({
+            status: "error",
+            success: false,
+            error: sendErr.toString()
+          })).setMimeType(ContentService.MimeType.JSON);
+        }
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // 4. ACTION: createCalendarEvent (With Guest Invitation & Automated Email)
+    // -----------------------------------------------------------------------
+    var calendarId = data.calendarId || "primary";
+    var cal = (calendarId && calendarId !== "primary" && calendarId.indexOf("@") !== -1)
+      ? (CalendarApp.getCalendarById(calendarId) || CalendarApp.getDefaultCalendar())
+      : CalendarApp.getDefaultCalendar();
+
+    var title = data.title || data.summary || ("Vehicle Booking - " + (data.requesterName || "User"));
+    var description = data.description || "";
+    var location = data.location || "";
+    var requesterEmail = data.requesterEmail || data.guestEmail || "";
+    var driverEmail = data.driverEmail || "";
+    
+    var startStr = data.startTime || data.startIso || (data.start && data.start.dateTime);
+    var endStr = data.endTime || data.endIso || (data.end && data.end.dateTime);
+    var startTime = startStr ? new Date(startStr) : new Date();
+    var endTime = endStr ? new Date(endStr) : new Date(startTime.getTime() + 60 * 60 * 1000);
+    if (isNaN(startTime.getTime())) startTime = new Date();
+    if (isNaN(endTime.getTime())) endTime = new Date(startTime.getTime() + 60 * 60 * 1000);
+
+    // Build unique guest emails list for calendar invites
+    var guestList = [];
+    if (data.guests && typeof data.guests === 'string') {
+      guestList = data.guests.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s.indexOf('@') !== -1; });
+    } else {
+      if (requesterEmail && requesterEmail.indexOf("@") !== -1) guestList.push(requesterEmail);
+      if (driverEmail && driverEmail.indexOf("@") !== -1) guestList.push(driverEmail);
+    }
+    guestList = guestList.filter(function(item, pos) { return guestList.indexOf(item) === pos; });
+
+    var eventOptions = {
+      description: description,
+      location: location,
+      sendInvites: true
+    };
+    if (guestList.length > 0) {
+      eventOptions.guests = guestList.join(',');
+    }
+
+    var createdEvent = cal.createEvent(title, startTime, endTime, eventOptions);
+
+    // 1. Dispatch confirmation HTML email to Requester
+    if (requesterEmail && (data.emailHtml || data.sendEmail)) {
+      try {
+        MailApp.sendEmail({
+          to: requesterEmail,
+          subject: data.emailSubject || ("✅ Booking Confirmed: " + title),
+          htmlBody: data.emailHtml || ("<p>Your vehicle reservation <strong>" + title + "</strong> has been confirmed.</p>"),
+          name: "FleetFlow Transport"
+        });
+      } catch (mailErr) {
+        Logger.log("Requester MailApp error: " + mailErr.toString());
+      }
+    }
+
+    // 2. Dispatch duty notification HTML email to Driver
+    if (driverEmail && driverEmail.indexOf("@") !== -1) {
+      try {
+        MailApp.sendEmail({
+          to: driverEmail,
+          subject: data.driverEmailSubject || ("🚐 New Trip Assignment: " + title),
+          htmlBody: data.driverEmailHtml || data.emailHtml || ("<p>You have been assigned to trip: <strong>" + title + "</strong></p>"),
+          name: "FleetFlow Transport"
+        });
+      } catch (driverErr) {
+        Logger.log("Driver MailApp error: " + driverErr.toString());
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // 5. ACTION: uploadFile / Save to Google Drive (with subfolder: vehicle, fuel_logs, etc.)
+    // -----------------------------------------------------------------------
+    if (data.action === "uploadFile" || data.actionType === "uploadFile" || (data.base64 && !data.action)) {
+      var rootFolderId = data.driveId || data.folderId || "";
+      var targetFolder = null;
+
+      if (rootFolderId && rootFolderId !== "primary") {
+        try {
+          targetFolder = DriveApp.getFolderById(rootFolderId);
+        } catch (errF) {
+          targetFolder = DriveApp.getRootFolder();
+        }
+      } else {
+        targetFolder = DriveApp.getRootFolder();
+      }
+
+      // Route to dedicated subfolder (e.g. 'vehicle', 'fuel_logs', 'bookings')
+      var subFolderName = data.folder || data.folderName || data.subFolder || "vehicle";
+      if (subFolderName) {
+        var subFolders = targetFolder.getFoldersByName(subFolderName);
+        if (subFolders.hasNext()) {
+          targetFolder = subFolders.next();
+        } else {
+          targetFolder = targetFolder.createFolder(subFolderName);
+        }
+      }
+
+      var base64Data = data.base64;
+      var fileName = data.fileName || ("upload_" + new Date().getTime());
+      var mimeType = data.mimeType || "application/octet-stream";
+
+      var decodedBlob = Utilities.newBlob(Utilities.base64Decode(base64Data), mimeType, fileName);
+      var createdFile = targetFolder.createFile(decodedBlob);
+
+      try {
+        createdFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      } catch (shareErr) {}
+
+      var fileId = createdFile.getId();
+      var directUrl = "https://lh3.googleusercontent.com/d/" + fileId;
+      var fileUrl = createdFile.getUrl();
+
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success",
+        success: true,
+        action: "uploadFile",
+        fileId: fileId,
+        id: fileId,
+        url: directUrl,
+        directUrl: directUrl,
+        webViewLink: fileUrl,
+        name: createdFile.getName(),
+        folder: subFolderName,
+        size: createdFile.getSize()
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "success",
+      success: true,
+      id: createdEvent.getId(),
+      title: createdEvent.getTitle(),
+      guestsInvited: guestList
+    })).setMimeType(ContentService.MimeType.JSON);
+
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "error",
+      success: false,
+      message: error.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}`;
 
 export interface SettingsViewProps {
   initialSubTab?: string;
@@ -223,6 +641,42 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
     } finally {
       setIntegrationSaving(false);
     }
+  };
+
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string; data?: any } | null>(null);
+  const [codeCopied, setCodeCopied] = useState(false);
+  const [showScriptCode, setShowScriptCode] = useState(true);
+
+  const handleTestConnection = async () => {
+    if (!activeTenant) return;
+    setTestingConnection(true);
+    setTestResult(null);
+    try {
+      const targetUrl = integrationForm.appsScriptUrl.trim();
+      if (!targetUrl) {
+        setTestResult({
+          success: false,
+          message: 'Please enter a Google Apps Script Webhook URL above first.'
+        });
+        return;
+      }
+      const res = await googleCalendarService.testConnection(activeTenant, targetUrl);
+      setTestResult(res);
+    } catch (err: any) {
+      setTestResult({
+        success: false,
+        message: err.message || 'Connection test failed. Check webhook deployment.'
+      });
+    } finally {
+      setTestingConnection(false);
+    }
+  };
+
+  const handleCopyCode = () => {
+    navigator.clipboard.writeText(GOOGLE_APPS_SCRIPT_CODE);
+    setCodeCopied(true);
+    setTimeout(() => setCodeCopied(false), 2500);
   };
 
   // -------------------------------------------------------------
@@ -817,7 +1271,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
                     </p>
                   </div>
 
-                  <div className="pt-2 flex justify-end">
+                  <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={handleTestConnection}
+                      disabled={testingConnection}
+                      className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm transition border border-slate-200 disabled:opacity-50 cursor-pointer"
+                    >
+                      {testingConnection ? 'Testing Connection...' : '🔌 Test Webhook Connection'}
+                    </button>
                     <button
                       type="submit"
                       disabled={integrationSaving}
@@ -827,6 +1289,99 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
                     </button>
                   </div>
                 </form>
+
+                {/* Connection Test Result */}
+                {testResult && (
+                  <div className={`p-4 rounded-xl border text-xs space-y-1 ${
+                    testResult.success 
+                      ? 'bg-emerald-50 text-emerald-900 border-emerald-200' 
+                      : 'bg-rose-50 text-rose-900 border-rose-200'
+                  }`}>
+                    <div className="flex items-center gap-2 font-bold text-sm">
+                      <span>{testResult.success ? '✅ Webhook Connected Successfully' : '❌ Webhook Connection Failed'}</span>
+                    </div>
+                    <p className="leading-relaxed">{testResult.message}</p>
+                    {testResult.data && (
+                      <p className="text-[11px] text-slate-600 font-mono mt-1">
+                        Calendar: {testResult.data.calendar || 'Active'} | Drive Ready: {testResult.data.driveReady ? 'Yes' : 'No'}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <div className="border-t border-slate-200 pt-6 space-y-4">
+                  {/* Google Apps Script Header */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                        <span>Google Apps Script (Code.gs) Source Code</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          Official Webhook
+                        </span>
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Copy this complete script into your Google Apps Script project to automate Google Calendar & Drive synchronization.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleCopyCode}
+                        className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer whitespace-nowrap"
+                      >
+                        <DocumentTextIcon className="w-4 h-4" />
+                        {codeCopied ? '✓ Copied to Clipboard!' : 'Copy Code.gs Script'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowScriptCode(!showScriptCode)}
+                        className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition border border-slate-200 cursor-pointer whitespace-nowrap"
+                      >
+                        {showScriptCode ? 'Hide Code' : 'View Code'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Step-by-Step Instructions */}
+                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-xs text-slate-600">
+                    <p className="font-bold text-slate-800 uppercase tracking-wider text-[11px]">How to deploy to Google Apps Script:</p>
+                    <ol className="list-decimal list-inside space-y-1.5 pl-1 leading-relaxed">
+                      <li>
+                        Open <a href="https://script.google.com" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline font-bold">script.google.com ↗</a> and create a <strong>New Project</strong>.
+                      </li>
+                      <li>Delete all existing placeholder code in the <code>Code.gs</code> editor.</li>
+                      <li>Click the <strong>Copy Code.gs Script</strong> button above and paste the entire script into the editor.</li>
+                      <li>Click <strong>Deploy &gt; New deployment</strong>, select type <strong>Web app</strong>.</li>
+                      <li>Set <strong>Execute as:</strong> <em>Me (your Google email)</em> and <strong>Who has access:</strong> <em>Anyone</em>.</li>
+                      <li>Click <strong>Deploy</strong>, grant required permissions, copy the resulting <strong>Web App URL</strong>, and paste it into the <strong>Google Apps Script Webhook Endpoint</strong> field above.</li>
+                    </ol>
+                  </div>
+
+                  {/* Code Block */}
+                  {showScriptCode && (
+                    <div className="relative rounded-2xl overflow-hidden border border-slate-800 bg-slate-900 text-slate-100 font-mono text-xs shadow-inner">
+                      <div className="flex items-center justify-between px-4 py-2.5 bg-slate-950/80 border-b border-slate-800 text-[11px] text-slate-400">
+                        <span className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-rose-500/80 inline-block"></span>
+                          <span className="w-2.5 h-2.5 rounded-full bg-amber-500/80 inline-block"></span>
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80 inline-block"></span>
+                          <span className="ml-1 font-semibold text-slate-300">Code.gs</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleCopyCode}
+                          className="hover:text-white transition font-semibold text-indigo-400 cursor-pointer"
+                        >
+                          {codeCopied ? '✓ Copied' : 'Copy'}
+                        </button>
+                      </div>
+                      <pre className="p-4 overflow-x-auto max-h-96 text-[11px] leading-relaxed select-all">
+                        {GOOGLE_APPS_SCRIPT_CODE}
+                      </pre>
+                    </div>
+                  )}
+                </div>
               </div>
             )
           )}
