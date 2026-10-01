@@ -234,18 +234,18 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
   const [assignmentFeedback, setAssignmentFeedback] = useState<string | null>(null);
 
   useEffect(() => {
-    if (booking) {
+    if (booking?.id) {
       setSelectedDriverId(booking.driverId || '');
       setSelectedVehicleId(booking.vehicleId || '');
       setSelectedServiceType(booking.serviceType === 'Self-Drive' ? 'Self-Drive' : 'Perlu Driver');
       setIsChangingAssignment(false);
       setAssignmentFeedback(null);
     }
-  }, [booking]);
+  }, [booking?.id]);
 
   if (!booking) return null;
 
-  const currentDriver = users.find(d => d.id === booking.driverId);
+  const currentDriver = users.find(d => d.id === (booking.driverId || ''));
   const driverName = currentDriver?.name || (booking.serviceType === 'Self-Drive' ? 'Self-Drive' : 'Unassigned');
   
   const currentVehicle = vehicles.find(v => v.id === booking.vehicleId) ||
@@ -265,7 +265,11 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
     return r === 'driver' || r === 'staff' || u.id === 'driver-aziz';
   });
 
-  const handleConfirmAssignmentChange = async () => {
+  const handleConfirmAssignmentChange = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     if (!isAdmin) return;
     setIsSavingAssignment(true);
     setAssignmentFeedback(null);
@@ -307,7 +311,11 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
     }
   };
 
-  const handleDeleteClick = () => {
+  const handleDeleteClick = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     if (!isAdmin) return;
     if (window.confirm(`Are you sure you want to delete the booking to "${booking.destination}"? This action cannot be undone.`)) {
       onDelete(booking.id);
@@ -315,7 +323,11 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
     }
   };
 
-  const handleEditClick = () => {
+  const handleEditClick = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     if (!isAdmin) return;
     onEdit(booking);
     onClose();
@@ -358,6 +370,7 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
             {isAdmin && (
               <>
                 <button 
+                  type="button"
                   onClick={handleEditClick}
                   title="Edit Booking" 
                   className="p-1.5 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition cursor-pointer"
@@ -365,6 +378,7 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
                   <EditIcon className="h-4 w-4" />
                 </button>
                 <button 
+                  type="button"
                   onClick={handleDeleteClick}
                   title="Delete Booking" 
                   className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition cursor-pointer"
@@ -374,7 +388,8 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
               </>
             )}
             <button 
-              onClick={onClose} 
+              type="button"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }} 
               className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-200 transition cursor-pointer ml-1"
             >
               <XIcon className="h-5 w-5" />
@@ -404,7 +419,12 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
 
               {isAdmin && !isChangingAssignment && (
                 <button
-                  onClick={() => setIsChangingAssignment(true)}
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsChangingAssignment(true);
+                  }}
                   className="px-2.5 py-1 text-xs font-bold text-indigo-700 bg-white hover:bg-indigo-100 border border-indigo-300 rounded-lg shadow-2xs transition cursor-pointer"
                 >
                   ✏️ Change
@@ -479,7 +499,10 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
                 {/* Action Buttons */}
                 <div className="flex gap-2 justify-end pt-1">
                   <button
-                    onClick={() => {
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                       setIsChangingAssignment(false);
                       setSelectedDriverId(booking.driverId || '');
                       setSelectedVehicleId(booking.vehicleId || '');
@@ -489,6 +512,7 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
                     Cancel
                   </button>
                   <button
+                    type="button"
                     onClick={handleConfirmAssignmentChange}
                     disabled={isSavingAssignment}
                     className="px-3.5 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition cursor-pointer"
@@ -596,6 +620,7 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
           {isAdmin ? (
             <>
               <button
+                type="button"
                 onClick={handleDeleteClick}
                 className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100 rounded-xl border border-rose-200 transition cursor-pointer"
               >
@@ -605,6 +630,7 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
               
               <div className="flex items-center gap-2">
                 <button
+                  type="button"
                   onClick={handleEditClick}
                   className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl transition cursor-pointer"
                 >
@@ -612,7 +638,8 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
                   <span>Edit Full Booking</span>
                 </button>
                 <button
-                  onClick={onClose}
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
                   className="px-4 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-xl transition cursor-pointer"
                 >
                   Close
@@ -622,7 +649,8 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
           ) : (
             <div className="w-full flex justify-end">
               <button
-                onClick={onClose}
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
                 className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition cursor-pointer"
               >
                 Done
