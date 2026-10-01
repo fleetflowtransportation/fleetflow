@@ -19,7 +19,6 @@ import {
 } from './icons/Icons';
 import OdometerLogEditForm from './OdometerLogEditForm';
 import FuelLogModal from './FuelLogModal';
-import { FuelImportModal } from './FuelImportModal';
 
 declare global {
   interface Window {
@@ -69,7 +68,6 @@ const Reports: React.FC = () => {
   // --- Fuel Logs State ---
   const [editingFuelLog, setEditingFuelLog] = useState<FuelLog | null>(null);
   const [isFuelModalOpen, setIsFuelModalOpen] = useState(false);
-  const [isFuelImportModalOpen, setIsFuelImportModalOpen] = useState(false);
   const [fuelSearch, setFuelSearch] = useState('');
   const [fuelLogFilters, setFuelLogFilters] = useState({ 
     vehicleId: '', 
@@ -476,14 +474,6 @@ const Reports: React.FC = () => {
             >
               <PlusIcon className="h-4 w-4 mr-1.5" />
               + Record Fuel Log
-            </button>
-            <button
-              onClick={() => setIsFuelImportModalOpen(true)}
-              className="inline-flex items-center px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition transform hover:-translate-y-0.5 cursor-pointer"
-              title="Import data pukal dari Google Sheets, Excel, atau CSV"
-            >
-              <DocumentDownloadIcon className="h-4 w-4 mr-1.5" />
-              Import Sheets / CSV
             </button>
           </div>
         </div>
@@ -1384,11 +1374,6 @@ const Reports: React.FC = () => {
         logToEdit={editingFuelLog}
       />
 
-      {/* FUEL IMPORT & MIGRATION MODAL (CSV / SHEETS) */}
-      <FuelImportModal
-        isOpen={isFuelImportModalOpen}
-        onClose={() => setIsFuelImportModalOpen(false)}
-      />
     </div>
   );
 };
