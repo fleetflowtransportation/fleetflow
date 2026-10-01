@@ -30,7 +30,9 @@ export interface DerivedFuelMetric extends FuelLog {
   dailyDistanceKm: number | null; // delta D / days
   effectiveUnitPrice: number; // unit price RM/L
   isAnomaly: boolean; // drop > 15% from baseline
-  efficiencyStatus: 'above' | 'normal' | 'anomaly' | 'baseline';
+  isOutlier: boolean; // spike > max threshold (e.g. >30 km/L) or < min threshold (partial fill / odometer typo)
+  outlierReason?: string;
+  efficiencyStatus: 'above' | 'normal' | 'anomaly' | 'outlier' | 'baseline';
   vehicleName: string;
   plateNumber: string;
   driverName: string;
@@ -51,6 +53,12 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
   const [tableSearchQuery, setTableSearchQuery] = useState<string>('');
   const [sortField, setSortField] = useState<keyof DerivedFuelMetric>('date');
   const [sortAsc, setSortAsc] = useState<boolean>(false);
+
+  // Outlier Filtering State
+  const [filterOutliers, setFilterOutliers] = useState<boolean>(true);
+  const [maxEfficiencyThreshold, setMaxEfficiencyThreshold] = useState<number>(30); // Max 30 km/L default cap
+  const [minEfficiencyThreshold, setMinEfficiencyThreshold] = useState<number>(2.5); // Min 2.5 km/L default cap
+  const [tableOutlierFilter, setTableOutlierFilter] = useState<'all' | 'valid_only' | 'outliers_only'>('all');
 
   // Quick CRUD Form State (inline modal)
   const [isQuickFormOpen, setIsQuickFormOpen] = useState(false);
@@ -114,7 +122,7 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
         return new Date(a.date).getTime() - new Date(b.date).getTime();
       });
 
-      // Pass 1: compute distances & efficiencies
+      // Pass 1: compute distances, efficiencies & outlier classification
       const tempMetrics: Omit<DerivedFuelMetric, 'isAnomaly' | 'efficiencyStatus'>[] = [];
       let totalValidDistance = 0;
       let totalValidLiters = 0;
@@ -138,6 +146,7 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
             costPerKm: null,
             daysInterval: null,
             dailyDistanceKm: null,
+            isOutlier: false,
             vehicleName: v.name,
             plateNumber: v.plateNumber,
             driverName: d.name,
@@ -156,8 +165,18 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
             const daysDiff = Math.max(1, Math.round(Math.abs(curTime - prevTime) / (1000 * 60 * 60 * 24)));
             const dailyKm = deltaD / daysDiff;
 
-            totalValidDistance += deltaD;
-            totalValidLiters += cur.liters;
+            // Outlier check: extreme high spike (e.g. partial fill or missed fill) or extreme low
+            const isOutlier = kmL > maxEfficiencyThreshold || kmL < minEfficiencyThreshold;
+            const outlierReason = isOutlier 
+              ? (kmL > maxEfficiencyThreshold 
+                  ? `Spike of ${kmL.toFixed(1)} km/L exceeds realistic threshold (${maxEfficiencyThreshold} km/L). Likely partial fill or odometer advance mismatch.`
+                  : `Extremely low efficiency (${kmL.toFixed(1)} km/L < ${minEfficiencyThreshold} km/L threshold).`)
+              : undefined;
+
+            if (!isOutlier) {
+              totalValidDistance += deltaD;
+              totalValidLiters += cur.liters;
+            }
 
             tempMetrics.push({
               ...cur,
@@ -168,6 +187,8 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
               costPerKm: costKm,
               daysInterval: daysDiff,
               dailyDistanceKm: dailyKm,
+              isOutlier,
+              outlierReason,
               vehicleName: v.name,
               plateNumber: v.plateNumber,
               driverName: d.name,
@@ -183,6 +204,7 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
               costPerKm: null,
               daysInterval: null,
               dailyDistanceKm: null,
+              isOutlier: false,
               vehicleName: v.name,
               plateNumber: v.plateNumber,
               driverName: d.name,
@@ -191,19 +213,25 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
         }
       }
 
-      // Calculate vehicle average baseline km/L
+      // Calculate clean vehicle average baseline km/L (excluding outliers)
       const vehAvgKmL = totalValidLiters > 0 && totalValidDistance > 0 
         ? totalValidDistance / totalValidLiters 
         : 12.0;
       baselines.set(vId, vehAvgKmL);
 
-      // Pass 2: Anomaly Detection (>15% degradation from vehicle baseline)
+      // Pass 2: Anomaly & Status Determination
       tempMetrics.forEach(item => {
         if (item.efficiencyKmL === null) {
           metricsList.push({
             ...item,
             isAnomaly: false,
             efficiencyStatus: 'baseline'
+          });
+        } else if (item.isOutlier) {
+          metricsList.push({
+            ...item,
+            isAnomaly: false,
+            efficiencyStatus: 'outlier'
           });
         } else {
           const isAnomaly = item.efficiencyKmL < (vehAvgKmL * 0.85);
@@ -217,9 +245,10 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
       });
     });
 
-    // Compute fleet-wide baseline
-    const allDistances = metricsList.reduce((acc, m) => acc + (m.tripDistance || 0), 0);
-    const allValidLiters = metricsList.reduce((acc, m) => acc + (m.tripDistance ? m.liters : 0), 0);
+    // Compute fleet-wide baseline (excluding outliers)
+    const validMetrics = metricsList.filter(m => !m.isOutlier && m.tripDistance);
+    const allDistances = validMetrics.reduce((acc, m) => acc + (m.tripDistance || 0), 0);
+    const allValidLiters = validMetrics.reduce((acc, m) => acc + m.liters, 0);
     const fleetAvg = allValidLiters > 0 ? allDistances / allValidLiters : 11.8;
 
     return {
@@ -227,7 +256,7 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
       vehicleBaselines: baselines,
       fleetBaselineKmL: fleetAvg
     };
-  }, [fuelLogs, getVehicle, getDriver]);
+  }, [fuelLogs, maxEfficiencyThreshold, minEfficiencyThreshold, getVehicle, getDriver]);
 
   // ---------------------------------------------------------------------------
   // FILTERING LOGS
@@ -260,6 +289,10 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
         }
       }
 
+      // Outlier Table Filter
+      if (tableOutlierFilter === 'valid_only' && item.isOutlier) return false;
+      if (tableOutlierFilter === 'outliers_only' && !item.isOutlier) return false;
+
       // Search query (plate, vehicle, driver)
       if (tableSearchQuery.trim()) {
         const q = tableSearchQuery.toLowerCase();
@@ -272,20 +305,26 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
 
       return true;
     });
-  }, [allDerivedMetrics, selectedVehicleId, dateRangePreset, customStartDate, customEndDate, tableSearchQuery]);
+  }, [allDerivedMetrics, selectedVehicleId, dateRangePreset, customStartDate, customEndDate, tableOutlierFilter, tableSearchQuery]);
 
   // ---------------------------------------------------------------------------
-  // 3. TOP KPI CARDS (Summary Calculations)
+  // 3. TOP KPI CARDS (Summary Calculations with Outlier Protection)
   // ---------------------------------------------------------------------------
   const summaryKPIs = useMemo(() => {
     const totalSpend = filteredMetrics.reduce((sum, m) => sum + m.cost, 0);
     const totalLiters = filteredMetrics.reduce((sum, m) => sum + m.liters, 0);
     const totalDistance = filteredMetrics.reduce((sum, m) => sum + (m.tripDistance || 0), 0);
     
-    // Efficiency: based on logs with valid distance and liters
-    const validIntervalLiters = filteredMetrics.reduce((sum, m) => sum + (m.tripDistance ? m.liters : 0), 0);
-    const avgEfficiencyKmL = validIntervalLiters > 0 && totalDistance > 0 
-      ? totalDistance / validIntervalLiters 
+    // Efficiency: if filterOutliers is enabled, calculate on clean records
+    const metricsForEfficiency = filterOutliers 
+      ? filteredMetrics.filter(m => !m.isOutlier && m.tripDistance && m.tripDistance > 0)
+      : filteredMetrics.filter(m => m.tripDistance && m.tripDistance > 0);
+
+    const validIntervalDistance = metricsForEfficiency.reduce((sum, m) => sum + (m.tripDistance || 0), 0);
+    const validIntervalLiters = metricsForEfficiency.reduce((sum, m) => sum + m.liters, 0);
+
+    const avgEfficiencyKmL = validIntervalLiters > 0 && validIntervalDistance > 0 
+      ? validIntervalDistance / validIntervalLiters 
       : 0;
     const avgConsumptionL100km = avgEfficiencyKmL > 0 ? (100 / avgEfficiencyKmL) : 0;
 
@@ -302,6 +341,7 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
     const monthlyDistanceProjection = avgDailyDistance * 30;
 
     const anomalyCount = filteredMetrics.filter(m => m.isAnomaly).length;
+    const outlierCount = filteredMetrics.filter(m => m.isOutlier).length;
 
     return {
       totalSpend,
@@ -312,14 +352,14 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
       avgCostPerKm,
       avgDailyDistance,
       monthlyDistanceProjection,
-      anomalyCount
+      anomalyCount,
+      outlierCount
     };
-  }, [filteredMetrics]);
+  }, [filteredMetrics, filterOutliers]);
 
   // ---------------------------------------------------------------------------
-  // 4. CHART 1: FUEL EFFICIENCY TREND DATA & ANOMALIES
+  // 4. CHART 1: FUEL EFFICIENCY TREND DATA (WITH OUTLIER FILTERING)
   // ---------------------------------------------------------------------------
-  // Determine effective vehicle for chart: if scope is specific vehicle, use that; else check chart sub-filter
   const effectiveChartVehicleId = selectedVehicleId !== 'all' ? selectedVehicleId : chartVehicleFilter;
 
   // Group by vehicle for individual clean polylines
@@ -341,12 +381,13 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
         odometer: number;
         vehicle: string;
         isAnomaly: boolean;
+        isOutlier: boolean;
+        outlierReason?: string;
       }[];
     }>();
 
     validLogs.forEach(m => {
       const vId = m.vehicleId || 'unknown';
-      // If chart is filtered to a specific vehicle, only include that vehicle
       if (effectiveChartVehicleId !== 'all' && vId !== effectiveChartVehicleId) {
         return;
       }
@@ -372,6 +413,8 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
         odometer: m.odometer,
         vehicle: `${m.vehicleName} (${m.plateNumber})`,
         isAnomaly: m.isAnomaly,
+        isOutlier: m.isOutlier,
+        outlierReason: m.outlierReason,
       });
     });
 
@@ -383,10 +426,16 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
     return Array.from(seriesMap.values());
   }, [filteredMetrics, effectiveChartVehicleId, vehicleBaselines, fleetBaselineKmL]);
 
-  // Flattened points for chart scale calculation
+  // Flattened points for chart scale calculation (optionally excluding outliers when filter is on)
   const allChartPoints = useMemo(() => {
     return chartVehicleSeries.flatMap(s => s.points).sort((a, b) => a.timestamp - b.timestamp);
   }, [chartVehicleSeries]);
+
+  const activeChartPointsForScale = useMemo(() => {
+    if (!filterOutliers) return allChartPoints;
+    const clean = allChartPoints.filter(p => !p.isOutlier);
+    return clean.length > 0 ? clean : allChartPoints;
+  }, [allChartPoints, filterOutliers]);
 
   // Baseline line to display in Chart 1
   const activeBaseline = useMemo(() => {
@@ -1016,26 +1065,60 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
       {/* --------------------------------------------------------------------- */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        {/* CHART 1: FUEL EFFICIENCY TREND (LINE CHART WITH ANOMALY MARKERS) */}
+        {/* CHART 1: FUEL EFFICIENCY TREND (LINE CHART WITH ANOMALY & OUTLIER FILTERING) */}
         <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between">
           <div>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-3 border-b border-slate-100">
               <div>
                 <h3 className="font-extrabold text-slate-900 text-sm sm:text-base flex items-center gap-2">
                   <span>Fuel Efficiency Trend (km/L)</span>
+                  {summaryKPIs.outlierCount > 0 && filterOutliers && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300">
+                      {summaryKPIs.outlierCount} Outlier{summaryKPIs.outlierCount > 1 ? 's' : ''} Filtered
+                    </span>
+                  )}
                   {summaryKPIs.anomalyCount > 0 && (
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-200">
-                      {summaryKPIs.anomalyCount} Anomaly{summaryKPIs.anomalyCount > 1 ? 's' : ''} Detected
+                      {summaryKPIs.anomalyCount} Degradation{summaryKPIs.anomalyCount > 1 ? 's' : ''}
                     </span>
                   )}
                 </h3>
                 <p className="text-[11px] text-slate-500">
-                  Chronological fuel efficiency per vehicle with baseline reference and static red anomaly indicators (&gt;15% degradation).
+                  Chronological fuel efficiency per vehicle with auto-normalized scale, baseline reference, and partial fill outlier filtering.
                 </p>
               </div>
 
-              {/* Sub-selector / Legend */}
-              <div className="flex items-center flex-wrap gap-3 text-[11px] text-slate-600">
+              {/* Sub-selector, Outlier Filter Toggle & Legend */}
+              <div className="flex items-center flex-wrap gap-2.5 text-[11px] text-slate-600">
+                {/* Outlier Filter Switcher */}
+                <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setFilterOutliers(!filterOutliers)}
+                    className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                      filterOutliers
+                        ? 'bg-amber-600 text-white shadow-xs'
+                        : 'bg-white text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="Toggle outlier filtering (filters out partial fills and odometer typos)"
+                  >
+                    <span>{filterOutliers ? '✓ Outlier Filter ON' : 'Outlier Filter OFF'}</span>
+                  </button>
+                  {filterOutliers && (
+                    <select
+                      value={maxEfficiencyThreshold}
+                      onChange={e => setMaxEfficiencyThreshold(Number(e.target.value))}
+                      className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-bold text-slate-800 outline-none cursor-pointer"
+                      title="Threshold for partial fill detection"
+                    >
+                      <option value={25}>Max 25 km/L (Strict)</option>
+                      <option value={30}>Max 30 km/L (Default)</option>
+                      <option value={35}>Max 35 km/L (Moderate)</option>
+                      <option value={50}>Max 50 km/L (Lenient)</option>
+                    </select>
+                  )}
+                </div>
+
                 {selectedVehicleId === 'all' && vehicles.length > 1 && (
                   <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg text-[10px] font-bold">
                     <button
@@ -1073,7 +1156,7 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
                   </div>
                   <div className="flex items-center gap-1">
                     <span className="w-2.5 h-2.5 rounded-full bg-rose-600"></span>
-                    <span>Anomaly</span>
+                    <span>Drop &gt;15%</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <span className="w-3 border-b-2 border-dashed border-slate-400"></span>
@@ -1083,6 +1166,25 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
               </div>
             </div>
 
+            {/* Outlier Notification Banner */}
+            {summaryKPIs.outlierCount > 0 && filterOutliers && (
+              <div className="mt-3 p-2.5 bg-amber-50 border border-amber-200/90 rounded-xl text-xs text-amber-900 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <InformationCircleIcon className="h-4 w-4 text-amber-700 shrink-0" />
+                  <span className="text-[11px] leading-tight">
+                    <b>Outlier Filter Active:</b> {summaryKPIs.outlierCount} partial fill / spike entry (&gt;{maxEfficiencyThreshold} km/L) excluded from curve scaling to keep graph resolution crisp.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTableOutlierFilter(tableOutlierFilter === 'outliers_only' ? 'all' : 'outliers_only')}
+                  className="text-[11px] font-bold text-amber-800 hover:text-amber-950 underline shrink-0 cursor-pointer"
+                >
+                  {tableOutlierFilter === 'outliers_only' ? 'Show All in Table' : 'Inspect Outliers'}
+                </button>
+              </div>
+            )}
+
             {/* SVG Responsive Line Chart */}
             <div className="mt-4 relative min-h-[220px]">
               {allChartPoints.length > 1 ? (
@@ -1091,8 +1193,12 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
                   const height = 200;
                   const padding = { top: 20, right: 30, bottom: 35, left: 40 };
 
-                  const minVal = Math.max(0, Math.min(...allChartPoints.map(d => d.kmL), activeBaseline * 0.7) - 2);
-                  const maxVal = Math.max(...allChartPoints.map(d => d.kmL), activeBaseline * 1.3) + 2;
+                  // Determine scale bounds from clean points (capped to avoid skewing)
+                  const minVal = Math.max(0, Math.min(...activeChartPointsForScale.map(d => d.kmL), activeBaseline * 0.7) - 2);
+                  const maxVal = Math.min(
+                    maxEfficiencyThreshold + 2,
+                    Math.max(...activeChartPointsForScale.map(d => d.kmL), activeBaseline * 1.3) + 2
+                  );
                   const valRange = maxVal - minVal || 1;
 
                   const chartW = width - padding.left - padding.right;
@@ -1109,7 +1215,10 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
                     return padding.left + (idx / Math.max(1, total - 1)) * chartW;
                   };
 
-                  const getY = (val: number) => height - padding.bottom - ((val - minVal) / valRange) * chartH;
+                  const getY = (val: number) => {
+                    const clampedVal = Math.min(Math.max(val, minVal), maxVal);
+                    return height - padding.bottom - ((clampedVal - minVal) / valRange) * chartH;
+                  };
                   const baselineY = getY(activeBaseline);
 
                   const palette = ['#059669', '#2563eb', '#7c3aed', '#d97706', '#db2777'];
@@ -1177,14 +1286,19 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
                         if (series.points.length === 0) return null;
                         const color = palette[sIdx % palette.length];
 
-                        const pointsPath = series.points
-                          .map((d, i) => `${getXByTime(d.timestamp, i, series.points.length)},${getY(d.kmL)}`)
+                        // When filterOutliers is active, connect only valid non-outlier points
+                        const linePoints = filterOutliers 
+                          ? series.points.filter(p => !p.isOutlier)
+                          : series.points;
+
+                        const pointsPath = linePoints
+                          .map((d, i) => `${getXByTime(d.timestamp, i, linePoints.length)},${getY(d.kmL)}`)
                           .join(' ');
 
                         return (
                           <g key={series.vehicleId}>
                             {/* Line connecting points for this vehicle */}
-                            {series.points.length > 1 && (
+                            {linePoints.length > 1 && (
                               <polyline
                                 fill="none"
                                 stroke={color}
@@ -1216,26 +1330,54 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
                                   })}
                                   onMouseLeave={() => setHoveredPoint(null)}
                                 >
-                                  {/* Static Anomaly Warning Ring (No animation glitches) */}
-                                  {d.isAnomaly && (
+                                  {/* Outlier Indicator: Hollow diamond/ring on top if filtered */}
+                                  {d.isOutlier ? (
+                                    <g>
+                                      <circle
+                                        cx={cx}
+                                        cy={cy}
+                                        r="6.5"
+                                        fill="#fef3c7"
+                                        stroke="#d97706"
+                                        strokeWidth="1.5"
+                                        strokeDasharray="2 2"
+                                      />
+                                      <circle
+                                        cx={cx}
+                                        cy={cy}
+                                        r="2.5"
+                                        fill="#d97706"
+                                      />
+                                    </g>
+                                  ) : d.isAnomaly ? (
+                                    <g>
+                                      <circle
+                                        cx={cx}
+                                        cy={cy}
+                                        r="7.5"
+                                        fill="none"
+                                        stroke="#f43f5e"
+                                        strokeWidth="1.5"
+                                      />
+                                      <circle
+                                        cx={cx}
+                                        cy={cy}
+                                        r="4.5"
+                                        fill="#e11d48"
+                                        stroke="#ffffff"
+                                        strokeWidth="1.5"
+                                      />
+                                    </g>
+                                  ) : (
                                     <circle
                                       cx={cx}
                                       cy={cy}
-                                      r="7.5"
-                                      fill="none"
-                                      stroke="#f43f5e"
+                                      r="3.5"
+                                      fill={color}
+                                      stroke="#ffffff"
                                       strokeWidth="1.5"
                                     />
                                   )}
-
-                                  <circle
-                                    cx={cx}
-                                    cy={cy}
-                                    r={d.isAnomaly ? '4.5' : '3.5'}
-                                    fill={d.isAnomaly ? '#e11d48' : color}
-                                    stroke="#ffffff"
-                                    strokeWidth="1.5"
-                                  />
 
                                   {/* X-axis date labels */}
                                   {(pIdx === 0 || pIdx === series.points.length - 1 || pIdx % Math.max(1, Math.floor(series.points.length / 5)) === 0) && (
@@ -1281,7 +1423,11 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
                   </div>
                   <div className="flex items-center justify-between gap-3">
                     <span>Fuel Economy:</span>
-                    <span className={`font-mono font-black ${hoveredPoint.isAnomaly ? 'text-rose-400' : 'text-emerald-400'}`}>
+                    <span className={`font-mono font-black ${
+                      hoveredPoint.kmL > maxEfficiencyThreshold 
+                        ? 'text-amber-400' 
+                        : (hoveredPoint.isAnomaly ? 'text-rose-400' : 'text-emerald-400')
+                    }`}>
                       {hoveredPoint.kmL} km/L
                     </span>
                   </div>
@@ -1293,12 +1439,17 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
                     <span>Trip Interval:</span>
                     <span className="font-mono">+{hoveredPoint.distance} km</span>
                   </div>
-                  {hoveredPoint.isAnomaly && (
+                  {hoveredPoint.kmL > maxEfficiencyThreshold ? (
+                    <div className="mt-1 pt-1 border-t border-amber-800/50 text-[10px] font-bold text-amber-400 flex items-center gap-1">
+                      <ExclamationIcon className="h-3 w-3" />
+                      <span>Outlier Spike: Excluded from curve scaling (Partial Fill)</span>
+                    </div>
+                  ) : hoveredPoint.isAnomaly ? (
                     <div className="mt-1 pt-1 border-t border-rose-900/50 text-[10px] font-bold text-rose-400 flex items-center gap-1">
                       <ExclamationIcon className="h-3 w-3" />
                       <span>Anomaly: &gt;15% below baseline</span>
                     </div>
-                  )}
+                  ) : null}
                 </div>
               )}
             </div>
@@ -1557,24 +1708,36 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
             </p>
           </div>
 
-          {/* Search Table */}
-          <div className="relative w-full sm:w-64">
-            <SearchIcon className="h-4 w-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
-            <input
-              type="text"
-              value={tableSearchQuery}
-              onChange={e => setTableSearchQuery(e.target.value)}
-              placeholder="Search plate, vehicle, driver..."
-              className="w-full pl-9 pr-3 py-1.5 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 outline-none"
-            />
-            {tableSearchQuery && (
-              <button 
-                onClick={() => setTableSearchQuery('')}
-                className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600"
-              >
-                <XIcon className="h-3.5 w-3.5" />
-              </button>
-            )}
+          {/* Search & Outlier Filter Controls */}
+          <div className="flex items-center flex-wrap gap-2 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-60">
+              <SearchIcon className="h-4 w-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
+              <input
+                type="text"
+                value={tableSearchQuery}
+                onChange={e => setTableSearchQuery(e.target.value)}
+                placeholder="Search plate, vehicle, driver..."
+                className="w-full pl-9 pr-3 py-1.5 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 outline-none"
+              />
+              {tableSearchQuery && (
+                <button 
+                  onClick={() => setTableSearchQuery('')}
+                  className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600"
+                >
+                  <XIcon className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            <select
+              value={tableOutlierFilter}
+              onChange={e => setTableOutlierFilter(e.target.value as any)}
+              className="border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs bg-slate-50 font-bold text-slate-700 focus:ring-2 focus:ring-amber-500 outline-none cursor-pointer"
+            >
+              <option value="all">All Records</option>
+              <option value="valid_only">Valid Entries Only</option>
+              <option value="outliers_only">⚠️ Outliers / Spikes ({summaryKPIs.outlierCount})</option>
+            </select>
           </div>
         </div>
 
@@ -1678,7 +1841,9 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
                       <td className="px-3.5 py-2.5 whitespace-nowrap text-right font-mono">
                         {log.efficiencyKmL ? (
                           <div className="inline-flex flex-col items-end">
-                            <span className="font-extrabold text-slate-900">{log.efficiencyKmL.toFixed(2)} km/L</span>
+                            <span className={`font-extrabold ${log.isOutlier ? 'text-amber-800' : 'text-slate-900'}`}>
+                              {log.efficiencyKmL.toFixed(2)} km/L
+                            </span>
                             <span className="text-[10px] text-slate-400">({log.consumptionL100km?.toFixed(1)} L/100km)</span>
                           </div>
                         ) : (
@@ -1689,7 +1854,15 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
                         {log.costPerKm ? `RM ${log.costPerKm.toFixed(2)}` : '-'}
                       </td>
                       <td className="px-3.5 py-2.5 whitespace-nowrap text-center">
-                        {log.isAnomaly ? (
+                        {log.isOutlier ? (
+                          <span 
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300"
+                            title={log.outlierReason}
+                          >
+                            <ExclamationIcon className="h-3 w-3 text-amber-700" />
+                            Partial Fill / Outlier
+                          </span>
+                        ) : log.isAnomaly ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-200">
                             <ExclamationIcon className="h-3 w-3" />
                             Anomaly
