@@ -157,11 +157,22 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({ isOpen, onClose, vehic
     }
   }, [vehicleToEdit]);
 
+  const prevIsOpenRef = React.useRef(false);
+  const prevVehicleIdRef = React.useRef<string | null | undefined>(undefined);
+
   useEffect(() => {
-    if (isOpen) {
+    const justOpened = isOpen && !prevIsOpenRef.current;
+    const vehicleChanged = isOpen && (vehicleToEdit ? vehicleToEdit.id : null) !== prevVehicleIdRef.current;
+
+    prevIsOpenRef.current = isOpen;
+    prevVehicleIdRef.current = vehicleToEdit ? vehicleToEdit.id : null;
+
+    if (!isOpen) return;
+
+    if (justOpened || vehicleChanged) {
       initForm();
     }
-  }, [isOpen, initForm]);
+  }, [isOpen, vehicleToEdit, initForm]);
 
   // Field change handler
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAppContext } from '../context/AppContext';
 import type { FuelLog } from '../types';
 import { XIcon, FuelIcon, PaperClipIcon, TrashIcon } from './icons/Icons';
+import { uploadToGoogleDrive, formatFuelReceiptFileName } from '../services/googleDrive';
 
 interface FuelLogModalProps {
   isOpen: boolean;
@@ -23,6 +24,8 @@ const emptyFormData = {
 
 type FormData = typeof emptyFormData;
 
+const DRAFT_STORAGE_KEY = 'fleetflow_fuel_log_modal_draft';
+
 const FuelLogModal: React.FC<FuelLogModalProps> = ({
   isOpen,
   onClose,
@@ -30,13 +33,15 @@ const FuelLogModal: React.FC<FuelLogModalProps> = ({
   initialVehicleId,
   initialDriverId,
 }) => {
-  const { addFuelLog, updateFuelLog, vehicles, users, currentUser, odometerLogs } = useAppContext();
+  const { addFuelLog, updateFuelLog, vehicles, users, currentUser, odometerLogs, activeTenant } = useAppContext();
   const [formData, setFormData] = useState<FormData>(emptyFormData);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [existingReceiptUrl, setExistingReceiptUrl] = useState<string | undefined>(undefined);
   const [existingReceiptName, setExistingReceiptName] = useState<string | undefined>(undefined);
+  const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const prevIsOpenRef = useRef(false);
 
   const drivers = useMemo(() => {
     return users.filter(u => u.role === 'driver' || u.role === 'admin');
@@ -52,8 +57,9 @@ const FuelLogModal: React.FC<FuelLogModalProps> = ({
     return 0;
   };
 
+  // Safe initialization: ONLY run when modal is newly opened or logToEdit changes, NOT on background tick reloads
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevIsOpenRef.current) {
       setError('');
       setReceiptFile(null);
 
@@ -70,24 +76,35 @@ const FuelLogModal: React.FC<FuelLogModalProps> = ({
         setExistingReceiptUrl(logToEdit.receiptAttachmentUrl);
         setExistingReceiptName(logToEdit.receiptAttachmentName);
       } else {
-        const defaultVId = initialVehicleId || vehicles[0]?.id || '';
-        const defaultDId = initialDriverId || (currentUser?.role === 'driver' ? currentUser.id : (drivers[0]?.id || ''));
+        // Try restoring draft from current session if exists
+        let draftData: Partial<FormData> | null = null;
+        try {
+          const savedDraft = sessionStorage.getItem(DRAFT_STORAGE_KEY);
+          if (savedDraft) draftData = JSON.parse(savedDraft);
+        } catch {
+          // ignore
+        }
+
+        const defaultVId = draftData?.vehicleId || initialVehicleId || vehicles[0]?.id || '';
+        const defaultDId = draftData?.driverId || initialDriverId || (currentUser?.role === 'driver' ? currentUser.id : (drivers[0]?.id || ''));
         const latestOdo = defaultVId ? getLatestOdoForVehicle(defaultVId) : 0;
 
         setFormData({
           vehicleId: defaultVId,
           driverId: defaultDId,
-          date: new Date().toISOString().split('T')[0],
-          odometer: latestOdo > 0 ? String(latestOdo) : '',
-          liters: '',
-          cost: '',
-          pricePerLiter: '2.05', // Standard RON95 default
+          date: draftData?.date || new Date().toISOString().split('T')[0],
+          odometer: draftData?.odometer || (latestOdo > 0 ? String(latestOdo) : ''),
+          liters: draftData?.liters || '',
+          cost: draftData?.cost || '',
+          pricePerLiter: draftData?.pricePerLiter || '2.05',
         });
         setExistingReceiptUrl(undefined);
         setExistingReceiptName(undefined);
       }
     }
-  }, [isOpen, logToEdit, initialVehicleId, initialDriverId, vehicles, drivers, currentUser]);
+
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen, logToEdit]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -95,11 +112,17 @@ const FuelLogModal: React.FC<FuelLogModalProps> = ({
 
     if (name === 'vehicleId') {
       const latestOdo = getLatestOdoForVehicle(value);
-      setFormData(prev => ({
-        ...prev,
-        vehicleId: value,
-        odometer: (!prev.odometer || prev.odometer === '0') && latestOdo > 0 ? String(latestOdo) : prev.odometer,
-      }));
+      setFormData(prev => {
+        const next = {
+          ...prev,
+          vehicleId: value,
+          odometer: (!prev.odometer || prev.odometer === '0') && latestOdo > 0 ? String(latestOdo) : prev.odometer,
+        };
+        if (!logToEdit) {
+          try { sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(next)); } catch {}
+        }
+        return next;
+      });
       return;
     }
 
@@ -110,11 +133,17 @@ const FuelLogModal: React.FC<FuelLogModalProps> = ({
         ? (litersNum * priceNum).toFixed(2)
         : formData.cost;
 
-      setFormData(prev => ({
-        ...prev,
-        liters: value,
-        cost: calculatedCost,
-      }));
+      setFormData(prev => {
+        const next = {
+          ...prev,
+          liters: value,
+          cost: calculatedCost,
+        };
+        if (!logToEdit) {
+          try { sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(next)); } catch {}
+        }
+        return next;
+      });
       return;
     }
 
@@ -125,15 +154,27 @@ const FuelLogModal: React.FC<FuelLogModalProps> = ({
         ? (litersNum * priceNum).toFixed(2)
         : formData.cost;
 
-      setFormData(prev => ({
-        ...prev,
-        pricePerLiter: value,
-        cost: calculatedCost,
-      }));
+      setFormData(prev => {
+        const next = {
+          ...prev,
+          pricePerLiter: value,
+          cost: calculatedCost,
+        };
+        if (!logToEdit) {
+          try { sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(next)); } catch {}
+        }
+        return next;
+      });
       return;
     }
 
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => {
+      const next = { ...prev, [name]: value };
+      if (!logToEdit) {
+        try { sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(next)); } catch {}
+      }
+      return next;
+    });
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -154,8 +195,9 @@ const FuelLogModal: React.FC<FuelLogModalProps> = ({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isUploading) return;
 
     if (!formData.vehicleId) {
       setError('Please select a vehicle.');
@@ -183,12 +225,37 @@ const FuelLogModal: React.FC<FuelLogModalProps> = ({
       return;
     }
 
+    setIsUploading(true);
+
     let attachmentUrl = existingReceiptUrl;
     let attachmentName = existingReceiptName;
 
+    // Upload receipt to Google Drive if a new file is attached
     if (receiptFile) {
-      attachmentUrl = URL.createObjectURL(receiptFile);
-      attachmentName = receiptFile.name;
+      const selectedVehicle = vehicles.find(v => v.id === formData.vehicleId);
+      const plateNumber = selectedVehicle?.plateNumber || 'VEHICLE';
+      const customFileName = formatFuelReceiptFileName(formData.date, plateNumber, receiptFile.name);
+
+      try {
+        const uploadRes = await uploadToGoogleDrive(receiptFile, {
+          folderName: 'fuel_logs',
+          folderPath: ['Fuel Logs', plateNumber],
+          fileName: customFileName,
+          tenant: activeTenant,
+        });
+
+        if (uploadRes.success && uploadRes.url) {
+          attachmentUrl = uploadRes.url;
+          attachmentName = uploadRes.name || customFileName;
+        } else {
+          attachmentUrl = URL.createObjectURL(receiptFile);
+          attachmentName = customFileName;
+        }
+      } catch (err: any) {
+        console.warn('[FuelLog] Receipt upload fallback to local URL:', err);
+        attachmentUrl = URL.createObjectURL(receiptFile);
+        attachmentName = customFileName;
+      }
     }
 
     const payload = {
@@ -203,16 +270,24 @@ const FuelLogModal: React.FC<FuelLogModalProps> = ({
       receiptAttachmentUrl: attachmentUrl,
     };
 
-    if (logToEdit) {
-      updateFuelLog(logToEdit.id, payload);
-    } else {
-      addFuelLog(payload);
+    try {
+      if (logToEdit) {
+        await updateFuelLog(logToEdit.id, payload);
+      } else {
+        await addFuelLog(payload);
+        sessionStorage.removeItem(DRAFT_STORAGE_KEY);
+      }
+      onClose();
+    } catch (err: any) {
+      setError(err.message || 'Failed to save fuel log.');
+    } finally {
+      setIsUploading(false);
     }
-
-    onClose();
   };
 
   if (!isOpen) return null;
+
+  const selectedVehicle = vehicles.find(v => v.id === formData.vehicleId);
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex justify-center items-center p-4 overflow-y-auto">
@@ -228,14 +303,14 @@ const FuelLogModal: React.FC<FuelLogModalProps> = ({
                 {logToEdit ? 'Update Fuel Log' : 'Record New Fuel Log'}
               </h2>
               <p className="text-xs text-slate-500">
-                {logToEdit ? 'Edit fuel purchase details and receipt' : 'Manual entry of fuel refueling records'}
+                {logToEdit ? 'Edit fuel purchase details and receipt' : 'Manual entry of fuel refueling records with Google Drive sync'}
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition"
+            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer"
           >
             <XIcon className="h-5 w-5" />
           </button>
@@ -359,10 +434,18 @@ const FuelLogModal: React.FC<FuelLogModalProps> = ({
             </p>
           </div>
 
-          {/* Receipt Attachment */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Fuel Purchase Receipt Attachment</label>
-            <div className="mt-1 flex items-center space-x-3">
+          {/* Receipt Attachment with Drive destination indicator */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-slate-700">Fuel Purchase Receipt</label>
+              {selectedVehicle && (
+                <span className="text-[10px] text-slate-400 font-mono">
+                  Drive: Fuel Logs / {selectedVehicle.plateNumber}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center space-x-3">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -374,7 +457,7 @@ const FuelLogModal: React.FC<FuelLogModalProps> = ({
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="flex items-center px-3.5 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 transition shadow-xs"
+                className="flex items-center px-3.5 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 transition shadow-xs cursor-pointer"
               >
                 <PaperClipIcon className="h-4 w-4 mr-1.5 text-slate-500" />
                 {receiptFile || existingReceiptName ? 'Replace Receipt' : 'Upload Receipt'}
@@ -382,7 +465,11 @@ const FuelLogModal: React.FC<FuelLogModalProps> = ({
 
               {(receiptFile || existingReceiptName) && (
                 <div className="flex items-center space-x-2 bg-slate-100 px-3 py-1.5 rounded-xl text-xs font-medium text-slate-700">
-                  <span className="truncate max-w-[180px]">{receiptFile ? receiptFile.name : existingReceiptName}</span>
+                  <span className="truncate max-w-[180px]">
+                    {receiptFile 
+                      ? (selectedVehicle ? formatFuelReceiptFileName(formData.date, selectedVehicle.plateNumber, receiptFile.name) : receiptFile.name)
+                      : existingReceiptName}
+                  </span>
                   {(receiptFile || existingReceiptUrl) && (
                     <a
                       href={receiptFile ? URL.createObjectURL(receiptFile) : existingReceiptUrl}
@@ -396,7 +483,7 @@ const FuelLogModal: React.FC<FuelLogModalProps> = ({
                   <button
                     type="button"
                     onClick={removeReceipt}
-                    className="text-red-500 hover:text-red-700 p-0.5"
+                    className="text-red-500 hover:text-red-700 p-0.5 cursor-pointer"
                     title="Delete attachment"
                   >
                     <TrashIcon className="h-3.5 w-3.5" />
@@ -404,6 +491,9 @@ const FuelLogModal: React.FC<FuelLogModalProps> = ({
                 </div>
               )}
             </div>
+            <p className="text-[10px] text-slate-400">
+              Receipt files are automatically saved to Google Drive under folder <code>Fuel Logs / [Plate Number]</code> formatted as <code>DD-MM-YYYY_Noplat.ext</code>.
+            </p>
           </div>
 
           {/* Buttons */}
@@ -411,15 +501,24 @@ const FuelLogModal: React.FC<FuelLogModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+              disabled={isUploading}
+              className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-sm transition"
+              disabled={isUploading}
+              className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-2 cursor-pointer disabled:bg-amber-400"
             >
-              {logToEdit ? 'Save Changes' : 'Record Fuel Log'}
+              {isUploading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  <span>Saving & Uploading to Drive...</span>
+                </>
+              ) : (
+                <span>{logToEdit ? 'Save Changes' : 'Record Fuel Log'}</span>
+              )}
             </button>
           </div>
         </form>

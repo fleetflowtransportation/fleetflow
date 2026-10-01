@@ -79,23 +79,39 @@ export const VehicleRenewalModal: React.FC<VehicleRenewalModalProps> = ({
     }
   };
 
+  const prevIsOpenRef = useRef(false);
+  const prevVehicleIdRef = useRef<string | null | undefined>(undefined);
+  const prevTypeRef = useRef<string | undefined>(undefined);
+
   // Sync state whenever modal opens or vehicle/defaultComplianceType changes
   useEffect(() => {
-    if (isOpen && vehicle) {
-      const targetType = (defaultComplianceType || 'Insurance') as ComplianceType;
-      setComplianceType(targetType);
-      const existing = getExistingExpiry(vehicle, targetType);
-      setOldExpiryDate(existing);
-      setRenewalDate(new Date().toISOString().split('T')[0]);
-      setNewExpiryDate(calculateDefaultNewExpiry(existing));
-      setCostAmount('');
-      setProviderAgentName('');
-      setDocumentUrl('');
-      setDocumentName('');
-      setRemarks('');
-      setFormErrors({});
-      setSuccessBanner(null);
-      setActiveTab('form');
+    const justOpened = isOpen && !prevIsOpenRef.current;
+    const vehicleChanged = isOpen && (vehicle ? vehicle.id : null) !== prevVehicleIdRef.current;
+    const typeChanged = isOpen && defaultComplianceType !== prevTypeRef.current;
+
+    prevIsOpenRef.current = isOpen;
+    prevVehicleIdRef.current = vehicle ? vehicle.id : null;
+    prevTypeRef.current = defaultComplianceType;
+
+    if (!isOpen) return;
+
+    if (justOpened || vehicleChanged || typeChanged) {
+      if (vehicle) {
+        const targetType = (defaultComplianceType || 'Insurance') as ComplianceType;
+        setComplianceType(targetType);
+        const existing = getExistingExpiry(vehicle, targetType);
+        setOldExpiryDate(existing);
+        setRenewalDate(new Date().toISOString().split('T')[0]);
+        setNewExpiryDate(calculateDefaultNewExpiry(existing));
+        setCostAmount('');
+        setProviderAgentName('');
+        setDocumentUrl('');
+        setDocumentName('');
+        setRemarks('');
+        setFormErrors({});
+        setSuccessBanner(null);
+        setActiveTab('form');
+      }
     }
   }, [isOpen, vehicle, defaultComplianceType]);
 

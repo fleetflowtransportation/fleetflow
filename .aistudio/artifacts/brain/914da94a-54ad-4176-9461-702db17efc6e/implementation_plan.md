@@ -1,88 +1,51 @@
-# Organization Owner Account Protection & Settings UI Simplification
+# Pelan Pelaksanaan: Google Drive Fuel Log Receipt & Pembetulan Isu Auto-Refresh Borang
 
-Protect the primary organization owner account from accidental deletion and streamline the Settings page by removing internal database testing and diagnostic log panels from the UI.
+## 1. Objektif & Keperluan Pengguna
+1. **Muat Naik Resit Petrol ke Google Drive**:
+   - Resit yang dimuat naik dalam modul **Fuel Log** akan disimpan terus ke Google Drive milik organisasi (`tenant.googleDriveId`).
+   - Struktur folder yang teratur: `Folder Induk > Fuel Logs > [No Plat Kenderaan]`.
+   - Format nama fail automatik: `DD-MM-YYYY_Noplat.ext` (contoh: `01-10-2026_VAA8821.jpg`).
+   - Kemas kini skrip Google Apps Script (`Code.gs`) di bahagian tetapan (*Settings*) untuk menyokong penciptaan sub-folder bersarang (*nested subfolders*).
 
-### User Review & Critical Decisions
-
-> [!IMPORTANT]
-> The primary tenant owner (the original registered administrator for each organization) will be safeguarded:
-> - **Owner Protection**: Owner accounts display an "Owner" badge and have their Delete button disabled (only editing details/passwords is allowed).
-> - **Settings Simplification**: The raw Supabase Cloud Database panel and Calendar Diagnostic Logs table are removed from the Settings UI to keep the interface focused on operational fleet management and Google Workspace integrations.
-
-- **Confirmed Decision**: The organization owner account will display an "Owner" badge with the delete button disabled.
-- **Backend Safety**: Database/context delete operations will explicitly prevent deleting the primary organization owner.
-
----
-
-## 1. Overview & Core Concept
-
-- **What It Does**: 
-  1. Ensures that every organization's founding admin/owner account is protected from deletion so organization access is never lost.
-  2. Simplifies the **Settings & Integrations** page by removing technical database testing panels and raw calendar diagnostic log monitors, presenting a clean and user-friendly interface.
-- **Target Audience**: Organization Administrators and Fleet Managers.
-- **Key Value**: Prevents accidental lockouts from organization accounts while providing an uncluttered, professional Settings experience.
+2. **Penyelesaian Isu Form Refresh**:
+   - Memperbaiki punca utama borang ter-refresh/terpadam sendiri (kitaran auto-refresh 15 saat dalam `AppContext` yang mencetuskan re-render dan `useEffect` pada rujukan tatasusunan `vehicles` / `users`).
+   - Memastikan `useEffect` dalam semua modal borang hanya menginisialisasi nilai semasa modal mula-mula dibuka (*mount / isOpen transition*), bukan setiap kali data latar belakang dikemas kini.
+   - Menyediakan perlindungan draf (*Auto-Save Draft*) supaya jika staf menaip, data tidak hilang sekiranya berlaku sebarang gangguan.
 
 ---
 
-## 2. User Experience & Visual Design
+## 2. Pelan Tindakan Terperinci
 
-### A. User Management (`UserManagement.tsx` & `UserForm.tsx`)
-- **Owner Badge**: Primary organization administrators display an "Owner" badge alongside their role.
-- **Disabled Delete Control**: For owner accounts, the Delete button is visually disabled (`opacity-40 cursor-not-allowed`) with an informative tooltip (`Organization Owner (Cannot be deleted)`).
-- **Safe Editing**: Editing owner details (Name, Contact, Phone, Address, Password) remains fully accessible; role downgrade or account deactivation is prevented to preserve login access.
-- **Subsequent Users**: Staff and drivers added later can be deleted or edited as normal.
-
-### B. Settings & Integrations (`IntegrationsSettings.tsx`)
-- **Removed**: Supabase Cloud Database connection cards, credentials modal, and raw diagnostic log console.
-- **Retained & Streamlined**: 
-  - Organization Profile settings (Company details, PIC, address, registration).
-  - Google Calendar Integration (Calendar ID & Sync).
-  - Google Drive Folder ID & Apps Script Webhook.
-  - Public Booking & Driver Roster links.
-  - Apps Script Code Generator modal with copy-to-clipboard functionality.
+### Bahagian A: Integrasi Google Drive untuk Fuel Log
+1. **`services/googleDrive.ts`**:
+   - Menambah fungsi pembina nama fail resit standard: `formatFuelReceiptFileName(dateStr, plateNumber, originalFileName)` -> `DD-MM-YYYY_Noplat.ext`.
+   - Menambah sokongan laluan folder bertingkat (*nested folder paths*) seperti `folderPath: ['Fuel Logs', plateNumber]` atau `Fuel Logs/${plateNumber}` dalam panggilan payload Google Apps Script.
+2. **`components/FuelLogModal.tsx` & `components/FuelLogForm.tsx`**:
+   - Memanggil `uploadToGoogleDrive` semasa pengguna memilih resit minyak, menghantar `folderPath: ['Fuel Logs', vehiclePlateNumber]` dan nama fail `DD-MM-YYYY_Noplat.ext`.
+   - Menyimpan URL direct Drive (`receiptAttachmentUrl`) dan nama fail (`receiptAttachmentName`) ke dalam rekod database Supabase.
+3. **`components/SettingsView.tsx` (Google Apps Script Code)**:
+   - Mengemas kini templat kod `Code.gs` untuk mencipta sub-folder bertingkat (`DriveApp` folder hierarchy recursive check) secara automatik sekiranya folder `Fuel Logs` atau `[No Plat]` belum wujud.
 
 ---
 
-## 3. Key Product Decisions & Trade-Offs
-
-- **Owner Identification Strategy**:
-  - *Chosen Approach*: Identify the owner via `isOwner: true` flag in the User model, automatically designated for the founding admin during organization registration or default primary admin.
-  - *Why*: Clear, explicit, and deterministic across reloads without requiring complex database schema migrations.
-- **Settings UI Cleanup**:
-  - *Chosen Approach*: Keep Supabase credentials and health check logic in background utility services while removing raw DB credential fields and technical diagnostic logs from the user-facing UI.
-  - *Why*: Eliminates clutter and prevents confusion for end users while retaining automated database connectivity.
+### Bahagian B: Menghapuskan Masalah Form Refresh di Seluruh Sistem
+1. **`context/AppContext.tsx`**:
+   - Mengoptimumkan `useEffect` auto-refresh (15 saat) agar ia berjalan secara senyap di latar belakang (*silent background sync*) tanpa mengganggu komponen yang sedang aktif.
+   - Menghapuskan `setIsLoading(true)` semasa auto-refresh berkala (hanya aktifkan pada *initial load* pertama).
+2. **Semua Modal & Borang Input**:
+   - **`components/FuelLogModal.tsx` & `components/FuelLogForm.tsx`**
+   - **`components/OdometerModal.tsx`**
+   - **`components/BookingModal.tsx` & `components/BookingManagementList.tsx`**
+   - **`components/IssueModal.tsx` / `components/IssueManagement.tsx`**
+   - **`components/VehicleForm.tsx` & `components/VehicleModal.tsx`**
+   - **`components/MaintenanceManagement.tsx`**
+   - Membaiki corak `useEffect` dengan menggunakan `useRef(isOpen)` supaya `formData` HANYA diisi sekali sahaja apabila pengguna membuka borang, dan TIDAK direset apabila `vehicles`, `users`, atau `currentUser` diperbaharui di latar belakang.
+   - Menambah perlindungan auto-save draf ringkas ke `sessionStorage` untuk borang-borang utama.
 
 ---
 
-## 4. Technical Architecture & Data Strategy
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                       SettingsView                          │
-├──────────────────────────────┬──────────────────────────────┤
-│      User Management         │    Integrations & System     │
-│  ┌────────────────────────┐  │  ┌────────────────────────┐  │
-│  │ Owner: [Edit] [Disabled]│  │  │ Google Calendar & Drive │  │
-│  │ Driver: [Edit] [Delete]│  │  │ Public Booking Link    │  │
-│  │ Staff:  [Edit] [Delete]│  │  │ Apps Script Webhook    │  │
-│  └────────────────────────┘  │  └────────────────────────┘  │
-└──────────────┬──────────────────────────────┬───────────────┘
-               │                              │
-               ▼                              ▼
-    ┌──────────────────────┐      ┌──────────────────────┐
-    │  deleteUser Guard    │      │  Background DB Sync  │
-    │ (Blocks Owner Delete)│      │  (Supabase Singapore)│
-    └──────────────────────┘      └──────────────────────┘
-```
-
-### Component & State Mapping:
-- **`types.ts`**: Update `User` interface with `isOwner?: boolean`.
-- **`services/storage.ts`**:
-  - Set `isOwner: true` for the primary admin in `signUpTenant` and when loading tenant users.
-  - Guard `deleteUser` against deleting tenant owners.
-- **`components/UserManagement.tsx`**:
-  - Render Owner badge and disable the Delete button for owner accounts.
-- **`components/UserForm.tsx`**:
-  - Enforce active admin status for owner accounts during edits.
-- **`components/IntegrationsSettings.tsx`**:
-  - Clean up database test cards and calendar diagnostic logs from the UI.
+## 3. Ujian & Pengesahan
+- Uji muat naik resit minyak pada kenderaan pilihan -> Semak nama fail terhasil (`DD-MM-YYYY_Noplat.ext`) dan susunan folder `Fuel Logs > [No Plat]`.
+- Buka borang Fuel Log, isi separuh, tunggu lebih 30 saat -> Sahkan teks tidak hilang dan borang tidak ter-refresh.
+- Uji borang-borang lain (Booking, Odometer, Vehicle, Maintenance) bagi memastikan tiada reset input yang berlaku.
+- Jalankan `npm run lint` dan `compile_applet` untuk memastikan tiada sebarang ralat kod.

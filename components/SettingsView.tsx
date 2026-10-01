@@ -390,14 +390,19 @@ function doPost(e) {
         targetFolder = DriveApp.getRootFolder();
       }
 
-      // Route to dedicated subfolder (e.g. 'vehicle', 'fuel_logs', 'bookings')
-      var subFolderName = data.folder || data.folderName || data.subFolder || "vehicle";
-      if (subFolderName) {
-        var subFolders = targetFolder.getFoldersByName(subFolderName);
-        if (subFolders.hasNext()) {
-          targetFolder = subFolders.next();
-        } else {
-          targetFolder = targetFolder.createFolder(subFolderName);
+      // Route to dedicated subfolder / nested path (e.g. 'Fuel Logs/VAA 8821' or array of subFolders)
+      var pathInput = data.folderPath || data.subFolderPath || data.folder || data.folderName || data.subFolder || "vehicle";
+      if (pathInput) {
+        var segments = Array.isArray(pathInput) ? pathInput : String(pathInput).split('/').map(function(s) { return s.trim(); }).filter(Boolean);
+        for (var si = 0; si < segments.length; si++) {
+          var segName = segments[si];
+          if (!segName) continue;
+          var subFolders = targetFolder.getFoldersByName(segName);
+          if (subFolders.hasNext()) {
+            targetFolder = subFolders.next();
+          } else {
+            targetFolder = targetFolder.createFolder(segName);
+          }
         }
       }
 

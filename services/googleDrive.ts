@@ -9,6 +9,7 @@ export interface GoogleDriveUploadResult {
   webViewLink?: string;
   name: string;
   folderName: string;
+  folderPath?: string;
   isLocalFallback?: boolean;
   error?: string;
 }
@@ -57,7 +58,7 @@ export const extractDriveFolderId = (input?: string | null): string | null => {
  */
 export const getDriveDirectImageUrl = (url?: string | null): string => {
   if (!url) return '';
-  if (url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('http://') === false && url.startsWith('https://') === false) {
+  if (url.startsWith('data:') || url.startsWith('blob:') || (url.startsWith('http://') === false && url.startsWith('https://') === false)) {
     return url;
   }
 
@@ -70,11 +71,50 @@ export const getDriveDirectImageUrl = (url?: string | null): string => {
   const idMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || url.match(/[?&]id=([a-zA-Z0-9_-]+)/) || url.match(/\/d\/([a-zA-Z0-9_-]+)/);
   if (idMatch && idMatch[1]) {
     const fileId = idMatch[1];
-    // lh3.googleusercontent.com/d/ID is fast and reliable for <img src="..." />
     return `https://lh3.googleusercontent.com/d/${fileId}`;
   }
 
   return url;
+};
+
+/**
+ * Format fuel receipt file name to DD-MM-YYYY_Noplat.ext (e.g. 01-10-2026_VAA8821.jpg)
+ */
+export const formatFuelReceiptFileName = (
+  dateStr: string,
+  plateNumber: string,
+  originalFileName: string
+): string => {
+  let ext = 'jpg';
+  if (originalFileName && originalFileName.includes('.')) {
+    ext = originalFileName.split('.').pop() || 'jpg';
+  }
+  
+  let day = '01';
+  let month = '01';
+  let year = '2026';
+  
+  if (dateStr) {
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+      day = String(d.getDate()).padStart(2, '0');
+      month = String(d.getMonth() + 1).padStart(2, '0');
+      year = String(d.getFullYear());
+    } else {
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        year = parts[0];
+        month = parts[1].padStart(2, '0');
+        day = parts[2].padStart(2, '0');
+      }
+    }
+  }
+
+  const cleanPlate = (plateNumber || 'VEHICLE')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .toUpperCase();
+
+  return `${day}-${month}-${year}_${cleanPlate}.${ext}`;
 };
 
 /**
@@ -104,7 +144,7 @@ export const fileToDataUrl = (file: File): Promise<string> =>
   });
 
 /**
- * Uploads a file to Google Drive under a dedicated subfolder (e.g. 'vehicle', 'fuel_logs', 'bookings').
+ * Uploads a file to Google Drive under a dedicated subfolder or nested folder path (e.g. ['Fuel Logs', 'VAA8821']).
  * Automatically uses active tenant's Google Apps Script URL and Google Drive ID.
  * Falls back to high-fidelity Data URL for cross-device compatibility if Apps Script is not configured.
  */
@@ -112,11 +152,24 @@ export const uploadToGoogleDrive = async (
   file: File,
   options: {
     folderName?: string; // e.g. 'vehicle', 'fuel_logs', 'bookings'
+    folderPath?: string | string[]; // e.g. ['Fuel Logs', 'VAA 8821'] or 'Fuel Logs/VAA 8821'
+    fileName?: string; // custom formatted name, e.g. '01-10-2026_VAA8821.jpg'
     tenant?: Tenant | null;
   } = {}
 ): Promise<GoogleDriveUploadResult> => {
   const targetFolder = options.folderName || 'vehicle';
+  const customFileName = options.fileName || file.name;
   const tenant = options.tenant;
+
+  // Format folderPath
+  let folderPathString = '';
+  if (Array.isArray(options.folderPath)) {
+    folderPathString = options.folderPath.filter(Boolean).join('/');
+  } else if (typeof options.folderPath === 'string' && options.folderPath.trim()) {
+    folderPathString = options.folderPath.trim();
+  } else {
+    folderPathString = targetFolder;
+  }
 
   // Resolve Google Apps Script endpoint
   const appsScriptUrl = 
@@ -137,11 +190,13 @@ export const uploadToGoogleDrive = async (
         action: 'uploadFile',
         actionType: 'uploadFile',
         base64: base64Str,
-        fileName: file.name,
+        fileName: customFileName,
         mimeType: file.type || 'image/jpeg',
         folder: targetFolder,
         folderName: targetFolder,
         subFolder: targetFolder,
+        folderPath: folderPathString,
+        subFolderPath: folderPathString,
         driveId: rootDriveFolderId || undefined,
         folderId: rootDriveFolderId || undefined,
       };
@@ -174,13 +229,14 @@ export const uploadToGoogleDrive = async (
           directUrl: directUrl,
           thumbnailUrl: fileId ? `https://lh3.googleusercontent.com/d/${fileId}` : undefined,
           webViewLink: webViewLink,
-          name: resJson.name || file.name,
+          name: resJson.name || customFileName,
           folderName: targetFolder,
+          folderPath: folderPathString,
           isLocalFallback: false,
         };
       }
     } catch (err: any) {
-      console.warn(`[Google Drive] Upload to folder "${targetFolder}" failed, generating device-portable data URL:`, err.message);
+      console.warn(`[Google Drive] Upload to folder path "${folderPathString}" failed, generating device-portable data URL:`, err.message);
     }
   }
 
@@ -190,8 +246,9 @@ export const uploadToGoogleDrive = async (
     return {
       success: true,
       url: dataUrl,
-      name: file.name,
+      name: customFileName,
       folderName: targetFolder,
+      folderPath: folderPathString,
       isLocalFallback: true,
       error: 'Google Apps Script not configured or unreachable. Stored as cross-device Data URL.',
     };
@@ -200,8 +257,9 @@ export const uploadToGoogleDrive = async (
     return {
       success: true,
       url: objectUrl,
-      name: file.name,
+      name: customFileName,
       folderName: targetFolder,
+      folderPath: folderPathString,
       isLocalFallback: true,
       error: err.message,
     };
