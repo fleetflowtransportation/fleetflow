@@ -21,6 +21,7 @@ import {
 } from './icons/Icons';
 import OdometerLogEditForm from './OdometerLogEditForm';
 import FuelLogModal from './FuelLogModal';
+import FuelAnalyticsDashboard from './FuelAnalyticsDashboard';
 
 declare global {
   interface Window {
@@ -85,6 +86,7 @@ const Reports: React.FC = () => {
   });
 
   // --- General Trip Filters for Reports Tab ---
+  const [reportsView, setReportsView] = useState<'fuel_analytics' | 'trip_reports'>('fuel_analytics');
   const [tripFilters, setTripFilters] = useState({ 
     vehicleId: '', 
     driverId: '', 
@@ -1702,15 +1704,65 @@ const Reports: React.FC = () => {
       {/* TAB 3: REPORTS & ANALYTICS (SUMMARY & EXPORTS)                             */}
       {/* ========================================================================= */}
       {activeSubTab === 'reports' && (
-        <div className="space-y-8">
-          {/* 1. Monthly Trip & Distance Summary */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 flex items-center">
-                  <RouteIcon className="h-5 w-5 mr-2 text-indigo-600" />
-                  Monthly Vehicle Trips & Distance Summary
-                </h3>
+        <div className="space-y-6">
+          {/* Sub-view switcher inside Reports & Export */}
+          <div className="flex items-center justify-between flex-wrap gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setReportsView('fuel_analytics')}
+                className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-2 cursor-pointer ${
+                  reportsView === 'fuel_analytics'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <FuelIcon className="h-4 w-4" />
+                <span>Fuel Analytics Dashboard</span>
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  reportsView === 'fuel_analytics' ? 'bg-amber-700/80 text-white' : 'bg-amber-100 text-amber-800'
+                }`}>
+                  Live
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setReportsView('trip_reports')}
+                className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-2 cursor-pointer ${
+                  reportsView === 'trip_reports'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <RouteIcon className="h-4 w-4" />
+                <span>Fleet Trip Reports & Export</span>
+              </button>
+            </div>
+
+            <span className="text-xs text-slate-500 font-medium hidden sm:inline">
+              {reportsView === 'fuel_analytics' 
+                ? 'Chronological fuel telematics, anomalies, and consumption modeling' 
+                : 'Historical completed trip logs and monthly mileage exports'}
+            </span>
+          </div>
+
+          {reportsView === 'fuel_analytics' ? (
+            <FuelAnalyticsDashboard
+              onOpenFuelModal={(log) => {
+                setEditingFuelLog(log || null);
+                setIsFuelModalOpen(true);
+              }}
+            />
+          ) : (
+            <div className="space-y-8">
+              {/* 1. Monthly Trip & Distance Summary */}
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-900 flex items-center">
+                      <RouteIcon className="h-5 w-5 mr-2 text-indigo-600" />
+                      Monthly Vehicle Trips & Distance Summary
+                    </h3>
                 <p className="text-xs text-slate-500">Aggregated completed trip counts and mileage breakdown by month & vehicle</p>
               </div>
               <div className="flex items-center space-x-2">
@@ -1941,6 +1993,8 @@ const Reports: React.FC = () => {
           </div>
         </div>
       )}
+    </div>
+  )}
 
       {/* ODOMETER MODAL (CREATE / EDIT) */}
       <OdometerLogEditForm
