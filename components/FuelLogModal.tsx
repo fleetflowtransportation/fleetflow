@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAppContext } from '../context/AppContext';
 import type { FuelLog } from '../types';
 import { XIcon, FuelIcon, PaperClipIcon, TrashIcon } from './icons/Icons';
-import { uploadToGoogleDrive, formatFuelReceiptFileName } from '../services/googleDrive';
+import { uploadToGoogleDrive, formatFuelReceiptFileName, deleteFromGoogleDrive } from '../services/googleDrive';
 
 interface FuelLogModalProps {
   isOpen: boolean;
@@ -272,6 +272,11 @@ const FuelLogModal: React.FC<FuelLogModalProps> = ({
 
     try {
       if (logToEdit) {
+        if (logToEdit.receiptAttachmentUrl && logToEdit.receiptAttachmentUrl !== attachmentUrl) {
+          deleteFromGoogleDrive(logToEdit.receiptAttachmentUrl, activeTenant).catch(err => {
+            console.warn('[Google Drive] Delete replaced receipt error:', err);
+          });
+        }
         await updateFuelLog(logToEdit.id, payload);
       } else {
         await addFuelLog(payload);

@@ -436,6 +436,34 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
+    // -----------------------------------------------------------------------
+    // 6. ACTION: deleteFile / Remove from Google Drive (Trashes the file)
+    // -----------------------------------------------------------------------
+    if (data.action === "deleteFile" || data.actionType === "deleteFile") {
+      var fileIdToDelete = data.fileId || data.id;
+      if (fileIdToDelete) {
+        try {
+          var fileObj = DriveApp.getFileById(fileIdToDelete);
+          if (fileObj) {
+            fileObj.setTrashed(true);
+          }
+          return ContentService.createTextOutput(JSON.stringify({
+            status: "success",
+            success: true,
+            action: "deleteFile",
+            fileId: fileIdToDelete,
+            message: "File successfully removed to trash"
+          })).setMimeType(ContentService.MimeType.JSON);
+        } catch (delFileErr) {
+          return ContentService.createTextOutput(JSON.stringify({
+            status: "error",
+            success: false,
+            message: delFileErr.toString()
+          })).setMimeType(ContentService.MimeType.JSON);
+        }
+      }
+    }
+
     return ContentService.createTextOutput(JSON.stringify({
       status: "success",
       success: true,

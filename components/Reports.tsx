@@ -127,7 +127,7 @@ const Reports: React.FC = () => {
   };
 
   const handleDeleteFuelLog = (id: string) => {
-    if (window.confirm('Are you sure you want to delete this fuel purchase record? This action cannot be undone.')) {
+    if (window.confirm('Are you sure you want to delete this fuel purchase record? The attached receipt file in Google Drive will also be removed. This action cannot be undone.')) {
       deleteFuelLog(id);
     }
   };

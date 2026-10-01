@@ -78,6 +78,99 @@ export const getDriveDirectImageUrl = (url?: string | null): string => {
 };
 
 /**
+ * Extracts Google Drive File ID from standard Drive URLs or returns raw ID.
+ */
+export const extractDriveFileId = (input?: string | null): string | null => {
+  if (!input) return null;
+  const trimmed = input.trim();
+  if (!trimmed || trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
+    return null;
+  }
+
+  // Check for /file/d/<ID>
+  const fileMatch = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (fileMatch && fileMatch[1]) {
+    return fileMatch[1];
+  }
+
+  // Check for /d/<ID> (e.g. lh3.googleusercontent.com/d/<ID>)
+  const dMatch = trimmed.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (dMatch && dMatch[1]) {
+    return dMatch[1];
+  }
+
+  // Check for id=<ID>
+  const idMatch = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (idMatch && idMatch[1]) {
+    return idMatch[1];
+  }
+
+  // Raw file ID (alphanumeric, at least 15 chars, no slashes or protocols)
+  if (!trimmed.includes('/') && !trimmed.includes(':') && trimmed.length >= 15) {
+    return trimmed;
+  }
+
+  return null;
+};
+
+/**
+ * Deletes a file from Google Drive via the organization's Google Apps Script webhook.
+ */
+export const deleteFromGoogleDrive = async (
+  fileIdOrUrl: string,
+  tenant?: Tenant | null
+): Promise<{ success: boolean; message?: string }> => {
+  const fileId = extractDriveFileId(fileIdOrUrl);
+  if (!fileId) {
+    return { success: false, message: 'Invalid or non-Google Drive file ID/URL' };
+  }
+
+  const appsScriptUrl = 
+    tenant?.googleAppsScriptUrl || 
+    localStorage.getItem('fleetflow_google_script_url') || 
+    (import.meta as any).env?.VITE_GOOGLE_SCRIPT_UPLOAD_URL ||
+    'https://script.google.com/macros/s/AKfycbyV8lp3aIrFYWPy54mEwCSa3Totbo7rjpfXJtf_ok8_gze2dYXodYs0Zia2nPy9MsvQIA/exec';
+
+  if (!appsScriptUrl || !appsScriptUrl.includes('script.google.com')) {
+    console.warn('[Google Drive] Cannot delete file: Google Apps Script Webhook not configured');
+    return { success: false, message: 'Google Apps Script not configured' };
+  }
+
+  try {
+    const payload = {
+      action: 'deleteFile',
+      actionType: 'deleteFile',
+      fileId: fileId,
+      id: fileId,
+    };
+
+    const response = await fetch(appsScriptUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const resText = await response.text();
+    let resJson: any = null;
+    try {
+      resJson = JSON.parse(resText);
+    } catch {
+      // ignore
+    }
+
+    if (resJson && (resJson.success === true || resJson.status === 'success')) {
+      return { success: true };
+    }
+    return { success: true, message: resJson?.message || 'Deleted' };
+  } catch (err: any) {
+    console.warn('[Google Drive] Delete file exception:', err.message);
+    return { success: false, message: err.message };
+  }
+};
+
+/**
  * Format fuel receipt file name to DD-MM-YYYY_Noplat.ext (e.g. 01-10-2026_VAA8821.jpg)
  */
 export const formatFuelReceiptFileName = (

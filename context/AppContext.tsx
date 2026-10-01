@@ -6,6 +6,7 @@ import { parseAsLocal } from '../utils';
 import { evaluateBookingAssignment, normalizeDate, normalizeTime, getDriverCalendarColor, type AutoAssignResult } from '../services/bookingEngine';
 import { googleCalendarService } from '../services/googleCalendar';
 import { updateSupabaseConfig, resetSupabaseConfig, getSupabase } from '../services/supabaseClient';
+import { deleteFromGoogleDrive } from '../services/googleDrive';
 
 interface AppContextType {
   users: User[];
@@ -978,17 +979,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const deleteFuelLog = useCallback((logId: string) => {
     clearUndoState();
-    setFuelLogs(prev => {
-      const logToDelete = prev.find(log => log.id === logId);
-      if (logToDelete?.receiptAttachmentUrl) {
+    const logToDelete = fuelLogs.find(log => log.id === logId);
+    if (logToDelete?.receiptAttachmentUrl) {
+      if (logToDelete.receiptAttachmentUrl.startsWith('blob:')) {
         URL.revokeObjectURL(logToDelete.receiptAttachmentUrl);
+      } else {
+        deleteFromGoogleDrive(logToDelete.receiptAttachmentUrl, activeTenant).catch(err => {
+          console.warn('[Google Drive] Delete receipt attachment error:', err);
+        });
       }
-      return prev.filter(log => log.id !== logId);
-    });
+    }
+    setFuelLogs(prev => prev.filter(log => log.id !== logId));
     storageService.deleteFuelLog(logId).catch(err => {
       alert('Gagal padam fuel log: ' + err.message);
     });
-  }, [clearUndoState]);
+  }, [clearUndoState, fuelLogs, activeTenant]);
 
   // ---- Odometer logs ----
   const addOdometerLog = useCallback((logData: Omit<OdometerLog, 'id'>) => {
