@@ -1,10 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { storageService } from '../services/storage';
 import { googleCalendarService } from '../services/googleCalendar';
 import { DEPARTMENTS, PICKUP_POINTS, Tenant, Booking, PassengerCount } from '../types';
-import { evaluateBookingAssignment, normalizeDate, normalizeTime, getDriverCalendarColor, type AutoAssignResult } from '../services/bookingEngine';
+import { evaluateBookingAssignment, normalizeDate, normalizeTime, type AutoAssignResult } from '../services/bookingEngine';
 import { isOtherPickup, getPickupLocationDisplay } from '../utils';
-import { ClockIcon, PaperClipIcon, CheckCircleIcon, CalendarIcon, UserCircleIcon, TruckIcon, InformationCircleIcon, XCircleIcon } from './icons/Icons';
+import { 
+  ClockIcon, 
+  PaperClipIcon, 
+  CheckCircleIcon, 
+  CalendarIcon, 
+  UserCircleIcon, 
+  TruckIcon, 
+  XCircleIcon,
+  LocationMarkerIcon,
+  ArrowUpCircleIcon,
+  UserGroupIcon,
+  BuildingOfficeIcon,
+  DocumentTextIcon
+} from './icons/Icons';
 import CalendarView from './CalendarView';
 
 interface PublicBookingPageProps {
@@ -16,12 +29,12 @@ const OTHER_PICKUP = 'Other Location (Please Specify)';
 const FREE_VEHICLE_CHOICE = 'Any / Free Choice';
 
 const colorBadgeStyle: Record<string, string> = {
-  blue: 'bg-blue-100 text-blue-800 border-blue-300',
-  green: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-  grey: 'bg-gray-100 text-gray-800 border-gray-300',
-  purple: 'bg-purple-100 text-purple-800 border-purple-300',
-  amber: 'bg-amber-100 text-amber-800 border-amber-300',
-  teal: 'bg-teal-100 text-teal-800 border-teal-300',
+  blue: 'bg-blue-100 text-blue-800 border-blue-200',
+  green: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  grey: 'bg-slate-100 text-slate-800 border-slate-200',
+  purple: 'bg-purple-100 text-purple-800 border-purple-200',
+  amber: 'bg-amber-100 text-amber-800 border-amber-200',
+  teal: 'bg-teal-100 text-teal-800 border-teal-200',
 };
 
 const emptyFormData = {
@@ -35,10 +48,10 @@ const emptyFormData = {
   destination: '',
   pickupPoint: '',
   address: '',
-  staffCount: '',
-  kidsCount: '',
-  teenagersCount: '',
-  serviceType: '' as '' | 'Perlu Driver' | 'Self-Drive',
+  staffCount: 1,
+  kidsCount: 0,
+  teenagersCount: 0,
+  serviceType: 'Perlu Driver' as 'Perlu Driver' | 'Self-Drive',
   vehiclePreference: FREE_VEHICLE_CHOICE,
   shouldWait: false,
   icNumber: '',
@@ -67,13 +80,13 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
   const [activeTab, setActiveTab] = useState<'form' | 'calendar'>(initialTab);
   const [formData, setFormData] = useState(emptyFormData);
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState<AutoAssignResult | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showPolicyModal, setShowPolicyModal] = useState(false);
 
-  // Initialize and load tenant specific data
+  // Initialize and load tenant data
   useEffect(() => {
     setLoading(true);
     storageService.setTenantId(tenantId);
@@ -102,6 +115,14 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const updatePassengerCount = (field: 'staffCount' | 'kidsCount' | 'teenagersCount', delta: number) => {
+    setFormData(prev => {
+      const current = Number(prev[field]) || 0;
+      const updated = Math.max(0, current + delta);
+      return { ...prev, [field]: updated };
+    });
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setAttachmentFile(e.target.files[0]);
@@ -114,9 +135,36 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
     if (fileInput) fileInput.value = '';
   };
 
+  const totalPassengers = useMemo(() => {
+    return (Number(formData.staffCount) || 0) + (Number(formData.kidsCount) || 0) + (Number(formData.teenagersCount) || 0);
+  }, [formData.staffCount, formData.kidsCount, formData.teenagersCount]);
+
+  // Check if start time falls into driver break hours
+  const breakTimeWarning = useMemo(() => {
+    if (!formData.bookingDate || !formData.startTime) return null;
+    try {
+      const dayOfWeek = new Date(`${formData.bookingDate}T00:00:00`).getDay();
+      const isFriday = dayOfWeek === 5;
+      const start = normalizeTime(formData.startTime);
+
+      if (isFriday) {
+        if (start >= '12:30' && start < '14:30') {
+          return 'Friday prayer & lunch break (12:30 PM - 2:30 PM). Bookings during this period may clash with driver availability.';
+        }
+      } else {
+        if (start >= '12:00' && start < '13:00') {
+          return 'Official lunch break (12:00 PM - 1:00 PM). System will prioritize driver welfare or flag for review.';
+        }
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }, [formData.bookingDate, formData.startTime]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSubmitting || isUploading) return;
+    if (isSubmitting) return;
 
     const passengers: PassengerCount[] = [];
     if (Number(formData.staffCount) > 0) passengers.push({ category: 'Staff', count: Number(formData.staffCount) });
@@ -124,36 +172,36 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
     if (Number(formData.teenagersCount) > 0) passengers.push({ category: 'Teenagers', count: Number(formData.teenagersCount) });
     
     if (passengers.length === 0) {
-      alert('Please enter the number of passengers (Staff, Kids, or Teenagers).');
+      alert('Please enter at least 1 passenger (Staff, Children, or Teenagers).');
       return;
     }
 
     if (!formData.serviceType) {
-      alert('Please select the required Service Type.');
+      alert('Please select the required Service Type (Driver Assigned or Self-Drive).');
       return;
     }
 
     if (isOtherPickup(formData.pickupPoint) && !formData.address.trim()) {
-      alert('Please specify the pickup address.');
+      alert('Please specify the detailed pickup address.');
       return;
     }
 
     if (formData.serviceType === 'Self-Drive' && !formData.icNumber.trim()) {
-      alert('Please enter IC / ID Number for driver license records.');
+      alert('Please enter IC / Driving License ID Number for self-drive authorization.');
       return;
     }
 
     setIsSubmitting(true);
 
     const baseInput = {
-      requesterName: formData.requesterName,
-      requesterEmail: formData.requesterEmail,
+      requesterName: formData.requesterName.trim(),
+      requesterEmail: formData.requesterEmail.trim(),
       department: formData.department,
       bookingDate: formData.bookingDate,
       startTime: formData.startTime,
       endTime: formData.endTime,
-      purpose: formData.purpose,
-      destination: formData.destination,
+      purpose: formData.purpose.trim(),
+      destination: formData.destination.trim(),
       pickupPoint: formData.pickupPoint,
       address: isOtherPickup(formData.pickupPoint) ? formData.address.trim() : '',
       staffCount: Number(formData.staffCount) || 0,
@@ -162,11 +210,11 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
       serviceType: formData.serviceType,
       vehiclePreference: formData.vehiclePreference,
       shouldWait: formData.shouldWait,
-      remarks: formData.remarks,
-      icNumber: formData.icNumber,
+      remarks: formData.remarks.trim(),
+      icNumber: formData.icNumber.trim(),
     };
 
-    // Auto assign engine check
+    // Evaluate auto assignment engine
     const result = evaluateBookingAssignment({
       booking: baseInput,
       existingBookings: bookings,
@@ -179,6 +227,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
     if (result.status === 'Conflict') {
       setSubmitResult(result);
       setIsSubmitting(false);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
@@ -189,13 +238,13 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
 
     const newBooking: Booking = {
       id: `booking-${Date.now()}`,
-      requesterName: formData.requesterName,
-      requesterEmail: formData.requesterEmail,
+      requesterName: formData.requesterName.trim(),
+      requesterEmail: formData.requesterEmail.trim(),
       department: formData.department,
-      purpose: formData.purpose,
+      purpose: formData.purpose.trim(),
       dateTime,
       finishDateTime,
-      destination: formData.destination,
+      destination: formData.destination.trim(),
       pickupPoint: formData.pickupPoint,
       address: isOtherPickup(formData.pickupPoint) ? formData.address.trim() : '',
       passengers,
@@ -264,6 +313,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
       setBookings(prev => [newBooking, ...prev]);
       setIsSuccess(true);
       setSubmitResult(result);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
       alert('Error saving booking: ' + err.message);
     } finally {
@@ -273,10 +323,11 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin h-10 w-10 border-4 border-gray-300 border-t-gray-800 rounded-full mx-auto mb-4"></div>
-          <p className="text-gray-600">Please wait, loading fleet reservation portal...</p>
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center p-6">
+          <div className="animate-spin h-10 w-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full mx-auto mb-4"></div>
+          <h3 className="text-base font-bold text-slate-800">Loading Reservation Portal...</h3>
+          <p className="text-xs text-slate-500 mt-1">Connecting to fleet database & schedule engine</p>
         </div>
       </div>
     );
@@ -284,88 +335,120 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
 
   if (!tenant) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <div className="bg-white p-8 rounded-xl shadow-lg text-center max-w-md border">
-          <div className="text-red-500 text-5xl mb-4">⚠️</div>
-          <h2 className="text-xl font-bold text-gray-800 mb-2">Organization Not Found</h2>
-          <p className="text-gray-600 text-sm mb-6">This booking link is invalid or the organization is not registered in the system.</p>
-          <a href="/" className="px-5 py-2.5 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition">Back to Main Page</a>
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
+        <div className="bg-white p-8 rounded-2xl shadow-xl text-center max-w-md border border-slate-200">
+          <div className="p-3 bg-rose-50 text-rose-600 rounded-2xl inline-block mb-3">
+            <XCircleIcon className="w-10 h-10" />
+          </div>
+          <h2 className="text-xl font-black text-slate-900 mb-2">Organization Not Found</h2>
+          <p className="text-slate-600 text-xs sm:text-sm mb-6 leading-relaxed">
+            This reservation link is invalid or the organization ID parameter (<code className="bg-slate-100 px-1 py-0.5 rounded font-mono text-indigo-600">{tenantId}</code>) is missing from the system.
+          </p>
+          <a 
+            href="/" 
+            className="inline-block px-5 py-2.5 bg-indigo-600 text-white font-bold rounded-xl text-xs hover:bg-indigo-700 transition shadow-xs"
+          >
+            Back to Armada Flow
+          </a>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center py-6 sm:py-8 px-3 sm:px-6">
+    <div className="min-h-screen bg-gradient-to-b from-slate-100 via-slate-50 to-slate-100 flex flex-col items-center py-6 sm:py-10 px-3 sm:px-6">
       <div className={`w-full transition-all duration-300 ${activeTab === 'calendar' ? 'max-w-6xl' : 'max-w-3xl'}`}>
         
-        {/* Banner/Header */}
-        <div className="bg-gradient-to-r from-indigo-700 to-indigo-950 rounded-2xl shadow-xl p-6 sm:p-8 text-white mb-6 relative overflow-hidden">
-          <div className="absolute right-0 bottom-0 opacity-10 transform translate-x-12 translate-y-12 scale-150">
-            <CalendarIcon className="w-48 h-48 text-white" />
+        {/* ========================================================================= */}
+        {/* TOP BRANDING & TAB BAR                                                    */}
+        {/* ========================================================================= */}
+        <div className="bg-slate-900 rounded-3xl shadow-xl border border-slate-800 p-5 sm:p-7 text-white mb-6 relative overflow-hidden">
+          <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 opacity-5 pointer-events-none">
+            <TruckIcon className="w-64 h-64 text-white" />
           </div>
-          <div className="relative z-10">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <span className="bg-indigo-500/30 text-indigo-200 text-xs uppercase tracking-wider font-semibold px-3 py-1 rounded-full border border-indigo-400/20">
-                Smart Fleet Booking System
-              </span>
 
-              {/* View Switcher Pills */}
-              <div className="flex items-center bg-indigo-900/60 p-1 rounded-xl border border-indigo-500/30 text-xs font-bold">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('form')}
-                  className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
-                    activeTab === 'form'
-                      ? 'bg-white text-indigo-950 shadow-sm'
-                      : 'text-indigo-200 hover:text-white'
-                  }`}
-                >
-                  📋 Reservation Form
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('calendar')}
-                  className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
-                    activeTab === 'calendar'
-                      ? 'bg-white text-indigo-950 shadow-sm'
-                      : 'text-indigo-200 hover:text-white'
-                  }`}
-                >
-                  📅 Live Fleet Calendar
-                </button>
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-indigo-300 text-xs font-semibold tracking-wide uppercase">
+                <BuildingOfficeIcon className="w-4 h-4 text-indigo-400" />
+                <span>{tenant.companyName || tenant.name}</span>
+                <span className="text-slate-500">•</span>
+                <span className="text-slate-300">Transportation Portal</span>
               </div>
+              
+              <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                {activeTab === 'calendar' ? 'Live Fleet Schedule & Availability' : 'Official Vehicle Booking Request'}
+              </h1>
+              
+              <p className="text-xs sm:text-sm text-slate-300 max-w-xl font-normal leading-relaxed">
+                {activeTab === 'calendar'
+                  ? `Real-time availability schedule for ${tenant.name}. Check confirmed trips and driver allocations.`
+                  : `Submit your vehicle reservation request. Our smart schedule engine handles driver and fleet assignment automatically.`}
+              </p>
             </div>
 
-            <h1 className="text-2xl sm:text-4xl font-extrabold mt-3 tracking-tight">
-              {activeTab === 'calendar' ? 'Fleet Schedule & Live Calendar' : 'Vehicle Booking Request Form'}
-            </h1>
-            <p className="text-indigo-200 mt-2 text-sm sm:text-base max-w-xl font-medium">
-              {activeTab === 'calendar'
-                ? `Real-time public calendar view for ${tenant.name}. Check scheduled vehicle trips and driver availability.`
-                : `Please complete the details below to request a vehicle reservation for ${tenant.name}.`}
-            </p>
-            
-            <div className="mt-6 flex flex-wrap gap-3">
+            {/* Interactive View Switcher Tabs */}
+            <div className="flex items-center bg-slate-800/90 p-1.5 rounded-2xl border border-slate-700/80 shadow-inner self-start md:self-center shrink-0">
               <button
                 type="button"
-                onClick={() => setActiveTab(activeTab === 'form' ? 'calendar' : 'form')}
-                className="inline-flex items-center bg-white hover:bg-slate-100 text-indigo-950 font-bold px-4 py-2.5 rounded-xl text-sm shadow-md transition cursor-pointer active:scale-95"
+                onClick={() => {
+                  setActiveTab('form');
+                  setIsSuccess(false);
+                }}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  activeTab === 'form'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-300 hover:text-white'
+                }`}
               >
-                <CalendarIcon className="w-4 h-4 mr-2 text-indigo-700" />
-                {activeTab === 'form' ? 'View Fleet Calendar & Availability' : 'Back to Booking Form'}
+                <DocumentTextIcon className="w-4 h-4" />
+                <span>Booking Form</span>
+              </button>
+              
+              <button
+                type="button"
+                onClick={() => setActiveTab('calendar')}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  activeTab === 'calendar'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                <CalendarIcon className="w-4 h-4" />
+                <span>Live Calendar</span>
               </button>
             </div>
           </div>
+
+          {/* Quick policy bar */}
+          <div className="mt-4 pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
+            <div className="flex items-center gap-2">
+              <ClockIcon className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span>Driver Rest Hours: 12:00 PM – 1:00 PM (Mon-Thu) • 12:30 PM – 2:30 PM (Fri)</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowPolicyModal(true)}
+              className="text-indigo-300 hover:text-indigo-200 underline font-semibold cursor-pointer"
+            >
+              View Rest Policy Details
+            </button>
+          </div>
         </div>
 
-        {/* Content View: Calendar Mode vs Form Mode */}
+        {/* ========================================================================= */}
+        {/* TAB 1: CALENDAR VIEW                                                      */}
+        {/* ========================================================================= */}
         {activeTab === 'calendar' ? (
           <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
               <div>
-                <h2 className="text-base sm:text-lg font-extrabold text-slate-900">Live Organization Calendar</h2>
-                <p className="text-xs text-slate-500">Public access • Real-time vehicle schedule & trip logs</p>
+                <h2 className="text-sm sm:text-base font-extrabold text-slate-900">
+                  Fleet Vehicle & Driver Schedule
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Showing all active bookings for {tenant.name}
+                </p>
               </div>
               <button
                 type="button"
@@ -375,7 +458,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                 }}
                 className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2.5 px-4 rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
               >
-                <span>+ Submit New Booking</span>
+                <span>+ Make a Reservation</span>
               </button>
             </div>
 
@@ -391,518 +474,773 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
             />
           </div>
         ) : isSuccess && submitResult ? (
-          /* Success / Confirmation View */
-          <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden max-w-3xl mx-auto flex flex-col">
-            {/* Header */}
-            <div className={`p-6 flex items-start justify-between border-b ${submitResult.status === 'Confirmed' ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
-              <div className="flex items-center space-x-3.5">
+          /* ========================================================================= */
+          /* SUCCESS CONFIRMATION RECEIPT SCREEN                                       */
+          /* ========================================================================= */
+          <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden max-w-3xl mx-auto animate-fadeIn">
+            {/* Header banner */}
+            <div className={`p-6 sm:p-8 flex items-start gap-4 border-b ${
+              submitResult.status === 'Confirmed' 
+                ? 'bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border-emerald-100' 
+                : 'bg-gradient-to-r from-rose-50 via-amber-50 to-rose-50 border-rose-100'
+            }`}>
+              <div className={`p-3 rounded-2xl shrink-0 ${
+                submitResult.status === 'Confirmed' 
+                  ? 'bg-emerald-600 text-white shadow-sm' 
+                  : 'bg-rose-600 text-white shadow-sm'
+              }`}>
                 {submitResult.status === 'Confirmed' ? (
-                  <div className="p-2.5 bg-emerald-100 rounded-full text-emerald-600 flex-shrink-0">
-                    <CheckCircleIcon className="h-8 w-8 text-emerald-600" />
-                  </div>
+                  <CheckCircleIcon className="h-7 w-7 text-white" />
                 ) : (
-                  <div className="p-2.5 bg-rose-100 rounded-full text-rose-600 flex-shrink-0">
-                    <XCircleIcon className="h-8 w-8 text-rose-600" />
-                  </div>
+                  <XCircleIcon className="h-7 w-7 text-white" />
                 )}
-                <div>
-                  <span className={`inline-block px-3 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${submitResult.status === 'Confirmed' ? 'bg-emerald-200 text-emerald-900' : 'bg-rose-200 text-rose-900'}`}>
-                    {submitResult.status === 'Confirmed' ? 'CONFIRMED' : 'REJECTED AUTOMATICALLY'}
-                  </span>
-                  <h3 className="text-xl font-extrabold text-gray-900 mt-1">
-                    {submitResult.status === 'Confirmed' ? 'Booking Confirmed Successfully' : 'Booking Automatically Rejected'}
-                  </h3>
-                </div>
+              </div>
+              <div className="space-y-1">
+                <span className={`inline-block px-2.5 py-0.5 rounded-md text-[11px] font-extrabold uppercase tracking-wider ${
+                  submitResult.status === 'Confirmed' 
+                    ? 'bg-emerald-200/80 text-emerald-900' 
+                    : 'bg-rose-200/80 text-rose-900'
+                }`}>
+                  {submitResult.status === 'Confirmed' ? '✓ Booking Confirmed & Scheduled' : '⚠️ Action Required / Conflict'}
+                </span>
+                <h2 className="text-xl sm:text-2xl font-black text-slate-900">
+                  {submitResult.status === 'Confirmed' 
+                    ? 'Reservation Successfully Confirmed!' 
+                    : 'Booking Request Flagged'}
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-600">
+                  {submitResult.status === 'Confirmed'
+                    ? 'Your trip has been registered and synced with Google Calendar.'
+                    : submitResult.conflictReason || 'Please review the schedule conflict details below.'}
+                </p>
               </div>
             </div>
 
-            {/* Content */}
-            <div className="p-6 sm:p-8 space-y-5 text-sm text-gray-700">
-              {/* Main Status & Calendar Event Title */}
-              <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
-                <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1.5">
-                  Google Calendar Event Title
-                </div>
-                <div className="font-mono text-sm font-bold text-gray-800 flex flex-wrap items-center justify-between gap-2">
-                  <span className="break-all">{submitResult.calendarEventTitle}</span>
+            {/* Body */}
+            <div className="p-6 sm:p-8 space-y-6 text-xs sm:text-sm text-slate-700">
+              {/* Event Title pill */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-1">
+                <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider block">
+                  Calendar Event Entry
+                </span>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-mono text-sm font-bold text-slate-900 break-all">
+                    {submitResult.calendarEventTitle}
+                  </p>
                   {submitResult.calendarColor && (
-                    <span className={`px-2.5 py-0.5 text-xs font-semibold rounded border ${colorBadgeStyle[submitResult.calendarColor] || 'bg-gray-100'}`}>
+                    <span className={`px-2.5 py-0.5 text-xs font-bold rounded-lg border ${colorBadgeStyle[submitResult.calendarColor] || 'bg-slate-100'}`}>
                       {submitResult.calendarColor.toUpperCase()}
                     </span>
                   )}
                 </div>
               </div>
 
-              {/* Assignment Details Grid */}
+              {/* Assignment Grid */}
               {submitResult.status === 'Confirmed' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
-                    <div className="flex items-center space-x-2 text-indigo-900 font-semibold mb-1">
-                      <UserCircleIcon className="h-5 w-5 text-indigo-700" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="p-4 bg-indigo-50/70 border border-indigo-100 rounded-2xl space-y-1">
+                    <div className="flex items-center gap-1.5 text-indigo-900 font-bold text-xs">
+                      <UserCircleIcon className="h-4 w-4 text-indigo-600" />
                       <span>Assigned Driver</span>
                     </div>
-                    <div className="text-gray-900 font-extrabold text-lg">
-                      {submitResult.assignedDriverName || 'None (Self-Drive)'}
-                    </div>
-                    <div className="text-xs text-indigo-700 mt-1 font-medium">
-                      {submitResult.assignedDriverName ? 'Scheduled auto-assignment' : 'Self-drive reservation'}
-                    </div>
+                    <p className="text-slate-900 font-extrabold text-base">
+                      {submitResult.assignedDriverName || (formData.serviceType === 'Self-Drive' ? '🚗 Self-Drive (Pandu Sendiri)' : 'Unassigned')}
+                    </p>
+                    <p className="text-[11px] text-indigo-700 font-medium">
+                      {submitResult.assignedDriverName ? 'Auto-allocated by duty schedule' : 'Kakitangan memandu sendiri (Perodua Alza)'}
+                    </p>
                   </div>
 
-                  <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl">
-                    <div className="flex items-center space-x-2 text-blue-900 font-semibold mb-1">
-                      <TruckIcon className="h-5 w-5 text-blue-700" />
+                  <div className="p-4 bg-teal-50/70 border border-teal-100 rounded-2xl space-y-1">
+                    <div className="flex items-center gap-1.5 text-teal-900 font-bold text-xs">
+                      <TruckIcon className="h-4 w-4 text-teal-600" />
                       <span>Allocated Vehicle</span>
                     </div>
-                    <div className="text-gray-900 font-extrabold text-lg">
-                      {submitResult.assignedVehicleName || 'Any / Unassigned'}
-                    </div>
-                    <div className="text-xs text-blue-700 mt-1 font-medium">
-                      {submitResult.assignedVehicleName ? 'Vehicle slot confirmed available' : 'Driver selects vehicle upon odometer check-in'}
-                    </div>
+                    <p className="text-slate-900 font-extrabold text-base">
+                      {submitResult.assignedVehicleName || 'Any / Driver Selection'}
+                    </p>
+                    <p className="text-[11px] text-teal-700 font-medium">
+                      {submitResult.assignedVehicleName ? 'Vehicle slot reserved' : 'Pemandu memilih kenderaan semasa pelepasan'}
+                    </p>
                   </div>
                 </div>
               )}
 
-              {/* Pre-working-hour Warning */}
+              {/* Pre-working warning */}
               {submitResult.isPreWorkingHour && (
-                <div className="p-4 bg-amber-50 border-l-4 border-amber-500 text-amber-900 rounded-r-xl">
-                  <div className="font-bold flex items-center space-x-2">
-                    <ClockIcon className="h-5 w-5 text-amber-600" />
-                    <span>Warning: Pre-Working Hour Assignment</span>
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl space-y-1">
+                  <div className="flex items-center gap-2 text-amber-900 font-bold text-xs">
+                    <ClockIcon className="h-4 w-4 text-amber-600" />
+                    <span>Advisory: Pre-Working Hour Departure</span>
                   </div>
-                  <p className="text-xs mt-1.5 text-amber-800 leading-relaxed font-medium">
-                    This booking starts before official driver working hours. Please confirm manually with the on-duty driver ({submitResult.assignedDriverName}) and Head of Transportation prior to departure.
+                  <p className="text-xs text-amber-800 leading-relaxed font-medium">
+                    This trip starts before standard working hours. Please confirm directly with driver ({submitResult.assignedDriverName}) and admin office prior to departure.
                   </p>
                 </div>
               )}
 
-              {/* System Notes */}
-              {submitResult.adminNotes && (
-                <div className="text-xs text-gray-600 bg-gray-50 p-3.5 rounded-xl border border-gray-200">
-                  <span className="font-bold text-gray-800">System Notes: </span>
-                  {submitResult.adminNotes}
+              {/* Trip Summary Card */}
+              <div className="p-4 sm:p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                <span className="text-[11px] font-extrabold uppercase text-slate-500 tracking-wider block">
+                  Trip Summary Details
+                </span>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="text-slate-400 font-medium block">Requester PIC:</span>
+                    <p className="font-bold text-slate-900">{formData.requesterName} {formData.department ? `(${formData.department})` : ''}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 font-medium block">Date & Timing:</span>
+                    <p className="font-bold text-slate-900">{formData.bookingDate} • {formData.startTime} {formData.endTime ? `– ${formData.endTime}` : ''}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 font-medium block">Pickup Point:</span>
+                    <p className="font-bold text-slate-900">{getPickupLocationDisplay(formData.pickupPoint, formData.address)}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 font-medium block">Destination:</span>
+                    <p className="font-bold text-slate-900">{formData.destination}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 font-medium block">Passengers:</span>
+                    <p className="font-bold text-slate-900">{totalPassengers} Pax ({[
+                      formData.staffCount ? `${formData.staffCount} Staff` : '',
+                      formData.kidsCount ? `${formData.kidsCount} Children` : '',
+                      formData.teenagersCount ? `${formData.teenagersCount} Teens` : '',
+                    ].filter(Boolean).join(', ')})</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 font-medium block">Driver Standby:</span>
+                    <p className="font-bold text-slate-900">{formData.shouldWait ? '⏳ Standby On-Site' : '🚗 Drop-Off Only'}</p>
+                  </div>
                 </div>
-              )}
 
-              {/* Trip Summary Details */}
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs sm:text-sm">
-                <div className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
-                  Reservation Summary
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-gray-700">
-                  <p><b>Requester:</b> {formData.requesterName} {formData.department ? `(${formData.department})` : ''}</p>
-                  <p><b>Purpose:</b> {formData.purpose}</p>
-                  <p><b>Date & Time:</b> {formData.bookingDate} ({formData.startTime} - {formData.endTime || 'Completion'})</p>
-                  <p><b>Pickup:</b> {getPickupLocationDisplay(formData.pickupPoint, formData.address)}</p>
-                  <p className="sm:col-span-2"><b>Destination:</b> {formData.destination}</p>
-                  <p><b>Passengers:</b> {formData.staffCount || 0} Staff, {formData.kidsCount || 0} Children, {formData.teenagersCount || 0} Teenagers</p>
-                  <p><b>Driver Standby:</b> {formData.shouldWait ? 'Yes (Driver waiting on-site)' : 'No (Drop-off only)'}</p>
-                  {attachmentFile && (
-                    <p className="sm:col-span-2"><b>Attachment:</b> {attachmentFile.name}</p>
-                  )}
-                </div>
+                {formData.remarks && (
+                  <div className="pt-2 border-t border-slate-200">
+                    <span className="text-slate-400 font-medium block text-[11px]">Special Instructions:</span>
+                    <p className="text-slate-700 italic text-xs mt-0.5">{formData.remarks}</p>
+                  </div>
+                )}
               </div>
-
-              {/* Email Notification Preview */}
-              {submitResult.emailNotifications && (
-                <div className="pt-2 border-t border-gray-100 space-y-2">
-                  <div className="text-xs font-bold uppercase tracking-wider text-gray-500">
-                    Automated Email Dispatch
-                  </div>
-                  <div className="space-y-1.5 text-xs">
-                    {submitResult.emailNotifications.requester && (
-                      <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg border border-gray-100">
-                        <span className="font-semibold text-gray-700">Requester Email:</span>
-                        <span className="text-gray-600 truncate max-w-xs">{submitResult.emailNotifications.requester.to}</span>
-                      </div>
-                    )}
-                    {submitResult.emailNotifications.driver && (
-                      <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg border border-gray-100">
-                        <span className="font-semibold text-gray-700">Driver Email:</span>
-                        <span className="text-gray-600 truncate max-w-xs">{submitResult.emailNotifications.driver.to}</span>
-                      </div>
-                    )}
-                    {submitResult.emailNotifications.admin && (
-                      <div className="flex items-center justify-between p-2.5 bg-rose-50 rounded-lg border border-rose-100">
-                        <span className="font-semibold text-rose-800">Admin Notification:</span>
-                        <span className="text-rose-700 truncate max-w-xs">{submitResult.emailNotifications.admin.to}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
 
-            {/* Footer */}
-            <div className="p-6 bg-gray-50 border-t flex flex-wrap items-center justify-between gap-3">
-              <p className="text-xs text-gray-500 font-medium">
-                Please contact the administrative team of {tenant.name} for any amendments.
+            {/* Footer Buttons */}
+            <div className="p-5 sm:p-6 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs text-slate-500 font-medium">
+                Notification emails sent to requester & assigned driver.
               </p>
-              <div className="flex items-center gap-3">
+              
+              <div className="flex items-center gap-2.5">
                 <button
                   type="button"
                   onClick={() => {
                     setIsSuccess(false);
                     setActiveTab('calendar');
                   }}
-                  className="px-4 py-2 bg-white hover:bg-slate-100 text-indigo-950 border border-indigo-200 font-semibold rounded-xl text-xs shadow-sm transition cursor-pointer flex items-center gap-1.5"
+                  className="px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 font-bold rounded-xl text-xs shadow-2xs transition cursor-pointer flex items-center gap-1.5"
                 >
-                  <CalendarIcon className="w-3.5 h-3.5 text-indigo-700" />
-                  View Fleet Calendar
+                  <CalendarIcon className="w-4 h-4 text-indigo-600" />
+                  <span>View Fleet Calendar</span>
                 </button>
+                
                 <button
+                  type="button"
                   onClick={() => {
                     setFormData(emptyFormData);
                     setAttachmentFile(null);
                     setIsSuccess(false);
                     setSubmitResult(null);
                   }}
-                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-md transition text-xs cursor-pointer"
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition text-xs cursor-pointer"
                 >
-                  Submit Another Booking
+                  + Make Another Booking
                 </button>
               </div>
             </div>
           </div>
         ) : (
-          /* Main Form View */
-          <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8 border">
+          /* ========================================================================= */
+          /* MAIN FORM VIEW (4 SECTIONED CARDS)                                       */
+          /* ========================================================================= */
+          <div className="space-y-6">
             
-            {/* Conflict Alert in-form */}
+            {/* Conflict Alert Banner */}
             {submitResult && submitResult.status === 'Conflict' && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-950">
-                <h3 className="font-extrabold text-base flex items-center gap-1.5 mb-1 text-red-800">
-                  ⚠️ Schedule Conflict
-                </h3>
-                <p className="text-sm leading-relaxed">
-                  {submitResult.conflictReason || 'All drivers or vehicles are unavailable for the selected date and time.'}
+              <div className="p-5 bg-rose-50 border border-rose-200 rounded-2xl text-rose-950 space-y-2 animate-fadeIn">
+                <div className="flex items-center gap-2 text-rose-800 font-extrabold text-sm sm:text-base">
+                  <XCircleIcon className="w-5 h-5 text-rose-600 shrink-0" />
+                  <span>Schedule Conflict Detected</span>
+                </div>
+                <p className="text-xs sm:text-sm leading-relaxed text-rose-900 font-medium">
+                  {submitResult.conflictReason || 'No drivers or vehicles are available during the requested time window.'}
                 </p>
-                <p className="text-xs font-semibold mt-2 text-red-900">
-                  Please select another date or time slot to avoid scheduling conflicts.
+                <p className="text-xs font-bold text-rose-700 pt-1">
+                  💡 Please adjust your date, start time, or choose Self-Drive option to avoid conflicts.
                 </p>
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-5">
               
-              {/* 1 & 2: Name & Department */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-800">Requester Name</label>
-                  <input
-                    type="text"
-                    name="requesterName"
-                    value={formData.requesterName}
-                    onChange={handleChange}
-                    required
-                    className="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2.5 border"
-                    placeholder="Enter your full name"
-                  />
+              {/* ------------------------------------------------------------- */}
+              {/* CARD 1: REQUESTER PROFILE                                     */}
+              {/* ------------------------------------------------------------- */}
+              <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5 sm:p-7 space-y-4">
+                <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
+                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl font-black text-xs">
+                    01
+                  </div>
+                  <div>
+                    <h2 className="text-sm sm:text-base font-extrabold text-slate-900">
+                      Requester Profile (Maklumat Pemohon)
+                    </h2>
+                    <p className="text-xs text-slate-500">
+                      Enter your official contact details for schedule invites & updates
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-800">Department</label>
-                  <select
-                    name="department"
-                    value={formData.department}
-                    onChange={handleChange}
-                    required
-                    className="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2.5 border bg-white"
-                  >
-                    <option value="" disabled>Select Department</option>
-                    {DEPARTMENTS.map(dep => <option key={dep} value={dep}>{dep}</option>)}
-                  </select>
-                </div>
-              </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-800">Email Address</label>
-                <input
-                  type="email"
-                  name="requesterEmail"
-                  value={formData.requesterEmail}
-                  onChange={handleChange}
-                  required
-                  className="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2.5 border"
-                  placeholder="e.g. you@organization.org"
-                />
-              </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Full Name (Nama Pemohon) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="requesterName"
+                      value={formData.requesterName}
+                      onChange={handleChange}
+                      required
+                      placeholder="e.g. Nur Ain / Ahmad Farhan"
+                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
+                    />
+                  </div>
 
-              {/* 3, 4, 5: Date & Time */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-800">Date of Use</label>
-                  <input
-                    type="date"
-                    name="bookingDate"
-                    value={formData.bookingDate}
-                    onChange={handleChange}
-                    required
-                    className="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2.5 border"
-                  />
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Department (Jabatan / Unit) <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      name="department"
+                      value={formData.department}
+                      onChange={handleChange}
+                      required
+                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition text-slate-800"
+                    >
+                      <option value="" disabled>Select Department</option>
+                      {DEPARTMENTS.map(dep => (
+                        <option key={dep} value={dep}>{dep}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-800">Start Time</label>
-                  <input
-                    type="time"
-                    name="startTime"
-                    value={formData.startTime}
-                    onChange={handleChange}
-                    required
-                    className="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2.5 border"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-800">End Time (Estimated)</label>
-                  <input
-                    type="time"
-                    name="endTime"
-                    value={formData.endTime}
-                    onChange={handleChange}
-                    required
-                    className="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2.5 border"
-                  />
-                </div>
-              </div>
 
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
-                <div className="flex items-center space-x-2 text-amber-800 font-bold text-sm">
-                  <ClockIcon className="h-5 w-5 text-amber-600 flex-shrink-0" />
-                  <span>Rest & Break Time Policy</span>
-                </div>
-                <div className="text-xs text-amber-950 leading-relaxed pl-7">
-                  <p className="font-semibold">• Monday – Thursday & Sunday: 12:00 PM – 1:00 PM</p>
-                  <p className="font-semibold">• Friday: 12:30 PM – 2:30 PM</p>
-                  <p className="mt-2 text-amber-900 italic font-medium">
-                    If a booking start time falls within driver rest periods, the system may reject or flag the booking to safeguard driver welfare.
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Official Email Address <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    name="requesterEmail"
+                    value={formData.requesterEmail}
+                    onChange={handleChange}
+                    required
+                    placeholder="e.g. ain@yck.org.my"
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs sm:text-sm font-mono text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Google Calendar invitations and booking confirmation will be dispatched here.
                   </p>
                 </div>
               </div>
 
-              {/* Purpose */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-800">Trip Purpose</label>
-                <input
-                  type="text"
-                  name="purpose"
-                  value={formData.purpose}
-                  onChange={handleChange}
-                  required
-                  className="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2.5 border"
-                  placeholder="e.g. Official Meeting, Equipment Delivery, Youth Program"
-                />
-              </div>
-
-              {/* Destination */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-800">Destination / Full Address</label>
-                <textarea
-                  name="destination"
-                  value={formData.destination}
-                  onChange={handleChange}
-                  required
-                  rows={2}
-                  className="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2.5 border"
-                  placeholder="Enter detailed destination or address"
-                ></textarea>
-              </div>
-
-              {/* Pickup Point */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-800">Pickup Location</label>
-                  <select
-                    name="pickupPoint"
-                    value={formData.pickupPoint}
-                    onChange={handleChange}
-                    required
-                    className="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2.5 border bg-white"
-                  >
-                    <option value="" disabled>Select Location</option>
-                    {PICKUP_POINTS.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                </div>
-                {isOtherPickup(formData.pickupPoint) && (
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-800">Specify Pickup Address</label>
-                    <input
-                      type="text"
-                      name="address"
-                      value={formData.address}
-                      onChange={handleChange}
-                      required
-                      className="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2.5 border"
-                      placeholder="Enter detailed pickup address"
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* Passengers */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-800">Passenger Count</label>
-                <div className="grid grid-cols-3 gap-3 mt-1.5">
-                  <div>
-                    <span className="text-xs font-semibold text-gray-500 block mb-1 text-center">Staff</span>
-                    <input
-                      type="number"
-                      min="0"
-                      name="staffCount"
-                      value={formData.staffCount}
-                      onChange={handleChange}
-                      className="block w-full border border-gray-300 rounded-lg p-2 text-center shadow-sm"
-                      placeholder="0"
-                    />
+              {/* ------------------------------------------------------------- */}
+              {/* CARD 2: TRIP SCHEDULE & TIMING                                */}
+              {/* ------------------------------------------------------------- */}
+              <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5 sm:p-7 space-y-4">
+                <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
+                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl font-black text-xs">
+                    02
                   </div>
                   <div>
-                    <span className="text-xs font-semibold text-gray-500 block mb-1 text-center">Kids</span>
-                    <input
-                      type="number"
-                      min="0"
-                      name="kidsCount"
-                      value={formData.kidsCount}
-                      onChange={handleChange}
-                      className="block w-full border border-gray-300 rounded-lg p-2 text-center shadow-sm"
-                      placeholder="0"
-                    />
-                  </div>
-                  <div>
-                    <span className="text-xs font-semibold text-gray-500 block mb-1 text-center">Teenagers</span>
-                    <input
-                      type="number"
-                      min="0"
-                      name="teenagersCount"
-                      value={formData.teenagersCount}
-                      onChange={handleChange}
-                      className="block w-full border border-gray-300 rounded-lg p-2 text-center shadow-sm"
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Standby / Waiting */}
-              <div className="p-4 bg-amber-50/50 border border-amber-200 rounded-xl">
-                <label className="flex items-start space-x-3 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    name="shouldWait"
-                    checked={formData.shouldWait}
-                    onChange={(e) => setFormData(prev => ({ ...prev, shouldWait: e.target.checked }))}
-                    className="h-5 w-5 rounded text-amber-600 border-gray-300 focus:ring-amber-500 mt-0.5"
-                  />
-                  <div>
-                    <span className="text-sm font-bold text-gray-900">⏳ Driver Standby Required On-Site?</span>
-                    <p className="text-xs text-gray-600 mt-0.5">
-                      Check this if the driver must wait on-site to provide return transport after the event completes.
+                    <h2 className="text-sm sm:text-base font-extrabold text-slate-900">
+                      Date & Schedule (Tarikh & Masa Perjalanan)
+                    </h2>
+                    <p className="text-xs text-slate-500">
+                      Define your departure date and estimated trip duration
                     </p>
                   </div>
-                </label>
-              </div>
-
-              {/* Service Type */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-800">Service Type</label>
-                <select
-                  name="serviceType"
-                  value={formData.serviceType}
-                  onChange={handleChange}
-                  required
-                  className="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2.5 border bg-white"
-                >
-                  <option value="" disabled>Select Service Type</option>
-                  <option value="Perlu Driver">Driver Assigned (Driven by organization driver staff)</option>
-                  <option value="Self-Drive">Self-Drive (Drive yourself - Alza vehicle only)</option>
-                </select>
-              </div>
-
-              {formData.serviceType === 'Perlu Driver' && (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-800">Vehicle Preference</label>
-                  <select
-                    name="vehiclePreference"
-                    value={formData.vehiclePreference}
-                    onChange={handleChange}
-                    className="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2.5 border bg-white"
-                  >
-                    <option value={FREE_VEHICLE_CHOICE}>Any / Free Choice (No preference - Driver selects upon dispatch)</option>
-                    {vehicles.map(v => <option key={v.id} value={v.name}>{v.name}</option>)}
-                  </select>
                 </div>
-              )}
 
-              {formData.serviceType === 'Self-Drive' && (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-800">Driver IC / ID Number (Driving License)</label>
-                  <input
-                    type="text"
-                    name="icNumber"
-                    value={formData.icNumber}
-                    onChange={handleChange}
-                    required
-                    className="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2.5 border"
-                    placeholder="e.g. 900101-14-5566"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Date of Use <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      name="bookingDate"
+                      value={formData.bookingDate}
+                      onChange={handleChange}
+                      required
+                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Start Time (Masa Mula) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="time"
+                      name="startTime"
+                      value={formData.startTime}
+                      onChange={handleChange}
+                      required
+                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Estimated End Time (Masa Tamat)
+                    </label>
+                    <input
+                      type="time"
+                      name="endTime"
+                      value={formData.endTime}
+                      onChange={handleChange}
+                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
+                    />
+                  </div>
                 </div>
-              )}
 
-              {/* Remarks */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-800">Additional Notes / Remarks (Optional)</label>
-                <textarea
-                  name="remarks"
-                  value={formData.remarks}
-                  onChange={handleChange}
-                  rows={2}
-                  className="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2.5 border"
-                  placeholder="Enter any special instructions or notes"
-                ></textarea>
-              </div>
-
-              {/* Attachment */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-800">Attachment / Approval Letter (Optional)</label>
-                {!attachmentFile ? (
-                  <input
-                    id="public-attachment-input"
-                    type="file"
-                    onChange={handleFileChange}
-                    className="mt-2 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100"
-                  />
-                ) : (
-                  <div className="mt-2 flex items-center justify-between p-2 pl-3 border rounded-lg bg-gray-50">
-                    <div className="flex items-center space-x-2 truncate">
-                      <PaperClipIcon className="h-5 w-5 text-gray-500 flex-shrink-0"/>
-                      <span className="text-sm text-gray-700 truncate">{attachmentFile.name}</span>
+                {/* Realtime Break Time Warning Notice */}
+                {breakTimeWarning && (
+                  <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-2.5 text-amber-900 animate-fadeIn">
+                    <ClockIcon className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                    <div className="text-xs space-y-0.5">
+                      <span className="font-extrabold uppercase tracking-wide text-[10px] text-amber-800 block">
+                        Driver Break Time Warning
+                      </span>
+                      <p className="font-medium leading-relaxed">{breakTimeWarning}</p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={removeAttachment}
-                      className="text-sm font-medium text-red-600 hover:text-red-800 ml-2 cursor-pointer"
-                    >
-                      Remove
-                    </button>
                   </div>
                 )}
               </div>
 
-              {/* Submit Button */}
-              <div className="pt-4">
+              {/* ------------------------------------------------------------- */}
+              {/* CARD 3: ROUTE & LOCATIONS                                     */}
+              {/* ------------------------------------------------------------- */}
+              <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5 sm:p-7 space-y-4">
+                <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
+                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl font-black text-xs">
+                    03
+                  </div>
+                  <div>
+                    <h2 className="text-sm sm:text-base font-extrabold text-slate-900">
+                      Destination & Route (Destinasi & Pengambilan)
+                    </h2>
+                    <p className="text-xs text-slate-500">
+                      Specify pickup point and target destination
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Trip Purpose (Tujuan Perjalanan) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="purpose"
+                    value={formData.purpose}
+                    onChange={handleChange}
+                    required
+                    placeholder="e.g. Program Komuniti, Penghantaran Bantuan, Mesyuarat Rasmi"
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Pickup Point (Lokasi Pengambilan) <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      name="pickupPoint"
+                      value={formData.pickupPoint}
+                      onChange={handleChange}
+                      required
+                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition text-slate-800"
+                    >
+                      <option value="" disabled>Select Pickup Point</option>
+                      {PICKUP_POINTS.map(p => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {isOtherPickup(formData.pickupPoint) ? (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Specific Pickup Address <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="address"
+                        value={formData.address}
+                        onChange={handleChange}
+                        required
+                        placeholder="Enter full pickup address"
+                        className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
+                      />
+                    </div>
+                  ) : (
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 flex items-center gap-2 text-slate-600 text-xs font-medium">
+                      <ArrowUpCircleIcon className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>{formData.pickupPoint ? `Pickup: ${formData.pickupPoint}` : 'Select a pickup point on the left'}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Destination / Full Address (Destinasi Lengkap) <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    name="destination"
+                    value={formData.destination}
+                    onChange={handleChange}
+                    required
+                    rows={2}
+                    placeholder="e.g. Pusat Komuniti Chow Kit, Kuala Lumpur / Dewan Serbaguna"
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition resize-y"
+                  ></textarea>
+                </div>
+              </div>
+
+              {/* ------------------------------------------------------------- */}
+              {/* CARD 4: SERVICE TYPE, CAPACITY & PASSENGERS                   */}
+              {/* ------------------------------------------------------------- */}
+              <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5 sm:p-7 space-y-5">
+                <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
+                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl font-black text-xs">
+                    04
+                  </div>
+                  <div>
+                    <h2 className="text-sm sm:text-base font-extrabold text-slate-900">
+                      Service Type & Passengers (Jenis Servis & Penumpang)
+                    </h2>
+                    <p className="text-xs text-slate-500">
+                      Choose driver allocation mode and passenger numbers
+                    </p>
+                  </div>
+                </div>
+
+                {/* Interactive Service Type Cards */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                    Service Option <span className="text-rose-500">*</span>
+                  </label>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Option 1: Perlu Driver */}
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, serviceType: 'Perlu Driver' }))}
+                      className={`p-4 rounded-2xl border text-left transition cursor-pointer flex items-start gap-3.5 ${
+                        formData.serviceType === 'Perlu Driver'
+                          ? 'bg-indigo-50/80 border-indigo-500 ring-2 ring-indigo-500/20 shadow-xs'
+                          : 'bg-white border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className={`p-2.5 rounded-xl shrink-0 ${
+                        formData.serviceType === 'Perlu Driver' 
+                          ? 'bg-indigo-600 text-white' 
+                          : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        <UserCircleIcon className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <span className="font-extrabold text-xs sm:text-sm text-slate-900 block">
+                          Perlu Driver (Driver Assigned)
+                        </span>
+                        <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                          Pemandu rasmi yayasan akan diperuntukkan mengikut jadual tugas.
+                        </p>
+                      </div>
+                    </button>
+
+                    {/* Option 2: Self Drive */}
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, serviceType: 'Self-Drive' }))}
+                      className={`p-4 rounded-2xl border text-left transition cursor-pointer flex items-start gap-3.5 ${
+                        formData.serviceType === 'Self-Drive'
+                          ? 'bg-teal-50/80 border-teal-500 ring-2 ring-teal-500/20 shadow-xs'
+                          : 'bg-white border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className={`p-2.5 rounded-xl shrink-0 ${
+                        formData.serviceType === 'Self-Drive' 
+                          ? 'bg-teal-600 text-white' 
+                          : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        <TruckIcon className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <span className="font-extrabold text-xs sm:text-sm text-slate-900 block">
+                          Self-Drive (Pandu Sendiri)
+                        </span>
+                        <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                          Kakitangan pandu kenderaan yayasan (Perodua Alza) sendiri.
+                        </p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sub-option depending on Service Type */}
+                {formData.serviceType === 'Perlu Driver' ? (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Vehicle Preference (Pilihan Kenderaan)
+                    </label>
+                    <select
+                      name="vehiclePreference"
+                      value={formData.vehiclePreference}
+                      onChange={handleChange}
+                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition text-slate-800"
+                    >
+                      <option value={FREE_VEHICLE_CHOICE}>
+                        🚗 Any / Free Choice (Pemandu tentukan kenderaan semasa tugasan)
+                      </option>
+                      <optgroup label="Dedicated Fleet">
+                        {vehicles.map(v => (
+                          <option key={v.id} value={v.name}>
+                            🚐 {v.name} ({v.plateNumber}) {v.vehicleType ? `- ${v.vehicleType}` : ''}
+                          </option>
+                        ))}
+                      </optgroup>
+                    </select>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-teal-50/70 border border-teal-200 rounded-2xl space-y-2 animate-fadeIn">
+                    <label className="block text-xs font-bold text-teal-950 uppercase tracking-wider">
+                      Staff Driver IC / ID Number (No. Kad Pengenalan) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="icNumber"
+                      value={formData.icNumber}
+                      onChange={handleChange}
+                      required
+                      placeholder="e.g. 920815-10-5432"
+                      className="w-full px-3.5 py-2.5 border border-teal-200 rounded-xl text-xs sm:text-sm font-mono bg-white text-slate-900 focus:ring-2 focus:ring-teal-500 outline-none"
+                    />
+                    <p className="text-[11px] text-teal-800 font-medium">
+                      ⚠️ Diperlukan untuk rekod lesen memandu dan pengesahan kunci kenderaan Perodua Alza.
+                    </p>
+                  </div>
+                )}
+
+                {/* Passenger Steppers */}
+                <div className="space-y-2 pt-2 border-t border-slate-100">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Passenger Breakdown (Pecahan Penumpang)
+                    </label>
+                    <span className="text-xs font-extrabold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200">
+                      Total: {totalPassengers} Pax
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* Staff Stepper */}
+                    <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-center space-y-2">
+                      <span className="text-xs font-extrabold text-slate-700 block">Kakitangan (Staff)</span>
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => updatePassengerCount('staffCount', -1)}
+                          className="w-8 h-8 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold flex items-center justify-center cursor-pointer active:scale-95 transition"
+                        >
+                          -
+                        </button>
+                        <input
+                          type="number"
+                          min="0"
+                          name="staffCount"
+                          value={formData.staffCount}
+                          onChange={handleChange}
+                          className="w-14 text-center font-bold text-sm bg-white border border-slate-300 rounded-lg py-1 text-slate-900"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => updatePassengerCount('staffCount', 1)}
+                          className="w-8 h-8 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold flex items-center justify-center cursor-pointer active:scale-95 transition"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Kids Stepper */}
+                    <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-center space-y-2">
+                      <span className="text-xs font-extrabold text-slate-700 block">Kanak-kanak (Kids)</span>
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => updatePassengerCount('kidsCount', -1)}
+                          className="w-8 h-8 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold flex items-center justify-center cursor-pointer active:scale-95 transition"
+                        >
+                          -
+                        </button>
+                        <input
+                          type="number"
+                          min="0"
+                          name="kidsCount"
+                          value={formData.kidsCount}
+                          onChange={handleChange}
+                          className="w-14 text-center font-bold text-sm bg-white border border-slate-300 rounded-lg py-1 text-slate-900"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => updatePassengerCount('kidsCount', 1)}
+                          className="w-8 h-8 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold flex items-center justify-center cursor-pointer active:scale-95 transition"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Teens Stepper */}
+                    <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-center space-y-2">
+                      <span className="text-xs font-extrabold text-slate-700 block">Remaja (Teenagers)</span>
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => updatePassengerCount('teenagersCount', -1)}
+                          className="w-8 h-8 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold flex items-center justify-center cursor-pointer active:scale-95 transition"
+                        >
+                          -
+                        </button>
+                        <input
+                          type="number"
+                          min="0"
+                          name="teenagersCount"
+                          value={formData.teenagersCount}
+                          onChange={handleChange}
+                          className="w-14 text-center font-bold text-sm bg-white border border-slate-300 rounded-lg py-1 text-slate-900"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => updatePassengerCount('teenagersCount', 1)}
+                          className="w-8 h-8 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold flex items-center justify-center cursor-pointer active:scale-95 transition"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Driver Standby / Waiting toggle card */}
+                <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-2xl">
+                  <label className="flex items-start gap-3 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      name="shouldWait"
+                      checked={formData.shouldWait}
+                      onChange={(e) => setFormData(prev => ({ ...prev, shouldWait: e.target.checked }))}
+                      className="h-5 w-5 rounded text-amber-600 border-slate-300 focus:ring-amber-500 mt-0.5 cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-xs sm:text-sm font-extrabold text-amber-950 block">
+                        ⏳ Driver Standby On-Site (Pemandu Tunggu di Lokasi)
+                      </span>
+                      <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                        Tandakan sekiranya pemandu perlu menunggu di lokasi program untuk perjalanan pulang. Jika tidak, pemandu hanya akan menghantar dan dilepaskan (*Drop-off only*).
+                      </p>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Additional Notes / Remarks */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Special Instructions / Notes (Nota Tambahan - Pilihan)
+                  </label>
+                  <textarea
+                    name="remarks"
+                    value={formData.remarks}
+                    onChange={handleChange}
+                    rows={2}
+                    placeholder="Contoh: Bawa peralatan program, peserta berkerusi roda, dll."
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none transition resize-y"
+                  ></textarea>
+                </div>
+
+                {/* Modern File Attachment Dropzone */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Supporting Document / Surat Kelulusan (Pilihan)
+                  </label>
+                  
+                  {!attachmentFile ? (
+                    <div className="p-4 border-2 border-dashed border-slate-300 hover:border-indigo-400 bg-slate-50/50 hover:bg-indigo-50/30 rounded-2xl text-center transition cursor-pointer relative">
+                      <input
+                        id="public-attachment-input"
+                        type="file"
+                        onChange={handleFileChange}
+                        accept="image/*,application/pdf"
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      />
+                      <PaperClipIcon className="w-6 h-6 text-slate-400 mx-auto mb-1" />
+                      <p className="text-xs font-bold text-slate-700">Click to browse or drop file</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">PDF, PNG, JPG up to 10MB</p>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-200 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 truncate">
+                        <PaperClipIcon className="w-5 h-5 text-indigo-600 shrink-0" />
+                        <span className="text-xs font-bold text-indigo-950 truncate">{attachmentFile.name}</span>
+                        <span className="text-[10px] text-indigo-600 font-mono">({(attachmentFile.size / 1024).toFixed(1)} KB)</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={removeAttachment}
+                        className="text-xs font-extrabold text-rose-600 hover:text-rose-800 px-2.5 py-1 rounded-lg hover:bg-rose-50 transition cursor-pointer"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+              {/* ------------------------------------------------------------- */}
+              {/* SUBMIT BUTTON                                                 */}
+              {/* ------------------------------------------------------------- */}
+              <div className="pt-2">
                 <button
                   type="submit"
-                  disabled={isSubmitting || isUploading}
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold py-3.5 px-6 rounded-xl shadow-lg transition disabled:bg-indigo-400 flex items-center justify-center space-x-2 cursor-pointer"
+                  disabled={isSubmitting}
+                  className="w-full bg-slate-900 hover:bg-slate-800 text-white font-black py-4 px-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200 disabled:bg-slate-400 flex items-center justify-center gap-2 cursor-pointer active:scale-98 text-sm sm:text-base"
                 >
-                  {isSubmitting || isUploading ? (
+                  {isSubmitting ? (
                     <>
-                      <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                      </svg>
-                      <span>Submitting Booking...</span>
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      <span>Processing & Auto-Assigning Schedule...</span>
                     </>
                   ) : (
-                    <span>Submit Booking Request</span>
+                    <>
+                      <span>Submit Vehicle Reservation Request</span>
+                      <span className="text-indigo-400">→</span>
+                    </>
                   )}
                 </button>
               </div>
@@ -911,10 +1249,57 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
           </div>
         )}
 
-        <div className="text-center mt-8 text-xs text-gray-400 font-medium">
-          Powered by Armada Flow Smart SaaS Transportation Platform &copy; 2026
+        {/* Footer */}
+        <div className="text-center mt-8 text-xs text-slate-400 font-medium">
+          Armada Flow Smart Fleet Platform • {tenant.companyName || tenant.name} &copy; 2026
         </div>
       </div>
+
+      {/* Policy Modal */}
+      {showPolicyModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-200 p-6 space-y-4 animate-fadeIn">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2 text-slate-900 font-extrabold text-sm">
+                <ClockIcon className="w-5 h-5 text-amber-500" />
+                <span>Driver Rest & Welfare Policy</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPolicyModal(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs text-slate-700 leading-relaxed">
+              <p>
+                To ensure driver road safety and welfare, the following break times are observed:
+              </p>
+              
+              <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 font-medium space-y-1.5 text-amber-950">
+                <p>• <b>Monday – Thursday:</b> 12:00 PM – 1:00 PM (Lunch Break)</p>
+                <p>• <b>Friday:</b> 12:30 PM – 2:30 PM (Friday Prayer & Rest)</p>
+              </div>
+
+              <p className="text-slate-500 text-[11px]">
+                Bookings starting during these slots may require special manual admin clearance. Please schedule departures outside rest periods whenever possible.
+              </p>
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowPolicyModal(false)}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                Understood
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
