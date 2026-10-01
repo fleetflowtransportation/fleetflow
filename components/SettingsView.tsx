@@ -431,7 +431,7 @@ function doPost(e) {
         directUrl: directUrl,
         webViewLink: fileUrl,
         name: createdFile.getName(),
-        folder: subFolderName,
+        folder: Array.isArray(pathInput) ? pathInput.join('/') : String(pathInput),
         size: createdFile.getSize()
       })).setMimeType(ContentService.MimeType.JSON);
     }

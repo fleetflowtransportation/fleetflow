@@ -233,7 +233,7 @@ const FuelLogModal: React.FC<FuelLogModalProps> = ({
     // Upload receipt to Google Drive if a new file is attached
     if (receiptFile) {
       const selectedVehicle = vehicles.find(v => v.id === formData.vehicleId);
-      const plateNumber = selectedVehicle?.plateNumber || 'VEHICLE';
+      const plateNumber = (selectedVehicle?.plateNumber || 'VEHICLE').trim().toUpperCase();
       const customFileName = formatFuelReceiptFileName(formData.date, plateNumber, receiptFile.name);
 
       try {
