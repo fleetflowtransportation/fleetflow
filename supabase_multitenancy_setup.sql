@@ -13,25 +13,62 @@
 CREATE TABLE IF NOT EXISTS tenants (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
+  company_name TEXT,
   status TEXT DEFAULT 'active',
-  google_apps_script_url TEXT,
+  registration_number TEXT,
+  phone TEXT,
+  whatsapp TEXT,
+  email TEXT,
+  address TEXT,
+  postcode TEXT,
+  city TEXT,
+  state TEXT,
+  website TEXT,
+  pic_name TEXT,
+  pic_phone TEXT,
+  description TEXT,
+  operating_hours TEXT,
+  timezone TEXT DEFAULT 'Asia/Kuala_Lumpur',
+  logo_url TEXT,
   google_calendar_id TEXT,
   google_drive_id TEXT,
+  google_apps_script_url TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- Pastikan kolum integrasi wujud jika jadual tenants sudah lama dicipta:
+-- Pastikan semua kolum profil organisasi wujud pada jadual tenants sedia ada:
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS company_name TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS registration_number TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS whatsapp TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS address TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS postcode TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS city TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS state TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS website TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS pic_name TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS pic_phone TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS operating_hours TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS timezone TEXT DEFAULT 'Asia/Kuala_Lumpur';
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS logo_url TEXT;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS google_apps_script_url TEXT;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS google_calendar_id TEXT;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS google_drive_id TEXT;
+
+-- Buang keperluan pengesahan e-mel (Confirm email bypass):
+UPDATE auth.users 
+SET email_confirmed_at = now(), confirmed_at = now() 
+WHERE email_confirmed_at IS NULL;
 
 -- Pastikan hak akses dibuka untuk client anon Supabase (PENTING untuk simpanan tetapan):
 ALTER TABLE tenants DISABLE ROW LEVEL SECURITY;
 GRANT ALL ON TABLE tenants TO anon, authenticated, service_role;
 
 -- MASUKKAN YAYASAN CHOW KIT SEBAGAI DEFAULT TENANT
-INSERT INTO tenants (id, name, status)
-VALUES ('yayasan-chow-kit', 'Yayasan Chow Kit', 'active')
+INSERT INTO tenants (id, name, company_name, status)
+VALUES ('yayasan-chow-kit', 'Yayasan Chow Kit', 'Yayasan Chow Kit', 'active')
 ON CONFLICT (id) DO NOTHING;
 
 -- 2. TAMBAH KOLUM & INDEX BAGI TABLE: fleet_users
