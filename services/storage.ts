@@ -930,6 +930,17 @@ export const storageService = {
     return { id };
   },
 
+  deleteFuelLogsBulk: async (ids: string[]): Promise<string[]> => {
+    if (!ids || ids.length === 0) return [];
+    try {
+      const { error } = await supabase.from('fuel_logs').delete().in('id', ids);
+      if (error) console.error('[Supabase] deleteFuelLogsBulk error:', error.message);
+    } catch (err: any) {
+      console.error('[Supabase] deleteFuelLogsBulk exception:', err.message);
+    }
+    return ids;
+  },
+
   // ---- WRITE (ODOMETER LOGS) ----
   createOdometerLog: async (data: OdometerLog): Promise<OdometerLog> => {
     try {

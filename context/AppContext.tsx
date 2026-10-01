@@ -37,6 +37,7 @@ interface AppContextType {
   addFuelLogsBulk: (logs: (Omit<FuelLog, 'id'> & { id?: string })[]) => Promise<number>;
   updateFuelLog: (logId: string, updatedData: Partial<Omit<FuelLog, 'id'>>) => void;
   deleteFuelLog: (logId: string) => void;
+  deleteFuelLogsBulk: (logIds: string[]) => Promise<void>;
   addOdometerLog: (log: Omit<OdometerLog, 'id'>) => void;
   updateOdometerLog: (logId: string, updatedData: Partial<Omit<OdometerLog, 'id'>>) => void;
   deleteOdometerLog: (logId: string) => void;
@@ -996,6 +997,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   }, [clearUndoState, fuelLogs, activeTenant]);
 
+  const deleteFuelLogsBulk = useCallback(async (logIds: string[]) => {
+    if (!logIds || logIds.length === 0) return;
+    clearUndoState();
+
+    const idsSet = new Set(logIds);
+    const logsToDelete = fuelLogs.filter(log => idsSet.has(log.id));
+    for (const log of logsToDelete) {
+      if (log.receiptAttachmentUrl) {
+        if (log.receiptAttachmentUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(log.receiptAttachmentUrl);
+        } else {
+          deleteFromGoogleDrive(log.receiptAttachmentUrl, activeTenant).catch(err => {
+            console.warn('[Google Drive] Bulk delete receipt error:', err);
+          });
+        }
+      }
+    }
+
+    setFuelLogs(prev => prev.filter(log => !idsSet.has(log.id)));
+    await storageService.deleteFuelLogsBulk(logIds).catch(err => {
+      alert('Gagal padam fuel log secara pukal: ' + err.message);
+    });
+  }, [clearUndoState, fuelLogs, activeTenant]);
+
   // ---- Odometer logs ----
   const addOdometerLog = useCallback((logData: Omit<OdometerLog, 'id'>) => {
     const newLog: OdometerLog = { ...logData, id: tempId('odo') };
@@ -1458,6 +1483,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addFuelLogsBulk,
       updateFuelLog,
       deleteFuelLog,
+      deleteFuelLogsBulk,
       addOdometerLog,
       updateOdometerLog,
       deleteOdometerLog,

@@ -15,7 +15,9 @@ import {
   UserCircleIcon,
   PlusIcon,
   SearchIcon,
-  DocumentReportIcon
+  DocumentReportIcon,
+  ChevronDownIcon,
+  ChevronUpIcon
 } from './icons/Icons';
 import OdometerLogEditForm from './OdometerLogEditForm';
 import FuelLogModal from './FuelLogModal';
@@ -48,6 +50,7 @@ const Reports: React.FC = () => {
     users, 
     vehicles, 
     deleteFuelLog, 
+    deleteFuelLogsBulk,
     odometerLogs, 
     deleteOdometerLog 
   } = useAppContext();
@@ -65,10 +68,14 @@ const Reports: React.FC = () => {
   const [odoStartDate, setOdoStartDate] = useState('');
   const [odoEndDate, setOdoEndDate] = useState('');
 
-  // --- Fuel Logs State ---
+  // --- Fuel Logs State & Bulk Selection ---
   const [editingFuelLog, setEditingFuelLog] = useState<FuelLog | null>(null);
   const [isFuelModalOpen, setIsFuelModalOpen] = useState(false);
   const [fuelSearch, setFuelSearch] = useState('');
+  const [fuelViewMode, setFuelViewMode] = useState<'grouped' | 'table'>('grouped');
+  const [collapsedVehicles, setCollapsedVehicles] = useState<Set<string>>(new Set());
+  const [selectedFuelLogIds, setSelectedFuelLogIds] = useState<Set<string>>(new Set());
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [fuelLogFilters, setFuelLogFilters] = useState({ 
     vehicleId: '', 
     driverId: '', 
@@ -259,6 +266,172 @@ const Reports: React.FC = () => {
 
     return { totalCount, totalCost, totalLiters, avgPricePerLiter };
   }, [filteredFuelLogs]);
+
+  // --- Vehicle Fuel Summaries (For Top Horizontal Switcher Chips) ---
+  const vehicleFuelSummaries = useMemo(() => {
+    return vehicles.map(v => {
+      const vLogs = fuelLogs.filter(l => l.vehicleId === v.id);
+      const totalCost = vLogs.reduce((sum, l) => sum + (l.cost || 0), 0);
+      const totalLiters = vLogs.reduce((sum, l) => sum + (l.liters || 0), 0);
+      return {
+        vehicle: v,
+        count: vLogs.length,
+        totalCost,
+        totalLiters,
+        avgPrice: totalLiters > 0 ? (totalCost / totalLiters).toFixed(2) : '0.00',
+        latestOdo: vLogs.reduce((max, l) => (l.odometer && l.odometer > max ? l.odometer : max), v.odometer || 0),
+      };
+    }).sort((a, b) => b.count - a.count);
+  }, [vehicles, fuelLogs]);
+
+  // --- Fuel Logs Grouped by Vehicle ---
+  const fuelLogsGroupedByVehicle = useMemo(() => {
+    const map = new Map<string, FuelLog[]>();
+    for (const log of filteredFuelLogs) {
+      const vId = log.vehicleId || 'unknown';
+      if (!map.has(vId)) map.set(vId, []);
+      map.get(vId)!.push(log);
+    }
+
+    const groups: {
+      vehicle: Vehicle;
+      logs: FuelLog[];
+      totalCost: number;
+      totalLiters: number;
+      avgPrice: number;
+      latestOdometer: number;
+    }[] = [];
+
+    // Prioritize vehicles in the system
+    for (const v of vehicles) {
+      const vLogs = map.get(v.id);
+      if (vLogs && vLogs.length > 0) {
+        const totalCost = vLogs.reduce((sum, l) => sum + (l.cost || 0), 0);
+        const totalLiters = vLogs.reduce((sum, l) => sum + (l.liters || 0), 0);
+        const avgPrice = totalLiters > 0 ? totalCost / totalLiters : 0;
+        const latestOdo = vLogs.reduce((max, l) => (l.odometer && l.odometer > max ? l.odometer : max), v.odometer || 0);
+
+        groups.push({
+          vehicle: v,
+          logs: vLogs,
+          totalCost,
+          totalLiters,
+          avgPrice,
+          latestOdometer: latestOdo,
+        });
+      }
+    }
+
+    // Check unknown/deleted vehicle
+    const unknownLogs = map.get('unknown');
+    if (unknownLogs && unknownLogs.length > 0) {
+      const totalCost = unknownLogs.reduce((sum, l) => sum + (l.cost || 0), 0);
+      const totalLiters = unknownLogs.reduce((sum, l) => sum + (l.liters || 0), 0);
+      groups.push({
+        vehicle: {
+          id: 'unknown',
+          name: 'Unassigned / Other',
+          plateNumber: 'N/A',
+          brandMake: 'Other',
+          vehicleStatus: 'Active',
+          fuelType: 'Petrol'
+        },
+        logs: unknownLogs,
+        totalCost,
+        totalLiters,
+        avgPrice: totalLiters > 0 ? totalCost / totalLiters : 0,
+        latestOdometer: 0,
+      });
+    }
+
+    return groups;
+  }, [filteredFuelLogs, vehicles]);
+
+  // Selected totals for bulk drawer
+  const selectedFuelMetrics = useMemo(() => {
+    const selected = filteredFuelLogs.filter(l => selectedFuelLogIds.has(l.id));
+    const cost = selected.reduce((sum, l) => sum + (l.cost || 0), 0);
+    const liters = selected.reduce((sum, l) => sum + (l.liters || 0), 0);
+    return { count: selected.length, cost, liters };
+  }, [filteredFuelLogs, selectedFuelLogIds]);
+
+  // Toggle selection for a single fuel log
+  const toggleSelectFuelLog = (id: string) => {
+    setSelectedFuelLogIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // Toggle selection for all visible fuel logs
+  const toggleSelectAllVisibleFuelLogs = () => {
+    if (selectedFuelLogIds.size === filteredFuelLogs.length && filteredFuelLogs.length > 0) {
+      setSelectedFuelLogIds(new Set());
+    } else {
+      setSelectedFuelLogIds(new Set(filteredFuelLogs.map(l => l.id)));
+    }
+  };
+
+  // Toggle selection for a specific vehicle's logs
+  const toggleSelectVehicleLogs = (vLogs: FuelLog[]) => {
+    const vIds = vLogs.map(l => l.id);
+    const allSelected = vIds.every(id => selectedFuelLogIds.has(id));
+    setSelectedFuelLogIds(prev => {
+      const next = new Set(prev);
+      if (allSelected) {
+        vIds.forEach(id => next.delete(id));
+      } else {
+        vIds.forEach(id => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  // Toggle collapse state for a vehicle group
+  const toggleCollapseVehicle = (vehicleId: string) => {
+    setCollapsedVehicles(prev => {
+      const next = new Set(prev);
+      if (next.has(vehicleId)) next.delete(vehicleId);
+      else next.add(vehicleId);
+      return next;
+    });
+  };
+
+  // Bulk Delete
+  const handleBulkDeleteFuelLogs = async () => {
+    if (selectedFuelLogIds.size === 0) return;
+    const count = selectedFuelLogIds.size;
+    const confirmMsg = `Adakah anda pasti mahu memadam ${count} rekod bahan api yang dipilih? Tindakan ini tidak boleh diundur dan fail resit lampiran di Google Drive juga akan dipadamkan serentak.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setIsBulkDeleting(true);
+    try {
+      await deleteFuelLogsBulk(Array.from(selectedFuelLogIds));
+      setSelectedFuelLogIds(new Set());
+    } catch (err: any) {
+      alert('Ralat memadam rekod terpilih: ' + err.message);
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
+  // Export Selected Fuel Logs as CSV
+  const handleExportSelectedFuelLogs = () => {
+    if (selectedFuelLogIds.size === 0) return;
+    const selectedLogs = filteredFuelLogs.filter(l => selectedFuelLogIds.has(l.id));
+    const csvContent = [
+      'ID,Date,Vehicle,Plate,Driver,Odometer,Volume (L),Price/L (RM),Total Cost (RM),Receipt URL',
+      ...selectedLogs.map(l => {
+        const v = getVehicleInfo(l.vehicleId);
+        const d = getDriverName(l.driverId);
+        const dt = l.date ? new Date(l.date).toLocaleDateString('en-GB') : '';
+        return `"${l.id}","${dt}","${v.name}","${v.plateNumber}","${d}","${l.odometer || ''}","${l.liters}","${l.pricePerLiter || ''}","${l.cost}","${l.receiptAttachmentUrl || ''}"`;
+      })
+    ].join('\n');
+    downloadCSV(csvContent, `Fuel_Logs_Selected_${new Date().toISOString().slice(0, 10)}.csv`);
+  };
 
   // --- Reports Tab Calculations ---
   const handlePrint = (elementId: string) => {
@@ -842,56 +1015,142 @@ const Reports: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 2: FUEL LOGS (FULL CRUD)                                              */}
+      {/* TAB 2: FUEL LOGS (SEGMENTED BY VEHICLE & BULK ACTIONS)                   */}
       {/* ========================================================================= */}
       {activeSubTab === 'fuel' && (
         <div className="space-y-6">
-          {/* FUEL STATS OVERVIEW */}
+          {/* VEHICLE QUICK SELECTOR PILLS (PECAHKAN MENGIKUT KENDERAAN) */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Pilih Kenderaan (Vehicle Quick Filter)
+                </h3>
+                <p className="text-[11px] text-slate-400">
+                  Klik mana-mana kenderaan untuk fokus rekod minyak kenderaan tersebut
+                </p>
+              </div>
+              {fuelLogFilters.vehicleId && (
+                <button
+                  onClick={() => setFuelLogFilters(prev => ({ ...prev, vehicleId: '' }))}
+                  className="text-xs font-semibold text-amber-600 hover:text-amber-800 transition cursor-pointer"
+                >
+                  Papar Semua Kenderaan
+                </button>
+              )}
+            </div>
+
+            {/* Scrollable Horizontal Vehicle Cards */}
+            <div className="flex items-center space-x-2.5 overflow-x-auto pb-1.5 scrollbar-thin">
+              {/* All Vehicles Pill */}
+              <button
+                onClick={() => setFuelLogFilters(prev => ({ ...prev, vehicleId: '' }))}
+                className={`shrink-0 flex items-center space-x-2.5 px-3.5 py-2.5 rounded-xl border text-left transition cursor-pointer ${
+                  !fuelLogFilters.vehicleId
+                    ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                }`}
+              >
+                <div className={`p-1.5 rounded-lg ${!fuelLogFilters.vehicleId ? 'bg-amber-600 text-white' : 'bg-white text-slate-600'}`}>
+                  <TruckIcon className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="text-xs font-black">Semua Kenderaan</div>
+                  <div className={`text-[10px] font-medium ${!fuelLogFilters.vehicleId ? 'text-amber-100' : 'text-slate-400'}`}>
+                    {fuelLogs.length} rekod minyak
+                  </div>
+                </div>
+              </button>
+
+              {/* Individual Vehicle Pills */}
+              {vehicleFuelSummaries.map(({ vehicle, count, totalCost, totalLiters }) => {
+                const isSelected = fuelLogFilters.vehicleId === vehicle.id;
+                return (
+                  <button
+                    key={vehicle.id}
+                    onClick={() => setFuelLogFilters(prev => ({
+                      ...prev,
+                      vehicleId: isSelected ? '' : vehicle.id
+                    }))}
+                    className={`shrink-0 flex items-center space-x-2.5 px-3.5 py-2 rounded-xl border text-left transition cursor-pointer ${
+                      isSelected
+                        ? 'bg-amber-50 border-amber-500 ring-2 ring-amber-400/40 text-amber-950 shadow-xs'
+                        : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
+                    }`}
+                  >
+                    <div className="flex flex-col">
+                      <div className="flex items-center space-x-1.5">
+                        <span className={`font-mono text-[11px] font-extrabold px-1.5 py-0.5 rounded ${
+                          isSelected ? 'bg-amber-600 text-white' : 'bg-slate-100 text-slate-800'
+                        }`}>
+                          {vehicle.plateNumber}
+                        </span>
+                        <span className="text-xs font-bold text-slate-800 truncate max-w-[120px]">
+                          {vehicle.name || vehicle.brandMake}
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-2 text-[10px] mt-1 text-slate-500 font-medium">
+                        <span className="font-semibold text-slate-700">{count} rekod</span>
+                        <span>•</span>
+                        <span className="font-bold text-amber-700">RM {totalCost.toFixed(0)}</span>
+                        <span>•</span>
+                        <span>{totalLiters.toFixed(0)} L</span>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* FUEL STATS OVERVIEW CARDS */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs flex items-center justify-between">
               <div>
                 <p className="text-xs font-semibold text-slate-500">Refueling Entries</p>
                 <p className="text-2xl font-black text-slate-800 mt-1">{fuelStats.totalCount}</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Receipts & logs recorded</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  {fuelLogFilters.vehicleId ? 'Kenderaan terpilih' : 'Semua armada'}
+                </p>
               </div>
               <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
                 <FuelIcon className="h-6 w-6" />
               </div>
             </div>
 
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs flex items-center justify-between">
               <div>
                 <p className="text-xs font-semibold text-slate-500">Total Expenditure</p>
                 <p className="text-2xl font-black text-amber-700 mt-1">
                   RM {fuelStats.totalCost.toFixed(2)}
                 </p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Fuel purchase cost</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Kos petrol keseluruhan</p>
               </div>
               <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
                 <FuelIcon className="h-6 w-6" />
               </div>
             </div>
 
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs flex items-center justify-between">
               <div>
                 <p className="text-xs font-semibold text-slate-500">Total Fuel Volume</p>
                 <p className="text-2xl font-black text-slate-800 mt-1">
                   {fuelStats.totalLiters.toFixed(1)} <span className="text-xs font-bold text-slate-500">L</span>
                 </p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Total volume dispensed</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Jumlah liter diisi</p>
               </div>
               <div className="p-3 bg-slate-50 text-slate-600 rounded-xl">
                 <FuelIcon className="h-6 w-6" />
               </div>
             </div>
 
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs flex items-center justify-between">
               <div>
                 <p className="text-xs font-semibold text-slate-500">Avg Price / Liter</p>
                 <p className="text-2xl font-black text-emerald-700 mt-1">
                   RM {fuelStats.avgPricePerLiter}
                 </p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Effective average rate</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Purata kadar seliter</p>
               </div>
               <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
                 <FuelIcon className="h-6 w-6" />
@@ -900,42 +1159,28 @@ const Reports: React.FC = () => {
           </div>
 
           {/* CONTROLS & FILTERS BAR */}
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-center">
               {/* Search */}
-              <div className="relative lg:col-span-2">
+              <div className="relative lg:col-span-4">
                 <SearchIcon className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Search vehicle, plate number, driver..."
+                  placeholder="Cari kenderaan, no plat, pemandu..."
                   value={fuelSearch}
                   onChange={e => setFuelSearch(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 font-medium"
                 />
               </div>
 
-              {/* Vehicle Filter */}
-              <div>
-                <select
-                  value={fuelLogFilters.vehicleId}
-                  onChange={e => setFuelLogFilters(prev => ({ ...prev, vehicleId: e.target.value }))}
-                  className="w-full p-2 text-xs border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 font-medium"
-                >
-                  <option value="">All Vehicles</option>
-                  {vehicles.map(v => (
-                    <option key={v.id} value={v.id}>{v.name} ({v.plateNumber})</option>
-                  ))}
-                </select>
-              </div>
-
               {/* Driver Filter */}
-              <div>
+              <div className="lg:col-span-3">
                 <select
                   value={fuelLogFilters.driverId}
                   onChange={e => setFuelLogFilters(prev => ({ ...prev, driverId: e.target.value }))}
                   className="w-full p-2 text-xs border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 font-medium"
                 >
-                  <option value="">All Drivers</option>
+                  <option value="">Semua Pemandu</option>
                   {drivers.map(d => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
@@ -943,7 +1188,7 @@ const Reports: React.FC = () => {
               </div>
 
               {/* Date Filter */}
-              <div>
+              <div className="lg:col-span-2">
                 <select
                   value={fuelLogFilters.dateFilter}
                   onChange={e => setFuelLogFilters(prev => ({ ...prev, dateFilter: e.target.value }))}
@@ -954,19 +1199,45 @@ const Reports: React.FC = () => {
                   ))}
                 </select>
               </div>
+
+              {/* View Mode Toggle */}
+              <div className="lg:col-span-3 flex items-center justify-end space-x-1.5 bg-slate-100 p-1 rounded-xl">
+                <button
+                  onClick={() => setFuelViewMode('grouped')}
+                  className={`flex-1 py-1.5 px-2 text-[11px] font-bold rounded-lg transition text-center cursor-pointer ${
+                    fuelViewMode === 'grouped'
+                      ? 'bg-white text-slate-800 shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                  title="Pecahkan data mengikut kumpulan kenderaan"
+                >
+                  Pecah Kenderaan
+                </button>
+                <button
+                  onClick={() => setFuelViewMode('table')}
+                  className={`flex-1 py-1.5 px-2 text-[11px] font-bold rounded-lg transition text-center cursor-pointer ${
+                    fuelViewMode === 'table'
+                      ? 'bg-white text-slate-800 shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                  title="Papar semua rekod dalam satu jadual"
+                >
+                  Jadual Tunggal
+                </button>
+              </div>
             </div>
 
             {/* Custom Date Range Picker */}
             {fuelLogFilters.dateFilter === 'custom' && (
               <div className="flex items-center gap-3 pt-2 border-t border-slate-100">
-                <span className="text-xs font-semibold text-slate-600">From:</span>
+                <span className="text-xs font-semibold text-slate-600">Dari:</span>
                 <input
                   type="date"
                   value={fuelLogFilters.startDate}
                   onChange={e => setFuelLogFilters(prev => ({ ...prev, startDate: e.target.value }))}
                   className="text-xs border border-slate-300 rounded-lg p-1.5"
                 />
-                <span className="text-xs font-semibold text-slate-600">To:</span>
+                <span className="text-xs font-semibold text-slate-600">Hingga:</span>
                 <input
                   type="date"
                   value={fuelLogFilters.endDate}
@@ -977,136 +1248,453 @@ const Reports: React.FC = () => {
             )}
           </div>
 
-          {/* FUEL LOGS TABLE */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Fuel Purchase Records ({filteredFuelLogs.length} entries found)
-              </span>
-              {(fuelSearch || fuelLogFilters.vehicleId || fuelLogFilters.driverId || fuelLogFilters.dateFilter !== 'all') && (
-                <button
-                  onClick={() => {
-                    setFuelSearch('');
-                    setFuelLogFilters({ vehicleId: '', driverId: '', dateFilter: 'all', startDate: '', endDate: '' });
-                  }}
-                  className="text-xs font-semibold text-amber-600 hover:text-amber-800"
-                >
-                  Reset Filters
-                </button>
+          {/* ========================================================================= */}
+          {/* VIEW MODE 1: GROUPED BY VEHICLE (PECAH DATA MENGIKUT KENDERAAN)           */}
+          {/* ========================================================================= */}
+          {fuelViewMode === 'grouped' ? (
+            <div className="space-y-6">
+              {fuelLogsGroupedByVehicle.length > 0 ? (
+                fuelLogsGroupedByVehicle.map(group => {
+                  const isCollapsed = collapsedVehicles.has(group.vehicle.id);
+                  const groupLogIds = group.logs.map(l => l.id);
+                  const isGroupAllSelected = groupLogIds.length > 0 && groupLogIds.every(id => selectedFuelLogIds.has(id));
+                  const isGroupPartiallySelected = groupLogIds.some(id => selectedFuelLogIds.has(id)) && !isGroupAllSelected;
+
+                  return (
+                    <div
+                      key={group.vehicle.id}
+                      className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden transition"
+                    >
+                      {/* Section Header */}
+                      <div className="p-4 bg-linear-to-r from-slate-50 via-white to-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center space-x-3">
+                          {/* Bulk Checkbox for Vehicle */}
+                          <input
+                            type="checkbox"
+                            checked={isGroupAllSelected}
+                            ref={el => {
+                              if (el) el.indeterminate = isGroupPartiallySelected;
+                            }}
+                            onChange={() => toggleSelectVehicleLogs(group.logs)}
+                            className="h-4 w-4 rounded text-amber-600 focus:ring-amber-500 border-slate-300 cursor-pointer"
+                            title="Pilih semua rekod kenderaan ini"
+                          />
+
+                          {/* Plate Badge */}
+                          <span className="font-mono text-xs font-black text-amber-900 bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-lg">
+                            {group.vehicle.plateNumber}
+                          </span>
+
+                          <div>
+                            <h4 className="font-extrabold text-slate-800 text-sm flex items-center space-x-2">
+                              <span>{group.vehicle.name}</span>
+                              {group.vehicle.fuelType && (
+                                <span className="text-[10px] uppercase font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                                  {group.vehicle.fuelType}
+                                </span>
+                              )}
+                            </h4>
+                            <p className="text-[11px] text-slate-500 font-medium">
+                              {group.logs.length} rekod pengisian bahan api
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Right Vehicle Summary Badges */}
+                        <div className="flex items-center space-x-3">
+                          <div className="hidden sm:flex items-center space-x-3 text-xs">
+                            <div className="px-2.5 py-1 bg-amber-50 rounded-lg border border-amber-200/60 text-amber-900">
+                              <span className="text-[10px] text-amber-600 uppercase font-bold block">Jumlah Kos</span>
+                              <span className="font-extrabold">RM {group.totalCost.toFixed(2)}</span>
+                            </div>
+
+                            <div className="px-2.5 py-1 bg-slate-50 rounded-lg border border-slate-200 text-slate-800">
+                              <span className="text-[10px] text-slate-400 uppercase font-bold block">Isipadu</span>
+                              <span className="font-bold">{group.totalLiters.toFixed(1)} L</span>
+                            </div>
+
+                            <div className="px-2.5 py-1 bg-slate-50 rounded-lg border border-slate-200 text-slate-800">
+                              <span className="text-[10px] text-slate-400 uppercase font-bold block">Odometer Terkini</span>
+                              <span className="font-mono font-bold">
+                                {group.latestOdometer ? `${group.latestOdometer.toLocaleString()} km` : '-'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Collapse / Expand Button */}
+                          <button
+                            onClick={() => toggleCollapseVehicle(group.vehicle.id)}
+                            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                            title={isCollapsed ? 'Kembangkan senarai' : 'Kuncupkan senarai'}
+                          >
+                            {isCollapsed ? (
+                              <ChevronDownIcon className="h-5 w-5" />
+                            ) : (
+                              <ChevronUpIcon className="h-5 w-5" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Section Table (if not collapsed) */}
+                      {!isCollapsed && (
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full divide-y divide-slate-200 text-xs">
+                            <thead className="bg-slate-50/70 text-[11px] font-bold text-slate-600">
+                              <tr>
+                                <th className="px-3.5 py-2.5 w-10 text-center">
+                                  <span className="sr-only">Pilih</span>
+                                </th>
+                                <th className="px-4 py-2.5 text-left">Tarikh</th>
+                                <th className="px-4 py-2.5 text-left">Pemandu</th>
+                                <th className="px-4 py-2.5 text-right">Odometer</th>
+                                <th className="px-4 py-2.5 text-right">Isipadu (L)</th>
+                                <th className="px-4 py-2.5 text-right">Harga / L (RM)</th>
+                                <th className="px-4 py-2.5 text-right">Jumlah Kos (RM)</th>
+                                <th className="px-4 py-2.5 text-center">Resit</th>
+                                <th className="px-4 py-2.5 text-center w-24">Tindakan</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 bg-white">
+                              {group.logs.map(log => {
+                                const driverName = getDriverName(log.driverId);
+                                const isSelected = selectedFuelLogIds.has(log.id);
+                                const displayDate = log.date ? new Date(log.date).toLocaleDateString('en-GB', {
+                                  day: 'numeric',
+                                  month: 'short',
+                                  year: 'numeric'
+                                }) : '-';
+
+                                return (
+                                  <tr
+                                    key={log.id}
+                                    className={`transition ${
+                                      isSelected
+                                        ? 'bg-amber-50/60 font-semibold'
+                                        : 'hover:bg-slate-50/80'
+                                    }`}
+                                  >
+                                    <td className="px-3.5 py-3 text-center">
+                                      <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={() => toggleSelectFuelLog(log.id)}
+                                        className="h-4 w-4 rounded text-amber-600 focus:ring-amber-500 border-slate-300 cursor-pointer"
+                                      />
+                                    </td>
+                                    <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">
+                                      {displayDate}
+                                    </td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-slate-700 font-medium">
+                                      <div className="flex items-center">
+                                        <UserCircleIcon className="h-3.5 w-3.5 mr-1.5 text-slate-400" />
+                                        {driverName}
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-3 text-right font-mono font-bold text-slate-800 whitespace-nowrap">
+                                      {log.odometer ? `${log.odometer.toLocaleString()} km` : '-'}
+                                    </td>
+                                    <td className="px-4 py-3 text-right font-bold text-slate-800 whitespace-nowrap">
+                                      {log.liters.toFixed(2)} L
+                                    </td>
+                                    <td className="px-4 py-3 text-right font-medium text-slate-600 whitespace-nowrap">
+                                      RM {log.pricePerLiter ? log.pricePerLiter.toFixed(2) : '-'}
+                                    </td>
+                                    <td className="px-4 py-3 text-right font-black text-amber-800 whitespace-nowrap">
+                                      RM {log.cost.toFixed(2)}
+                                    </td>
+                                    <td className="px-4 py-3 text-center whitespace-nowrap">
+                                      {log.receiptAttachmentUrl ? (
+                                        <a
+                                          href={log.receiptAttachmentUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex items-center text-xs text-indigo-600 hover:text-indigo-800 font-bold hover:underline"
+                                        >
+                                          <PaperClipIcon className="h-3.5 w-3.5 mr-1" />
+                                          Resit
+                                        </a>
+                                      ) : (
+                                        <span className="text-slate-400 text-[11px] italic">Tiada</span>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-3 text-center whitespace-nowrap">
+                                      <div className="flex items-center justify-center space-x-1">
+                                        <button
+                                          onClick={() => handleEditFuelLog(log)}
+                                          className="p-1.5 text-slate-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition cursor-pointer"
+                                          title="Edit Rekod Minyak"
+                                        >
+                                          <EditIcon className="h-4 w-4" />
+                                        </button>
+                                        <button
+                                          onClick={() => handleDeleteFuelLog(log.id)}
+                                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
+                                          title="Padam Rekod Minyak"
+                                        >
+                                          <TrashIcon className="h-4 w-4" />
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                            {/* Subtotal Footer */}
+                            <tfoot className="bg-slate-50 border-t border-slate-200 text-xs font-bold text-slate-700">
+                              <tr>
+                                <td colSpan={4} className="px-4 py-2.5 text-right uppercase tracking-wider text-[10px] text-slate-500">
+                                  Subjumlah {group.vehicle.plateNumber}:
+                                </td>
+                                <td className="px-4 py-2.5 text-right font-extrabold text-slate-900">
+                                  {group.totalLiters.toFixed(2)} L
+                                </td>
+                                <td className="px-4 py-2.5 text-right text-slate-500">
+                                  RM {group.avgPrice.toFixed(2)}
+                                </td>
+                                <td className="px-4 py-2.5 text-right font-black text-amber-800">
+                                  RM {group.totalCost.toFixed(2)}
+                                </td>
+                                <td colSpan={2}></td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400">
+                  <FuelIcon className="h-10 w-10 mx-auto text-slate-300 mb-2" />
+                  <p className="font-bold text-slate-700 text-sm">Tiada rekod minyak dijumpai</p>
+                  <p className="text-xs text-slate-400 mt-1">Cuba tukar penapis carian atau masukkan rekod belian minyak baharu.</p>
+                  <button
+                    onClick={handleCreateFuelLog}
+                    className="mt-4 inline-flex items-center px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+                  >
+                    <PlusIcon className="h-4 w-4 mr-1.5" />
+                    + Rekod Minyak Baharu
+                  </button>
+                </div>
               )}
             </div>
+          ) : (
+            /* ========================================================================= */
+            /* VIEW MODE 2: UNIFIED MASTER TABLE (SEMUA REKOD DALAM SATU JADUAL)         */
+            /* ========================================================================= */
+            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+              <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div className="flex items-center space-x-3">
+                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Semua Rekod Bahan Api ({filteredFuelLogs.length} rekod dijumpai)
+                  </span>
+                </div>
+                {(fuelSearch || fuelLogFilters.vehicleId || fuelLogFilters.driverId || fuelLogFilters.dateFilter !== 'all') && (
+                  <button
+                    onClick={() => {
+                      setFuelSearch('');
+                      setFuelLogFilters({ vehicleId: '', driverId: '', dateFilter: 'all', startDate: '', endDate: '' });
+                    }}
+                    className="text-xs font-semibold text-amber-600 hover:text-amber-800 cursor-pointer"
+                  >
+                    Reset Penapis
+                  </button>
+                )}
+              </div>
 
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200 text-xs">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-bold text-slate-600">Date</th>
-                    <th className="px-4 py-3 text-left font-bold text-slate-600">Vehicle</th>
-                    <th className="px-4 py-3 text-left font-bold text-slate-600">Driver</th>
-                    <th className="px-4 py-3 text-right font-bold text-slate-600">Odometer</th>
-                    <th className="px-4 py-3 text-right font-bold text-slate-600">Volume (L)</th>
-                    <th className="px-4 py-3 text-right font-bold text-slate-600">Price/L (RM)</th>
-                    <th className="px-4 py-3 text-right font-bold text-slate-600">Total Cost (RM)</th>
-                    <th className="px-4 py-3 text-center font-bold text-slate-600">Receipt</th>
-                    <th className="px-4 py-3 text-center font-bold text-slate-600 w-24">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
-                  {filteredFuelLogs.length > 0 ? (
-                    filteredFuelLogs.map(log => {
-                      const veh = getVehicleInfo(log.vehicleId);
-                      const driverName = getDriverName(log.driverId);
-                      const displayDate = log.date ? new Date(log.date).toLocaleDateString('en-GB', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric'
-                      }) : '-';
-
-                      return (
-                        <tr key={log.id} className="hover:bg-slate-50/70 transition">
-                          <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">
-                            {displayDate}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <div className="font-bold text-slate-900">{veh.name}</div>
-                            <span className="font-mono text-[11px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
-                              {veh.plateNumber}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-slate-700 font-medium">
-                            <div className="flex items-center">
-                              <UserCircleIcon className="h-3.5 w-3.5 mr-1 text-slate-400" />
-                              {driverName}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-right font-mono font-bold text-slate-800">
-                            {log.odometer ? `${log.odometer.toLocaleString()} km` : '-'}
-                          </td>
-                          <td className="px-4 py-3 text-right font-bold text-slate-800">
-                            {log.liters.toFixed(2)} L
-                          </td>
-                          <td className="px-4 py-3 text-right font-medium text-slate-600">
-                            RM {log.pricePerLiter ? log.pricePerLiter.toFixed(2) : '-'}
-                          </td>
-                          <td className="px-4 py-3 text-right font-extrabold text-amber-800">
-                            RM {log.cost.toFixed(2)}
-                          </td>
-                          <td className="px-4 py-3 text-center whitespace-nowrap">
-                            {log.receiptAttachmentUrl ? (
-                              <a
-                                href={log.receiptAttachmentUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center text-xs text-indigo-600 hover:text-indigo-800 font-bold hover:underline"
-                              >
-                                <PaperClipIcon className="h-3.5 w-3.5 mr-1" />
-                                Receipt
-                              </a>
-                            ) : (
-                              <span className="text-slate-400 text-[11px] italic">None</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-center whitespace-nowrap">
-                            <div className="flex items-center justify-center space-x-1">
-                              <button
-                                onClick={() => handleEditFuelLog(log)}
-                                className="p-1.5 text-slate-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition"
-                                title="Edit Fuel Record"
-                              >
-                                <EditIcon className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteFuelLog(log.id)}
-                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                                title="Delete Fuel Record"
-                              >
-                                <TrashIcon className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200 text-xs">
+                  <thead className="bg-slate-50">
                     <tr>
-                      <td colSpan={9} className="px-4 py-12 text-center text-slate-400">
-                        <FuelIcon className="h-8 w-8 mx-auto text-slate-300 mb-2" />
-                        <p className="font-semibold text-slate-600">No fuel records found</p>
-                        <p className="text-xs text-slate-400 mt-0.5">Try changing your filters or add a new fuel purchase receipt.</p>
-                        <button
-                          onClick={handleCreateFuelLog}
-                          className="mt-3 inline-flex items-center px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold"
-                        >
-                          <PlusIcon className="h-3.5 w-3.5 mr-1" />
-                          Record Fuel Log
-                        </button>
-                      </td>
+                      <th className="px-3.5 py-3 w-10 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedFuelLogIds.size === filteredFuelLogs.length && filteredFuelLogs.length > 0}
+                          ref={el => {
+                            if (el) el.indeterminate = selectedFuelLogIds.size > 0 && selectedFuelLogIds.size < filteredFuelLogs.length;
+                          }}
+                          onChange={toggleSelectAllVisibleFuelLogs}
+                          className="h-4 w-4 rounded text-amber-600 focus:ring-amber-500 border-slate-300 cursor-pointer"
+                          title="Pilih semua baris"
+                        />
+                      </th>
+                      <th className="px-4 py-3 text-left font-bold text-slate-600">Tarikh</th>
+                      <th className="px-4 py-3 text-left font-bold text-slate-600">Kenderaan</th>
+                      <th className="px-4 py-3 text-left font-bold text-slate-600">Pemandu</th>
+                      <th className="px-4 py-3 text-right font-bold text-slate-600">Odometer</th>
+                      <th className="px-4 py-3 text-right font-bold text-slate-600">Isipadu (L)</th>
+                      <th className="px-4 py-3 text-right font-bold text-slate-600">Harga/L (RM)</th>
+                      <th className="px-4 py-3 text-right font-bold text-slate-600">Jumlah Kos (RM)</th>
+                      <th className="px-4 py-3 text-center font-bold text-slate-600">Resit</th>
+                      <th className="px-4 py-3 text-center font-bold text-slate-600 w-24">Tindakan</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {filteredFuelLogs.length > 0 ? (
+                      filteredFuelLogs.map(log => {
+                        const veh = getVehicleInfo(log.vehicleId);
+                        const driverName = getDriverName(log.driverId);
+                        const isSelected = selectedFuelLogIds.has(log.id);
+                        const displayDate = log.date ? new Date(log.date).toLocaleDateString('en-GB', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric'
+                        }) : '-';
+
+                        return (
+                          <tr
+                            key={log.id}
+                            className={`transition ${
+                              isSelected
+                                ? 'bg-amber-50/60 font-semibold'
+                                : 'hover:bg-slate-50/80'
+                            }`}
+                          >
+                            <td className="px-3.5 py-3 text-center">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleSelectFuelLog(log.id)}
+                                className="h-4 w-4 rounded text-amber-600 focus:ring-amber-500 border-slate-300 cursor-pointer"
+                              />
+                            </td>
+                            <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">
+                              {displayDate}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <div className="font-bold text-slate-900">{veh.name}</div>
+                              <span className="font-mono text-[11px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
+                                {veh.plateNumber}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-slate-700 font-medium">
+                              <div className="flex items-center">
+                                <UserCircleIcon className="h-3.5 w-3.5 mr-1 text-slate-400" />
+                                {driverName}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-right font-mono font-bold text-slate-800 whitespace-nowrap">
+                              {log.odometer ? `${log.odometer.toLocaleString()} km` : '-'}
+                            </td>
+                            <td className="px-4 py-3 text-right font-bold text-slate-800 whitespace-nowrap">
+                              {log.liters.toFixed(2)} L
+                            </td>
+                            <td className="px-4 py-3 text-right font-medium text-slate-600 whitespace-nowrap">
+                              RM {log.pricePerLiter ? log.pricePerLiter.toFixed(2) : '-'}
+                            </td>
+                            <td className="px-4 py-3 text-right font-extrabold text-amber-800 whitespace-nowrap">
+                              RM {log.cost.toFixed(2)}
+                            </td>
+                            <td className="px-4 py-3 text-center whitespace-nowrap">
+                              {log.receiptAttachmentUrl ? (
+                                <a
+                                  href={log.receiptAttachmentUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center text-xs text-indigo-600 hover:text-indigo-800 font-bold hover:underline"
+                                >
+                                  <PaperClipIcon className="h-3.5 w-3.5 mr-1" />
+                                  Resit
+                                </a>
+                              ) : (
+                                <span className="text-slate-400 text-[11px] italic">Tiada</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-center whitespace-nowrap">
+                              <div className="flex items-center justify-center space-x-1">
+                                <button
+                                  onClick={() => handleEditFuelLog(log)}
+                                  className="p-1.5 text-slate-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition cursor-pointer"
+                                  title="Edit Rekod Minyak"
+                                >
+                                  <EditIcon className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteFuelLog(log.id)}
+                                  className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
+                                  title="Padam Rekod Minyak"
+                                >
+                                  <TrashIcon className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={10} className="px-4 py-12 text-center text-slate-400">
+                          <FuelIcon className="h-8 w-8 mx-auto text-slate-300 mb-2" />
+                          <p className="font-semibold text-slate-600">Tiada rekod minyak dijumpai</p>
+                          <p className="text-xs text-slate-400 mt-0.5">Cuba ubah penapis atau tambah rekod belian minyak baharu.</p>
+                          <button
+                            onClick={handleCreateFuelLog}
+                            className="mt-3 inline-flex items-center px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold cursor-pointer"
+                          >
+                            <PlusIcon className="h-3.5 w-3.5 mr-1" />
+                            Rekod Minyak
+                          </button>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* FLOATING BULK ACTIONS DRAWER (MUNCUL APABILA REKOD DIPILIH)                */}
+          {/* ========================================================================= */}
+          {selectedFuelLogIds.size > 0 && (
+            <div className="fixed bottom-6 inset-x-0 z-40 flex justify-center px-4 animate-in fade-in slide-in-from-bottom-5 duration-200">
+              <div className="bg-slate-900/95 text-white px-5 py-3.5 rounded-2xl shadow-2xl border border-slate-700/80 flex items-center space-x-6 backdrop-blur-md max-w-xl w-full justify-between">
+                <div className="flex items-center space-x-3">
+                  <span className="flex h-3 w-3 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+                  </span>
+                  <div>
+                    <p className="text-xs font-bold text-slate-100">
+                      {selectedFuelLogIds.size} rekod dipilih
+                    </p>
+                    <p className="text-[11px] text-slate-300">
+                      Jumlah: <strong className="text-amber-400">RM {selectedFuelMetrics.cost.toFixed(2)}</strong> ({selectedFuelMetrics.liters.toFixed(1)} L)
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={handleExportSelectedFuelLogs}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-xl text-xs font-bold text-slate-200 hover:text-white transition flex items-center cursor-pointer"
+                    title="Eksport data terpilih ke CSV"
+                  >
+                    <DocumentDownloadIcon className="h-3.5 w-3.5 mr-1" />
+                    CSV
+                  </button>
+
+                  <button
+                    onClick={handleBulkDeleteFuelLogs}
+                    disabled={isBulkDeleting}
+                    className="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-extrabold shadow-sm transition flex items-center cursor-pointer disabled:opacity-50"
+                    title="Padam rekod yang dipilih (resit Drive juga dipadam)"
+                  >
+                    <TrashIcon className="h-3.5 w-3.5 mr-1" />
+                    {isBulkDeleting ? 'Memadam...' : `Padam (${selectedFuelLogIds.size})`}
+                  </button>
+
+                  <button
+                    onClick={() => setSelectedFuelLogIds(new Set())}
+                    className="px-2 py-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition text-xs font-semibold cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
