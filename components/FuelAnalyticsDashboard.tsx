@@ -69,6 +69,7 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
   const [calcDistance, setCalcDistance] = useState<number>(100);
   const [calcVehicleId, setCalcVehicleId] = useState<string>('all');
   const [calcCustomFuelPrice, setCalcCustomFuelPrice] = useState<number>(2.05);
+  const [chartVehicleFilter, setChartVehicleFilter] = useState<string>('all');
 
   // Hover state for charts
   const [hoveredPoint, setHoveredPoint] = useState<{
@@ -318,30 +319,82 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
   // ---------------------------------------------------------------------------
   // 4. CHART 1: FUEL EFFICIENCY TREND DATA & ANOMALIES
   // ---------------------------------------------------------------------------
-  const efficiencyTrendData = useMemo(() => {
-    // Only records that have a computed efficiencyKmL
-    return filteredMetrics
-      .filter(m => m.efficiencyKmL !== null && m.efficiencyKmL > 0)
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-      .map(m => ({
+  // Determine effective vehicle for chart: if scope is specific vehicle, use that; else check chart sub-filter
+  const effectiveChartVehicleId = selectedVehicleId !== 'all' ? selectedVehicleId : chartVehicleFilter;
+
+  // Group by vehicle for individual clean polylines
+  const chartVehicleSeries = useMemo(() => {
+    const validLogs = filteredMetrics.filter(m => m.efficiencyKmL !== null && m.efficiencyKmL > 0);
+    const seriesMap = new Map<string, {
+      vehicleId: string;
+      vehicleName: string;
+      plateNumber: string;
+      baseline: number;
+      points: {
+        id: string;
+        date: string;
+        fullDate: string;
+        timestamp: number;
+        kmL: number;
+        consumption: number;
+        distance: number;
+        odometer: number;
+        vehicle: string;
+        isAnomaly: boolean;
+      }[];
+    }>();
+
+    validLogs.forEach(m => {
+      const vId = m.vehicleId || 'unknown';
+      // If chart is filtered to a specific vehicle, only include that vehicle
+      if (effectiveChartVehicleId !== 'all' && vId !== effectiveChartVehicleId) {
+        return;
+      }
+
+      if (!seriesMap.has(vId)) {
+        seriesMap.set(vId, {
+          vehicleId: vId,
+          vehicleName: m.vehicleName,
+          plateNumber: m.plateNumber,
+          baseline: Number((vehicleBaselines.get(vId) || fleetBaselineKmL).toFixed(2)),
+          points: []
+        });
+      }
+
+      seriesMap.get(vId)!.points.push({
         id: m.id,
         date: new Date(m.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
         fullDate: new Date(m.date).toISOString().split('T')[0],
+        timestamp: new Date(m.date).getTime(),
         kmL: Number(m.efficiencyKmL!.toFixed(2)),
         consumption: Number(m.consumptionL100km!.toFixed(2)),
         distance: m.tripDistance || 0,
+        odometer: m.odometer,
         vehicle: `${m.vehicleName} (${m.plateNumber})`,
         isAnomaly: m.isAnomaly,
-      }));
-  }, [filteredMetrics]);
+      });
+    });
+
+    // Sort points in each series chronologically
+    seriesMap.forEach(s => {
+      s.points.sort((a, b) => a.timestamp - b.timestamp);
+    });
+
+    return Array.from(seriesMap.values());
+  }, [filteredMetrics, effectiveChartVehicleId, vehicleBaselines, fleetBaselineKmL]);
+
+  // Flattened points for chart scale calculation
+  const allChartPoints = useMemo(() => {
+    return chartVehicleSeries.flatMap(s => s.points).sort((a, b) => a.timestamp - b.timestamp);
+  }, [chartVehicleSeries]);
 
   // Baseline line to display in Chart 1
   const activeBaseline = useMemo(() => {
-    if (selectedVehicleId !== 'all') {
-      return Number((vehicleBaselines.get(selectedVehicleId) || fleetBaselineKmL).toFixed(2));
+    if (effectiveChartVehicleId !== 'all') {
+      return Number((vehicleBaselines.get(effectiveChartVehicleId) || fleetBaselineKmL).toFixed(2));
     }
     return Number(fleetBaselineKmL.toFixed(2));
-  }, [selectedVehicleId, vehicleBaselines, fleetBaselineKmL]);
+  }, [effectiveChartVehicleId, vehicleBaselines, fleetBaselineKmL]);
 
   // ---------------------------------------------------------------------------
   // 5. CHART 2: MONTHLY SPEND VS FUEL UNIT PRICE (Combo Chart)
@@ -977,54 +1030,99 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
                   )}
                 </h3>
                 <p className="text-[11px] text-slate-500">
-                  Chronological efficiency trend with fleet baseline and automated &gt;15% degradation anomaly flags (red points).
+                  Chronological fuel efficiency per vehicle with baseline reference and static red anomaly indicators (&gt;15% degradation).
                 </p>
               </div>
 
-              {/* Legend */}
-              <div className="flex items-center gap-3 text-[11px] text-slate-600">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                  <span>Normal</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
-                  <span>Anomaly (&gt;15% drop)</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3 border-b-2 border-dashed border-slate-400"></span>
-                  <span>Baseline ({activeBaseline} km/L)</span>
+              {/* Sub-selector / Legend */}
+              <div className="flex items-center flex-wrap gap-3 text-[11px] text-slate-600">
+                {selectedVehicleId === 'all' && vehicles.length > 1 && (
+                  <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg text-[10px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setChartVehicleFilter('all')}
+                      className={`px-2 py-0.5 rounded transition ${
+                        chartVehicleFilter === 'all' 
+                          ? 'bg-white text-slate-900 shadow-xs' 
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      All
+                    </button>
+                    {vehicles.slice(0, 3).map(v => (
+                      <button
+                        key={v.id}
+                        type="button"
+                        onClick={() => setChartVehicleFilter(v.id)}
+                        className={`px-2 py-0.5 rounded transition ${
+                          chartVehicleFilter === v.id 
+                            ? 'bg-white text-slate-900 shadow-xs' 
+                            : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                      >
+                        {v.name.split(' ')[0]}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
+                    <span>Normal</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-600"></span>
+                    <span>Anomaly</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="w-3 border-b-2 border-dashed border-slate-400"></span>
+                    <span>Baseline ({activeBaseline} km/L)</span>
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* SVG Responsive Line Chart */}
             <div className="mt-4 relative min-h-[220px]">
-              {efficiencyTrendData.length > 1 ? (
+              {allChartPoints.length > 1 ? (
                 (() => {
                   const width = 640;
                   const height = 200;
                   const padding = { top: 20, right: 30, bottom: 35, left: 40 };
 
-                  const minVal = Math.min(...efficiencyTrendData.map(d => d.kmL), activeBaseline * 0.7, 5);
-                  const maxVal = Math.max(...efficiencyTrendData.map(d => d.kmL), activeBaseline * 1.3, 20);
+                  const minVal = Math.max(0, Math.min(...allChartPoints.map(d => d.kmL), activeBaseline * 0.7) - 2);
+                  const maxVal = Math.max(...allChartPoints.map(d => d.kmL), activeBaseline * 1.3) + 2;
                   const valRange = maxVal - minVal || 1;
 
                   const chartW = width - padding.left - padding.right;
                   const chartH = height - padding.top - padding.bottom;
 
-                  const getX = (idx: number) => padding.left + (idx / (efficiencyTrendData.length - 1)) * chartW;
-                  const getY = (val: number) => height - padding.bottom - ((val - minVal) / valRange) * chartH;
+                  const minTime = Math.min(...allChartPoints.map(d => d.timestamp));
+                  const maxTime = Math.max(...allChartPoints.map(d => d.timestamp));
+                  const timeRange = maxTime - minTime || 1;
 
+                  const getXByTime = (ts: number, idx: number, total: number) => {
+                    if (timeRange > 0 && maxTime !== minTime) {
+                      return padding.left + ((ts - minTime) / timeRange) * chartW;
+                    }
+                    return padding.left + (idx / Math.max(1, total - 1)) * chartW;
+                  };
+
+                  const getY = (val: number) => height - padding.bottom - ((val - minVal) / valRange) * chartH;
                   const baselineY = getY(activeBaseline);
 
-                  // Construct polyline path
-                  const pointsPath = efficiencyTrendData
-                    .map((d, i) => `${getX(i)},${getY(d.kmL)}`)
-                    .join(' ');
+                  const palette = ['#059669', '#2563eb', '#7c3aed', '#d97706', '#db2777'];
 
                   return (
                     <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto overflow-visible select-none">
+                      <defs>
+                        <linearGradient id="efficiencyAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#059669" stopOpacity="0.15" />
+                          <stop offset="100%" stopColor="#059669" stopOpacity="0.0" />
+                        </linearGradient>
+                      </defs>
+
                       {/* Gridlines */}
                       {[0, 0.25, 0.5, 0.75, 1].map((pct, i) => {
                         const yVal = minVal + pct * valRange;
@@ -1071,75 +1169,90 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
                         textAnchor="end"
                         fontWeight="bold"
                       >
-                        Avg Baseline: {activeBaseline} km/L
+                        Baseline: {activeBaseline} km/L
                       </text>
 
-                      {/* Main Trend Line */}
-                      <polyline
-                        fill="none"
-                        stroke="#059669"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        points={pointsPath}
-                      />
+                      {/* Render Each Vehicle Series Line */}
+                      {chartVehicleSeries.map((series, sIdx) => {
+                        if (series.points.length === 0) return null;
+                        const color = palette[sIdx % palette.length];
 
-                      {/* Data Dots with Anomaly Highlighting */}
-                      {efficiencyTrendData.map((d, i) => {
-                        const cx = getX(i);
-                        const cy = getY(d.kmL);
+                        const pointsPath = series.points
+                          .map((d, i) => `${getXByTime(d.timestamp, i, series.points.length)},${getY(d.kmL)}`)
+                          .join(' ');
 
                         return (
-                          <g 
-                            key={d.id} 
-                            className="cursor-pointer group"
-                            onMouseEnter={() => setHoveredPoint({
-                              date: d.fullDate,
-                              vehicle: d.vehicle,
-                              kmL: d.kmL,
-                              consumption: d.consumption,
-                              distance: d.distance,
-                              isAnomaly: d.isAnomaly,
-                              x: cx,
-                              y: cy
-                            })}
-                            onMouseLeave={() => setHoveredPoint(null)}
-                          >
-                            {/* Anomaly outer pulse ring */}
-                            {d.isAnomaly && (
-                              <circle
-                                cx={cx}
-                                cy={cy}
-                                r="8"
-                                fill="#f43f5e"
-                                opacity="0.3"
-                                className="animate-ping"
+                          <g key={series.vehicleId}>
+                            {/* Line connecting points for this vehicle */}
+                            {series.points.length > 1 && (
+                              <polyline
+                                fill="none"
+                                stroke={color}
+                                strokeWidth="2.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                points={pointsPath}
                               />
                             )}
 
-                            <circle
-                              cx={cx}
-                              cy={cy}
-                              r={d.isAnomaly ? '5.5' : '4'}
-                              fill={d.isAnomaly ? '#e11d48' : '#10b981'}
-                              stroke="#ffffff"
-                              strokeWidth="2"
-                              className="transition-transform group-hover:scale-125"
-                            />
+                            {/* Data Points */}
+                            {series.points.map((d, pIdx) => {
+                              const cx = getXByTime(d.timestamp, pIdx, series.points.length);
+                              const cy = getY(d.kmL);
 
-                            {/* X-axis date labels (show every few points to prevent collision) */}
-                            {(i === 0 || i === efficiencyTrendData.length - 1 || i % Math.max(1, Math.floor(efficiencyTrendData.length / 6)) === 0) && (
-                              <text
-                                x={cx}
-                                y={height - 12}
-                                fontSize="9"
-                                fill="#64748b"
-                                textAnchor="middle"
-                                fontWeight="500"
-                              >
-                                {d.date}
-                              </text>
-                            )}
+                              return (
+                                <g 
+                                  key={d.id} 
+                                  className="cursor-pointer"
+                                  onMouseEnter={() => setHoveredPoint({
+                                    date: d.fullDate,
+                                    vehicle: d.vehicle,
+                                    kmL: d.kmL,
+                                    consumption: d.consumption,
+                                    distance: d.distance,
+                                    isAnomaly: d.isAnomaly,
+                                    x: cx,
+                                    y: cy
+                                  })}
+                                  onMouseLeave={() => setHoveredPoint(null)}
+                                >
+                                  {/* Static Anomaly Warning Ring (No animation glitches) */}
+                                  {d.isAnomaly && (
+                                    <circle
+                                      cx={cx}
+                                      cy={cy}
+                                      r="7.5"
+                                      fill="none"
+                                      stroke="#f43f5e"
+                                      strokeWidth="1.5"
+                                    />
+                                  )}
+
+                                  <circle
+                                    cx={cx}
+                                    cy={cy}
+                                    r={d.isAnomaly ? '4.5' : '3.5'}
+                                    fill={d.isAnomaly ? '#e11d48' : color}
+                                    stroke="#ffffff"
+                                    strokeWidth="1.5"
+                                  />
+
+                                  {/* X-axis date labels */}
+                                  {(pIdx === 0 || pIdx === series.points.length - 1 || pIdx % Math.max(1, Math.floor(series.points.length / 5)) === 0) && (
+                                    <text
+                                      x={cx}
+                                      y={height - 12}
+                                      fontSize="9"
+                                      fill="#64748b"
+                                      textAnchor="middle"
+                                      fontWeight="500"
+                                    >
+                                      {d.date}
+                                    </text>
+                                  )}
+                                </g>
+                              );
+                            })}
                           </g>
                         );
                       })}
