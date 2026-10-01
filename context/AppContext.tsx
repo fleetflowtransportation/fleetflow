@@ -34,6 +34,7 @@ interface AppContextType {
   updateBookingsStatusBulk: (bookingIds: string[], status: Booking['status']) => Promise<void>;
   assignBookingsBulk: (bookingIds: string[], driverId: string, vehicleId: string) => Promise<void>;
   addFuelLog: (log: Omit<FuelLog, 'id'>) => void;
+  addFuelLogsBulk: (logs: (Omit<FuelLog, 'id'> & { id?: string })[]) => Promise<number>;
   updateFuelLog: (logId: string, updatedData: Partial<Omit<FuelLog, 'id'>>) => void;
   deleteFuelLog: (logId: string) => void;
   addOdometerLog: (log: Omit<OdometerLog, 'id'>) => void;
@@ -1233,6 +1234,43 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   }, [bookings, clearUndoState]);
 
+  const addFuelLogsBulk = useCallback(async (newLogsData: (Omit<FuelLog, 'id'> & { id?: string })[]): Promise<number> => {
+    if (!newLogsData || newLogsData.length === 0) return 0;
+
+    const newLogs: FuelLog[] = newLogsData.map(log => ({
+      ...log,
+      id: log.id && log.id.trim() ? log.id.trim() : tempId('fuel'),
+      tenantId: log.tenantId || activeTenant?.id || 'yck',
+    }));
+
+    // Update state immediately
+    setFuelLogs(prev => {
+      const existingIds = new Set(prev.map(l => l.id));
+      const filteredNew = newLogs.filter(l => !existingIds.has(l.id));
+      return [...filteredNew, ...prev].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    });
+
+    // Bulk persist to database
+    await storageService.createFuelLogsBulk(newLogs);
+
+    // Also update vehicles' odometers to highest reading
+    const odoMap = new Map<string, number>();
+    for (const log of newLogs) {
+      if (log.vehicleId && log.odometer) {
+        const cur = odoMap.get(log.vehicleId) || 0;
+        if (log.odometer > cur) odoMap.set(log.vehicleId, log.odometer);
+      }
+    }
+    for (const [vId, maxOdo] of odoMap.entries()) {
+      const targetVehicle = vehicles.find(v => v.id === vId);
+      if (targetVehicle && (targetVehicle.odometer === undefined || maxOdo > targetVehicle.odometer)) {
+        updateVehicle(vId, { odometer: maxOdo });
+      }
+    }
+
+    return newLogs.length;
+  }, [activeTenant, vehicles, updateVehicle]);
+
   const addSelfDriveStaff = useCallback(async (staffData: Omit<SelfDriveStaff, 'id' | 'createdAt'>): Promise<SelfDriveStaff> => {
     const id = tempId('staff-sds');
     const newStaff: SelfDriveStaff = {
@@ -1417,6 +1455,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       updateBookingsStatusBulk,
       assignBookingsBulk,
       addFuelLog,
+      addFuelLogsBulk,
       updateFuelLog,
       deleteFuelLog,
       addOdometerLog,

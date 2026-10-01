@@ -894,6 +894,21 @@ export const storageService = {
     return data;
   },
 
+  createFuelLogsBulk: async (dataList: FuelLog[]): Promise<FuelLog[]> => {
+    try {
+      const dbRows = dataList.map(toDbFuelLog);
+      const { error } = await supabase.from('fuel_logs').insert(dbRows);
+      if (error) {
+        console.error('[Supabase] createFuelLogsBulk error:', error.message);
+        throw error;
+      }
+    } catch (err: any) {
+      console.error('[Supabase] createFuelLogsBulk exception:', err.message);
+      throw err;
+    }
+    return dataList;
+  },
+
   updateFuelLog: async (data: Partial<FuelLog> & { id: string }): Promise<any> => {
     try {
       const dbRow = toDbFuelLog(data);
