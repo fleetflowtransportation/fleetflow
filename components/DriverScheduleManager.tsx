@@ -186,11 +186,12 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
   };
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+    <div className="space-y-6">
+      {/* Top Header Card */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white rounded-2xl p-5 sm:p-6 shadow-xs border border-gray-200">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Driver Shift & Duty Roster</h2>
-          <p className="text-gray-600 mt-0.5 text-xs sm:text-sm">
+          <p className="text-gray-500 mt-1 text-xs sm:text-sm">
             {isEditable 
               ? 'Click any date to assign a shift. Click existing shifts to edit or delete.' 
               : 'Driver shift rosters and duty schedule overview (Read-Only View).'}

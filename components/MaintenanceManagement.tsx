@@ -280,7 +280,7 @@ const MaintenanceManagement: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="w-full space-y-6">
       
       {/* Top Banner & Header */}
       <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">

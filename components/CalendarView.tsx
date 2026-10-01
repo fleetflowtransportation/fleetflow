@@ -198,7 +198,6 @@ const calculateDayCollisionLayout = (
   return result;
 };
 
-// Detail Modal - Clean white aesthetic
 interface BookingDetailModalProps {
   booking: Booking | null;
   onClose: () => void;
@@ -226,51 +225,85 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
   const users = (propUsers && propUsers.length > 0) ? propUsers : (context?.users || []);
   const vehicles = (propVehicles && propVehicles.length > 0) ? propVehicles : (context?.vehicles || []);
   const updateBooking = context?.updateBooking || (async () => {});
-  const [isChangingDriver, setIsChangingDriver] = useState(false);
-  const [newDriverId, setNewDriverId] = useState(booking?.driverId || '');
-  const [isSavingDriver, setIsSavingDriver] = useState(false);
+
+  const [isChangingAssignment, setIsChangingAssignment] = useState(false);
+  const [selectedDriverId, setSelectedDriverId] = useState('');
+  const [selectedVehicleId, setSelectedVehicleId] = useState('');
+  const [selectedServiceType, setSelectedServiceType] = useState<'Perlu Driver' | 'Self-Drive'>('Perlu Driver');
+  const [isSavingAssignment, setIsSavingAssignment] = useState(false);
+  const [assignmentFeedback, setAssignmentFeedback] = useState<string | null>(null);
 
   useEffect(() => {
-    setNewDriverId(booking?.driverId || '');
-    setIsChangingDriver(false);
+    if (booking) {
+      setSelectedDriverId(booking.driverId || '');
+      setSelectedVehicleId(booking.vehicleId || '');
+      setSelectedServiceType(booking.serviceType === 'Self-Drive' ? 'Self-Drive' : 'Perlu Driver');
+      setIsChangingAssignment(false);
+      setAssignmentFeedback(null);
+    }
   }, [booking]);
 
   if (!booking) return null;
 
-  const driverName = users.find(d => d.id === booking.driverId)?.name || 
-    (booking.serviceType === 'Self-Drive' ? 'Self-Drive' : 'Unassigned');
-  const vehicleInfo = vehicles.find(v => v.id === booking.vehicleId) ||
+  const currentDriver = users.find(d => d.id === booking.driverId);
+  const driverName = currentDriver?.name || (booking.serviceType === 'Self-Drive' ? 'Self-Drive' : 'Unassigned');
+  
+  const currentVehicle = vehicles.find(v => v.id === booking.vehicleId) ||
     vehicles.find(v => v.name.toLowerCase() === (booking.vehiclePreference || '').toLowerCase());
-  const totalPassengers = booking.passengers ? booking.passengers.reduce((sum, p) => sum + p.count, 0) : 0;
+  
+  const vehicleDisplayName = currentVehicle 
+    ? `${currentVehicle.name} (${currentVehicle.plateNumber})` 
+    : (booking.vehiclePreference || '🚗 No Preference / Driver Choice');
 
+  const totalPassengers = booking.passengers ? booking.passengers.reduce((sum, p) => sum + p.count, 0) : 0;
   const staffCount = booking.passengers?.find(p => p.category === 'Staff')?.count ?? 0;
   const kidsCount = booking.passengers?.find(p => p.category === 'Kids')?.count ?? 0;
   const teenagersCount = booking.passengers?.find(p => p.category === 'Teenagers')?.count ?? 0;
 
-  const handleConfirmDriverChange = async () => {
-    if (!isAdmin) return;
-    setIsSavingDriver(true);
-    try {
-      const chosenDriver = users.find(u => u.id === newDriverId);
-      const chosenDriverName = chosenDriver?.name || (booking.serviceType === 'Self-Drive' ? 'Self-Drive' : '');
-      const deptStr = booking.department ? ` (${booking.department})` : '';
-      const updatedTitle = chosenDriverName
-        ? `(${chosenDriverName}) ${booking.requesterName}${deptStr} → ${booking.destination}`
-        : `${booking.requesterName}${deptStr} → ${booking.destination}`;
-      const newColor = chosenDriver ? getDriverCalendarColor(chosenDriver.name) : 'grey';
+  const availableDrivers = users.filter(u => {
+    const r = (u.role || '').toLowerCase();
+    return r === 'driver' || r === 'staff' || u.id === 'driver-aziz';
+  });
 
-      updateBooking(booking.id, {
-        driverId: newDriverId || null,
+  const handleConfirmAssignmentChange = async () => {
+    if (!isAdmin) return;
+    setIsSavingAssignment(true);
+    setAssignmentFeedback(null);
+    try {
+      const isSelfDrive = selectedDriverId === 'self-drive' || selectedServiceType === 'Self-Drive';
+      const chosenDriver = !isSelfDrive ? users.find(u => u.id === selectedDriverId) : null;
+      const driverLabel = isSelfDrive ? 'Self-Drive' : (chosenDriver?.name || '');
+      
+      const deptStr = booking.department ? ` (${booking.department})` : '';
+      const updatedTitle = driverLabel
+        ? `(${driverLabel}) ${booking.requesterName}${deptStr} → ${booking.destination}`
+        : `${booking.requesterName}${deptStr} → ${booking.destination}`;
+      
+      const newColor = isSelfDrive ? 'grey' : (chosenDriver ? getDriverCalendarColor(chosenDriver.name) : 'grey');
+
+      const chosenVehicle = selectedVehicleId ? vehicles.find(v => v.id === selectedVehicleId) : null;
+      const newVehiclePref = chosenVehicle ? chosenVehicle.name : 'No Preference / Driver Choice';
+
+      await updateBooking(booking.id, {
+        driverId: isSelfDrive ? null : (selectedDriverId || null),
+        serviceType: isSelfDrive ? 'Self-Drive' : 'Perlu Driver',
+        vehicleId: chosenVehicle ? chosenVehicle.id : null,
+        vehiclePreference: newVehiclePref,
         calendarEventTitle: updatedTitle,
         calendarColor: newColor,
-        status: newDriverId ? 'Confirmed' : booking.status,
-        adminNotes: `Driver updated to ${chosenDriver?.name || 'Unassigned'} at ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}.`,
+        status: (selectedDriverId || isSelfDrive) ? 'Confirmed' : booking.status,
+        adminNotes: `Reassigned to Driver: ${driverLabel || 'Unassigned'} | Vehicle: ${chosenVehicle ? chosenVehicle.name : 'No Preference (Driver Choice)'} at ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}.`,
       });
-      setIsChangingDriver(false);
+
+      setAssignmentFeedback('Assignment updated successfully!');
+      setTimeout(() => {
+        setIsChangingAssignment(false);
+        setAssignmentFeedback(null);
+      }, 1200);
     } catch (e: any) {
-      alert('Error updating driver: ' + (e.message || e));
+      alert('Error updating assignment: ' + (e.message || e));
     } finally {
-      setIsSavingDriver(false);
+      setIsSavingAssignment(false);
     }
   };
 
@@ -288,10 +321,8 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
     onClose();
   };
 
-  const style = getEventCardStyle(booking, driverName);
-
   return (
-    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex justify-center items-center p-3 sm:p-4 animate-in fade-in duration-150" onClick={onClose}>
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex justify-center items-center p-3 sm:p-4 animate-in fade-in duration-150" onClick={onClose}>
       <div className="bg-white text-slate-800 rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden border border-slate-200" onClick={e => e.stopPropagation()}>
         
         {/* Header */}
@@ -299,14 +330,15 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
           <div className="flex-1 pr-3">
             <div className="flex items-center gap-2 mb-1.5 flex-wrap">
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                booking.status === 'Confirmed' ? 'bg-emerald-100 text-emerald-800' :
-                booking.status === 'Conflict' ? 'bg-rose-100 text-rose-800' :
-                booking.status === 'Completed' ? 'bg-blue-100 text-blue-800' :
-                'bg-amber-100 text-amber-800'
+                booking.status === 'Confirmed' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                booking.status === 'Conflict' ? 'bg-rose-100 text-rose-800 border border-rose-200' :
+                booking.status === 'Completed' ? 'bg-blue-100 text-blue-800 border border-blue-200' :
+                booking.status === 'Cancelled' ? 'bg-slate-100 text-slate-700 border border-slate-200' :
+                'bg-amber-100 text-amber-800 border border-amber-200'
               }`}>
                 {booking.status}
               </span>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-200 text-slate-700">
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-200 text-slate-800 border border-slate-300">
                 {booking.serviceType === 'Self-Drive' ? '🚗 Self-Drive' : `👤 ${driverName}`}
               </span>
             </div>
@@ -322,14 +354,163 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
             </p>
           </div>
 
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-200 transition cursor-pointer">
-            <XIcon className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            {isAdmin && (
+              <>
+                <button 
+                  onClick={handleEditClick}
+                  title="Edit Booking" 
+                  className="p-1.5 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition cursor-pointer"
+                >
+                  <EditIcon className="h-4 w-4" />
+                </button>
+                <button 
+                  onClick={handleDeleteClick}
+                  title="Delete Booking" 
+                  className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                >
+                  <TrashIcon className="h-4 w-4" />
+                </button>
+              </>
+            )}
+            <button 
+              onClick={onClose} 
+              className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-200 transition cursor-pointer ml-1"
+            >
+              <XIcon className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         {/* Content Body */}
         <div className="p-4 sm:p-6 space-y-4 max-h-[75vh] overflow-y-auto text-xs sm:text-sm text-slate-700">
           
+          {/* DRIVER & VEHICLE REASSIGNMENT CARD (ADMIN) */}
+          <div className="p-3.5 bg-indigo-50/70 rounded-xl border border-indigo-200 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-indigo-600 text-white rounded-lg">
+                  <TruckIcon className="h-4 w-4" />
+                </div>
+                <div>
+                  <span className="text-[11px] font-extrabold text-indigo-950 uppercase tracking-wider block">
+                    Driver & Vehicle Assignment
+                  </span>
+                  <span className="text-[10px] text-indigo-700 font-medium">
+                    Manage driver allocation and assigned fleet vehicle
+                  </span>
+                </div>
+              </div>
+
+              {isAdmin && !isChangingAssignment && (
+                <button
+                  onClick={() => setIsChangingAssignment(true)}
+                  className="px-2.5 py-1 text-xs font-bold text-indigo-700 bg-white hover:bg-indigo-100 border border-indigo-300 rounded-lg shadow-2xs transition cursor-pointer"
+                >
+                  ✏️ Change
+                </button>
+              )}
+            </div>
+
+            {assignmentFeedback && (
+              <div className="p-2 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-bold text-center">
+                ✓ {assignmentFeedback}
+              </div>
+            )}
+
+            {isChangingAssignment && isAdmin ? (
+              <div className="space-y-3 pt-2 border-t border-indigo-200">
+                {/* Driver Selection */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                    Assign Driver
+                  </label>
+                  <select
+                    value={selectedDriverId}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSelectedDriverId(val);
+                      if (val === 'self-drive') {
+                        setSelectedServiceType('Self-Drive');
+                      } else {
+                        setSelectedServiceType('Perlu Driver');
+                      }
+                    }}
+                    className="w-full bg-white text-slate-900 rounded-xl px-3 py-2 text-xs border border-indigo-200 focus:ring-2 focus:ring-indigo-500 font-semibold"
+                  >
+                    <option value="">❌ Unassigned / Tiada Pemandu</option>
+                    <option value="self-drive">🚗 Self-Drive (Kakitangan Pandu Sendiri)</option>
+                    <optgroup label="Dedicated Drivers">
+                      {availableDrivers.map(u => (
+                        <option key={u.id} value={u.id}>
+                          👤 {u.name} ({u.role})
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>
+                </div>
+
+                {/* Vehicle Selection with 'No Preference' option */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                    Vehicle Option
+                  </label>
+                  <select
+                    value={selectedVehicleId}
+                    onChange={(e) => setSelectedVehicleId(e.target.value)}
+                    className="w-full bg-white text-slate-900 rounded-xl px-3 py-2 text-xs border border-indigo-200 focus:ring-2 focus:ring-indigo-500 font-semibold"
+                  >
+                    <option value="">
+                      🚗 Tiada Pilihan / Pemandu Pilih Sendiri (No Preference - Driver's Choice)
+                    </option>
+                    <optgroup label="Fleet Vehicles">
+                      {vehicles.map(v => (
+                        <option key={v.id} value={v.id}>
+                          🚐 {v.name} ({v.plateNumber}) {v.vehicleType ? `- ${v.vehicleType}` : ''}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    💡 Pilih "Tiada Pilihan" supaya pemandu boleh tentukan kenderaan yang sesuai mengikut keselesaan atau ketersediaan.
+                  </p>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-2 justify-end pt-1">
+                  <button
+                    onClick={() => {
+                      setIsChangingAssignment(false);
+                      setSelectedDriverId(booking.driverId || '');
+                      setSelectedVehicleId(booking.vehicleId || '');
+                    }}
+                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleConfirmAssignmentChange}
+                    disabled={isSavingAssignment}
+                    className="px-3.5 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition cursor-pointer"
+                  >
+                    {isSavingAssignment ? 'Saving...' : 'Save Assignment'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                <div className="bg-white/80 p-2.5 rounded-lg border border-indigo-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Driver</span>
+                  <p className="font-bold text-slate-900 mt-0.5">{driverName}</p>
+                </div>
+                <div className="bg-white/80 p-2.5 rounded-lg border border-indigo-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Vehicle</span>
+                  <p className="font-bold text-slate-900 mt-0.5">{vehicleDisplayName}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Destination & Pickup Card */}
           <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
             <div className="flex items-start gap-2.5">
@@ -408,72 +589,6 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
             )}
           </div>
 
-          {/* Allocated Vehicle */}
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <TruckIcon className="h-4 w-4 text-indigo-600 shrink-0" />
-              <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase block">Allocated Vehicle</span>
-                <p className="font-bold text-slate-900 text-xs">
-                  {vehicleInfo ? `${vehicleInfo.name} (${vehicleInfo.plateNumber})` : (booking.vehiclePreference || 'Any available')}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Driver Management (Admin Only) */}
-          {isAdmin && (
-            <div className="p-3.5 bg-indigo-50/70 rounded-xl border border-indigo-200 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-indigo-900 uppercase tracking-wider">Driver Reassignment</span>
-                {!isChangingDriver && (
-                  <button
-                    onClick={() => setIsChangingDriver(true)}
-                    className="text-[11px] font-bold text-indigo-700 hover:text-indigo-900 underline cursor-pointer"
-                  >
-                    Change Driver
-                  </button>
-                )}
-              </div>
-
-              {isChangingDriver ? (
-                <div className="space-y-2 pt-1">
-                  <select
-                    value={newDriverId}
-                    onChange={(e) => setNewDriverId(e.target.value)}
-                    className="w-full bg-white text-slate-900 rounded-lg px-3 py-2 text-xs border border-slate-300 focus:ring-2 focus:ring-indigo-500 font-medium"
-                  >
-                    <option value="">-- Select Driver --</option>
-                    {users.filter(u => u.role === 'Driver' || u.role === 'Staff').map(u => (
-                      <option key={u.id} value={u.id}>
-                        {u.name} ({u.role})
-                      </option>
-                    ))}
-                  </select>
-                  <div className="flex gap-2 justify-end">
-                    <button
-                      onClick={() => setIsChangingDriver(false)}
-                      className="px-2.5 py-1 text-xs rounded bg-slate-200 hover:bg-slate-300 text-slate-700"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleConfirmDriverChange}
-                      disabled={isSavingDriver}
-                      className="px-3 py-1 text-xs font-bold rounded bg-indigo-600 hover:bg-indigo-700 text-white"
-                    >
-                      {isSavingDriver ? 'Saving...' : 'Save Driver'}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-xs font-medium text-slate-700">
-                  Current: <span className="font-bold text-slate-900">{driverName}</span>
-                </p>
-              )}
-            </div>
-          )}
-
         </div>
 
         {/* Footer Actions */}
@@ -482,7 +597,7 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
             <>
               <button
                 onClick={handleDeleteClick}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100 rounded-xl border border-rose-200 transition cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100 rounded-xl border border-rose-200 transition cursor-pointer"
               >
                 <TrashIcon className="h-4 w-4" />
                 <span>Delete</span>
@@ -491,14 +606,14 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleEditClick}
-                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-xl transition cursor-pointer"
+                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl transition cursor-pointer"
                 >
                   <EditIcon className="h-4 w-4" />
-                  <span>Edit Trip</span>
+                  <span>Edit Full Booking</span>
                 </button>
                 <button
                   onClick={onClose}
-                  className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition cursor-pointer"
+                  className="px-4 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-xl transition cursor-pointer"
                 >
                   Close
                 </button>
@@ -552,7 +667,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const isAdmin = useMemo(() => {
     if (isPublic) return false;
     if (!currentUser) return false;
-    return currentUser.role === 'Admin' || currentUser.role === 'SuperAdmin';
+    const roleLower = (currentUser.role || '').toLowerCase();
+    return roleLower === 'admin' || roleLower === 'superadmin' || !!currentUser.isOwner;
   }, [isPublic, currentUser]);
 
   const [viewMode, setViewMode] = useState<CalendarViewMode>(defaultView);
@@ -574,7 +690,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Filtered drivers list
   const driversList = useMemo(() => {
-    return users.filter(u => u.role === 'Driver' || u.role === 'Staff');
+    return users.filter(u => {
+      const r = (u.role || '').toLowerCase();
+      return r === 'driver' || r === 'staff' || u.id === 'driver-aziz';
+    });
   }, [users]);
 
   const getDriverName = useCallback((driverId?: string | null) => {

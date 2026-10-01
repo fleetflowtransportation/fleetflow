@@ -358,18 +358,19 @@ const VehicleManagement: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+    <div className="space-y-6">
+      {/* Top Header Card */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white rounded-2xl p-5 sm:p-6 shadow-xs border border-gray-200">
         <div>
-          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Vehicle Fleet</h2>
-          <p className="text-xs text-gray-500 mt-0.5">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Vehicle Fleet</h2>
+          <p className="text-xs sm:text-sm text-gray-500 mt-1">
             Fleet assets, vehicle statuses, and compliance management.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={handleCreateVehicle}
-            className="flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 text-sm"
+            className="flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-md transition duration-200 transform hover:scale-105 text-sm cursor-pointer whitespace-nowrap"
           >
             <PlusIcon className="h-5 w-5 mr-2" />
             Add Vehicle
@@ -378,11 +379,11 @@ const VehicleManagement: React.FC = () => {
       </div>
 
       {/* Dashboard Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <StatCard icon={<TruckIcon className="h-6 w-6 text-indigo-800" />} title="Total Vehicles" value={dashboardStats.total} color="bg-indigo-100" />
-          <StatCard icon={<RouteIcon className="h-6 w-6 text-blue-800" />} title="On Active Trips" value={dashboardStats.onTrip} color="bg-blue-100" />
-          <StatCard icon={<ExclamationIcon className="h-6 w-6 text-yellow-800" />} title="With Open Issues" value={dashboardStats.withIssues} color="bg-yellow-100" />
-          <StatCard icon={<XCircleIcon className="h-6 w-6 text-red-800" />} title="Out of Service" value={dashboardStats.outOfService} color="bg-red-100" />
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <StatCard icon={<TruckIcon className="h-6 w-6 text-indigo-800" />} title="Total Vehicles" value={dashboardStats.total} color="bg-indigo-100" />
+        <StatCard icon={<RouteIcon className="h-6 w-6 text-blue-800" />} title="On Active Trips" value={dashboardStats.onTrip} color="bg-blue-100" />
+        <StatCard icon={<ExclamationIcon className="h-6 w-6 text-yellow-800" />} title="With Open Issues" value={dashboardStats.withIssues} color="bg-yellow-100" />
+        <StatCard icon={<XCircleIcon className="h-6 w-6 text-red-800" />} title="Out of Service" value={dashboardStats.outOfService} color="bg-red-100" />
       </div>
 
       {/* Filters */}

@@ -186,10 +186,13 @@ const BookingArchive: React.FC = () => {
 
 
   return (
-    <div className="max-w-7xl mx-auto">
-      <div className="mb-6">
-        <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Booking Archive</h2>
-        <p className="text-gray-600 mt-1">View, restore, or delete past bookings.</p>
+    <div className="space-y-6">
+      {/* Top Header Card */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white rounded-2xl p-5 sm:p-6 shadow-xs border border-gray-200">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Booking Archive</h2>
+          <p className="text-gray-500 mt-1 text-xs sm:text-sm">View, restore, or permanently delete past and cancelled bookings.</p>
+        </div>
       </div>
 
       <FilterControls

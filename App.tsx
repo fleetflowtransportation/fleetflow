@@ -79,8 +79,20 @@ const App: React.FC = () => {
         return <BookingManagementList />;
       case 'calendar':
         return (
-          <div className="max-w-7xl mx-auto">
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6">Booking Calendar</h2>
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-xs border border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-3">
+                  <span>Fleet Calendar</span>
+                  <span className="text-xs font-bold px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full">
+                    Live Schedule
+                  </span>
+                </h1>
+                <p className="text-sm text-gray-500 mt-1">
+                  Interactive multi-view calendar for vehicle trips, driver assignments, and booking schedules.
+                </p>
+              </div>
+            </div>
             <CalendarView />
           </div>
         );
@@ -129,7 +141,7 @@ const App: React.FC = () => {
           }
         }}
       />
-      <main className="p-4 sm:p-6 lg:p-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
         {renderContent()}
       </main>
       <UndoToast />

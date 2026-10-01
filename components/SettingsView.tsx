@@ -794,7 +794,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
   ];
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="w-full space-y-6">
       {/* Page Header */}
       <div className="bg-white rounded-2xl p-6 shadow-xs border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
