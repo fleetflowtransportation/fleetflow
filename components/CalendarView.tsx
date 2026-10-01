@@ -30,7 +30,7 @@ const MONTH_NAMES = [
 const DAY_NAMES_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const DAY_NAMES_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-// Clean, soothing, professional color palette matching the original FleetFlow app
+// Clean, soothing, professional color palette matching Armada Flow app
 export const EVENT_CARD_COLORS = {
   syafiq: {
     bg: 'bg-blue-50 hover:bg-blue-100/90',
@@ -947,7 +947,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         />
       )}
 
-      {/* Main Calendar Container - Clean White FleetFlow Design */}
+      {/* Main Calendar Container - Clean White Armada Flow Design */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 text-slate-800 flex flex-col overflow-hidden">
         
         {/* ========================================================
@@ -1476,7 +1476,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         )}
 
         {/* ========================================================
-            VIEW 4: MONTH VIEW (Original Clean FleetFlow Design)
+            VIEW 4: MONTH VIEW (Clean Armada Flow Design)
             ======================================================== */}
         {viewMode === 'month' && (
           <div className="overflow-x-auto">

@@ -10,7 +10,7 @@ export const parseAsLocal = (dateStr: string | Date | undefined | null): Date =>
     const cleaned = String(dateStr).trim();
 
     // 1. Standard ISO or database datetime string (e.g. 2026-09-19T10:30:00, 2026-09-19T10:30:00+00:00, 2026-09-19T10:30:00Z)
-    // In FleetFlow, the wall-clock time in the date string represents the local Malaysia booking schedule.
+    // In Armada Flow, the wall-clock time in the date string represents the local Malaysia booking schedule.
     // We extract year, month, day, hour, minute directly so UTC offsets from the DB do not shift the time by +8 hours.
     const isoMatch = cleaned.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/);
     if (isoMatch) {

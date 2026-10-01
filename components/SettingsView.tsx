@@ -32,7 +32,7 @@ export type SettingsSubTab =
   | 'danger';
 
 export const GOOGLE_APPS_SCRIPT_CODE = `// =========================================================================
-// FleetFlow Google Apps Script (Code.gs)
+// Armada Flow Google Apps Script (Code.gs)
 // Supports: Google Calendar (Create, Update, Delete), Drive & Connection Testing
 // =========================================================================
 
@@ -40,7 +40,7 @@ function doGet(e) {
   return ContentService.createTextOutput(JSON.stringify({
     status: "success",
     success: true,
-    message: "FleetFlow Google Apps Script Web App is active and ready to receive requests.",
+    message: "Armada Flow Google Apps Script Web App is active and ready to receive requests.",
     timestamp: new Date().toISOString()
   })).setMimeType(ContentService.MimeType.JSON);
 }
@@ -109,7 +109,7 @@ function doPost(e) {
         } catch (err) {}
       }
 
-      var title = data.title || data.summary || "FleetFlow Vehicle Booking";
+      var title = data.title || data.summary || "Armada Flow Vehicle Booking";
       var description = data.description || "";
       var location = data.location || "";
       var requesterEmail = data.requesterEmail || data.guests || data.guestEmail || "";
@@ -153,7 +153,7 @@ function doPost(e) {
               to: requesterEmail,
               subject: data.emailSubject || ("📝 Booking Updated: " + title),
               htmlBody: data.emailHtml || ("<p>Your booking <strong>" + title + "</strong> has been updated.</p>"),
-              name: "FleetFlow Transport"
+              name: "Armada Flow Transport"
             });
           } catch (mErr) {}
         }
@@ -191,7 +191,7 @@ function doPost(e) {
               to: requesterEmail,
               subject: data.emailSubject || ("📝 Booking Updated: " + title),
               htmlBody: data.emailHtml || ("<p>Your booking <strong>" + title + "</strong> has been updated.</p>"),
-              name: "FleetFlow Transport"
+              name: "Armada Flow Transport"
             });
           } catch (mErr) {
             Logger.log("Requester email err: " + mErr.toString());
@@ -205,7 +205,7 @@ function doPost(e) {
               to: driverEmail,
               subject: data.driverEmailSubject || ("📝 Trip Updated: " + title),
               htmlBody: data.driverEmailHtml || data.emailHtml || ("<p>Trip <strong>" + title + "</strong> has been updated.</p>"),
-              name: "FleetFlow Transport"
+              name: "Armada Flow Transport"
             });
           } catch (dErr) {
             Logger.log("Driver email err: " + dErr.toString());
@@ -250,7 +250,7 @@ function doPost(e) {
             to: requesterEmail,
             subject: data.emailSubject || ("❌ Booking Cancelled: " + (data.title || "Vehicle Booking")),
             htmlBody: data.emailHtml || ("<p>Your booking for <strong>" + (data.title || "Vehicle Booking") + "</strong> has been cancelled.</p>"),
-            name: "FleetFlow Transport"
+            name: "Armada Flow Transport"
           });
         } catch (mErr) {}
       }
@@ -262,7 +262,7 @@ function doPost(e) {
             to: driverEmail,
             subject: "❌ Trip Cancelled: " + (data.title || "Vehicle Booking"),
             htmlBody: "<p>The trip <strong>" + (data.title || "Vehicle Booking") + "</strong> has been cancelled. Your schedule is now released.</p>",
-            name: "FleetFlow Transport"
+            name: "Armada Flow Transport"
           });
         } catch (mErr) {}
       }
@@ -284,9 +284,9 @@ function doPost(e) {
         try {
           MailApp.sendEmail({
             to: recipient,
-            subject: data.subject || "[FleetFlow] Vehicle Reservation Notice",
+            subject: data.subject || "[Armada Flow] Vehicle Reservation Notice",
             htmlBody: data.html || data.htmlBody || ("<pre>" + (data.body || data.text || "Booking notification") + "</pre>"),
-            name: "FleetFlow Transport"
+            name: "Armada Flow Transport"
           });
           return ContentService.createTextOutput(JSON.stringify({
             status: "success",
@@ -352,7 +352,7 @@ function doPost(e) {
           to: requesterEmail,
           subject: data.emailSubject || ("✅ Booking Confirmed: " + title),
           htmlBody: data.emailHtml || ("<p>Your vehicle reservation <strong>" + title + "</strong> has been confirmed.</p>"),
-          name: "FleetFlow Transport"
+          name: "Armada Flow Transport"
         });
       } catch (mailErr) {
         Logger.log("Requester MailApp error: " + mailErr.toString());
@@ -366,7 +366,7 @@ function doPost(e) {
           to: driverEmail,
           subject: data.driverEmailSubject || ("🚐 New Trip Assignment: " + title),
           htmlBody: data.driverEmailHtml || data.emailHtml || ("<p>You have been assigned to trip: <strong>" + title + "</strong></p>"),
-          name: "FleetFlow Transport"
+          name: "Armada Flow Transport"
         });
       } catch (driverErr) {
         Logger.log("Driver MailApp error: " + driverErr.toString());

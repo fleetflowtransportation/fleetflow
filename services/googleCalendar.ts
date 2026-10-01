@@ -124,7 +124,7 @@ export const buildEmailHtml = (
         
         <!-- Header -->
         <div style="background: linear-gradient(135deg, #3730a3, #1e1b4b); padding: 28px 24px; color: #ffffff; text-align: left;">
-          <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: #c7d2fe; font-weight: bold; margin-bottom: 8px;">FleetFlow Fleet Management</div>
+          <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: #c7d2fe; font-weight: bold; margin-bottom: 8px;">Armada Flow Fleet Management</div>
           <h1 style="margin: 0; font-size: 22px; font-weight: 800; line-height: 1.3;">${headerTitle}</h1>
           <div style="margin-top: 12px;">${typeBadge}</div>
         </div>
@@ -183,7 +183,7 @@ export const buildEmailHtml = (
           ` : ''}
 
           <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; text-align: center;">
-            This is an automated notification from FleetFlow. For any inquiries or modifications, please contact your transport coordinator.
+            This is an automated notification from Armada Flow. For any inquiries or modifications, please contact your transport coordinator.
           </div>
         </div>
       </div>
@@ -191,7 +191,7 @@ export const buildEmailHtml = (
     </html>
   `;
 
-  const text = `${headerTitle}\n\nRequester: ${booking.requesterName}\nDestination: ${booking.destination}\nDate & Time: ${dateStr} ${timeStr}\nPickup: ${pickupText}\nDriver: ${driverDisplay}\nPurpose: ${booking.purpose}\nStatus: ${booking.status}\n\nFleetFlow Fleet Management`;
+  const text = `${headerTitle}\n\nRequester: ${booking.requesterName}\nDestination: ${booking.destination}\nDate & Time: ${dateStr} ${timeStr}\nPickup: ${pickupText}\nDriver: ${driverDisplay}\nPurpose: ${booking.purpose}\nStatus: ${booking.status}\n\nArmada Flow Fleet Management`;
 
   return { subject, html, text };
 };
@@ -225,7 +225,7 @@ export const buildDriverEmailHtml = (
         
         <!-- Header -->
         <div style="background: linear-gradient(135deg, #0f766e, #134e4a); padding: 28px 24px; color: #ffffff; text-align: left;">
-          <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: #99f6e4; font-weight: bold; margin-bottom: 8px;">FleetFlow Fleet Management</div>
+          <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: #99f6e4; font-weight: bold; margin-bottom: 8px;">Armada Flow Fleet Management</div>
           <h1 style="margin: 0; font-size: 22px; font-weight: 800; line-height: 1.3;">New Trip Assignment</h1>
           <div style="margin-top: 12px;"><span style="background-color: #14b8a6; color: #ffffff; padding: 4px 12px; border-radius: 9999px; font-weight: bold; font-size: 12px;">DRIVER DUTY</span></div>
         </div>
@@ -288,7 +288,7 @@ export const buildDriverEmailHtml = (
     </html>
   `;
 
-  const text = `NEW TRIP ASSIGNMENT\n\nDriver: ${driver?.name || 'Driver'}\nDestination: ${booking.destination}\nDate & Time: ${dateStr} ${timeStr}\nPickup: ${pickupText}\nRequester: ${booking.requesterName} (${booking.requesterEmail})\nVehicle: ${vehicleText}\nStandby: ${booking.shouldWait ? 'YES' : 'NO'}\n\nFleetFlow Fleet Management`;
+  const text = `NEW TRIP ASSIGNMENT\n\nDriver: ${driver?.name || 'Driver'}\nDestination: ${booking.destination}\nDate & Time: ${dateStr} ${timeStr}\nPickup: ${pickupText}\nRequester: ${booking.requesterName} (${booking.requesterEmail})\nVehicle: ${vehicleText}\nStandby: ${booking.shouldWait ? 'YES' : 'NO'}\n\nArmada Flow Fleet Management`;
 
   return { subject, html, text };
 };
@@ -561,7 +561,7 @@ export const googleCalendarService = {
           subject,
           html,
           htmlBody: html,
-          name: 'FleetFlow Transportation'
+          name: 'Armada Flow Transportation'
         };
 
         const res = await fetch(scriptUrl, {
@@ -611,7 +611,7 @@ export const googleCalendarService = {
       attendees.push({ email: booking.requesterEmail, displayName: booking.requesterName || 'Requester' });
     }
     if (driverEmail && driverEmail.includes('@')) {
-      attendees.push({ email: driverEmail, displayName: `${driverName || 'Driver'} (FleetFlow Driver)` });
+      attendees.push({ email: driverEmail, displayName: `${driverName || 'Driver'} (Armada Flow Driver)` });
     }
 
     // Comma-separated list of guests for Google Calendar
@@ -811,7 +811,7 @@ export const googleCalendarService = {
       attendees.push({ email: booking.requesterEmail, displayName: booking.requesterName || 'Requester' });
     }
     if (driverEmail && driverEmail.includes('@')) {
-      attendees.push({ email: driverEmail, displayName: `${driverName || 'Driver'} (FleetFlow Driver)` });
+      attendees.push({ email: driverEmail, displayName: `${driverName || 'Driver'} (Armada Flow Driver)` });
     }
 
     const guestEmails = [booking.requesterEmail, driverEmail]

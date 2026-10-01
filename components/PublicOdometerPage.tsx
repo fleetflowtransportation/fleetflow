@@ -728,7 +728,7 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
 
         {/* Footer */}
         <div className="text-center text-xs text-slate-400">
-          FleetFlow Vehicle Management System • Self-Drive Odometer Portal
+          Armada Flow Vehicle Management System • Self-Drive Odometer Portal
         </div>
       </div>
     </div>

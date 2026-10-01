@@ -1,5 +1,5 @@
 {
-  "name": "FleetFlow",
+  "name": "Armada Flow",
   "description": "A comprehensive fleet management system for booking trips, logging fuel, and tracking vehicle odometers. Designed for administrators to manage schedules and for drivers to view their assignments and log vehicle data.",
   "requestFramePermissions": [],
   "majorCapabilities": [

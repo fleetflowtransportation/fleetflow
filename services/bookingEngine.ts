@@ -137,7 +137,7 @@ export const getDriverCalendarColor = (driverName: string = '', serviceType?: st
 };
 
 /**
- * Full Flow Engine based on FleetFlow Project Context
+ * Full Flow Engine based on Armada Flow Project Context
  */
 export function evaluateBookingAssignment({
   booking,
@@ -220,8 +220,8 @@ export function evaluateBookingAssignment({
       emailNotifications: {
         requester: {
           to: requesterEmail,
-          subject: `[CONFLICT] FleetFlow Vehicle Booking: ${destination} (${bookingDate})`,
-          body: `Hello ${requesterName},\n\nYour booking request to ${destination} on ${bookingDate} (${startTime12} - ${endTime12}) COULD NOT BE CONFIRMED because it overlaps with the official break time (${formatTime12H(lunchStart)} - ${formatTime12H(lunchEnd)}).\n\nPlease choose a start time before ${formatTime12H(lunchStart)} or after ${formatTime12H(lunchEnd)}, or contact the Admin team (${adminAin.name} at ${adminAin.email}) for manual assistance.\n\nThank you,\nFleetFlow System`,
+          subject: `[CONFLICT] Armada Flow Vehicle Booking: ${destination} (${bookingDate})`,
+          body: `Hello ${requesterName},\n\nYour booking request to ${destination} on ${bookingDate} (${startTime12} - ${endTime12}) COULD NOT BE CONFIRMED because it overlaps with the official break time (${formatTime12H(lunchStart)} - ${formatTime12H(lunchEnd)}).\n\nPlease choose a start time before ${formatTime12H(lunchStart)} or after ${formatTime12H(lunchEnd)}, or contact the Admin team (${adminAin.name} at ${adminAin.email}) for manual assistance.\n\nThank you,\nArmada Flow System`,
         },
         admin: {
           to: adminAin.email,
@@ -271,7 +271,7 @@ export function evaluateBookingAssignment({
           requester: {
             to: requesterEmail,
             subject: `[CONFLICT] Self-Drive Booking: ${destination} (${bookingDate})`,
-            body: `Hello ${requesterName},\n\nYour Self-Drive booking request to ${destination} on ${bookingDate} (${startTime12} - ${endTime12}) COULD NOT BE CONFIRMED because the Perodua Alza is already booked during this time slot.\n\nPlease contact Admin (${adminAin.name} at ${adminAin.email}) for an alternative vehicle or to reschedule.\n\nFleetFlow`,
+            body: `Hello ${requesterName},\n\nYour Self-Drive booking request to ${destination} on ${bookingDate} (${startTime12} - ${endTime12}) COULD NOT BE CONFIRMED because the Perodua Alza is already booked during this time slot.\n\nPlease contact Admin (${adminAin.name} at ${adminAin.email}) for an alternative vehicle or to reschedule.\n\nArmada Flow`,
           },
           admin: {
             to: adminAin.email,
@@ -298,7 +298,7 @@ export function evaluateBookingAssignment({
         requester: {
           to: requesterEmail,
           subject: `[CONFIRMED] Self-Drive Booking Confirmed: ${destination}`,
-          body: `Hello ${requesterName},\n\nYour Self-Drive reservation has been SUCCESSFULLY CONFIRMED!\n\n📅 Date: ${bookingDate}\n⏰ Time: ${startTime12} - ${endTime12}\n📍 Pickup Location: ${getPickupLocationDisplay(pickupPoint, address)}\n🎯 Destination: ${destination}\n🚗 Vehicle: ${alzaVehicle.name} (${alzaVehicle.plateNumber})\n👤 Service: Self-Drive\n\nPlease collect the vehicle keys from the administration office prior to departure.\n\nFleetFlow`,
+          body: `Hello ${requesterName},\n\nYour Self-Drive reservation has been SUCCESSFULLY CONFIRMED!\n\n📅 Date: ${bookingDate}\n⏰ Time: ${startTime12} - ${endTime12}\n📍 Pickup Location: ${getPickupLocationDisplay(pickupPoint, address)}\n🎯 Destination: ${destination}\n🚗 Vehicle: ${alzaVehicle.name} (${alzaVehicle.plateNumber})\n👤 Service: Self-Drive\n\nPlease collect the vehicle keys from the administration office prior to departure.\n\nArmada Flow`,
         },
       },
     };
@@ -347,7 +347,7 @@ export function evaluateBookingAssignment({
         requester: {
           to: requesterEmail,
           subject: `[CONFLICT] No Driver On Duty: ${destination} (${bookingDate})`,
-          body: `Hello ${requesterName},\n\nYour booking request to ${destination} on ${bookingDate} could not be confirmed because no drivers are scheduled on duty for that date.\n\nPlease contact Admin (${adminAin.name} at ${adminAin.email}) for manual assistance.\n\nFleetFlow`,
+          body: `Hello ${requesterName},\n\nYour booking request to ${destination} on ${bookingDate} could not be confirmed because no drivers are scheduled on duty for that date.\n\nPlease contact Admin (${adminAin.name} at ${adminAin.email}) for manual assistance.\n\nArmada Flow`,
         },
         admin: {
           to: adminAin.email,
@@ -407,7 +407,7 @@ export function evaluateBookingAssignment({
         requester: {
           to: requesterEmail,
           subject: `[CONFLICT] All Drivers Busy: ${destination} (${bookingDate})`,
-          body: `Hello ${requesterName},\n\nAll on-duty drivers are already assigned to other trips during ${startTime12} - ${endTime12} on ${bookingDate}.\n\nYour request has been forwarded to the Admin (${adminAin.name} at ${adminAin.email}) for manual review and carpooling coordination.\n\nFleetFlow`,
+          body: `Hello ${requesterName},\n\nAll on-duty drivers are already assigned to other trips during ${startTime12} - ${endTime12} on ${bookingDate}.\n\nYour request has been forwarded to the Admin (${adminAin.name} at ${adminAin.email}) for manual review and carpooling coordination.\n\nArmada Flow`,
         },
         admin: {
           to: adminAin.email,
@@ -501,12 +501,12 @@ export function evaluateBookingAssignment({
       requester: {
         to: requesterEmail,
         subject: `[CONFIRMED] Transportation Booking Confirmed: ${destination}`,
-        body: `Hello ${requesterName},\n\nYour transportation booking has been SUCCESSFULLY CONFIRMED!\n\n📅 Date: ${bookingDate}\n⏰ Time: ${startTime12} - ${endTime12}\n📍 Pickup Location: ${getPickupLocationDisplay(pickupPoint, address)}\n🎯 Destination: ${destination}\n👥 Passengers: ${totalPassengers} (${passengerDetails})\n👤 Assigned Driver: ${chosen.driver.name} (Phone: ${chosen.driver.phone})\n🚐 Vehicle: ${vehicleDisplay}\n${shouldWait ? '⏳ Driver Waiting: YES (Driver will wait at destination)\n' : ''}${remarks ? '📝 Notes: ' + remarks + '\n' : ''}${isPreWorkingHour ? '\n' + preWorkingWarning + '\n' : ''}\nThe event has been added to Google Calendar and your email is invited as a guest.\n\nFleetFlow`,
+        body: `Hello ${requesterName},\n\nYour transportation booking has been SUCCESSFULLY CONFIRMED!\n\n📅 Date: ${bookingDate}\n⏰ Time: ${startTime12} - ${endTime12}\n📍 Pickup Location: ${getPickupLocationDisplay(pickupPoint, address)}\n🎯 Destination: ${destination}\n👥 Passengers: ${totalPassengers} (${passengerDetails})\n👤 Assigned Driver: ${chosen.driver.name} (Phone: ${chosen.driver.phone})\n🚐 Vehicle: ${vehicleDisplay}\n${shouldWait ? '⏳ Driver Waiting: YES (Driver will wait at destination)\n' : ''}${remarks ? '📝 Notes: ' + remarks + '\n' : ''}${isPreWorkingHour ? '\n' + preWorkingWarning + '\n' : ''}\nThe event has been added to Google Calendar and your email is invited as a guest.\n\nArmada Flow`,
       },
       driver: {
         to: chosen.driver.email,
         subject: `[NEW ASSIGNMENT] Trip to ${destination} (${bookingDate})`,
-        body: `Hello ${chosen.driver.name},\n\nYou have been assigned to the following trip:\n\n📅 Date: ${bookingDate}\n⏰ Time: ${startTime12} - ${endTime12}\n👤 Requester: ${requesterName} (${department})\n📞 Requester Email: ${requesterEmail}\n📍 Pickup: ${getPickupLocationDisplay(pickupPoint, address)}\n🎯 Destination: ${destination}\n👥 Passengers: ${totalPassengers} (${passengerDetails})\n🚐 Vehicle: ${vehicleDisplay}\n${shouldWait ? '⏳ Driver Waiting: YES (Please wait for passengers until completion)\n' : ''}${remarks ? '📝 Notes: ' + remarks : ''}\n${isPreWorkingHour ? '\n' + preWorkingWarning : ''}\n\nPlease ensure the vehicle is inspected and ready before departure.\n\nFleetFlow`,
+        body: `Hello ${chosen.driver.name},\n\nYou have been assigned to the following trip:\n\n📅 Date: ${bookingDate}\n⏰ Time: ${startTime12} - ${endTime12}\n👤 Requester: ${requesterName} (${department})\n📞 Requester Email: ${requesterEmail}\n📍 Pickup: ${getPickupLocationDisplay(pickupPoint, address)}\n🎯 Destination: ${destination}\n👥 Passengers: ${totalPassengers} (${passengerDetails})\n🚐 Vehicle: ${vehicleDisplay}\n${shouldWait ? '⏳ Driver Waiting: YES (Please wait for passengers until completion)\n' : ''}${remarks ? '📝 Notes: ' + remarks : ''}\n${isPreWorkingHour ? '\n' + preWorkingWarning : ''}\n\nPlease ensure the vehicle is inspected and ready before departure.\n\nArmada Flow`,
       },
     },
   };

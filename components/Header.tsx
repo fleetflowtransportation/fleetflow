@@ -65,10 +65,7 @@ const Header: React.FC<HeaderProps> = ({ activeView, setActiveView }) => {
                         </div>
                         <div className="ml-3 sm:ml-4">
                             <div className="flex items-center gap-2">
-                                <h1 className="text-lg sm:text-xl font-bold text-white tracking-tight">FleetFlow</h1>
-                                <span className="hidden sm:inline-block text-[10px] px-2 py-0.5 rounded-full bg-indigo-700/70 text-indigo-200 border border-indigo-500/40 uppercase font-semibold">
-                                    Enterprise
-                                </span>
+                                <h1 className="text-lg sm:text-xl font-bold text-white tracking-tight">Armada Flow</h1>
                             </div>
                             {activeTenant && (
                                 <div className="flex items-center gap-1.5 text-xs text-indigo-200 font-medium mt-0.5">

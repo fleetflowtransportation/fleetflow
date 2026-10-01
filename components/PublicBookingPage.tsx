@@ -912,7 +912,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
         )}
 
         <div className="text-center mt-8 text-xs text-gray-400 font-medium">
-          Powered by FleetFlow Smart SaaS Transportation Platform &copy; 2026
+          Powered by Armada Flow Smart SaaS Transportation Platform &copy; 2026
         </div>
       </div>
     </div>
