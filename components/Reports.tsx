@@ -403,7 +403,7 @@ const Reports: React.FC = () => {
   const handleBulkDeleteFuelLogs = async () => {
     if (selectedFuelLogIds.size === 0) return;
     const count = selectedFuelLogIds.size;
-    const confirmMsg = `Adakah anda pasti mahu memadam ${count} rekod bahan api yang dipilih? Tindakan ini tidak boleh diundur dan fail resit lampiran di Google Drive juga akan dipadamkan serentak.`;
+    const confirmMsg = `Are you sure you want to delete ${count} selected fuel purchase records? This action cannot be undone and any attached receipt files in Google Drive will also be removed.`;
     if (!window.confirm(confirmMsg)) return;
 
     setIsBulkDeleting(true);
@@ -411,7 +411,7 @@ const Reports: React.FC = () => {
       await deleteFuelLogsBulk(Array.from(selectedFuelLogIds));
       setSelectedFuelLogIds(new Set());
     } catch (err: any) {
-      alert('Ralat memadam rekod terpilih: ' + err.message);
+      alert('Failed to delete selected fuel records: ' + err.message);
     } finally {
       setIsBulkDeleting(false);
     }
@@ -1019,15 +1019,15 @@ const Reports: React.FC = () => {
       {/* ========================================================================= */}
       {activeSubTab === 'fuel' && (
         <div className="space-y-6">
-          {/* VEHICLE QUICK SELECTOR PILLS (PECAHKAN MENGIKUT KENDERAAN) */}
+          {/* VEHICLE QUICK SELECTOR PILLS */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Pilih Kenderaan (Vehicle Quick Filter)
+                  Select Vehicle (Quick Filter)
                 </h3>
                 <p className="text-[11px] text-slate-400">
-                  Klik mana-mana kenderaan untuk fokus rekod minyak kenderaan tersebut
+                  Click any vehicle to view and filter fuel purchase logs for that vehicle
                 </p>
               </div>
               {fuelLogFilters.vehicleId && (
@@ -1035,7 +1035,7 @@ const Reports: React.FC = () => {
                   onClick={() => setFuelLogFilters(prev => ({ ...prev, vehicleId: '' }))}
                   className="text-xs font-semibold text-amber-600 hover:text-amber-800 transition cursor-pointer"
                 >
-                  Papar Semua Kenderaan
+                  Show All Vehicles
                 </button>
               )}
             </div>
@@ -1055,9 +1055,9 @@ const Reports: React.FC = () => {
                   <TruckIcon className="h-4 w-4" />
                 </div>
                 <div>
-                  <div className="text-xs font-black">Semua Kenderaan</div>
+                  <div className="text-xs font-black">All Vehicles</div>
                   <div className={`text-[10px] font-medium ${!fuelLogFilters.vehicleId ? 'text-amber-100' : 'text-slate-400'}`}>
-                    {fuelLogs.length} rekod minyak
+                    {fuelLogs.length} fuel logs
                   </div>
                 </div>
               </button>
@@ -1090,7 +1090,7 @@ const Reports: React.FC = () => {
                         </span>
                       </div>
                       <div className="flex items-center space-x-2 text-[10px] mt-1 text-slate-500 font-medium">
-                        <span className="font-semibold text-slate-700">{count} rekod</span>
+                        <span className="font-semibold text-slate-700">{count} logs</span>
                         <span>•</span>
                         <span className="font-bold text-amber-700">RM {totalCost.toFixed(0)}</span>
                         <span>•</span>
@@ -1110,7 +1110,7 @@ const Reports: React.FC = () => {
                 <p className="text-xs font-semibold text-slate-500">Refueling Entries</p>
                 <p className="text-2xl font-black text-slate-800 mt-1">{fuelStats.totalCount}</p>
                 <p className="text-[11px] text-slate-400 mt-0.5">
-                  {fuelLogFilters.vehicleId ? 'Kenderaan terpilih' : 'Semua armada'}
+                  {fuelLogFilters.vehicleId ? 'Selected vehicle' : 'All fleet vehicles'}
                 </p>
               </div>
               <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
@@ -1124,7 +1124,7 @@ const Reports: React.FC = () => {
                 <p className="text-2xl font-black text-amber-700 mt-1">
                   RM {fuelStats.totalCost.toFixed(2)}
                 </p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Kos petrol keseluruhan</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Fleet fuel expenditure</p>
               </div>
               <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
                 <FuelIcon className="h-6 w-6" />
@@ -1137,7 +1137,7 @@ const Reports: React.FC = () => {
                 <p className="text-2xl font-black text-slate-800 mt-1">
                   {fuelStats.totalLiters.toFixed(1)} <span className="text-xs font-bold text-slate-500">L</span>
                 </p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Jumlah liter diisi</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Total volume dispensed</p>
               </div>
               <div className="p-3 bg-slate-50 text-slate-600 rounded-xl">
                 <FuelIcon className="h-6 w-6" />
@@ -1150,7 +1150,7 @@ const Reports: React.FC = () => {
                 <p className="text-2xl font-black text-emerald-700 mt-1">
                   RM {fuelStats.avgPricePerLiter}
                 </p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Purata kadar seliter</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Effective average rate</p>
               </div>
               <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
                 <FuelIcon className="h-6 w-6" />
@@ -1166,7 +1166,7 @@ const Reports: React.FC = () => {
                 <SearchIcon className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Cari kenderaan, no plat, pemandu..."
+                  placeholder="Search vehicle, plate number, driver..."
                   value={fuelSearch}
                   onChange={e => setFuelSearch(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 font-medium"
@@ -1180,7 +1180,7 @@ const Reports: React.FC = () => {
                   onChange={e => setFuelLogFilters(prev => ({ ...prev, driverId: e.target.value }))}
                   className="w-full p-2 text-xs border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 font-medium"
                 >
-                  <option value="">Semua Pemandu</option>
+                  <option value="">All Drivers</option>
                   {drivers.map(d => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
@@ -1209,9 +1209,9 @@ const Reports: React.FC = () => {
                       ? 'bg-white text-slate-800 shadow-2xs'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
-                  title="Pecahkan data mengikut kumpulan kenderaan"
+                  title="Group fuel records by vehicle"
                 >
-                  Pecah Kenderaan
+                  Group by Vehicle
                 </button>
                 <button
                   onClick={() => setFuelViewMode('table')}
@@ -1220,9 +1220,9 @@ const Reports: React.FC = () => {
                       ? 'bg-white text-slate-800 shadow-2xs'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
-                  title="Papar semua rekod dalam satu jadual"
+                  title="Display all records in a single table"
                 >
-                  Jadual Tunggal
+                  Unified Table
                 </button>
               </div>
             </div>
@@ -1230,14 +1230,14 @@ const Reports: React.FC = () => {
             {/* Custom Date Range Picker */}
             {fuelLogFilters.dateFilter === 'custom' && (
               <div className="flex items-center gap-3 pt-2 border-t border-slate-100">
-                <span className="text-xs font-semibold text-slate-600">Dari:</span>
+                <span className="text-xs font-semibold text-slate-600">From:</span>
                 <input
                   type="date"
                   value={fuelLogFilters.startDate}
                   onChange={e => setFuelLogFilters(prev => ({ ...prev, startDate: e.target.value }))}
                   className="text-xs border border-slate-300 rounded-lg p-1.5"
                 />
-                <span className="text-xs font-semibold text-slate-600">Hingga:</span>
+                <span className="text-xs font-semibold text-slate-600">To:</span>
                 <input
                   type="date"
                   value={fuelLogFilters.endDate}
@@ -1249,7 +1249,7 @@ const Reports: React.FC = () => {
           </div>
 
           {/* ========================================================================= */}
-          {/* VIEW MODE 1: GROUPED BY VEHICLE (PECAH DATA MENGIKUT KENDERAAN)           */}
+          {/* VIEW MODE 1: GROUPED BY VEHICLE                                           */}
           {/* ========================================================================= */}
           {fuelViewMode === 'grouped' ? (
             <div className="space-y-6">
@@ -1277,7 +1277,7 @@ const Reports: React.FC = () => {
                             }}
                             onChange={() => toggleSelectVehicleLogs(group.logs)}
                             className="h-4 w-4 rounded text-amber-600 focus:ring-amber-500 border-slate-300 cursor-pointer"
-                            title="Pilih semua rekod kenderaan ini"
+                            title="Select all logs for this vehicle"
                           />
 
                           {/* Plate Badge */}
@@ -1295,7 +1295,7 @@ const Reports: React.FC = () => {
                               )}
                             </h4>
                             <p className="text-[11px] text-slate-500 font-medium">
-                              {group.logs.length} rekod pengisian bahan api
+                              {group.logs.length} refueling logs
                             </p>
                           </div>
                         </div>
@@ -1304,17 +1304,17 @@ const Reports: React.FC = () => {
                         <div className="flex items-center space-x-3">
                           <div className="hidden sm:flex items-center space-x-3 text-xs">
                             <div className="px-2.5 py-1 bg-amber-50 rounded-lg border border-amber-200/60 text-amber-900">
-                              <span className="text-[10px] text-amber-600 uppercase font-bold block">Jumlah Kos</span>
+                              <span className="text-[10px] text-amber-600 uppercase font-bold block">Total Cost</span>
                               <span className="font-extrabold">RM {group.totalCost.toFixed(2)}</span>
                             </div>
 
                             <div className="px-2.5 py-1 bg-slate-50 rounded-lg border border-slate-200 text-slate-800">
-                              <span className="text-[10px] text-slate-400 uppercase font-bold block">Isipadu</span>
+                              <span className="text-[10px] text-slate-400 uppercase font-bold block">Volume</span>
                               <span className="font-bold">{group.totalLiters.toFixed(1)} L</span>
                             </div>
 
                             <div className="px-2.5 py-1 bg-slate-50 rounded-lg border border-slate-200 text-slate-800">
-                              <span className="text-[10px] text-slate-400 uppercase font-bold block">Odometer Terkini</span>
+                              <span className="text-[10px] text-slate-400 uppercase font-bold block">Latest Odometer</span>
                               <span className="font-mono font-bold">
                                 {group.latestOdometer ? `${group.latestOdometer.toLocaleString()} km` : '-'}
                               </span>
@@ -1325,7 +1325,7 @@ const Reports: React.FC = () => {
                           <button
                             onClick={() => toggleCollapseVehicle(group.vehicle.id)}
                             className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
-                            title={isCollapsed ? 'Kembangkan senarai' : 'Kuncupkan senarai'}
+                            title={isCollapsed ? 'Expand list' : 'Collapse list'}
                           >
                             {isCollapsed ? (
                               <ChevronDownIcon className="h-5 w-5" />
@@ -1343,16 +1343,16 @@ const Reports: React.FC = () => {
                             <thead className="bg-slate-50/70 text-[11px] font-bold text-slate-600">
                               <tr>
                                 <th className="px-3.5 py-2.5 w-10 text-center">
-                                  <span className="sr-only">Pilih</span>
+                                  <span className="sr-only">Select</span>
                                 </th>
-                                <th className="px-4 py-2.5 text-left">Tarikh</th>
-                                <th className="px-4 py-2.5 text-left">Pemandu</th>
+                                <th className="px-4 py-2.5 text-left">Date</th>
+                                <th className="px-4 py-2.5 text-left">Driver</th>
                                 <th className="px-4 py-2.5 text-right">Odometer</th>
-                                <th className="px-4 py-2.5 text-right">Isipadu (L)</th>
-                                <th className="px-4 py-2.5 text-right">Harga / L (RM)</th>
-                                <th className="px-4 py-2.5 text-right">Jumlah Kos (RM)</th>
-                                <th className="px-4 py-2.5 text-center">Resit</th>
-                                <th className="px-4 py-2.5 text-center w-24">Tindakan</th>
+                                <th className="px-4 py-2.5 text-right">Volume (L)</th>
+                                <th className="px-4 py-2.5 text-right">Price / L (RM)</th>
+                                <th className="px-4 py-2.5 text-right">Total Cost (RM)</th>
+                                <th className="px-4 py-2.5 text-center">Receipt</th>
+                                <th className="px-4 py-2.5 text-center w-24">Actions</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 bg-white">
@@ -1412,10 +1412,10 @@ const Reports: React.FC = () => {
                                           className="inline-flex items-center text-xs text-indigo-600 hover:text-indigo-800 font-bold hover:underline"
                                         >
                                           <PaperClipIcon className="h-3.5 w-3.5 mr-1" />
-                                          Resit
+                                          Receipt
                                         </a>
                                       ) : (
-                                        <span className="text-slate-400 text-[11px] italic">Tiada</span>
+                                        <span className="text-slate-400 text-[11px] italic">None</span>
                                       )}
                                     </td>
                                     <td className="px-4 py-3 text-center whitespace-nowrap">
@@ -1423,14 +1423,14 @@ const Reports: React.FC = () => {
                                         <button
                                           onClick={() => handleEditFuelLog(log)}
                                           className="p-1.5 text-slate-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition cursor-pointer"
-                                          title="Edit Rekod Minyak"
+                                          title="Edit Fuel Record"
                                         >
                                           <EditIcon className="h-4 w-4" />
                                         </button>
                                         <button
                                           onClick={() => handleDeleteFuelLog(log.id)}
                                           className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
-                                          title="Padam Rekod Minyak"
+                                          title="Delete Fuel Record"
                                         >
                                           <TrashIcon className="h-4 w-4" />
                                         </button>
@@ -1444,7 +1444,7 @@ const Reports: React.FC = () => {
                             <tfoot className="bg-slate-50 border-t border-slate-200 text-xs font-bold text-slate-700">
                               <tr>
                                 <td colSpan={4} className="px-4 py-2.5 text-right uppercase tracking-wider text-[10px] text-slate-500">
-                                  Subjumlah {group.vehicle.plateNumber}:
+                                  Subtotal {group.vehicle.plateNumber}:
                                 </td>
                                 <td className="px-4 py-2.5 text-right font-extrabold text-slate-900">
                                   {group.totalLiters.toFixed(2)} L
@@ -1467,27 +1467,27 @@ const Reports: React.FC = () => {
               ) : (
                 <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400">
                   <FuelIcon className="h-10 w-10 mx-auto text-slate-300 mb-2" />
-                  <p className="font-bold text-slate-700 text-sm">Tiada rekod minyak dijumpai</p>
-                  <p className="text-xs text-slate-400 mt-1">Cuba tukar penapis carian atau masukkan rekod belian minyak baharu.</p>
+                  <p className="font-bold text-slate-700 text-sm">No fuel records found</p>
+                  <p className="text-xs text-slate-400 mt-1">Try changing your search filters or record a new fuel purchase.</p>
                   <button
                     onClick={handleCreateFuelLog}
                     className="mt-4 inline-flex items-center px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
                   >
                     <PlusIcon className="h-4 w-4 mr-1.5" />
-                    + Rekod Minyak Baharu
+                    + Record Fuel Purchase
                   </button>
                 </div>
               )}
             </div>
           ) : (
             /* ========================================================================= */
-            /* VIEW MODE 2: UNIFIED MASTER TABLE (SEMUA REKOD DALAM SATU JADUAL)         */
+            /* VIEW MODE 2: UNIFIED MASTER TABLE                                         */
             /* ========================================================================= */
             <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
               <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                 <div className="flex items-center space-x-3">
                   <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                    Semua Rekod Bahan Api ({filteredFuelLogs.length} rekod dijumpai)
+                    All Fuel Purchase Records ({filteredFuelLogs.length} records found)
                   </span>
                 </div>
                 {(fuelSearch || fuelLogFilters.vehicleId || fuelLogFilters.driverId || fuelLogFilters.dateFilter !== 'all') && (
@@ -1498,7 +1498,7 @@ const Reports: React.FC = () => {
                     }}
                     className="text-xs font-semibold text-amber-600 hover:text-amber-800 cursor-pointer"
                   >
-                    Reset Penapis
+                    Reset Filters
                   </button>
                 )}
               </div>
@@ -1516,18 +1516,18 @@ const Reports: React.FC = () => {
                           }}
                           onChange={toggleSelectAllVisibleFuelLogs}
                           className="h-4 w-4 rounded text-amber-600 focus:ring-amber-500 border-slate-300 cursor-pointer"
-                          title="Pilih semua baris"
+                          title="Select all rows"
                         />
                       </th>
-                      <th className="px-4 py-3 text-left font-bold text-slate-600">Tarikh</th>
-                      <th className="px-4 py-3 text-left font-bold text-slate-600">Kenderaan</th>
-                      <th className="px-4 py-3 text-left font-bold text-slate-600">Pemandu</th>
+                      <th className="px-4 py-3 text-left font-bold text-slate-600">Date</th>
+                      <th className="px-4 py-3 text-left font-bold text-slate-600">Vehicle</th>
+                      <th className="px-4 py-3 text-left font-bold text-slate-600">Driver</th>
                       <th className="px-4 py-3 text-right font-bold text-slate-600">Odometer</th>
-                      <th className="px-4 py-3 text-right font-bold text-slate-600">Isipadu (L)</th>
-                      <th className="px-4 py-3 text-right font-bold text-slate-600">Harga/L (RM)</th>
-                      <th className="px-4 py-3 text-right font-bold text-slate-600">Jumlah Kos (RM)</th>
-                      <th className="px-4 py-3 text-center font-bold text-slate-600">Resit</th>
-                      <th className="px-4 py-3 text-center font-bold text-slate-600 w-24">Tindakan</th>
+                      <th className="px-4 py-3 text-right font-bold text-slate-600">Volume (L)</th>
+                      <th className="px-4 py-3 text-right font-bold text-slate-600">Price/L (RM)</th>
+                      <th className="px-4 py-3 text-right font-bold text-slate-600">Total Cost (RM)</th>
+                      <th className="px-4 py-3 text-center font-bold text-slate-600">Receipt</th>
+                      <th className="px-4 py-3 text-center font-bold text-slate-600 w-24">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
@@ -1595,10 +1595,10 @@ const Reports: React.FC = () => {
                                   className="inline-flex items-center text-xs text-indigo-600 hover:text-indigo-800 font-bold hover:underline"
                                 >
                                   <PaperClipIcon className="h-3.5 w-3.5 mr-1" />
-                                  Resit
+                                  Receipt
                                 </a>
                               ) : (
-                                <span className="text-slate-400 text-[11px] italic">Tiada</span>
+                                <span className="text-slate-400 text-[11px] italic">None</span>
                               )}
                             </td>
                             <td className="px-4 py-3 text-center whitespace-nowrap">
@@ -1606,14 +1606,14 @@ const Reports: React.FC = () => {
                                 <button
                                   onClick={() => handleEditFuelLog(log)}
                                   className="p-1.5 text-slate-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition cursor-pointer"
-                                  title="Edit Rekod Minyak"
+                                  title="Edit Fuel Record"
                                 >
                                   <EditIcon className="h-4 w-4" />
                                 </button>
                                 <button
                                   onClick={() => handleDeleteFuelLog(log.id)}
                                   className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
-                                  title="Padam Rekod Minyak"
+                                  title="Delete Fuel Record"
                                 >
                                   <TrashIcon className="h-4 w-4" />
                                 </button>
@@ -1626,14 +1626,14 @@ const Reports: React.FC = () => {
                       <tr>
                         <td colSpan={10} className="px-4 py-12 text-center text-slate-400">
                           <FuelIcon className="h-8 w-8 mx-auto text-slate-300 mb-2" />
-                          <p className="font-semibold text-slate-600">Tiada rekod minyak dijumpai</p>
-                          <p className="text-xs text-slate-400 mt-0.5">Cuba ubah penapis atau tambah rekod belian minyak baharu.</p>
+                          <p className="font-semibold text-slate-600">No fuel records found</p>
+                          <p className="text-xs text-slate-400 mt-0.5">Try changing your filters or record a new fuel purchase.</p>
                           <button
                             onClick={handleCreateFuelLog}
                             className="mt-3 inline-flex items-center px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold cursor-pointer"
                           >
                             <PlusIcon className="h-3.5 w-3.5 mr-1" />
-                            Rekod Minyak
+                            Record Fuel Purchase
                           </button>
                         </td>
                       </tr>
@@ -1645,7 +1645,7 @@ const Reports: React.FC = () => {
           )}
 
           {/* ========================================================================= */}
-          {/* FLOATING BULK ACTIONS DRAWER (MUNCUL APABILA REKOD DIPILIH)                */}
+          {/* FLOATING BULK ACTIONS DRAWER                                              */}
           {/* ========================================================================= */}
           {selectedFuelLogIds.size > 0 && (
             <div className="fixed bottom-6 inset-x-0 z-40 flex justify-center px-4 animate-in fade-in slide-in-from-bottom-5 duration-200">
@@ -1657,10 +1657,10 @@ const Reports: React.FC = () => {
                   </span>
                   <div>
                     <p className="text-xs font-bold text-slate-100">
-                      {selectedFuelLogIds.size} rekod dipilih
+                      {selectedFuelLogIds.size} {selectedFuelLogIds.size === 1 ? 'record' : 'records'} selected
                     </p>
                     <p className="text-[11px] text-slate-300">
-                      Jumlah: <strong className="text-amber-400">RM {selectedFuelMetrics.cost.toFixed(2)}</strong> ({selectedFuelMetrics.liters.toFixed(1)} L)
+                      Total: <strong className="text-amber-400">RM {selectedFuelMetrics.cost.toFixed(2)}</strong> ({selectedFuelMetrics.liters.toFixed(1)} L)
                     </p>
                   </div>
                 </div>
@@ -1669,7 +1669,7 @@ const Reports: React.FC = () => {
                   <button
                     onClick={handleExportSelectedFuelLogs}
                     className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-xl text-xs font-bold text-slate-200 hover:text-white transition flex items-center cursor-pointer"
-                    title="Eksport data terpilih ke CSV"
+                    title="Export selected records to CSV"
                   >
                     <DocumentDownloadIcon className="h-3.5 w-3.5 mr-1" />
                     CSV
@@ -1679,17 +1679,17 @@ const Reports: React.FC = () => {
                     onClick={handleBulkDeleteFuelLogs}
                     disabled={isBulkDeleting}
                     className="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-extrabold shadow-sm transition flex items-center cursor-pointer disabled:opacity-50"
-                    title="Padam rekod yang dipilih (resit Drive juga dipadam)"
+                    title="Delete selected records (Drive receipts will also be removed)"
                   >
                     <TrashIcon className="h-3.5 w-3.5 mr-1" />
-                    {isBulkDeleting ? 'Memadam...' : `Padam (${selectedFuelLogIds.size})`}
+                    {isBulkDeleting ? 'Deleting...' : `Delete (${selectedFuelLogIds.size})`}
                   </button>
 
                   <button
                     onClick={() => setSelectedFuelLogIds(new Set())}
                     className="px-2 py-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition text-xs font-semibold cursor-pointer"
                   >
-                    Batal
+                    Deselect
                   </button>
                 </div>
               </div>

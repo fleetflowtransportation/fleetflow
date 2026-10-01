@@ -458,8 +458,8 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
                     }}
                     className="w-full bg-white text-slate-900 rounded-xl px-3 py-2 text-xs border border-indigo-200 focus:ring-2 focus:ring-indigo-500 font-semibold"
                   >
-                    <option value="">❌ Unassigned / Tiada Pemandu</option>
-                    <option value="self-drive">🚗 Self-Drive (Kakitangan Pandu Sendiri)</option>
+                    <option value="">❌ Unassigned / No Driver</option>
+                    <option value="self-drive">🚗 Self-Drive (Staff Drives)</option>
                     <optgroup label="Dedicated Drivers">
                       {availableDrivers.map(u => (
                         <option key={u.id} value={u.id}>
@@ -481,7 +481,7 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
                     className="w-full bg-white text-slate-900 rounded-xl px-3 py-2 text-xs border border-indigo-200 focus:ring-2 focus:ring-indigo-500 font-semibold"
                   >
                     <option value="">
-                      🚗 Tiada Pilihan / Pemandu Pilih Sendiri (No Preference - Driver's Choice)
+                      🚗 No Preference (Driver's Choice)
                     </option>
                     <optgroup label="Fleet Vehicles">
                       {vehicles.map(v => (
@@ -492,7 +492,7 @@ const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
                     </optgroup>
                   </select>
                   <p className="text-[10px] text-slate-500 mt-1">
-                    💡 Pilih "Tiada Pilihan" supaya pemandu boleh tentukan kenderaan yang sesuai mengikut keselesaan atau ketersediaan.
+                    💡 Select "No Preference" so the assigned driver can select any suitable available vehicle upon departure.
                   </p>
                 </div>
 

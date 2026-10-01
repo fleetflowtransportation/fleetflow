@@ -686,8 +686,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     storageService.updateBooking({ id: bookingId, ...updatedData }).catch(err => {
-      console.error('Gagal kemaskini booking di pangkalan data:', err);
-      alert('Gagal kemaskini booking: ' + err.message);
+      console.error('Failed to update booking in database:', err);
+      alert('Failed to update booking: ' + err.message);
     });
   }, [bookings, vehicles, users, setUndoableAction, activeTenant]);
 
@@ -747,7 +747,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     // 4. Delete from Supabase persistence
     storageService.deleteBooking(bookingId).catch(err => {
-      alert('Gagal padam booking: ' + err.message);
+      alert('Failed to delete booking: ' + err.message);
     });
   }, [clearUndoState, activeTenant, bookings]);
 
@@ -769,7 +769,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     storageService.updateBooking({ id: bookingId, status: 'Pending' }).catch(err => {
-      alert('Gagal restore booking: ' + err.message);
+      alert('Failed to restore booking: ' + err.message);
     });
   }, [setUndoableAction, activeTenant]);
 
@@ -793,7 +793,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           status: 'Confirmed' as Booking['status'],
           calendarEventTitle: calTitle,
           calendarColor: calColor,
-          adminNotes: `Pengendalian Manual: Disahkan oleh Admin Ain. Pemandu: ${driverName}, Kenderaan: ${vehicle?.name || vehicleId} (${vehicle?.plateNumber || ''}).`,
+          adminNotes: `Manual Assignment: Confirmed by Admin. Driver: ${driverName}, Vehicle: ${vehicle?.name || vehicleId} (${vehicle?.plateNumber || ''}).`,
           conflictReason: undefined,
         };
         return assignedBooking;
@@ -810,7 +810,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       vehicleId,
       status: 'Confirmed',
     }).catch(err => {
-      alert('Gagal assign booking: ' + err.message);
+      alert('Failed to assign booking: ' + err.message);
     });
   }, [setUndoableAction, users, vehicles, activeTenant]);
 
@@ -822,7 +822,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return prev.map(b => {
         if (b.id !== bookingId) return b;
         if (status === 'Cancelled' && cancellationReason) {
-          mergedRemarks = (b.remarks ? b.remarks + ' | ' : '') + 'Dibatalkan: ' + cancellationReason;
+          mergedRemarks = (b.remarks ? b.remarks + ' | ' : '') + 'Cancelled: ' + cancellationReason;
           updatedBooking = { ...b, status, remarks: mergedRemarks };
           return updatedBooking;
         }
@@ -842,7 +842,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const payload: Partial<Booking> & { id: string } = { id: bookingId, status };
     if (mergedRemarks !== undefined) payload.remarks = mergedRemarks;
     storageService.updateBooking(payload).catch(err => {
-      alert('Gagal kemaskini status booking: ' + err.message);
+      alert('Failed to update booking status: ' + err.message);
     });
   }, [setUndoableAction, activeTenant]);
 
@@ -923,7 +923,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         status: 'Confirmed',
         calendarEventTitle: calTitle,
         calendarColor: calColor,
-        adminNotes: `Pengendalian Manual: Disahkan pukal oleh Admin. Pemandu: ${driverName}, Kenderaan: ${vehicle?.name || vehicleId} (${vehicle?.plateNumber || ''}).`,
+        adminNotes: `Manual Bulk Assignment: Confirmed by Admin. Driver: ${driverName}, Vehicle: ${vehicle?.name || vehicleId} (${vehicle?.plateNumber || ''}).`,
         conflictReason: undefined,
       };
       updatedList.push(updated);
@@ -943,7 +943,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         status: 'Confirmed',
       });
     } catch (err: any) {
-      console.error('Gagal tugasan pukal:', err);
+      console.error('Failed to bulk assign bookings:', err);
     }
   }, [users, vehicles, activeTenant]);
 
@@ -951,7 +951,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (lastBookingChange) {
       setBookings(prev => prev.map(b => (b.id === lastBookingChange.bookingId ? lastBookingChange.previousState : b)));
       storageService.updateBooking(lastBookingChange.previousState as Booking).catch(err => {
-        alert('Gagal undo: ' + err.message);
+        alert('Failed to undo: ' + err.message);
       });
       clearUndoState();
     }
@@ -966,7 +966,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setFuelLogs(prev => prev.map(l => (l.id === newLog.id ? saved : l)));
       })
       .catch(err => {
-        alert('Gagal simpan fuel log: ' + err.message);
+        alert('Failed to save fuel log: ' + err.message);
         setFuelLogs(prev => prev.filter(l => l.id !== newLog.id));
       });
   }, []);
@@ -975,7 +975,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setFuelLogs(prev => prev.map(log => (log.id === logId ? { ...log, ...updatedData } : log))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
     storageService.updateFuelLog({ id: logId, ...updatedData }).catch(err => {
-      alert('Gagal kemaskini fuel log: ' + err.message);
+      alert('Failed to update fuel log: ' + err.message);
     });
   }, []);
 
@@ -993,7 +993,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
     setFuelLogs(prev => prev.filter(log => log.id !== logId));
     storageService.deleteFuelLog(logId).catch(err => {
-      alert('Gagal padam fuel log: ' + err.message);
+      alert('Failed to delete fuel log: ' + err.message);
     });
   }, [clearUndoState, fuelLogs, activeTenant]);
 
@@ -1017,7 +1017,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     setFuelLogs(prev => prev.filter(log => !idsSet.has(log.id)));
     await storageService.deleteFuelLogsBulk(logIds).catch(err => {
-      alert('Gagal padam fuel log secara pukal: ' + err.message);
+      alert('Failed to bulk delete fuel logs: ' + err.message);
     });
   }, [clearUndoState, fuelLogs, activeTenant]);
 
@@ -1030,11 +1030,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setOdometerLogs(prev => prev.map(l => (l.id === newLog.id ? saved : l)));
       })
       .catch(err => {
-        alert('Gagal simpan odometer log: ' + err.message);
+        alert('Failed to save odometer log: ' + err.message);
         setOdometerLogs(prev => prev.filter(l => l.id !== newLog.id));
       });
 
-    // Sekiranya ada tempahan yang dipautkan, kemaskini maklumat odometer, kenderaan & status tempahan tersebut kepada Completed
+    // If there is an associated booking, update odometer info and complete it
     if (logData.bookingId) {
       updateBooking(logData.bookingId, {
         vehicleId: logData.vehicleId,
@@ -1062,14 +1062,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setOdometerLogs(prev => prev.map(log => (log.id === logId ? { ...log, ...updatedData } : log))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
     storageService.updateOdometerLog({ id: logId, ...updatedData }).catch(err => {
-      alert('Gagal kemaskini odometer log: ' + err.message);
+      alert('Failed to update odometer log: ' + err.message);
     });
   }, []);
 
   const deleteOdometerLog = useCallback((logId: string) => {
     setOdometerLogs(prev => prev.filter(log => log.id !== logId));
     storageService.deleteOdometerLog(logId).catch(err => {
-      alert('Gagal padam odometer log: ' + err.message);
+      alert('Failed to delete odometer log: ' + err.message);
     });
   }, []);
 
@@ -1082,7 +1082,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setIssueLogs(prev => prev.map(l => (l.id === newLog.id ? saved : l)));
       })
       .catch(err => {
-        alert('Gagal simpan issue log: ' + err.message);
+        alert('Failed to save issue log: ' + err.message);
         setIssueLogs(prev => prev.filter(l => l.id !== newLog.id));
       });
   }, []);
@@ -1091,7 +1091,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setIssueLogs(prev => prev.map(log => (log.id === logId ? { ...log, ...updatedData } : log))
       .sort((a, b) => new Date(b.reportedDate).getTime() - new Date(a.reportedDate).getTime()));
     storageService.updateIssueLog({ id: logId, ...updatedData }).catch(err => {
-      alert('Gagal kemaskini issue log: ' + err.message);
+      alert('Failed to update issue log: ' + err.message);
     });
   }, []);
 
@@ -1104,11 +1104,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return prev.filter(log => log.id !== logId);
     });
     storageService.deleteIssueLog(logId).catch(err => {
-      alert('Gagal padam issue log: ' + err.message);
+      alert('Failed to delete issue log: ' + err.message);
     });
   }, []);
 
-  // ---- Jadual Pemandu ----
+  // ---- Driver Schedules ----
   const addDriverSchedule = useCallback((schedData: Omit<DriverSchedule, 'id'>) => {
     const newSched: DriverSchedule = { ...schedData, id: tempId('sched') };
     setDriverSchedules(prev => [...prev, newSched]);
@@ -1117,7 +1117,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setDriverSchedules(prev => prev.map(s => (s.id === newSched.id ? saved : s)));
       })
       .catch(err => {
-        alert('Gagal simpan jadual: ' + err.message);
+        alert('Failed to save driver schedule: ' + err.message);
         setDriverSchedules(prev => prev.filter(s => s.id !== newSched.id));
       });
   }, []);
@@ -1125,21 +1125,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const updateDriverSchedule = useCallback((schedId: string, updatedData: Partial<Omit<DriverSchedule, 'id'>>) => {
     setDriverSchedules(prev => prev.map(s => (s.id === schedId ? { ...s, ...updatedData } : s)));
     storageService.updateDriverSchedule({ id: schedId, ...updatedData }).catch(err => {
-      alert('Gagal kemaskini jadual: ' + err.message);
+      alert('Failed to update driver schedule: ' + err.message);
     });
   }, []);
 
   const deleteDriverSchedule = useCallback((schedId: string) => {
     setDriverSchedules(prev => prev.filter(s => s.id !== schedId));
     storageService.deleteDriverSchedule(schedId).catch(err => {
-      alert('Gagal padam jadual: ' + err.message);
+      alert('Failed to delete driver schedule: ' + err.message);
     });
   }, []);
 
   const deleteDriverSchedulesBulk = useCallback((schedIds: string[]) => {
     setDriverSchedules(prev => prev.filter(s => !schedIds.includes(s.id)));
     storageService.deleteDriverSchedulesBulk(schedIds).catch(err => {
-      alert('Gagal padam jadual secara pukal: ' + err.message);
+      alert('Failed to bulk delete driver schedules: ' + err.message);
     });
   }, []);
 
@@ -1152,7 +1152,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setUsers(prev => prev.map(u => (u.id === newUser.id ? saved : u)));
       })
       .catch(err => {
-        alert('Gagal simpan user: ' + err.message);
+        alert('Failed to save user: ' + err.message);
         setUsers(prev => prev.filter(u => u.id !== newUser.id));
       });
   }, []);
@@ -1160,7 +1160,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const updateUser = useCallback((userId: string, updatedData: Partial<Omit<User, 'id'>>) => {
     setUsers(prev => prev.map(u => (u.id === userId ? { ...u, ...updatedData } : u)));
     storageService.updateUser({ id: userId, ...updatedData }).catch(err => {
-      alert('Gagal kemaskini user: ' + err.message);
+      alert('Failed to update user: ' + err.message);
     });
   }, []);
 

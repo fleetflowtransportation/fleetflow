@@ -544,10 +544,10 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                       <span>Assigned Driver</span>
                     </div>
                     <p className="text-slate-900 font-extrabold text-base">
-                      {submitResult.assignedDriverName || (formData.serviceType === 'Self-Drive' ? '🚗 Self-Drive (Pandu Sendiri)' : 'Unassigned')}
+                      {submitResult.assignedDriverName || (formData.serviceType === 'Self-Drive' ? '🚗 Self-Drive' : 'Unassigned')}
                     </p>
                     <p className="text-[11px] text-indigo-700 font-medium">
-                      {submitResult.assignedDriverName ? 'Auto-allocated by duty schedule' : 'Kakitangan memandu sendiri (Perodua Alza)'}
+                      {submitResult.assignedDriverName ? 'Auto-allocated by duty schedule' : 'Self-Drive (Staff Drive)'}
                     </p>
                   </div>
 
@@ -560,7 +560,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                       {submitResult.assignedVehicleName || 'Any / Driver Selection'}
                     </p>
                     <p className="text-[11px] text-teal-700 font-medium">
-                      {submitResult.assignedVehicleName ? 'Vehicle slot reserved' : 'Pemandu memilih kenderaan semasa pelepasan'}
+                      {submitResult.assignedVehicleName ? 'Vehicle slot reserved' : 'Driver selects vehicle upon departure'}
                     </p>
                   </div>
                 </div>
@@ -693,7 +693,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                   </div>
                   <div>
                     <h2 className="text-sm sm:text-base font-extrabold text-slate-900">
-                      Requester Profile (Maklumat Pemohon)
+                      Requester Profile
                     </h2>
                     <p className="text-xs text-slate-500">
                       Enter your official contact details for schedule invites & updates
@@ -704,7 +704,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Full Name (Nama Pemohon) <span className="text-rose-500">*</span>
+                      Full Name <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -719,7 +719,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Department (Jabatan / Unit) <span className="text-rose-500">*</span>
+                      Department <span className="text-rose-500">*</span>
                     </label>
                     <select
                       name="department"
@@ -765,7 +765,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                   </div>
                   <div>
                     <h2 className="text-sm sm:text-base font-extrabold text-slate-900">
-                      Date & Schedule (Tarikh & Masa Perjalanan)
+                      Date & Schedule
                     </h2>
                     <p className="text-xs text-slate-500">
                       Define your departure date and estimated trip duration
@@ -790,7 +790,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Start Time (Masa Mula) <span className="text-rose-500">*</span>
+                      Start Time <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="time"
@@ -804,7 +804,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Estimated End Time (Masa Tamat)
+                      Estimated End Time
                     </label>
                     <input
                       type="time"
@@ -840,7 +840,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                   </div>
                   <div>
                     <h2 className="text-sm sm:text-base font-extrabold text-slate-900">
-                      Destination & Route (Destinasi & Pengambilan)
+                      Destination & Route
                     </h2>
                     <p className="text-xs text-slate-500">
                       Specify pickup point and target destination
@@ -850,7 +850,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Trip Purpose (Tujuan Perjalanan) <span className="text-rose-500">*</span>
+                    Trip Purpose <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -858,7 +858,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                     value={formData.purpose}
                     onChange={handleChange}
                     required
-                    placeholder="e.g. Program Komuniti, Penghantaran Bantuan, Mesyuarat Rasmi"
+                    placeholder="e.g. Community Outreach, Relief Delivery, Official Meeting"
                     className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
                   />
                 </div>
@@ -866,7 +866,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Pickup Point (Lokasi Pengambilan) <span className="text-rose-500">*</span>
+                      Pickup Point <span className="text-rose-500">*</span>
                     </label>
                     <select
                       name="pickupPoint"
@@ -907,7 +907,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Destination / Full Address (Destinasi Lengkap) <span className="text-rose-500">*</span>
+                    Destination / Full Address <span className="text-rose-500">*</span>
                   </label>
                   <textarea
                     name="destination"
@@ -915,7 +915,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                     onChange={handleChange}
                     required
                     rows={2}
-                    placeholder="e.g. Pusat Komuniti Chow Kit, Kuala Lumpur / Dewan Serbaguna"
+                    placeholder="e.g. Community Center, Kuala Lumpur / Multipurpose Hall"
                     className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition resize-y"
                   ></textarea>
                 </div>
@@ -931,7 +931,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                   </div>
                   <div>
                     <h2 className="text-sm sm:text-base font-extrabold text-slate-900">
-                      Service Type & Passengers (Jenis Servis & Penumpang)
+                      Service Type & Passengers
                     </h2>
                     <p className="text-xs text-slate-500">
                       Choose driver allocation mode and passenger numbers
@@ -946,7 +946,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                   </label>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Option 1: Perlu Driver */}
+                    {/* Option 1: Driver Assigned */}
                     <button
                       type="button"
                       onClick={() => setFormData(prev => ({ ...prev, serviceType: 'Perlu Driver' }))}
@@ -965,10 +965,10 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                       </div>
                       <div>
                         <span className="font-extrabold text-xs sm:text-sm text-slate-900 block">
-                          Perlu Driver (Driver Assigned)
+                          Driver Assigned
                         </span>
                         <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
-                          Pemandu rasmi yayasan akan diperuntukkan mengikut jadual tugas.
+                          Official fleet driver will be allocated based on the duty roster.
                         </p>
                       </div>
                     </button>
@@ -992,10 +992,10 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                       </div>
                       <div>
                         <span className="font-extrabold text-xs sm:text-sm text-slate-900 block">
-                          Self-Drive (Pandu Sendiri)
+                          Self-Drive (Staff Drive)
                         </span>
                         <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
-                          Kakitangan pandu kenderaan yayasan (Perodua Alza) sendiri.
+                          Staff drives the fleet vehicle directly.
                         </p>
                       </div>
                     </button>
@@ -1006,7 +1006,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                 {formData.serviceType === 'Perlu Driver' ? (
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Vehicle Preference (Pilihan Kenderaan)
+                      Vehicle Preference
                     </label>
                     <select
                       name="vehiclePreference"
@@ -1015,7 +1015,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                       className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition text-slate-800"
                     >
                       <option value={FREE_VEHICLE_CHOICE}>
-                        🚗 Any / Free Choice (Pemandu tentukan kenderaan semasa tugasan)
+                        🚗 Any / Free Choice (Driver selects suitable vehicle upon departure)
                       </option>
                       <optgroup label="Dedicated Fleet">
                         {vehicles.map(v => (
@@ -1029,7 +1029,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                 ) : (
                   <div className="p-4 bg-teal-50/70 border border-teal-200 rounded-2xl space-y-2 animate-fadeIn">
                     <label className="block text-xs font-bold text-teal-950 uppercase tracking-wider">
-                      Staff Driver IC / ID Number (No. Kad Pengenalan) <span className="text-rose-500">*</span>
+                      Staff Driver IC / ID Number <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -1041,7 +1041,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                       className="w-full px-3.5 py-2.5 border border-teal-200 rounded-xl text-xs sm:text-sm font-mono bg-white text-slate-900 focus:ring-2 focus:ring-teal-500 outline-none"
                     />
                     <p className="text-[11px] text-teal-800 font-medium">
-                      ⚠️ Diperlukan untuk rekod lesen memandu dan pengesahan kunci kenderaan Perodua Alza.
+                      ⚠️ Required for driving license verification and vehicle key handover.
                     </p>
                   </div>
                 )}
@@ -1050,7 +1050,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                 <div className="space-y-2 pt-2 border-t border-slate-100">
                   <div className="flex items-center justify-between">
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      Passenger Breakdown (Pecahan Penumpang)
+                      Passenger Breakdown
                     </label>
                     <span className="text-xs font-extrabold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200">
                       Total: {totalPassengers} Pax
@@ -1060,7 +1060,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {/* Staff Stepper */}
                     <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-center space-y-2">
-                      <span className="text-xs font-extrabold text-slate-700 block">Kakitangan (Staff)</span>
+                      <span className="text-xs font-extrabold text-slate-700 block">Staff</span>
                       <div className="flex items-center justify-center gap-2">
                         <button
                           type="button"
@@ -1089,7 +1089,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
 
                     {/* Kids Stepper */}
                     <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-center space-y-2">
-                      <span className="text-xs font-extrabold text-slate-700 block">Kanak-kanak (Kids)</span>
+                      <span className="text-xs font-extrabold text-slate-700 block">Kids</span>
                       <div className="flex items-center justify-center gap-2">
                         <button
                           type="button"
@@ -1118,7 +1118,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
 
                     {/* Teens Stepper */}
                     <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-center space-y-2">
-                      <span className="text-xs font-extrabold text-slate-700 block">Remaja (Teenagers)</span>
+                      <span className="text-xs font-extrabold text-slate-700 block">Teenagers</span>
                       <div className="flex items-center justify-center gap-2">
                         <button
                           type="button"
@@ -1159,10 +1159,10 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                     />
                     <div>
                       <span className="text-xs sm:text-sm font-extrabold text-amber-950 block">
-                        ⏳ Driver Standby On-Site (Pemandu Tunggu di Lokasi)
+                        ⏳ Driver Standby On-Site
                       </span>
                       <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
-                        Tandakan sekiranya pemandu perlu menunggu di lokasi program untuk perjalanan pulang. Jika tidak, pemandu hanya akan menghantar dan dilepaskan (*Drop-off only*).
+                        Check if the driver needs to wait on-site for the return trip. Otherwise, driver will only drop off passengers (Drop-off only).
                       </p>
                     </div>
                   </label>
@@ -1171,14 +1171,14 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                 {/* Additional Notes / Remarks */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Special Instructions / Notes (Nota Tambahan - Pilihan)
+                    Special Instructions / Notes (Optional)
                   </label>
                   <textarea
                     name="remarks"
                     value={formData.remarks}
                     onChange={handleChange}
                     rows={2}
-                    placeholder="Contoh: Bawa peralatan program, peserta berkerusi roda, dll."
+                    placeholder="e.g. Carrying program equipment, wheelchair passenger, etc."
                     className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none transition resize-y"
                   ></textarea>
                 </div>
@@ -1186,7 +1186,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                 {/* Modern File Attachment Dropzone */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Supporting Document / Surat Kelulusan (Pilihan)
+                    Supporting Document / Approval Letter (Optional)
                   </label>
                   
                   {!attachmentFile ? (

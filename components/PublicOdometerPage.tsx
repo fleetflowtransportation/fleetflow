@@ -196,12 +196,12 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
     const endNum = parseFloat(endOdometer);
 
     if (isNaN(startNum) || startNum <= 0) {
-      setFormError('Please enter a valid Start Odometer reading (Km Mula).');
+      setFormError('Please enter a valid Start Odometer reading.');
       return;
     }
 
     if (isNaN(endNum) || endNum <= 0) {
-      setFormError('Please enter a valid End Odometer reading (Km Tamat).');
+      setFormError('Please enter a valid End Odometer reading.');
       return;
     }
 
