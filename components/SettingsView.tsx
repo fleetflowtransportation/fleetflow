@@ -8,6 +8,12 @@ import SelfDriveStaffManagement from './SelfDriveStaffManagement';
 import type { Tenant } from '../types';
 import { googleCalendarService } from '../services/googleCalendar';
 import { 
+  getFeedbackWebhookUrl, 
+  setFeedbackWebhookUrl, 
+  getGoogleAppsScriptTemplate, 
+  DEFAULT_DEVELOPER_EMAIL 
+} from '../services/feedbackService';
+import { 
   BuildingOfficeIcon,
   ClockIcon,
   UsersIcon,
@@ -712,6 +718,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
     setTimeout(() => setCodeCopied(false), 2500);
   };
 
+  // Feedback Webhook State
+  const [feedbackWebhookUrl, setFeedbackWebhookUrlState] = useState<string>(() => getFeedbackWebhookUrl());
+  const [feedbackUrlSaved, setFeedbackUrlSaved] = useState(false);
+  const [feedbackCodeCopied, setFeedbackCodeCopied] = useState(false);
+  const [showFeedbackScriptCode, setShowFeedbackScriptCode] = useState(false);
+
+  const handleSaveFeedbackWebhook = (e: React.FormEvent) => {
+    e.preventDefault();
+    setFeedbackWebhookUrl(feedbackWebhookUrl);
+    setFeedbackUrlSaved(true);
+    setTimeout(() => setFeedbackUrlSaved(false), 3000);
+  };
+
+  const handleCopyFeedbackScript = () => {
+    navigator.clipboard.writeText(getGoogleAppsScriptTemplate());
+    setFeedbackCodeCopied(true);
+    setTimeout(() => setFeedbackCodeCopied(false), 2500);
+  };
+
   // -------------------------------------------------------------
   // TAB 4: Account & Security (My Profile)
   // -------------------------------------------------------------
@@ -1411,6 +1436,117 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
                       </div>
                       <pre className="p-4 overflow-x-auto max-h-96 text-[11px] leading-relaxed select-all">
                         {GOOGLE_APPS_SCRIPT_CODE}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+
+                {/* Section 2: Feedback & Google Sheets Sync */}
+                <div className="border-t border-slate-200 pt-6 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">📊</span>
+                        <h3 className="text-base font-bold text-slate-900">
+                          Google Sheets Feedback & Developer Notifications
+                        </h3>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          Live Sync
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Collect real-time feedback, bug reports, and ratings from drivers & admins into your Google Sheet, with instant email notifications sent to developer (<strong>{DEFAULT_DEVELOPER_EMAIL}</strong>).
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleCopyFeedbackScript}
+                        className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer whitespace-nowrap"
+                      >
+                        <DocumentTextIcon className="w-4 h-4" />
+                        {feedbackCodeCopied ? '✓ Copied Feedback Script!' : 'Copy Google Sheets Script'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowFeedbackScriptCode(!showFeedbackScriptCode)}
+                        className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition border border-slate-200 cursor-pointer whitespace-nowrap"
+                      >
+                        {showFeedbackScriptCode ? 'Hide Code' : 'View Code'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {feedbackUrlSaved && (
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-semibold text-emerald-800 flex items-center gap-2">
+                      <CheckCircleIcon className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                      Feedback webhook URL saved successfully!
+                    </div>
+                  )}
+
+                  <form onSubmit={handleSaveFeedbackWebhook} className="space-y-3 p-4 bg-slate-50/70 border border-slate-200 rounded-2xl">
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                          Google Sheets Webhook URL for Feedback
+                        </label>
+                        <span className="text-[11px] text-slate-400">
+                          Auto-emails: <strong className="text-slate-600">{DEFAULT_DEVELOPER_EMAIL}</strong>
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="url"
+                          value={feedbackWebhookUrl}
+                          onChange={(e) => setFeedbackWebhookUrlState(e.target.value)}
+                          placeholder="https://script.google.com/macros/s/.../exec (or leave blank for local queuing)"
+                          className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-mono bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
+                        />
+                        <button
+                          type="submit"
+                          className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition shadow-xs whitespace-nowrap cursor-pointer"
+                        >
+                          Save Endpoint
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                        Whenever an admin or driver clicks the <strong>💬 Feedback</strong> button and submits a form, a new structured row is appended to your Google Sheet and an email notification is automatically dispatched to <strong>{DEFAULT_DEVELOPER_EMAIL}</strong>.
+                      </p>
+                    </div>
+                  </form>
+
+                  {/* Feedback Script Setup Guide */}
+                  <div className="p-4 bg-emerald-50/40 rounded-xl border border-emerald-200/80 space-y-2 text-xs text-slate-600">
+                    <p className="font-bold text-emerald-950 uppercase tracking-wider text-[11px]">How to link feedback to your Google Sheet:</p>
+                    <ol className="list-decimal list-inside space-y-1 pl-1 leading-relaxed text-slate-700">
+                      <li>Create or open your target <strong>Google Sheet</strong>.</li>
+                      <li>Go to <strong>Extensions &gt; Apps Script</strong> and paste the copied Feedback Webhook script.</li>
+                      <li>Click <strong>Deploy &gt; New deployment</strong>, select <strong>Web app</strong>, set <em>Execute as: Me</em> and <em>Who has access: Anyone</em>.</li>
+                      <li>Copy the generated Web App URL and paste it into the <strong>Google Sheets Webhook URL for Feedback</strong> field above.</li>
+                    </ol>
+                  </div>
+
+                  {/* Feedback Code Block */}
+                  {showFeedbackScriptCode && (
+                    <div className="relative rounded-2xl overflow-hidden border border-slate-800 bg-slate-900 text-slate-100 font-mono text-xs shadow-inner">
+                      <div className="flex items-center justify-between px-4 py-2.5 bg-slate-950/80 border-b border-slate-800 text-[11px] text-slate-400">
+                        <span className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-rose-500/80 inline-block"></span>
+                          <span className="w-2.5 h-2.5 rounded-full bg-amber-500/80 inline-block"></span>
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80 inline-block"></span>
+                          <span className="ml-1 font-semibold text-slate-300">FeedbackWebhook.gs</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleCopyFeedbackScript}
+                          className="hover:text-white transition font-semibold text-emerald-400 cursor-pointer"
+                        >
+                          {feedbackCodeCopied ? '✓ Copied' : 'Copy'}
+                        </button>
+                      </div>
+                      <pre className="p-4 overflow-x-auto max-h-96 text-[11px] leading-relaxed select-all">
+                        {getGoogleAppsScriptTemplate()}
                       </pre>
                     </div>
                   )}

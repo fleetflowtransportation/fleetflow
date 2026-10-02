@@ -17,6 +17,7 @@ import { AuthPage } from './components/AuthPage';
 import { PublicBookingPage } from './components/PublicBookingPage';
 import { PublicOdometerPage } from './components/PublicOdometerPage';
 import { SettingsView } from './components/SettingsView';
+import { FeedbackButton } from './components/FeedbackButton';
 
 const App: React.FC = () => {
   const { currentUser, isLoading, loadError, reload } = useAppContext();
@@ -145,6 +146,7 @@ const App: React.FC = () => {
         {renderContent()}
       </main>
       <UndoToast />
+      <FeedbackButton currentRoute={currentUser?.role === 'admin' ? activeView : 'driver-portal'} />
     </div>
   );
 };

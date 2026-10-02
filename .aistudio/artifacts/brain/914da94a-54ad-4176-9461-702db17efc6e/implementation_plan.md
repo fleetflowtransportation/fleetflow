@@ -1,51 +1,163 @@
-# Pelan Pelaksanaan: Google Drive Fuel Log Receipt & Pembetulan Isu Auto-Refresh Borang
+# Armada Flow User & Driver Feedback System (Google Sheets & Developer Email Alert)
 
-## 1. Objektif & Keperluan Pengguna
-1. **Muat Naik Resit Petrol ke Google Drive**:
-   - Resit yang dimuat naik dalam modul **Fuel Log** akan disimpan terus ke Google Drive milik organisasi (`tenant.googleDriveId`).
-   - Struktur folder yang teratur: `Folder Induk > Fuel Logs > [No Plat Kenderaan]`.
-   - Format nama fail automatik: `DD-MM-YYYY_Noplat.ext` (contoh: `01-10-2026_VAA8821.jpg`).
-   - Kemas kini skrip Google Apps Script (`Code.gs`) di bahagian tetapan (*Settings*) untuk menyokong penciptaan sub-folder bersarang (*nested subfolders*).
+A universal feedback submission button and modal form for both Admin and Driver portals in **Armada Flow** that collects structured ratings, categories, suggestions, and auto-captured telemetry, directly syncing to Google Sheets and instantly firing an email notification to the developer (`aziznurmin@gmail.com`).
 
-2. **Penyelesaian Isu Form Refresh**:
-   - Memperbaiki punca utama borang ter-refresh/terpadam sendiri (kitaran auto-refresh 15 saat dalam `AppContext` yang mencetuskan re-render dan `useEffect` pada rujukan tatasusunan `vehicles` / `users`).
-   - Memastikan `useEffect` dalam semua modal borang hanya menginisialisasi nilai semasa modal mula-mula dibuka (*mount / isOpen transition*), bukan setiap kali data latar belakang dikemas kini.
-   - Menyediakan perlindungan draf (*Auto-Save Draft*) supaya jika staf menaip, data tidak hilang sekiranya berlaku sebarang gangguan.
+## User Review & Critical Decisions
 
----
-
-## 2. Pelan Tindakan Terperinci
-
-### Bahagian A: Integrasi Google Drive untuk Fuel Log
-1. **`services/googleDrive.ts`**:
-   - Menambah fungsi pembina nama fail resit standard: `formatFuelReceiptFileName(dateStr, plateNumber, originalFileName)` -> `DD-MM-YYYY_Noplat.ext`.
-   - Menambah sokongan laluan folder bertingkat (*nested folder paths*) seperti `folderPath: ['Fuel Logs', plateNumber]` atau `Fuel Logs/${plateNumber}` dalam panggilan payload Google Apps Script.
-2. **`components/FuelLogModal.tsx` & `components/FuelLogForm.tsx`**:
-   - Memanggil `uploadToGoogleDrive` semasa pengguna memilih resit minyak, menghantar `folderPath: ['Fuel Logs', vehiclePlateNumber]` dan nama fail `DD-MM-YYYY_Noplat.ext`.
-   - Menyimpan URL direct Drive (`receiptAttachmentUrl`) dan nama fail (`receiptAttachmentName`) ke dalam rekod database Supabase.
-3. **`components/SettingsView.tsx` (Google Apps Script Code)**:
-   - Mengemas kini templat kod `Code.gs` untuk mencipta sub-folder bertingkat (`DriveApp` folder hierarchy recursive check) secara automatik sekiranya folder `Fuel Logs` atau `[No Plat]` belum wujud.
+> [!IMPORTANT]
+> **Confirmed Specifications & Revisions:**
+> - **System Branding**: All system name references updated to **Armada Flow**.
+> - **Destination**: Direct Google Apps Script Webhook URL / Google Form endpoint (pre-configured with instant email notification to `aziznurmin@gmail.com` via `MailApp.sendEmail()` upon every submission).
+> - **Developer Email Alert**: Automated formatted HTML email dispatched directly to `aziznurmin@gmail.com` featuring submission timestamp, user role, category, star rating, feedback title, full message body, and direct Google Sheet link.
+> - **Trigger Button**: Persistent Floating Action Button (FAB) anchored at the bottom-right corner across both Admin Portal and Driver Portal in Armada Flow.
+> - **Form Fields**: Category selector, 1–5 Star rating, Feedback Title, Detailed Message/Suggestion, with automatic capture of User Name, Email, Role, Current Portal Route, Device/Browser metadata, and Timestamp.
+> - **Zero Page Refresh**: Form state is isolated in an unmounted/mounted modal lifecycle using React asynchronous `fetch` (with `no-cors` mode support for Google Apps Script Webhooks) and resilient local queue fallback so user input is never lost if interrupted.
 
 ---
 
-### Bahagian B: Menghapuskan Masalah Form Refresh di Seluruh Sistem
-1. **`context/AppContext.tsx`**:
-   - Mengoptimumkan `useEffect` auto-refresh (15 saat) agar ia berjalan secara senyap di latar belakang (*silent background sync*) tanpa mengganggu komponen yang sedang aktif.
-   - Menghapuskan `setIsLoading(true)` semasa auto-refresh berkala (hanya aktifkan pada *initial load* pertama).
-2. **Semua Modal & Borang Input**:
-   - **`components/FuelLogModal.tsx` & `components/FuelLogForm.tsx`**
-   - **`components/OdometerModal.tsx`**
-   - **`components/BookingModal.tsx` & `components/BookingManagementList.tsx`**
-   - **`components/IssueModal.tsx` / `components/IssueManagement.tsx`**
-   - **`components/VehicleForm.tsx` & `components/VehicleModal.tsx`**
-   - **`components/MaintenanceManagement.tsx`**
-   - Membaiki corak `useEffect` dengan menggunakan `useRef(isOpen)` supaya `formData` HANYA diisi sekali sahaja apabila pengguna membuka borang, dan TIDAK direset apabila `vehicles`, `users`, atau `currentUser` diperbaharui di latar belakang.
-   - Menambah perlindungan auto-save draf ringkas ke `sessionStorage` untuk borang-borang utama.
+## 1. Overview & Core Concept
+
+- **What It Does**: Adds an accessible, non-intrusive Feedback button accessible to both fleet administrators and drivers in Armada Flow. Clicking opens a modal form allowing users to submit ratings, bug reports, feature requests, and operational feedback. The data is dispatched asynchronously to a Google Sheet AND instantly triggers an email alert to `aziznurmin@gmail.com` without interrupting the active workflow or refreshing the page.
+- **Target Audience**:
+  - **Fleet Administrators**: Share feedback on dispatching, fuel analytics, vehicle assignment, and reporting features in Armada Flow.
+  - **Drivers**: Submit quick field feedback regarding trip logging, vehicle conditions, odometer forms, and mobile usability.
+  - **Developer (`aziznurmin@gmail.com`)**: Receives real-time email notifications for instant issue triage and feature prioritization while maintaining an organized audit sheet in Google Sheets.
+- **Key Value**: Provides an ongoing communication channel from operators and drivers directly into the administrator's Google Sheet and developer's inbox for continuous system improvement.
 
 ---
 
-## 3. Ujian & Pengesahan
-- Uji muat naik resit minyak pada kenderaan pilihan -> Semak nama fail terhasil (`DD-MM-YYYY_Noplat.ext`) dan susunan folder `Fuel Logs > [No Plat]`.
-- Buka borang Fuel Log, isi separuh, tunggu lebih 30 saat -> Sahkan teks tidak hilang dan borang tidak ter-refresh.
-- Uji borang-borang lain (Booking, Odometer, Vehicle, Maintenance) bagi memastikan tiada reset input yang berlaku.
-- Jalankan `npm run lint` dan `compile_applet` untuk memastikan tiada sebarang ralat kod.
+## 2. User Experience & Visual Design
+
+### Key User Flows
+
+```
+[Admin / Driver Screen in Armada Flow]
+       │
+       ▼ (Clicks Floating "Feedback" Button at Bottom Right)
+[Feedback Modal Dialog] ──▶ (Fills Category, 1-5 Star Rating, Title, Details)
+       │
+       ▼ (Clicks "Submit Feedback")
+[Async Webhook Dispatch]
+       │
+       ├──▶ [Google Sheet Ledger (Appends new row)]
+       └──▶ [Automated Developer Email to aziznurmin@gmail.com]
+       │
+       ▼ (Modal Closes with Success Toast; User returns seamlessly to active task without page reload)
+```
+
+1. **Floating Trigger Button**:
+   - Clean, round or pill button fixed at `bottom-6 right-6` with subtle z-index (below high-priority modals, above page content).
+   - Features a messaging icon and "Feedback" text label (compact icon on small mobile screens).
+   - Styled with Armada Flow primary indigo/slate accents, hover micro-elevation, and subtle tooltip.
+
+2. **Modal Form Composition**:
+   - **Header**: "Share Feedback for Armada Flow" with close (X) button and short subtitle explaining the purpose.
+   - **Role & Identity Preview**: Display-only badge showing logged-in user (`John Driver · Driver Portal` or `Admin · Dispatch Portal`).
+   - **Category Segmented Grid**:
+     - 🐛 Bug / Issue
+     - 💡 Feature Request
+     - ⚡ System & Speed
+     - 🚗 Driver Experience
+     - 💬 General Feedback
+   - **1–5 Star Rating Control**: Interactive star rating with hover highlight and verbal indicator (`Poor`, `Fair`, `Good`, `Great`, `Exceptional`).
+   - **Feedback Title**: Input field with placeholder (e.g., *"Make odometer entry faster on mobile"*).
+   - **Detailed Message**: Textarea with character counter and auto-expand.
+   - **Recipient & Ledger Footnote**: Quiet footnote indicating *"Submissions sync live to Google Sheets & alert developer (`aziznurmin@gmail.com`)"*.
+   - **Action Bar**: "Cancel" and "Send Feedback" with spinner loading state while dispatching.
+
+3. **Google Sheets & Email Webhook Configuration in Admin Settings**:
+   - Add a dedicated **Feedback & Developer Notifications** section in `SettingsView.tsx`.
+   - Displays developer alert email (`aziznurmin@gmail.com`) and Google Apps Script Webhook URL.
+   - Includes a 1-click **Copy Google Apps Script Template** button containing the complete Google Apps Script code (which handles Sheet appending + `MailApp.sendEmail()` to `aziznurmin@gmail.com` with `[Armada Flow Feedback]` subject).
+
+---
+
+## 3. Key Product Decisions & Trade-Offs
+
+- **Decision 1: Direct Google Apps Script Webhook with Built-in `MailApp.sendEmail()`**
+  - *Chosen Approach*: The Google Apps Script web app acts as the single unified handler: it appends the feedback row into Google Sheets and simultaneously calls `MailApp.sendEmail()` to deliver an immediate formatted email alert to `aziznurmin@gmail.com`.
+  - *Why*: Eliminates the need for a separate third-party email service while ensuring 100% deliverability from Google's infrastructure directly to your Gmail inbox.
+  - *Alternatives Considered*: Client-side mailto links (interrupts UX by opening user's local email app) or dedicated SMTP servers (requires API keys and ongoing server costs).
+
+- **Decision 2: Form Resilience & Zero-Refresh Policy**
+  - *Chosen Approach*: Pure React controlled state inside a managed modal component with `event.preventDefault()` on form submit, optimistic submission feedback, and local queue caching if offline.
+  - *Why*: Prevents any browser navigation or form submission page reload, preserving whatever task the driver or admin was working on.
+
+---
+
+## 4. Technical Architecture & Data Strategy
+
+### Component & System Layout
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        Armada Flow Container                           │
+│  ┌───────────────────────────┐      ┌───────────────────────────────┐  │
+│  │   Admin Portal Routes     │      │     Driver Portal Routes      │  │
+│  │  (Bookings, Fuel, Odo...) │      │ (My Trips, Odometer, Renewal) │  │
+│  └─────────────┬─────────────┘      └──────────────┬────────────────┘  │
+│                │                                   │                   │
+│                └─────────────────┬─────────────────┘                   │
+│                                  │                                     │
+│                                  ▼                                     │
+│                  ┌───────────────────────────────┐                     │
+│                  │     UniversalFeedbackWidget   │                     │
+│                  │  • Floating Action Button     │                     │
+│                  │  • FeedbackModal Dialog       │                     │
+│                  │  • Form Validation & Rating   │                     │
+│                  └───────────────┬───────────────┘                     │
+│                                  │                                     │
+│                                  ▼                                     │
+│                  ┌───────────────────────────────┐                     │
+│                  │      feedbackService.ts       │                     │
+│                  │  • Payload Construction       │                     │
+│                  │  • Developer Email Target     │                     │
+│                  │  • Google Webhook POST        │                     │
+│                  │  • Local Storage Backup Queue │                     │
+│                  └───────────────┬───────────────┘                     │
+└──────────────────────────────────┼─────────────────────────────────────┘
+                                   │ HTTP POST (JSON / URLSearchParams)
+                                   ▼
+            ┌─────────────────────────────────────────────┐
+            │         Google Apps Script Webhook          │
+            │           (Attached to Google Sheet)        │
+            │                                             │
+            │  1. Appends row to Google Sheet:            │
+            │     [Timestamp, User, Role, Category,       │
+            │      Rating, Title, Details, Route, Device] │
+            │                                             │
+            │  2. Fires MailApp.sendEmail():              │
+            │     To: aziznurmin@gmail.com                │
+            │     Subject: [Armada Flow Feedback] ...     │
+            │     HTML Summary Card with Full Details     │
+            └─────────────────────────────────────────────┘
+```
+
+### Data Payload Schema (Sent to Google Sheet & Developer Email)
+
+| Field Name | Type | Example Content | Description |
+| :--- | :--- | :--- | :--- |
+| `timestamp` | ISO String / Formatted | `2026-10-02 10:15:00` | Date and time of submission |
+| `systemName` | String | `Armada Flow` | System brand identifier |
+| `developerEmail` | String | `aziznurmin@gmail.com` | Notification recipient email |
+| `userName` | String | `Ahmad Razif` | Name of user |
+| `userEmail` | String | `ahmad@armadaflow.org` | User email |
+| `userRole` | String | `driver` or `admin` | User permission role |
+| `category` | String | `Feature Request` | Selected category |
+| `rating` | Number (1–5) | `5` | Star satisfaction rating |
+| `title` | String | `Add quick odometer button` | Feedback subject |
+| `message` | String | `Would love a one-tap button...` | Detailed feedback |
+| `currentRoute` | String | `/driver/odometer` | Path/view active when opened |
+| `deviceInfo` | String | `Mobile (Chrome / Android 14)` | Browser/platform context |
+| `tenantId` | String | `armada-flow-transport` | Multi-tenant identifier |
+
+---
+
+## 5. Next Steps Upon Plan Approval
+
+1. Update system branding to **Armada Flow** across the application navigation, headers, and metadata.
+2. Create `services/feedbackService.ts` containing the webhook dispatcher, developer email config (`aziznurmin@gmail.com`), default Google Apps Script template with `MailApp.sendEmail()`, and fallback local backup queue.
+3. Create `components/FeedbackModal.tsx` containing the interactive modal form, star ratings, category grid, and validation.
+4. Create `components/FeedbackButton.tsx` (Floating Action Widget) and mount it seamlessly in `App.tsx` and `DriverDashboard.tsx`.
+5. Add the **Google Sheets & Developer Notification Integration** configuration section in `SettingsView.tsx` with copyable Apps Script setup instructions.
+6. Verify build integrity via `compile_applet` and test form submissions.
