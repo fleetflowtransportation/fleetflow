@@ -172,7 +172,6 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
         return next;
       });
     } else {
-      // Open Day Detail Modal so user can view details and add/edit shifts
       setModal({ mode: 'dayDetail', dateKey, daySchedules });
     }
   };
@@ -197,7 +196,7 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
           <p className="text-gray-500 mt-1 text-xs sm:text-sm">
             {isEditable 
               ? 'Click any calendar date to view shift details, working hours, or assign new shifts.' 
-              : 'Driver shift rosters and duty schedule overview (Read-Only View).'}
+              : 'Driver shift rosters and duty schedule overview (Read-Only View for drivers).'}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -342,8 +341,10 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
         <ScheduleModal
           modal={modal}
           drivers={drivers}
+          isEditable={isEditable}
           onClose={closeModal}
           onSave={(entries) => {
+            if (!isEditable) return;
             entries.forEach(({ date, driverId, mula, tamat }) => {
               const existing = (schedulesByDate.get(date) || []).find(s => s.DriverId === driverId);
               if (existing) {
@@ -355,20 +356,25 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
             closeModal();
           }}
           onUpdate={(schedId, mula, tamat) => {
+            if (!isEditable) return;
             updateDriverSchedule(schedId, { Mula: mula, Tamat: tamat });
             closeModal();
           }}
           onDelete={(schedId) => {
+            if (!isEditable) return;
             deleteDriverSchedule(schedId);
             closeModal();
           }}
           onOpenAddForDate={(dateKey) => {
+            if (!isEditable) return;
             setModal({ mode: 'add', dates: [dateKey] });
           }}
           onOpenEditForSchedule={(sched) => {
+            if (!isEditable) return;
             setModal({ mode: 'edit', schedule: sched });
           }}
           onDeleteBulk={(driverId, dates) => {
+            if (!isEditable) return;
             const schedIdsToDelete = driverSchedules
               .filter(s => {
                 const isMatchingDate = dates.includes(parseDateKeyLoose(s.Date));
@@ -400,6 +406,7 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
 interface ScheduleModalProps {
   modal: ModalState;
   drivers: { id: string; name: string }[];
+  isEditable: boolean;
   onClose: () => void;
   onSave: (entries: { date: string; driverId: string; mula: string; tamat: string }[]) => void;
   onUpdate: (schedId: string, mula: string, tamat: string) => void;
@@ -412,6 +419,7 @@ interface ScheduleModalProps {
 const ScheduleModal: React.FC<ScheduleModalProps> = ({ 
   modal, 
   drivers, 
+  isEditable,
   onClose, 
   onSave, 
   onUpdate, 
@@ -436,6 +444,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
   const isDayDetail = modal.mode === 'dayDetail';
 
   const toggleDriver = (id: string) => {
+    if (!isEditable) return;
     setSelectedDriverIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -446,6 +455,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isEditable) return;
     if (isBulkDelete) {
       if (onDeleteBulk) onDeleteBulk(targetDriverId, modal.dates);
       return;
@@ -475,7 +485,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
     return d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
   };
 
-  // DAY DETAIL MODAL
+  // DAY DETAIL MODAL (READ-ONLY FOR DRIVERS, EDITABLE FOR ADMINS)
   if (isDayDetail) {
     const { dateKey, daySchedules } = modal;
     return (
@@ -510,28 +520,31 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
                           <span>{toTime12H(sched.Mula)} - {toTime12H(sched.Tamat)}</span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (onOpenEditForSchedule) onOpenEditForSchedule(sched);
-                          }}
-                          className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold transition cursor-pointer"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (window.confirm(`Delete shift for ${dName}?`)) {
-                              onDelete(sched.id);
-                            }
-                          }}
-                          className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-xs font-bold transition cursor-pointer"
-                        >
-                          Delete
-                        </button>
-                      </div>
+                      {/* EDIT & DELETE ONLY FOR ADMINS */}
+                      {isEditable && (
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (onOpenEditForSchedule) onOpenEditForSchedule(sched);
+                            }}
+                            className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold transition cursor-pointer"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm(`Delete shift for ${dName}?`)) {
+                                onDelete(sched.id);
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-xs font-bold transition cursor-pointer"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -542,18 +555,21 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
               </div>
             )}
 
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  if (onOpenAddForDate) onOpenAddForDate(dateKey);
-                }}
-                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold rounded-xl text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <PlusIcon className="w-4 h-4" />
-                <span>Assign New Shift on This Date</span>
-              </button>
-            </div>
+            {/* ASSIGN NEW SHIFT BUTTON ONLY FOR ADMINS */}
+            {isEditable && (
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onOpenAddForDate) onOpenAddForDate(dateKey);
+                  }}
+                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold rounded-xl text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <PlusIcon className="w-4 h-4" />
+                  <span>Assign New Shift on This Date</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -669,7 +685,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
           </div>
 
           <div className="pt-4 flex items-center justify-between border-t">
-            {isEdit && editSchedule ? (
+            {isEdit && editSchedule && isEditable ? (
               <button
                 type="button"
                 onClick={() => onDelete(editSchedule.id)}
@@ -680,9 +696,11 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
             ) : <span />}
             <div className="flex gap-2">
               <button type="button" onClick={onClose} className="bg-white py-2.5 px-4 border border-gray-300 rounded-xl shadow-xs text-xs font-bold text-gray-700 hover:bg-gray-50 transition cursor-pointer">Cancel</button>
-              <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold py-2.5 px-5 rounded-xl shadow-md text-xs transition cursor-pointer">
-                {isEdit ? 'Save Changes' : 'Assign Shifts'}
-              </button>
+              {isEditable && (
+                <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold py-2.5 px-5 rounded-xl shadow-md text-xs transition cursor-pointer">
+                  {isEdit ? 'Save Changes' : 'Assign Shifts'}
+                </button>
+              )}
             </div>
           </div>
         </form>
