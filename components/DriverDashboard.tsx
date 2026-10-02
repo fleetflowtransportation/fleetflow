@@ -132,7 +132,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
     return bookings
       .filter(b => b.driverId === driver.id && (b.status === 'Assigned' || b.status === 'Confirmed') && isPastTrip(b.dateTime))
       .filter(b => matchesSearch(b, driverSearchQuery))
-      .sort((a, b) => new Date(b.dateTime).getTime() - new Date(a.dateTime).getTime()); // Most recent first
+      .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime()); // Most recent first
   }, [bookings, driver.id, driverSearchQuery]);
 
   // 3. History bookings (Completed with odometer or Cancelled)
@@ -140,7 +140,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
     return bookings
       .filter(b => b.driverId === driver.id && (b.status === 'Completed' || b.status === 'Cancelled'))
       .filter(b => matchesSearch(b, driverSearchQuery))
-      .sort((a, b) => new Date(b.dateTime).getTime() - new Date(a.dateTime).getTime());
+      .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
   }, [bookings, driver.id, driverSearchQuery]);
 
   // Active items based on current tab
@@ -1082,7 +1082,6 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
             <button
               onClick={handleOpenOdometerForSelected}
               className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 px-3.5 rounded-xl shadow-md transition active:scale-95 text-xs uppercase tracking-wide flex items-center gap-1 cursor-pointer"
-              title="Submit odometer readings in batch for selected trips"
             >
               <GaugeIcon className="w-3.5 h-3.5" />
               <span>Submit Meter ({selectedBookingIds.length})</span>
@@ -1091,7 +1090,6 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
             <button
               onClick={handleBulkCompleteJobs}
               className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-3 rounded-xl shadow-md transition active:scale-95 text-xs cursor-pointer"
-              title="Mark all selected trips completed directly"
             >
               Direct Complete
             </button>
@@ -1117,7 +1115,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
         isOpen={isOdometerLogOpen}
         onClose={() => {
           setIsOdometerLogOpen(false);
-          setSelectedBookingIds([]); // reset selection upon close
+          setSelectedBookingIds([]);
           setSelectedVehicleForOdometer(undefined);
         }}
         driverId={driver.id}
