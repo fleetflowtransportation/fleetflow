@@ -188,150 +188,242 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
   };
 
   return (
-    <div className="space-y-6">
-      {/* Top Header Card */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white rounded-2xl p-5 sm:p-6 shadow-xs border border-gray-200">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Driver Shift & Duty Roster</h2>
-          <p className="text-gray-500 mt-1 text-xs sm:text-sm">
+    <div className="space-y-3 sm:space-y-5">
+      {/* Top Header Card — more compact on mobile */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white rounded-xl sm:rounded-2xl p-3.5 sm:p-5 shadow-xs border border-gray-200">
+        <div className="min-w-0">
+          <h2 className="text-base sm:text-xl font-bold text-gray-900 leading-tight">Driver Shift & Duty Roster</h2>
+          <p className="text-gray-500 mt-0.5 text-[11px] sm:text-sm leading-snug">
             {isEditable 
-              ? 'Click any calendar date to view shift details, working hours, or assign new shifts.' 
-              : 'Driver shift rosters and duty schedule overview (Read-Only View for drivers).'}
+              ? 'Tap any date to view or assign shifts.' 
+              : 'Read-only shift & duty overview.'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="bg-white border border-gray-300 rounded-lg overflow-hidden flex text-xs sm:text-sm font-semibold shadow-xs">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="bg-white border border-gray-300 rounded-lg overflow-hidden flex text-xs font-semibold shadow-xs flex-1 sm:flex-none">
             <button
               onClick={() => setViewMode('month')}
-              className={`px-3 py-1.5 transition cursor-pointer ${viewMode === 'month' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+              className={`flex-1 sm:flex-none px-3 py-1.5 transition cursor-pointer ${viewMode === 'month' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
             >Month</button>
             <button
               onClick={() => setViewMode('week')}
-              className={`px-3 py-1.5 border-l border-gray-300 transition cursor-pointer ${viewMode === 'week' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+              className={`flex-1 sm:flex-none px-3 py-1.5 border-l border-gray-300 transition cursor-pointer ${viewMode === 'week' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
             >Week</button>
           </div>
           {isEditable && (
             <button
               onClick={toggleBulkMode}
-              className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium border transition cursor-pointer ${bulkMode ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+              className={`px-2.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-medium border transition cursor-pointer whitespace-nowrap ${bulkMode ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
             >
-              {bulkMode ? 'Cancel Multi-Select' : 'Select Multiple Dates'}
+              {bulkMode ? 'Cancel' : 'Multi-Select'}
             </button>
           )}
         </div>
       </div>
 
-      {/* Calendar Navigation Bar */}
-      <div className="bg-white rounded-2xl p-4 shadow-xs border border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <button onClick={goPrev} className="p-2 border border-gray-300 rounded-xl hover:bg-gray-50 transition cursor-pointer text-gray-700 font-bold">&larr;</button>
-          <button onClick={goToday} className="px-3.5 py-2 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50 transition cursor-pointer">Today</button>
-          <button onClick={goNext} className="p-2 border border-gray-300 rounded-xl hover:bg-gray-50 transition cursor-pointer text-gray-700 font-bold">&rarr;</button>
-          <h3 className="text-base sm:text-lg font-extrabold text-gray-900 ml-2">
+      {/* Calendar Navigation Bar — tighter */}
+      <div className="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-xs border border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-2.5 sm:gap-4">
+        <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-start">
+          <div className="flex items-center gap-1.5">
+            <button onClick={goPrev} className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition cursor-pointer text-gray-700 font-bold text-sm">&larr;</button>
+            <button onClick={goToday} className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-[11px] font-bold text-gray-700 hover:bg-gray-50 transition cursor-pointer">Today</button>
+            <button onClick={goNext} className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition cursor-pointer text-gray-700 font-bold text-sm">&rarr;</button>
+          </div>
+          <h3 className="text-sm sm:text-base font-extrabold text-gray-900 text-right sm:text-left sm:ml-2">
             {viewMode === 'month' 
               ? `${MONTH_LABELS[anchor.getMonth()]} ${anchor.getFullYear()}` 
-              : `Week of ${gridDays[0].toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} - ${gridDays[6].toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`}
+              : `Week of ${gridDays[0].toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${gridDays[6].toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`}
           </h3>
         </div>
 
-        <div className="flex items-center gap-3 text-xs font-semibold text-gray-500">
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-indigo-600 inline-block"></span> Today</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span> Active Shift</span>
+        <div className="flex items-center gap-3 text-[11px] font-semibold text-gray-500 self-start sm:self-auto">
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-indigo-600 inline-block"></span> Today</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span> Active</span>
         </div>
       </div>
 
-      {/* Calendar Grid Container */}
-      <div className="bg-white rounded-2xl shadow-xs border border-gray-200 overflow-hidden">
-        <div className="grid grid-cols-7 bg-gray-50 border-b border-gray-200">
-          {WEEKDAY_LABELS.map(label => (
-            <div key={label} className="py-2.5 text-center text-[10px] sm:text-xs font-bold text-gray-500 uppercase tracking-wider">{label}</div>
-          ))}
-        </div>
-        <div className={`grid grid-cols-7 ${viewMode === 'month' ? 'auto-rows-fr' : ''}`}>
+      {/* ========== WEEK VIEW: Vertical Day Cards (mobile-first) ========== */}
+      {viewMode === 'week' ? (
+        <div className="space-y-2.5">
           {gridDays.map(date => {
             const dateKey = toDateKey(date);
             const daySchedules = (schedulesByDate.get(dateKey) || []).sort((a, b) => toTimeHHMM(a.Mula).localeCompare(toTimeHHMM(b.Mula)));
             const isToday = dateKey === todayKey;
-            const isCurrentMonth = viewMode === 'week' || date.getMonth() === anchor.getMonth();
             const isSelected = selectedDates.has(dateKey);
-            const visibleSchedules = viewMode === 'month' ? daySchedules.slice(0, 3) : daySchedules;
-            const hiddenCount = viewMode === 'month' ? daySchedules.length - visibleSchedules.length : 0;
+            const dayLabel = date.toLocaleDateString('en-US', { weekday: 'short' });
+            const fullDateLabel = date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 
             return (
               <div
                 key={dateKey}
                 onClick={() => handleDayClick(dateKey, daySchedules)}
-                className={`relative border-b border-r border-gray-100 p-1.5 transition min-h-[7.5rem] ${viewMode === 'week' ? 'min-h-[16rem]' : ''} ${
-                  isCurrentMonth ? 'bg-white' : 'bg-gray-50/70'
-                } cursor-pointer hover:bg-indigo-50/30 ${isSelected ? 'ring-2 ring-inset ring-indigo-500 bg-indigo-50' : ''}`}
-                title="Click to view shifts and schedule details"
+                className={`bg-white rounded-xl border shadow-xs overflow-hidden transition cursor-pointer active:scale-[0.99] ${
+                  isSelected
+                    ? 'ring-2 ring-indigo-500 border-indigo-400 bg-indigo-50/40'
+                    : isToday
+                      ? 'border-indigo-300 ring-1 ring-indigo-200'
+                      : 'border-gray-200 hover:border-indigo-200'
+                }`}
               >
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className={`text-xs font-extrabold h-6 w-6 flex items-center justify-center rounded-full ${
-                    isToday ? 'bg-indigo-600 text-white shadow-xs' : isCurrentMonth ? 'text-gray-900 bg-gray-100' : 'text-gray-400'
-                  }`}>
-                    {date.getDate()}
-                  </span>
-                  {daySchedules.length > 0 && (
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100">
+                {/* Day header */}
+                <div className={`px-3.5 py-2.5 flex items-center justify-between border-b ${
+                  isToday ? 'bg-indigo-50 border-indigo-100' : 'bg-gray-50/80 border-gray-100'
+                }`}>
+                  <div className="flex items-center gap-2.5">
+                    <span className={`h-8 w-8 flex items-center justify-center rounded-full text-sm font-extrabold ${
+                      isToday ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-gray-800 border border-gray-200'
+                    }`}>
+                      {date.getDate()}
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-sm font-extrabold ${isToday ? 'text-indigo-900' : 'text-gray-900'}`}>
+                          {dayLabel}
+                        </span>
+                        {isToday && (
+                          <span className="text-[9px] font-bold uppercase tracking-wider bg-indigo-600 text-white px-1.5 py-0.5 rounded">Today</span>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-gray-500 font-medium">{fullDateLabel}</span>
+                    </div>
+                  </div>
+                  {daySchedules.length > 0 ? (
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200">
                       {daySchedules.length} shift{daySchedules.length > 1 ? 's' : ''}
                     </span>
+                  ) : (
+                    <span className="text-[11px] font-medium text-gray-400">No shifts</span>
                   )}
                 </div>
 
-                <div className="space-y-1">
-                  {visibleSchedules.map(sched => {
-                    const color = colorForDriver(sched.DriverId);
-                    const dName = driverName(sched.DriverId);
-                    const shortName = dName.includes(' ') ? dName.split(' ')[0] : dName;
-                    return (
-                      <div
-                        key={sched.id}
-                        onClick={(e) => { 
-                          e.stopPropagation(); 
-                          setModal({ mode: 'dayDetail', dateKey, daySchedules }); 
-                        }}
-                        className={`w-full text-left text-[11px] leading-snug px-2 py-1 rounded-lg ${color.bg} ${color.text} border border-black/5 shadow-2xs hover:opacity-90 transition cursor-pointer`}
-                        title={`${dName}: ${toTime12H(sched.Mula)} - ${toTime12H(sched.Tamat)}`}
-                      >
-                        <div className="font-extrabold truncate">{shortName}</div>
-                        <div className="text-[10px] font-semibold opacity-90 font-mono">
-                          {toTime12H(sched.Mula)} - {toTime12H(sched.Tamat)}
+                {/* Shifts list */}
+                {daySchedules.length > 0 ? (
+                  <div className="p-2.5 space-y-1.5">
+                    {daySchedules.map(sched => {
+                      const color = colorForDriver(sched.DriverId);
+                      const dName = driverName(sched.DriverId);
+                      return (
+                        <div
+                          key={sched.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setModal({ mode: 'dayDetail', dateKey, daySchedules });
+                          }}
+                          className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg ${color.bg} ${color.text} border border-black/5`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="font-extrabold text-xs truncate">{dName}</div>
+                            <div className="text-[11px] font-semibold opacity-90 font-mono mt-0.5">
+                              {toTime12H(sched.Mula)} – {toTime12H(sched.Tamat)}
+                            </div>
+                          </div>
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${color.dot}`}></span>
                         </div>
-                      </div>
-                    );
-                  })}
-                  {hiddenCount > 0 && (
-                    <div className="text-[10px] text-indigo-600 font-extrabold px-1 text-center bg-indigo-50/60 rounded py-0.5">
-                      +{hiddenCount} more shift{hiddenCount > 1 ? 's' : ''}
-                    </div>
-                  )}
-                </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="px-3.5 py-3 text-center text-[11px] text-gray-400 font-medium">
+                    Tap to assign shift
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
-      </div>
+      ) : (
+        /* ========== MONTH VIEW: Compact Grid ========== */
+        <div className="bg-white rounded-xl sm:rounded-2xl shadow-xs border border-gray-200 overflow-hidden">
+          <div className="grid grid-cols-7 bg-gray-50 border-b border-gray-200">
+            {WEEKDAY_LABELS.map(label => (
+              <div key={label} className="py-1.5 sm:py-2.5 text-center text-[9px] sm:text-xs font-bold text-gray-500 uppercase tracking-wider">{label}</div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7">
+            {gridDays.map(date => {
+              const dateKey = toDateKey(date);
+              const daySchedules = (schedulesByDate.get(dateKey) || []).sort((a, b) => toTimeHHMM(a.Mula).localeCompare(toTimeHHMM(b.Mula)));
+              const isToday = dateKey === todayKey;
+              const isCurrentMonth = date.getMonth() === anchor.getMonth();
+              const isSelected = selectedDates.has(dateKey);
+              // Mobile: show max 1 chip + "+N", Desktop: show up to 3
+              const visibleSchedules = daySchedules.slice(0, 2);
+              const hiddenCount = daySchedules.length - visibleSchedules.length;
+
+              return (
+                <div
+                  key={dateKey}
+                  onClick={() => handleDayClick(dateKey, daySchedules)}
+                  className={`relative border-b border-r border-gray-100 p-1 sm:p-1.5 transition min-h-[4.5rem] sm:min-h-[7.5rem] ${
+                    isCurrentMonth ? 'bg-white' : 'bg-gray-50/70'
+                  } cursor-pointer hover:bg-indigo-50/30 active:bg-indigo-50/50 ${isSelected ? 'ring-2 ring-inset ring-indigo-500 bg-indigo-50' : ''}`}
+                  title="Tap to view shifts"
+                >
+                  <div className="flex items-center justify-between mb-0.5 sm:mb-1">
+                    <span className={`text-[10px] sm:text-xs font-extrabold h-5 w-5 sm:h-6 sm:w-6 flex items-center justify-center rounded-full ${
+                      isToday ? 'bg-indigo-600 text-white shadow-xs' : isCurrentMonth ? 'text-gray-900 bg-gray-100' : 'text-gray-400'
+                    }`}>
+                      {date.getDate()}
+                    </span>
+                    {daySchedules.length > 0 && (
+                      <span className="text-[8px] sm:text-[10px] font-bold px-1 sm:px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 leading-none">
+                        {daySchedules.length}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="space-y-0.5">
+                    {visibleSchedules.map(sched => {
+                      const color = colorForDriver(sched.DriverId);
+                      const dName = driverName(sched.DriverId);
+                      const shortName = dName.includes(' ') ? dName.split(' ')[0] : dName;
+                      return (
+                        <div
+                          key={sched.id}
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            setModal({ mode: 'dayDetail', dateKey, daySchedules }); 
+                          }}
+                          className={`w-full text-left text-[9px] sm:text-[11px] leading-tight px-1 sm:px-1.5 py-0.5 sm:py-1 rounded ${color.bg} ${color.text} border border-black/5 shadow-2xs hover:opacity-90 transition cursor-pointer`}
+                          title={`${dName}: ${toTime12H(sched.Mula)} - ${toTime12H(sched.Tamat)}`}
+                        >
+                          <div className="font-extrabold truncate">{shortName}</div>
+                          <div className="text-[8px] sm:text-[10px] font-semibold opacity-90 font-mono hidden sm:block">
+                            {toTime12H(sched.Mula)}-{toTime12H(sched.Tamat)}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {hiddenCount > 0 && (
+                      <div className="text-[8px] sm:text-[10px] text-indigo-600 font-extrabold px-0.5 text-center bg-indigo-50/60 rounded py-0.5">
+                        +{hiddenCount}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Floating bulk action bar */}
       {bulkMode && selectedDates.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white rounded-full shadow-lg px-5 py-3 flex items-center gap-4 z-40 animate-fadeIn">
-          <span className="text-sm font-medium">{selectedDates.size} dates selected</span>
-          <button onClick={openBulkAddModal} className="bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-semibold px-4 py-1.5 rounded-full transition cursor-pointer">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white rounded-full shadow-lg px-4 py-2.5 flex items-center gap-3 z-40 animate-fadeIn max-w-[95vw]">
+          <span className="text-xs font-medium whitespace-nowrap">{selectedDates.size} selected</span>
+          <button onClick={openBulkAddModal} className="bg-indigo-500 hover:bg-indigo-400 text-white text-xs font-semibold px-3 py-1.5 rounded-full transition cursor-pointer">
             Set Shifts
           </button>
-          
           <button
             type="button"
             onClick={() => {
               setModal({ mode: 'bulkDelete', dates: Array.from(selectedDates) });
             }}
-            className="bg-red-600 hover:bg-red-500 text-white text-sm font-semibold px-4 py-1.5 rounded-full transition cursor-pointer"
+            className="bg-red-600 hover:bg-red-500 text-white text-xs font-semibold px-3 py-1.5 rounded-full transition cursor-pointer"
           >
-            Bulk Delete Roster
+            Delete
           </button>
-
-          <button onClick={() => setSelectedDates(new Set())} className="text-gray-300 hover:text-white text-sm cursor-pointer">
+          <button onClick={() => setSelectedDates(new Set())} className="text-gray-300 hover:text-white text-xs cursor-pointer">
             Clear
           </button>
         </div>
@@ -485,15 +577,15 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
     return d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
   };
 
-  // DAY DETAIL MODAL (READ-ONLY FOR DRIVERS, EDITABLE FOR ADMINS)
+  // DAY DETAIL MODAL
   if (isDayDetail) {
     const { dateKey, daySchedules } = modal;
     return (
-      <div className="fixed inset-0 bg-black/60 z-50 flex justify-center items-center p-4 backdrop-blur-xs">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
-          <div className="flex justify-between items-center p-5 border-b bg-gray-50">
+      <div className="fixed inset-0 bg-black/60 z-50 flex justify-center items-end sm:items-center p-0 sm:p-4 backdrop-blur-xs">
+        <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] sm:max-h-[90vh] flex flex-col overflow-hidden">
+          <div className="flex justify-between items-center p-4 sm:p-5 border-b bg-gray-50">
             <div>
-              <h3 className="text-lg font-extrabold text-gray-900 tracking-tight">
+              <h3 className="text-base sm:text-lg font-extrabold text-gray-900 tracking-tight">
                 Shift Roster Details
               </h3>
               <p className="text-xs text-indigo-600 font-bold mt-0.5">
@@ -505,7 +597,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
             </button>
           </div>
 
-          <div className="p-6 overflow-y-auto space-y-4">
+          <div className="p-4 sm:p-6 overflow-y-auto space-y-4">
             {daySchedules.length > 0 ? (
               <div className="space-y-2.5">
                 <label className="block text-xs font-bold uppercase text-gray-400">Scheduled Drivers ({daySchedules.length})</label>
@@ -513,22 +605,21 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
                   const dName = drivers.find(d => d.id === sched.DriverId)?.name || 'Unknown Driver';
                   return (
                     <div key={sched.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3">
-                      <div>
-                        <h4 className="text-sm font-extrabold text-slate-900">{dName}</h4>
+                      <div className="min-w-0">
+                        <h4 className="text-sm font-extrabold text-slate-900 truncate">{dName}</h4>
                         <div className="flex items-center gap-1.5 text-xs text-indigo-700 font-bold mt-0.5">
-                          <ClockIcon className="w-3.5 h-3.5" />
+                          <ClockIcon className="w-3.5 h-3.5 shrink-0" />
                           <span>{toTime12H(sched.Mula)} - {toTime12H(sched.Tamat)}</span>
                         </div>
                       </div>
-                      {/* EDIT & DELETE ONLY FOR ADMINS */}
                       {isEditable && (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 shrink-0">
                           <button
                             type="button"
                             onClick={() => {
                               if (onOpenEditForSchedule) onOpenEditForSchedule(sched);
                             }}
-                            className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold transition cursor-pointer"
+                            className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold transition cursor-pointer"
                           >
                             Edit
                           </button>
@@ -539,7 +630,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
                                 onDelete(sched.id);
                               }
                             }}
-                            className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-xs font-bold transition cursor-pointer"
+                            className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-xs font-bold transition cursor-pointer"
                           >
                             Delete
                           </button>
@@ -555,7 +646,6 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
               </div>
             )}
 
-            {/* ASSIGN NEW SHIFT BUTTON ONLY FOR ADMINS */}
             {isEditable && (
               <div className="pt-2">
                 <button
@@ -578,10 +668,10 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
 
   if (isBulkDelete) {
     return (
-      <div className="fixed inset-0 bg-black/60 z-50 flex justify-center items-center p-4 backdrop-blur-xs">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
-          <div className="flex justify-between items-center p-5 border-b bg-gray-50">
-            <h3 className="text-lg font-extrabold text-gray-900 tracking-tight">
+      <div className="fixed inset-0 bg-black/60 z-50 flex justify-center items-end sm:items-center p-0 sm:p-4 backdrop-blur-xs">
+        <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] sm:max-h-[90vh] flex flex-col overflow-hidden">
+          <div className="flex justify-between items-center p-4 sm:p-5 border-b bg-gray-50">
+            <h3 className="text-base sm:text-lg font-extrabold text-gray-900 tracking-tight">
               Bulk Delete Shifts ({modal.dates.length} Dates)
             </h3>
             <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1.5 hover:bg-gray-200 rounded-full transition cursor-pointer">
@@ -589,7 +679,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="overflow-y-auto p-6 space-y-4">
+          <form onSubmit={handleSubmit} className="overflow-y-auto p-4 sm:p-6 space-y-4">
             <div>
               <label className="block text-xs font-bold uppercase text-gray-400 mb-1">Selected Dates</label>
               <div className="max-h-24 overflow-y-auto bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-xs text-gray-600 space-y-0.5">
@@ -610,7 +700,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
                 ))}
               </select>
               <p className="mt-1.5 text-xs text-gray-500">
-                Choose a specific driver to clear only their roster on the selected dates, or choose "All Drivers" to remove all shifts.
+                Choose a specific driver or "All Drivers" to remove shifts.
               </p>
             </div>
 
@@ -627,16 +717,16 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex justify-center items-center p-4 backdrop-blur-xs">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
-        <div className="flex justify-between items-center p-5 border-b bg-gray-50">
-          <h3 className="text-lg font-extrabold text-gray-900 tracking-tight">
+    <div className="fixed inset-0 bg-black/60 z-50 flex justify-center items-end sm:items-center p-0 sm:p-4 backdrop-blur-xs">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] sm:max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="flex justify-between items-center p-4 sm:p-5 border-b bg-gray-50">
+          <h3 className="text-base sm:text-lg font-extrabold text-gray-900 tracking-tight">
             {isEdit ? 'Edit Shift' : modal.mode === 'add' && modal.dates.length > 1 ? `Set Shifts (${modal.dates.length} Dates)` : 'Add Shift'}
           </h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1.5 hover:bg-gray-200 rounded-full transition cursor-pointer"><XIcon className="h-5 w-5" /></button>
         </div>
 
-        <form onSubmit={handleSubmit} className="overflow-y-auto p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="overflow-y-auto p-4 sm:p-6 space-y-4">
           {modal.mode === 'add' && (
             <div>
               <label className="block text-xs font-bold uppercase text-gray-400 mb-1">Date</label>
