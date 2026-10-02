@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import type { OdometerLog } from '../types';
-import { XIcon } from './icons/Icons';
+import { XIcon, GaugeIcon, TruckIcon, ChevronDownIcon, ChevronUpIcon } from './icons/Icons';
 import { parseAsLocal } from '../utils';
 
 interface OdometerLogFormProps {
@@ -10,6 +10,7 @@ interface OdometerLogFormProps {
   driverId: string;
   defaultBookingId?: string;
   defaultBookingIds?: string[];
+  defaultVehicleId?: string;
 }
 
 const emptyFormData = {
@@ -31,18 +32,58 @@ const OdometerLogForm: React.FC<OdometerLogFormProps> = ({
   onClose, 
   driverId, 
   defaultBookingId,
-  defaultBookingIds
+  defaultBookingIds,
+  defaultVehicleId
 }) => {
   const { addOdometerLog, vehicles, odometerLogs, bookings } = useAppContext();
   const [formData, setFormData] = useState<FormData>(emptyFormData);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [error, setError] = useState('');
+  const [showAllVehiclesReference, setShowAllVehiclesReference] = useState(false);
+
+  // Accurate vehicle latest odometer lookup map
+  const vehicleOdometerMap = useMemo(() => {
+    const map: Record<string, { lastOdometer: number; lastDate?: string; logCount: number }> = {};
+    
+    vehicles.forEach(v => {
+      const vLogs = odometerLogs
+        .filter(l => l.vehicleId === v.id)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      
+      if (vLogs.length > 0) {
+        const maxReading = Math.max(...vLogs.map(l => Number(l.odometer) || 0));
+        map[v.id] = {
+          lastOdometer: maxReading,
+          lastDate: vLogs[0].date,
+          logCount: vLogs.length
+        };
+      } else {
+        map[v.id] = {
+          lastOdometer: Number(v.currentOdometer) || 0,
+          lastDate: undefined,
+          logCount: 0
+        };
+      }
+    });
+
+    return map;
+  }, [vehicles, odometerLogs]);
 
   const resetForm = useCallback(() => {
-    setFormData({ ...emptyFormData, date: new Date().toISOString().split('T')[0] });
+    const initialVehicle = defaultVehicleId || '';
+    const initialStart = initialVehicle && vehicleOdometerMap[initialVehicle] 
+      ? String(vehicleOdometerMap[initialVehicle].lastOdometer || '') 
+      : '';
+
+    setFormData({ 
+      ...emptyFormData, 
+      vehicleId: initialVehicle,
+      startOdometer: initialStart,
+      date: new Date().toISOString().split('T')[0] 
+    });
     setSelectedIds([]);
     setError('');
-  }, []);
+  }, [defaultVehicleId, vehicleOdometerMap]);
 
   // Filter active driver bookings
   const driverActiveBookings = useMemo(() => {
@@ -80,11 +121,8 @@ const OdometerLogForm: React.FC<OdometerLogFormProps> = ({
 
     // Search latest odometer reading for vehicle
     let suggestedStart = '';
-    if (firstVehicleId) {
-      const vehicleLogs = odometerLogs.filter(log => log.vehicleId === firstVehicleId);
-      if (vehicleLogs.length > 0) {
-        suggestedStart = String(Math.max(...vehicleLogs.map(log => log.odometer)));
-      }
+    if (firstVehicleId && vehicleOdometerMap[firstVehicleId]) {
+      suggestedStart = String(vehicleOdometerMap[firstVehicleId].lastOdometer || '');
     }
 
     setFormData(prev => ({
@@ -98,10 +136,9 @@ const OdometerLogForm: React.FC<OdometerLogFormProps> = ({
       startOdometer: suggestedStart || prev.startOdometer,
     }));
     setError('');
-  }, [bookings, odometerLogs]);
+  }, [bookings, vehicleOdometerMap]);
 
   // Track previous open state so we ONLY initialize once upon modal opening.
-  // This prevents background polling / re-renders from wiping user checkbox selections.
   const prevIsOpenRef = React.useRef(false);
 
   useEffect(() => {
@@ -112,27 +149,42 @@ const OdometerLogForm: React.FC<OdometerLogFormProps> = ({
       } else if (defaultBookingId) {
         setSelectedIds([defaultBookingId]);
         autoFillForMultipleBookings([defaultBookingId]);
+      } else if (defaultVehicleId) {
+        setSelectedIds([]);
+        const lastOdo = vehicleOdometerMap[defaultVehicleId]?.lastOdometer;
+        setFormData({
+          ...emptyFormData,
+          vehicleId: defaultVehicleId,
+          startOdometer: lastOdo ? String(lastOdo) : '',
+          date: new Date().toISOString().split('T')[0]
+        });
       } else {
         setSelectedIds([]);
         resetForm();
       }
     }
     prevIsOpenRef.current = isOpen;
-  }, [isOpen, defaultBookingId, defaultBookingIds, autoFillForMultipleBookings, resetForm]);
+  }, [isOpen, defaultBookingId, defaultBookingIds, defaultVehicleId, autoFillForMultipleBookings, resetForm, vehicleOdometerMap]);
 
   // Suggest start odometer when user changes vehicle manually
-  useEffect(() => {
-    if (!formData.vehicleId) return;
-    const vehicleLogs = odometerLogs.filter(log => log.vehicleId === formData.vehicleId);
-    if (vehicleLogs.length === 0) return;
-    const latestOdometer = Math.max(...vehicleLogs.map(log => log.odometer));
-    setFormData(prev => (prev.startOdometer ? prev : { ...prev, startOdometer: String(latestOdometer) }));
-  }, [formData.vehicleId, odometerLogs]);
+  const handleVehicleSelect = (vehicleId: string) => {
+    const lastOdo = vehicleOdometerMap[vehicleId]?.lastOdometer;
+    setFormData(prev => ({
+      ...prev,
+      vehicleId,
+      startOdometer: lastOdo ? String(lastOdo) : prev.startOdometer
+    }));
+    setError('');
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    setError('');
+    if (name === 'vehicleId') {
+      handleVehicleSelect(value);
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+      setError('');
+    }
   };
 
   const handleToggleBooking = (id: string) => {
@@ -193,6 +245,9 @@ const OdometerLogForm: React.FC<OdometerLogFormProps> = ({
 
   if (!isOpen) return null;
 
+  const selectedVehicleInfo = vehicles.find(v => v.id === formData.vehicleId);
+  const selectedVehicleOdo = formData.vehicleId ? vehicleOdometerMap[formData.vehicleId] : null;
+
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex justify-center items-center p-4 backdrop-blur-xs">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden max-h-[90vh]">
@@ -203,7 +258,9 @@ const OdometerLogForm: React.FC<OdometerLogFormProps> = ({
             <h2 className="text-lg font-extrabold text-gray-900 tracking-tight">Odometer Check-in & Trip Completion</h2>
             <p className="text-xs text-gray-500 font-medium mt-0.5">Confirm completed assignments and record odometer readings</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1.5 hover:bg-gray-200 rounded-full transition"><XIcon className="h-6 w-6" /></button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1.5 hover:bg-gray-200 rounded-full transition cursor-pointer">
+            <XIcon className="h-6 w-6" />
+          </button>
         </div>
 
         {/* Form */}
@@ -250,13 +307,108 @@ const OdometerLogForm: React.FC<OdometerLogFormProps> = ({
             <p className="text-[10px] text-indigo-600 font-semibold mt-1.5">💡 Selecting assignments will auto-fill location and purpose, marking all selected trips as 'Completed'.</p>
           </div>
 
-          {/* Vehicle Dropdown */}
+          {/* Vehicle Dropdown with Last Odometer Info */}
           <div>
-            <label className="block text-xs font-bold uppercase text-gray-400 mb-1">Vehicle / Van *</label>
-            <select name="vehicleId" value={formData.vehicleId} onChange={handleChange} required className="block w-full border-gray-200 rounded-xl shadow-xs text-sm font-semibold p-2.5 bg-gray-50 focus:bg-white focus:ring-indigo-500 focus:border-indigo-500">
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-bold uppercase text-gray-500">
+                Vehicle / Van *
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowAllVehiclesReference(!showAllVehiclesReference)}
+                className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer"
+              >
+                <span>{showAllVehiclesReference ? 'Hide Fleet Odometer List' : 'View All Vehicles Last Odometer'}</span>
+                {showAllVehiclesReference ? <ChevronUpIcon className="w-3.5 h-3.5" /> : <ChevronDownIcon className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+            
+            <select 
+              name="vehicleId" 
+              value={formData.vehicleId} 
+              onChange={handleChange} 
+              required 
+              className="block w-full border-gray-300 rounded-xl shadow-xs text-sm font-semibold p-2.5 bg-gray-50 focus:bg-white focus:ring-indigo-500 focus:border-indigo-500 text-slate-900"
+            >
               <option value="">-- Select Vehicle --</option>
-              {vehicles.map(v => <option key={v.id} value={v.id}>{v.name} ({v.plateNumber})</option>)}
+              {vehicles.map(v => {
+                const odoInfo = vehicleOdometerMap[v.id];
+                const lastKm = odoInfo ? odoInfo.lastOdometer : (v.currentOdometer || 0);
+                return (
+                  <option key={v.id} value={v.id}>
+                    {v.name} ({v.plateNumber}) — Last Odo: {lastKm.toLocaleString()} KM
+                  </option>
+                );
+              })}
             </select>
+
+            {/* Selected Vehicle Quick Odometer Preview Card */}
+            {selectedVehicleInfo && selectedVehicleOdo && (
+              <div className="mt-2.5 p-3 bg-gradient-to-r from-indigo-50/90 to-slate-50 border border-indigo-200/80 rounded-xl flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-indigo-600 text-white rounded-lg shadow-xs">
+                    <GaugeIcon className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase text-indigo-900 tracking-wider block">
+                      {selectedVehicleInfo.name} ({selectedVehicleInfo.plateNumber})
+                    </span>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="text-xs font-black text-indigo-950">
+                        Last Odometer: {selectedVehicleOdo.lastOdometer.toLocaleString()} KM
+                      </span>
+                      {selectedVehicleOdo.lastDate && (
+                        <span className="text-[10px] text-slate-500 font-medium">
+                          (Updated {new Date(selectedVehicleOdo.lastDate).toLocaleDateString('en-GB')})
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, startOdometer: String(selectedVehicleOdo.lastOdometer) }))}
+                  className="px-2.5 py-1.5 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-300 rounded-lg text-xs font-bold transition shadow-xs cursor-pointer whitespace-nowrap"
+                  title="Copy last odometer to Start Odometer input"
+                >
+                  Apply Start Odo
+                </button>
+              </div>
+            )}
+
+            {/* Collapsible Fleet Odometer Reference Table */}
+            {showAllVehiclesReference && (
+              <div className="mt-2 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs">
+                <div className="flex items-center justify-between font-bold text-slate-700 border-b border-slate-200 pb-1.5">
+                  <span>Fleet Vehicle</span>
+                  <span>Last Odometer</span>
+                </div>
+                <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                  {vehicles.map(v => {
+                    const info = vehicleOdometerMap[v.id];
+                    const km = info ? info.lastOdometer : (v.currentOdometer || 0);
+                    const isCurrent = v.id === formData.vehicleId;
+                    return (
+                      <div
+                        key={v.id}
+                        onClick={() => handleVehicleSelect(v.id)}
+                        className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition ${
+                          isCurrent ? 'bg-indigo-100/70 text-indigo-950 font-bold' : 'hover:bg-white text-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 truncate">
+                          <TruckIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="truncate">{v.name} ({v.plateNumber})</span>
+                        </div>
+                        <span className="font-mono font-bold text-indigo-700 whitespace-nowrap ml-2">
+                          {km.toLocaleString()} KM
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Date Picker */}
@@ -286,12 +438,30 @@ const OdometerLogForm: React.FC<OdometerLogFormProps> = ({
           {/* Odometer metrics */}
           <div className="grid grid-cols-2 gap-3 p-3 bg-indigo-50/40 rounded-xl border border-indigo-100">
             <div>
-              <label className="block text-xs font-bold text-indigo-900 uppercase mb-1">Start Odometer (KM) *</label>
-              <input type="number" name="startOdometer" value={formData.startOdometer} onChange={handleChange} required className="block w-full border-indigo-200 rounded-xl text-sm font-extrabold p-2.5 bg-white text-indigo-950 focus:ring-indigo-500 focus:border-indigo-500" placeholder="e.g. 123456" />
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-indigo-900 uppercase">Start Odometer (KM) *</label>
+              </div>
+              <input 
+                type="number" 
+                name="startOdometer" 
+                value={formData.startOdometer} 
+                onChange={handleChange} 
+                required 
+                className="block w-full border-indigo-200 rounded-xl text-sm font-extrabold p-2.5 bg-white text-indigo-950 focus:ring-indigo-500 focus:border-indigo-500" 
+                placeholder="e.g. 123456" 
+              />
             </div>
             <div>
               <label className="block text-xs font-bold text-indigo-900 uppercase mb-1">End Odometer (KM) *</label>
-              <input type="number" name="endOdometer" value={formData.endOdometer} onChange={handleChange} required className="block w-full border-indigo-200 rounded-xl text-sm font-extrabold p-2.5 bg-white text-indigo-950 focus:ring-indigo-500 focus:border-indigo-500" placeholder="e.g. 123500" />
+              <input 
+                type="number" 
+                name="endOdometer" 
+                value={formData.endOdometer} 
+                onChange={handleChange} 
+                required 
+                className="block w-full border-indigo-200 rounded-xl text-sm font-extrabold p-2.5 bg-white text-indigo-950 focus:ring-indigo-500 focus:border-indigo-500" 
+                placeholder="e.g. 123500" 
+              />
             </div>
           </div>
 

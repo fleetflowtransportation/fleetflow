@@ -50,6 +50,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
   const [isFuelLogOpen, setIsFuelLogOpen] = useState(false);
   const [isOdometerLogOpen, setIsOdometerLogOpen] = useState(false);
   const [isIssueLogOpen, setIsIssueLogOpen] = useState(false);
+  const [selectedVehicleForOdometer, setSelectedVehicleForOdometer] = useState<string | undefined>(undefined);
   
   // Multiple booking selection states
   const [selectedBookingIds, setSelectedBookingIds] = useState<string[]>([]);
@@ -57,6 +58,30 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
   
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [scheduleModalTab, setScheduleModalTab] = useState<'calendar' | 'schedule'>('calendar');
+
+  // Fleet vehicle odometer lookup for driver dashboard
+  const fleetVehicleOdometerMap = useMemo(() => {
+    const map: Record<string, { lastOdometer: number; lastDate?: string }> = {};
+    vehicles.forEach(v => {
+      const vLogs = odometerLogs
+        .filter(l => l.vehicleId === v.id)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      
+      if (vLogs.length > 0) {
+        const maxReading = Math.max(...vLogs.map(l => Number(l.odometer) || 0));
+        map[v.id] = {
+          lastOdometer: maxReading,
+          lastDate: vLogs[0].date
+        };
+      } else {
+        map[v.id] = {
+          lastOdometer: Number(v.currentOdometer) || 0,
+          lastDate: undefined
+        };
+      }
+    });
+    return map;
+  }, [vehicles, odometerLogs]);
 
   const getVehicleInfo = (vehicleId: string | null, serviceType?: string) => {
     if (!vehicleId) {
@@ -191,16 +216,19 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
 
   const handleOpenOdometerForSelected = () => {
     if (selectedBookingIds.length === 0) return;
+    setSelectedVehicleForOdometer(undefined);
     setIsOdometerLogOpen(true);
   };
 
   const handleSingleOdometerOpen = (id: string) => {
     setSelectedBookingIds([id]);
+    setSelectedVehicleForOdometer(undefined);
     setIsOdometerLogOpen(true);
   };
 
   const handleOpenGeneralOdometer = () => {
     setSelectedBookingIds([]);
+    setSelectedVehicleForOdometer(undefined);
     setIsOdometerLogOpen(true);
   };
 
@@ -577,6 +605,93 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
           <span className="text-xs font-bold text-slate-700">Report Issue</span>
         </button>
       </div>
+
+      {/* FLEET VEHICLE LAST ODOMETER STATUS SECTION */}
+      {vehicles.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-100">
+                <GaugeIcon className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 tracking-tight">
+                  Fleet Vehicles & Last Recorded Odometers
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Quickly check latest mileage before or after submitting your trip odometer logs.
+                </p>
+              </div>
+            </div>
+            <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200 self-start sm:self-auto">
+              {vehicles.length} Vehicles in Fleet
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+            {vehicles.map(v => {
+              const odoInfo = fleetVehicleOdometerMap[v.id];
+              const lastKm = odoInfo ? odoInfo.lastOdometer : (v.currentOdometer || 0);
+              const isMaintenance = v.vehicleStatus === 'Under Maintenance';
+
+              return (
+                <div 
+                  key={v.id}
+                  className={`p-3 rounded-xl border transition-all flex flex-col justify-between gap-2.5 ${
+                    isMaintenance 
+                      ? 'bg-amber-50/50 border-amber-200' 
+                      : 'bg-slate-50/80 hover:bg-slate-50 border-slate-200 hover:border-indigo-300'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <TruckIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="font-extrabold text-xs text-slate-900 truncate">
+                          {v.name}
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-mono font-bold text-indigo-600 block mt-0.5">
+                        {v.plateNumber}
+                      </span>
+                    </div>
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                      isMaintenance ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                    }`}>
+                      {v.vehicleStatus || 'Active'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
+                    <div>
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
+                        Last Odometer
+                      </span>
+                      <span className="text-xs sm:text-sm font-black text-slate-900">
+                        {lastKm.toLocaleString()} KM
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedBookingIds([]);
+                        setSelectedVehicleForOdometer(v.id);
+                        setIsOdometerLogOpen(true);
+                      }}
+                      className="px-2.5 py-1.5 bg-white hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-200 hover:border-indigo-600 rounded-lg text-xs font-bold transition shadow-xs flex items-center gap-1 cursor-pointer"
+                      title={`Submit odometer log for ${v.name} (${v.plateNumber})`}
+                    >
+                      <GaugeIcon className="w-3 h-3" />
+                      <span>Log Odo</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* DRIVER SEARCH BAR */}
       <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
@@ -1013,9 +1128,11 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
         onClose={() => {
           setIsOdometerLogOpen(false);
           setSelectedBookingIds([]); // reset selection upon close
+          setSelectedVehicleForOdometer(undefined);
         }}
         driverId={driver.id}
         defaultBookingIds={selectedBookingIds}
+        defaultVehicleId={selectedVehicleForOdometer}
       />
 
       <IssueLogForm
