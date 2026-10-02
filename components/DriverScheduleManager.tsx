@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import type { DriverSchedule } from '../types';
-import { XIcon, TrashIcon, PlusIcon } from './icons/Icons';
+import { XIcon, TrashIcon, PlusIcon, CalendarIcon, ClockIcon } from './icons/Icons';
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTH_LABELS = [
@@ -10,16 +10,17 @@ const MONTH_LABELS = [
 ];
 
 const DRIVER_COLORS = [
-  { bg: 'bg-blue-100', text: 'text-blue-800', dot: 'bg-blue-500', ring: 'ring-blue-400' },
-  { bg: 'bg-emerald-100', text: 'text-emerald-800', dot: 'bg-emerald-500', ring: 'ring-emerald-400' },
-  { bg: 'bg-amber-100', text: 'text-amber-800', dot: 'bg-amber-500', ring: 'ring-amber-400' },
-  { bg: 'bg-purple-100', text: 'text-purple-800', dot: 'bg-purple-500', ring: 'ring-purple-400' },
-  { bg: 'bg-pink-100', text: 'text-pink-800', dot: 'bg-pink-500', ring: 'ring-pink-400' },
-  { bg: 'bg-cyan-100', text: 'text-cyan-800', dot: 'bg-cyan-500', ring: 'ring-cyan-400' },
+  { bg: 'bg-blue-100', text: 'text-blue-900', dot: 'bg-blue-500', ring: 'ring-blue-400' },
+  { bg: 'bg-emerald-100', text: 'text-emerald-900', dot: 'bg-emerald-500', ring: 'ring-emerald-400' },
+  { bg: 'bg-amber-100', text: 'text-amber-900', dot: 'bg-amber-500', ring: 'ring-amber-400' },
+  { bg: 'bg-purple-100', text: 'text-purple-900', dot: 'bg-purple-500', ring: 'ring-purple-400' },
+  { bg: 'bg-pink-100', text: 'text-pink-900', dot: 'bg-pink-500', ring: 'ring-pink-400' },
+  { bg: 'bg-cyan-100', text: 'text-cyan-900', dot: 'bg-cyan-500', ring: 'ring-cyan-400' },
 ];
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const toDateKey = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
 const toTimeHHMM = (raw: string) => {
   if (!raw) return '';
   if (/^\d{2}:\d{2}$/.test(raw)) return raw;
@@ -100,6 +101,7 @@ const buildWeekGrid = (anchor: Date): Date[] => {
 type ModalState =
   | { mode: 'add'; dates: string[] }
   | { mode: 'edit'; schedule: DriverSchedule }
+  | { mode: 'dayDetail'; dateKey: string; daySchedules: DriverSchedule[] }
   | { mode: 'bulkDelete'; dates: string[] }
   | null;
 
@@ -160,9 +162,9 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
     setSelectedDates(new Set());
   };
 
-  const handleDayClick = (dateKey: string) => {
-    if (!isEditable) return;
+  const handleDayClick = (dateKey: string, daySchedules: DriverSchedule[]) => {
     if (bulkMode) {
+      if (!isEditable) return;
       setSelectedDates(prev => {
         const next = new Set(prev);
         if (next.has(dateKey)) next.delete(dateKey);
@@ -170,7 +172,8 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
         return next;
       });
     } else {
-      setModal({ mode: 'add', dates: [dateKey] });
+      // Open Day Detail Modal so user can view details and add/edit shifts
+      setModal({ mode: 'dayDetail', dateKey, daySchedules });
     }
   };
 
@@ -193,7 +196,7 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
           <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Driver Shift & Duty Roster</h2>
           <p className="text-gray-500 mt-1 text-xs sm:text-sm">
             {isEditable 
-              ? 'Click any date to assign a shift. Click existing shifts to edit or delete.' 
+              ? 'Click any calendar date to view shift details, working hours, or assign new shifts.' 
               : 'Driver shift rosters and duty schedule overview (Read-Only View).'}
           </p>
         </div>
@@ -201,17 +204,17 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
           <div className="bg-white border border-gray-300 rounded-lg overflow-hidden flex text-xs sm:text-sm font-semibold shadow-xs">
             <button
               onClick={() => setViewMode('month')}
-              className={`px-3 py-1.5 transition ${viewMode === 'month' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+              className={`px-3 py-1.5 transition cursor-pointer ${viewMode === 'month' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
             >Month</button>
             <button
               onClick={() => setViewMode('week')}
-              className={`px-3 py-1.5 border-l border-gray-300 transition ${viewMode === 'week' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+              className={`px-3 py-1.5 border-l border-gray-300 transition cursor-pointer ${viewMode === 'week' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
             >Week</button>
           </div>
           {isEditable && (
             <button
               onClick={toggleBulkMode}
-              className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium border transition ${bulkMode ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+              className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium border transition cursor-pointer ${bulkMode ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
             >
               {bulkMode ? 'Cancel Multi-Select' : 'Select Multiple Dates'}
             </button>
@@ -219,37 +222,30 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
         </div>
       </div>
 
-      {/* Date Navigation */}
-      <div className="flex items-center justify-between mb-3 bg-white border border-gray-200 rounded-xl px-3.5 py-2 shadow-xs">
-        <button onClick={goPrev} className="px-2.5 py-1 text-gray-600 hover:bg-gray-100 rounded-lg font-bold text-xs sm:text-sm">‹ Previous</button>
-        <div className="font-bold text-gray-800 text-xs sm:text-sm">
-          {viewMode === 'month'
-            ? `${MONTH_LABELS[anchor.getMonth()]} ${anchor.getFullYear()}`
-            : `${gridDays[0].getDate()} ${MONTH_LABELS[gridDays[0].getMonth()]} - ${gridDays[6].getDate()} ${MONTH_LABELS[gridDays[6].getMonth()]} ${gridDays[6].getFullYear()}`}
+      {/* Calendar Navigation Bar */}
+      <div className="bg-white rounded-2xl p-4 shadow-xs border border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <button onClick={goPrev} className="p-2 border border-gray-300 rounded-xl hover:bg-gray-50 transition cursor-pointer text-gray-700 font-bold">&larr;</button>
+          <button onClick={goToday} className="px-3.5 py-2 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50 transition cursor-pointer">Today</button>
+          <button onClick={goNext} className="p-2 border border-gray-300 rounded-xl hover:bg-gray-50 transition cursor-pointer text-gray-700 font-bold">&rarr;</button>
+          <h3 className="text-base sm:text-lg font-extrabold text-gray-900 ml-2">
+            {viewMode === 'month' 
+              ? `${MONTH_LABELS[anchor.getMonth()]} ${anchor.getFullYear()}` 
+              : `Week of ${gridDays[0].toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} - ${gridDays[6].toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`}
+          </h3>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={goToday} className="px-2.5 py-1 text-xs sm:text-sm text-indigo-600 hover:bg-indigo-50 rounded-lg font-bold">Today</button>
-          <button onClick={goNext} className="px-2.5 py-1 text-gray-600 hover:bg-gray-100 rounded-lg font-bold text-xs sm:text-sm">Next ›</button>
+
+        <div className="flex items-center gap-3 text-xs font-semibold text-gray-500">
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-indigo-600 inline-block"></span> Today</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span> Active Shift</span>
         </div>
       </div>
 
-      {/* Driver Legend */}
-      {drivers.length > 0 && (
-        <div className="flex flex-wrap gap-2.5 mb-3 px-1">
-          {drivers.map((d, idx) => (
-            <div key={d.id} className="flex items-center gap-1.5 text-xs text-gray-700 bg-white border border-gray-200 px-2 py-0.5 rounded-full shadow-2xs">
-              <span className={`h-2.5 w-2.5 rounded-full ${DRIVER_COLORS[idx % DRIVER_COLORS.length].dot}`}></span>
-              <span className="font-medium">{d.name}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Calendar Grid */}
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-xs">
+      {/* Calendar Grid Container */}
+      <div className="bg-white rounded-2xl shadow-xs border border-gray-200 overflow-hidden">
         <div className="grid grid-cols-7 bg-gray-50 border-b border-gray-200">
           {WEEKDAY_LABELS.map(label => (
-            <div key={label} className="py-2 text-center text-[10px] sm:text-xs font-bold text-gray-500 uppercase tracking-wider">{label}</div>
+            <div key={label} className="py-2.5 text-center text-[10px] sm:text-xs font-bold text-gray-500 uppercase tracking-wider">{label}</div>
           ))}
         </div>
         <div className={`grid grid-cols-7 ${viewMode === 'month' ? 'auto-rows-fr' : ''}`}>
@@ -265,42 +261,51 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
             return (
               <div
                 key={dateKey}
-                onClick={() => handleDayClick(dateKey)}
-                className={`relative border-b border-r border-gray-100 p-1.5 transition min-h-[6.5rem] ${viewMode === 'week' ? 'min-h-[16rem]' : ''} ${
+                onClick={() => handleDayClick(dateKey, daySchedules)}
+                className={`relative border-b border-r border-gray-100 p-1.5 transition min-h-[7.5rem] ${viewMode === 'week' ? 'min-h-[16rem]' : ''} ${
                   isCurrentMonth ? 'bg-white' : 'bg-gray-50/70'
-                } ${isEditable ? 'cursor-pointer hover:bg-gray-50' : ''} ${isSelected ? 'ring-2 ring-inset ring-indigo-500 bg-indigo-50' : ''}`}
+                } cursor-pointer hover:bg-indigo-50/30 ${isSelected ? 'ring-2 ring-inset ring-indigo-500 bg-indigo-50' : ''}`}
+                title="Click to view shifts and schedule details"
               >
-                <div className="flex items-center justify-between mb-1">
-                  <span className={`text-xs font-bold h-5 w-5 flex items-center justify-center rounded-full ${
-                    isToday ? 'bg-indigo-600 text-white' : isCurrentMonth ? 'text-gray-700' : 'text-gray-400'
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className={`text-xs font-extrabold h-6 w-6 flex items-center justify-center rounded-full ${
+                    isToday ? 'bg-indigo-600 text-white shadow-xs' : isCurrentMonth ? 'text-gray-900 bg-gray-100' : 'text-gray-400'
                   }`}>
                     {date.getDate()}
                   </span>
-                  {isEditable && !bulkMode && (
-                    <PlusIcon className="h-3.5 w-3.5 text-gray-300" />
+                  {daySchedules.length > 0 && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100">
+                      {daySchedules.length} shift{daySchedules.length > 1 ? 's' : ''}
+                    </span>
                   )}
                 </div>
 
                 <div className="space-y-1">
                   {visibleSchedules.map(sched => {
                     const color = colorForDriver(sched.DriverId);
+                    const dName = driverName(sched.DriverId);
+                    const shortName = dName.includes(' ') ? dName.split(' ')[0] : dName;
                     return (
-                      <button
+                      <div
                         key={sched.id}
                         onClick={(e) => { 
                           e.stopPropagation(); 
-                          if (isEditable && !bulkMode) setModal({ mode: 'edit', schedule: sched }); 
+                          setModal({ mode: 'dayDetail', dateKey, daySchedules }); 
                         }}
-                        disabled={!isEditable}
-                        className={`w-full text-left text-[11px] leading-tight px-1.5 py-1 rounded-md ${color.bg} ${color.text} truncate border border-transparent shadow-2xs ${isEditable ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
-                        title={`${driverName(sched.DriverId)}: ${toTime12H(sched.Mula)} - ${toTime12H(sched.Tamat)}`}
+                        className={`w-full text-left text-[11px] leading-snug px-2 py-1 rounded-lg ${color.bg} ${color.text} border border-black/5 shadow-2xs hover:opacity-90 transition cursor-pointer`}
+                        title={`${dName}: ${toTime12H(sched.Mula)} - ${toTime12H(sched.Tamat)}`}
                       >
-                        <span className="font-bold">{driverName(sched.DriverId).split(' ')[0]}</span> {toTime12H(sched.Mula)} - {toTime12H(sched.Tamat)}
-                      </button>
+                        <div className="font-extrabold truncate">{shortName}</div>
+                        <div className="text-[10px] font-semibold opacity-90 font-mono">
+                          {toTime12H(sched.Mula)} - {toTime12H(sched.Tamat)}
+                        </div>
+                      </div>
                     );
                   })}
                   {hiddenCount > 0 && (
-                    <div className="text-[10px] text-gray-400 font-semibold px-1">+{hiddenCount} more</div>
+                    <div className="text-[10px] text-indigo-600 font-extrabold px-1 text-center bg-indigo-50/60 rounded py-0.5">
+                      +{hiddenCount} more shift{hiddenCount > 1 ? 's' : ''}
+                    </div>
                   )}
                 </div>
               </div>
@@ -313,7 +318,7 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
       {bulkMode && selectedDates.size > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white rounded-full shadow-lg px-5 py-3 flex items-center gap-4 z-40 animate-fadeIn">
           <span className="text-sm font-medium">{selectedDates.size} dates selected</span>
-          <button onClick={openBulkAddModal} className="bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-semibold px-4 py-1.5 rounded-full transition">
+          <button onClick={openBulkAddModal} className="bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-semibold px-4 py-1.5 rounded-full transition cursor-pointer">
             Set Shifts
           </button>
           
@@ -322,12 +327,12 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
             onClick={() => {
               setModal({ mode: 'bulkDelete', dates: Array.from(selectedDates) });
             }}
-            className="bg-red-600 hover:bg-red-500 text-white text-sm font-semibold px-4 py-1.5 rounded-full transition"
+            className="bg-red-600 hover:bg-red-500 text-white text-sm font-semibold px-4 py-1.5 rounded-full transition cursor-pointer"
           >
             Bulk Delete Roster
           </button>
 
-          <button onClick={() => setSelectedDates(new Set())} className="text-gray-300 hover:text-white text-sm">
+          <button onClick={() => setSelectedDates(new Set())} className="text-gray-300 hover:text-white text-sm cursor-pointer">
             Clear
           </button>
         </div>
@@ -356,6 +361,12 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
           onDelete={(schedId) => {
             deleteDriverSchedule(schedId);
             closeModal();
+          }}
+          onOpenAddForDate={(dateKey) => {
+            setModal({ mode: 'add', dates: [dateKey] });
+          }}
+          onOpenEditForSchedule={(sched) => {
+            setModal({ mode: 'edit', schedule: sched });
           }}
           onDeleteBulk={(driverId, dates) => {
             const schedIdsToDelete = driverSchedules
@@ -393,10 +404,22 @@ interface ScheduleModalProps {
   onSave: (entries: { date: string; driverId: string; mula: string; tamat: string }[]) => void;
   onUpdate: (schedId: string, mula: string, tamat: string) => void;
   onDelete: (schedId: string) => void;
+  onOpenAddForDate?: (dateKey: string) => void;
+  onOpenEditForSchedule?: (sched: DriverSchedule) => void;
   onDeleteBulk?: (driverId: string | 'all', dates: string[]) => void;
 }
 
-const ScheduleModal: React.FC<ScheduleModalProps> = ({ modal, drivers, onClose, onSave, onUpdate, onDelete, onDeleteBulk }) => {
+const ScheduleModal: React.FC<ScheduleModalProps> = ({ 
+  modal, 
+  drivers, 
+  onClose, 
+  onSave, 
+  onUpdate, 
+  onDelete, 
+  onOpenAddForDate,
+  onOpenEditForSchedule,
+  onDeleteBulk 
+}) => {
   const isEdit = modal?.mode === 'edit';
   const editSchedule = isEdit && modal?.mode === 'edit' ? modal.schedule : null;
 
@@ -410,6 +433,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ modal, drivers, onClose, 
   if (!modal) return null;
 
   const isBulkDelete = modal.mode === 'bulkDelete';
+  const isDayDetail = modal.mode === 'dayDetail';
 
   const toggleDriver = (id: string) => {
     setSelectedDriverIds(prev => {
@@ -451,33 +475,118 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ modal, drivers, onClose, 
     return d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
   };
 
-  if (isBulkDelete) {
+  // DAY DETAIL MODAL
+  if (isDayDetail) {
+    const { dateKey, daySchedules } = modal;
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
-        <div className="bg-white rounded-lg shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
-          <div className="flex justify-between items-center p-4 border-b">
-            <h3 className="text-lg font-bold text-gray-800">
-              Bulk Delete Shifts ({modal.dates.length} Dates)
-            </h3>
-            <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
+      <div className="fixed inset-0 bg-black/60 z-50 flex justify-center items-center p-4 backdrop-blur-xs">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
+          <div className="flex justify-between items-center p-5 border-b bg-gray-50">
+            <div>
+              <h3 className="text-lg font-extrabold text-gray-900 tracking-tight">
+                Shift Roster Details
+              </h3>
+              <p className="text-xs text-indigo-600 font-bold mt-0.5">
+                {formatDateLabel(dateKey)}
+              </p>
+            </div>
+            <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1.5 hover:bg-gray-200 rounded-full transition cursor-pointer">
               <XIcon className="h-5 w-5" />
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="overflow-y-auto p-5 space-y-4">
+          <div className="p-6 overflow-y-auto space-y-4">
+            {daySchedules.length > 0 ? (
+              <div className="space-y-2.5">
+                <label className="block text-xs font-bold uppercase text-gray-400">Scheduled Drivers ({daySchedules.length})</label>
+                {daySchedules.map(sched => {
+                  const dName = drivers.find(d => d.id === sched.DriverId)?.name || 'Unknown Driver';
+                  return (
+                    <div key={sched.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3">
+                      <div>
+                        <h4 className="text-sm font-extrabold text-slate-900">{dName}</h4>
+                        <div className="flex items-center gap-1.5 text-xs text-indigo-700 font-bold mt-0.5">
+                          <ClockIcon className="w-3.5 h-3.5" />
+                          <span>{toTime12H(sched.Mula)} - {toTime12H(sched.Tamat)}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (onOpenEditForSchedule) onOpenEditForSchedule(sched);
+                          }}
+                          className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold transition cursor-pointer"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm(`Delete shift for ${dName}?`)) {
+                              onDelete(sched.id);
+                            }
+                          }}
+                          className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-xs font-bold transition cursor-pointer"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-8 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                <p className="text-xs font-bold text-gray-500">No driver shifts scheduled for this date.</p>
+              </div>
+            )}
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (onOpenAddForDate) onOpenAddForDate(dateKey);
+                }}
+                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold rounded-xl text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <PlusIcon className="w-4 h-4" />
+                <span>Assign New Shift on This Date</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isBulkDelete) {
+    return (
+      <div className="fixed inset-0 bg-black/60 z-50 flex justify-center items-center p-4 backdrop-blur-xs">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+          <div className="flex justify-between items-center p-5 border-b bg-gray-50">
+            <h3 className="text-lg font-extrabold text-gray-900 tracking-tight">
+              Bulk Delete Shifts ({modal.dates.length} Dates)
+            </h3>
+            <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1.5 hover:bg-gray-200 rounded-full transition cursor-pointer">
+              <XIcon className="h-5 w-5" />
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="overflow-y-auto p-6 space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Selected Dates</label>
-              <div className="max-h-24 overflow-y-auto bg-gray-50 border border-gray-200 rounded-md p-2 text-sm text-gray-600 space-y-0.5">
+              <label className="block text-xs font-bold uppercase text-gray-400 mb-1">Selected Dates</label>
+              <div className="max-h-24 overflow-y-auto bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-xs text-gray-600 space-y-0.5">
                 {modal.dates.map(d => <div key={d}>{formatDateLabel(d)}</div>)}
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Select Driver to Delete</label>
+              <label className="block text-xs font-bold uppercase text-gray-400 mb-1">Select Driver to Delete</label>
               <select
                 value={targetDriverId}
                 onChange={(e) => setTargetDriverId(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
+                className="block w-full border-gray-300 rounded-xl shadow-xs text-sm font-semibold p-2.5 bg-gray-50 focus:bg-white focus:ring-indigo-500 focus:border-indigo-500"
               >
                 <option value="all">All Drivers (Delete All)</option>
                 {drivers.map(d => (
@@ -489,9 +598,9 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ modal, drivers, onClose, 
               </p>
             </div>
 
-            <div className="pt-4 flex items-center justify-end gap-2 border-t">
-              <button type="button" onClick={onClose} className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
-              <button type="submit" className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg shadow-md text-sm transition">
+            <div className="pt-4 flex items-center justify-end gap-3 border-t">
+              <button type="button" onClick={onClose} className="bg-white py-2.5 px-4 border border-gray-300 rounded-xl shadow-xs text-xs font-bold text-gray-700 hover:bg-gray-50 transition cursor-pointer">Cancel</button>
+              <button type="submit" className="bg-red-600 hover:bg-red-700 text-white font-extrabold py-2.5 px-5 rounded-xl shadow-md text-xs transition cursor-pointer">
                 Confirm Delete
               </button>
             </div>
@@ -502,20 +611,20 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ modal, drivers, onClose, 
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
-      <div className="bg-white rounded-lg shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
-        <div className="flex justify-between items-center p-4 border-b">
-          <h3 className="text-lg font-bold text-gray-800">
+    <div className="fixed inset-0 bg-black/60 z-50 flex justify-center items-center p-4 backdrop-blur-xs">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="flex justify-between items-center p-5 border-b bg-gray-50">
+          <h3 className="text-lg font-extrabold text-gray-900 tracking-tight">
             {isEdit ? 'Edit Shift' : modal.mode === 'add' && modal.dates.length > 1 ? `Set Shifts (${modal.dates.length} Dates)` : 'Add Shift'}
           </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><XIcon className="h-5 w-5" /></button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1.5 hover:bg-gray-200 rounded-full transition cursor-pointer"><XIcon className="h-5 w-5" /></button>
         </div>
 
-        <form onSubmit={handleSubmit} className="overflow-y-auto p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="overflow-y-auto p-6 space-y-4">
           {modal.mode === 'add' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-              <div className="max-h-24 overflow-y-auto bg-gray-50 border border-gray-200 rounded-md p-2 text-sm text-gray-600 space-y-0.5">
+              <label className="block text-xs font-bold uppercase text-gray-400 mb-1">Date</label>
+              <div className="max-h-24 overflow-y-auto bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-xs text-gray-600 space-y-0.5">
                 {modal.dates.map(d => <div key={d}>{formatDateLabel(d)}</div>)}
               </div>
             </div>
@@ -523,23 +632,23 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ modal, drivers, onClose, 
 
           {isEdit && editSchedule ? (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Driver</label>
-              <div className="text-sm bg-gray-50 border border-gray-200 rounded-md px-3 py-2 text-gray-700">
+              <label className="block text-xs font-bold uppercase text-gray-400 mb-1">Driver</label>
+              <div className="text-sm bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 font-bold text-gray-800">
                 {drivers.find(d => d.id === editSchedule.DriverId)?.name || 'Unknown Driver'}
               </div>
             </div>
           ) : (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Driver</label>
-              <div className="space-y-1.5">
-                {drivers.length === 0 && <p className="text-sm text-gray-400">No active drivers available.</p>}
+              <label className="block text-xs font-bold uppercase text-gray-400 mb-1">Driver(s)</label>
+              <div className="space-y-1.5 max-h-40 overflow-y-auto border border-gray-200 rounded-xl p-2.5 bg-gray-50">
+                {drivers.length === 0 && <p className="text-xs text-gray-400">No active drivers available.</p>}
                 {drivers.map(d => (
-                  <label key={d.id} className="flex items-center gap-2 text-sm text-gray-700">
+                  <label key={d.id} className="flex items-center gap-2.5 text-xs font-bold text-gray-800 cursor-pointer p-1.5 rounded-lg hover:bg-white transition">
                     <input
                       type="checkbox"
                       checked={selectedDriverIds.has(d.id)}
                       onChange={() => toggleDriver(d.id)}
-                      className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
+                      className="h-4 w-4 text-indigo-600 border-gray-300 rounded cursor-pointer"
                     />
                     {d.name}
                   </label>
@@ -548,30 +657,30 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ modal, drivers, onClose, 
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Start Time</label>
-              <input type="time" value={mula} onChange={e => setMula(e.target.value)} required className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"/>
+              <label className="block text-xs font-bold uppercase text-gray-400 mb-1">Start Time</label>
+              <input type="time" value={mula} onChange={e => setMula(e.target.value)} required className="block w-full border-gray-200 rounded-xl shadow-xs text-sm font-semibold p-2.5 bg-gray-50 focus:bg-white focus:ring-indigo-500 focus:border-indigo-500"/>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">End Time</label>
-              <input type="time" value={tamat} onChange={e => setTamat(e.target.value)} required className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"/>
+              <label className="block text-xs font-bold uppercase text-gray-400 mb-1">End Time</label>
+              <input type="time" value={tamat} onChange={e => setTamat(e.target.value)} required className="block w-full border-gray-200 rounded-xl shadow-xs text-sm font-semibold p-2.5 bg-gray-50 focus:bg-white focus:ring-indigo-500 focus:border-indigo-500"/>
             </div>
           </div>
 
-          <div className="pt-2 flex items-center justify-between">
+          <div className="pt-4 flex items-center justify-between border-t">
             {isEdit && editSchedule ? (
               <button
                 type="button"
                 onClick={() => onDelete(editSchedule.id)}
-                className="flex items-center text-sm font-medium text-red-600 hover:text-red-800"
+                className="flex items-center text-xs font-bold text-red-600 hover:text-red-800 cursor-pointer"
               >
                 <TrashIcon className="h-4 w-4 mr-1" /> Delete Shift
               </button>
             ) : <span />}
             <div className="flex gap-2">
-              <button type="button" onClick={onClose} className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
-              <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-md text-sm">
+              <button type="button" onClick={onClose} className="bg-white py-2.5 px-4 border border-gray-300 rounded-xl shadow-xs text-xs font-bold text-gray-700 hover:bg-gray-50 transition cursor-pointer">Cancel</button>
+              <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold py-2.5 px-5 rounded-xl shadow-md text-xs transition cursor-pointer">
                 {isEdit ? 'Save Changes' : 'Assign Shifts'}
               </button>
             </div>

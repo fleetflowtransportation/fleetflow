@@ -566,41 +566,31 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
       </div>
 
       {/* REFINED COMPACT QUICK UTILITY ACTIONS */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        <button
-          onClick={() => setIsScheduleModalOpen(true)}
-          className="flex flex-col items-center justify-center p-3 bg-white hover:bg-indigo-50/70 border border-indigo-200 rounded-xl shadow-sm transition active:scale-98 text-center group cursor-pointer"
-          title="View duty schedules and trip calendars"
-        >
-          <div className="p-2 bg-indigo-50 group-hover:bg-indigo-100 rounded-lg text-indigo-600 mb-1.5 border border-indigo-100 transition">
-            <CalendarIcon className="h-4 w-4" />
-          </div>
-          <span className="text-xs font-bold text-indigo-900">Driver Schedule</span>
-        </button>
+      <div className="grid grid-cols-3 gap-3">
         <button
           onClick={() => setIsFuelLogOpen(true)}
-          className="flex flex-col items-center justify-center p-3 bg-white hover:bg-amber-50/60 border border-slate-200 rounded-xl shadow-sm transition active:scale-98 text-center cursor-pointer"
+          className="flex flex-col items-center justify-center p-3.5 bg-white hover:bg-amber-50/60 border border-slate-200 rounded-2xl shadow-xs transition active:scale-98 text-center cursor-pointer"
         >
-          <div className="p-2 bg-amber-50 rounded-lg text-amber-600 mb-1.5 border border-amber-100">
-            <FuelIcon className="h-4 w-4" />
+          <div className="p-2.5 bg-amber-50 rounded-xl text-amber-600 mb-1.5 border border-amber-100">
+            <FuelIcon className="h-5 w-5" />
           </div>
           <span className="text-xs font-bold text-slate-700">Fuel Log</span>
         </button>
         <button
           onClick={handleOpenGeneralOdometer}
-          className="flex flex-col items-center justify-center p-3 bg-white hover:bg-emerald-50/60 border border-slate-200 rounded-xl shadow-sm transition active:scale-98 text-center cursor-pointer"
+          className="flex flex-col items-center justify-center p-3.5 bg-white hover:bg-emerald-50/60 border border-slate-200 rounded-2xl shadow-xs transition active:scale-98 text-center cursor-pointer"
         >
-          <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600 mb-1.5 border border-emerald-100">
-            <GaugeIcon className="h-4 w-4" />
+          <div className="p-2.5 bg-emerald-50 rounded-xl text-emerald-600 mb-1.5 border border-emerald-100">
+            <GaugeIcon className="h-5 w-5" />
           </div>
           <span className="text-xs font-bold text-slate-700">Odometer Log</span>
         </button>
         <button
           onClick={() => setIsIssueLogOpen(true)}
-          className="flex flex-col items-center justify-center p-3 bg-white hover:bg-rose-50/60 border border-slate-200 rounded-xl shadow-sm transition active:scale-98 text-center cursor-pointer"
+          className="flex flex-col items-center justify-center p-3.5 bg-white hover:bg-rose-50/60 border border-slate-200 rounded-2xl shadow-xs transition active:scale-98 text-center cursor-pointer"
         >
-          <div className="p-2 bg-rose-50 rounded-lg text-rose-600 mb-1.5 border border-rose-100">
-            <WrenchScrewdriverIcon className="h-4 w-4" />
+          <div className="p-2.5 bg-rose-50 rounded-xl text-rose-600 mb-1.5 border border-rose-100">
+            <WrenchScrewdriverIcon className="h-5 w-5" />
           </div>
           <span className="text-xs font-bold text-slate-700">Report Issue</span>
         </button>
