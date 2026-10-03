@@ -50,8 +50,19 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
     return 0;
   }, [odometerLogs]);
 
+  const prevIsOpenRef = React.useRef(false);
+  const prevLogIdRef = React.useRef<string | null | undefined>(undefined);
+
   useEffect(() => {
-    if (isOpen) {
+    const justOpened = isOpen && !prevIsOpenRef.current;
+    const logChanged = isOpen && (logToEdit ? logToEdit.id : null) !== prevLogIdRef.current;
+
+    prevIsOpenRef.current = isOpen;
+    prevLogIdRef.current = logToEdit ? logToEdit.id : null;
+
+    if (!isOpen) return;
+
+    if (justOpened || logChanged) {
       setError('');
       if (logToEdit) {
         setFormData({

@@ -140,9 +140,18 @@ const OdometerLogForm: React.FC<OdometerLogFormProps> = ({
 
   // Track previous open state so we ONLY initialize once upon modal opening.
   const prevIsOpenRef = React.useRef(false);
+  const prevBookingIdRef = React.useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
-    if (isOpen && !prevIsOpenRef.current) {
+    const justOpened = isOpen && !prevIsOpenRef.current;
+    const bookingChanged = isOpen && defaultBookingId !== prevBookingIdRef.current;
+
+    prevIsOpenRef.current = isOpen;
+    prevBookingIdRef.current = defaultBookingId;
+
+    if (!isOpen) return;
+
+    if (justOpened || bookingChanged) {
       if (defaultBookingIds && defaultBookingIds.length > 0) {
         setSelectedIds(defaultBookingIds);
         autoFillForMultipleBookings(defaultBookingIds);
@@ -163,7 +172,6 @@ const OdometerLogForm: React.FC<OdometerLogFormProps> = ({
         resetForm();
       }
     }
-    prevIsOpenRef.current = isOpen;
   }, [isOpen, defaultBookingId, defaultBookingIds, defaultVehicleId, autoFillForMultipleBookings, resetForm, vehicleOdometerMap]);
 
   // Suggest start odometer when user changes vehicle manually
