@@ -18,7 +18,9 @@ import {
   ExternalLinkIcon,
   SearchIcon,
   XIcon,
-  CalendarIcon
+  CalendarIcon,
+  ChevronDownIcon,
+  ChevronUpIcon
 } from './icons/Icons';
 import CalendarView from './CalendarView';
 import DriverScheduleManager from './DriverScheduleManager';
@@ -61,6 +63,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
   
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [scheduleModalTab, setScheduleModalTab] = useState<'calendar' | 'schedule'>('calendar');
+  const [isFleetOdoExpanded, setIsFleetOdoExpanded] = useState(false);
 
   // Fleet vehicle odometer lookup for driver dashboard
   const fleetVehicleOdometerMap = useMemo(() => {
@@ -568,113 +571,90 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
         </div>
       </div>
 
-      {/* FLEET VEHICLE LAST ODOMETER STATUS SECTION */}
+      {/* COLLAPSIBLE FLEET VEHICLE LAST ODOMETER REFERENCE */}
       {vehicles.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 sm:p-5 space-y-3.5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-100 pb-3.5">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 bg-indigo-50 text-indigo-700 rounded-xl border border-indigo-100 shrink-0">
-                <GaugeIcon className="w-5 h-5" />
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden transition-all duration-200">
+          {/* Collapsible Header Banner */}
+          <button
+            type="button"
+            onClick={() => setIsFleetOdoExpanded(!isFleetOdoExpanded)}
+            className="w-full px-4 py-3 sm:py-3.5 flex items-center justify-between gap-3 text-left transition hover:bg-slate-50 cursor-pointer select-none"
+            aria-expanded={isFleetOdoExpanded}
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="p-1.5 sm:p-2 bg-indigo-50 text-indigo-700 rounded-xl border border-indigo-100 shrink-0">
+                <GaugeIcon className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
               </div>
-              <div>
-                <h3 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-                  <span>Fleet Vehicles & Latest Recorded Mileage</span>
-                </h3>
-                <p className="text-[11px] sm:text-xs text-slate-500">
-                  Real-time fleet odometer reference. Tap "Log Meter" to quickly submit an update for any vehicle.
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 tracking-tight">
+                    Fleet Vehicle Odometers
+                  </h3>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                    {vehicles.length} Vehicles
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 hidden sm:block truncate">
+                  Latest recorded mileage for all active fleet vehicles
                 </p>
               </div>
             </div>
-            <span className="text-[11px] font-extrabold px-3 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 self-start sm:self-auto shadow-2xs">
-              {vehicles.length} Vehicles in Fleet
-            </span>
-          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {vehicles.map(v => {
-              const odoInfo = fleetVehicleOdometerMap[v.id];
-              const lastKm = odoInfo ? odoInfo.lastOdometer : (v.currentOdometer || 0);
-              const isMaintenance = v.vehicleStatus === 'Under Maintenance';
-              const lastUpdatedDate = odoInfo?.lastDate
-                ? parseAsLocal(odoInfo.lastDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-                : null;
+            <div className="flex items-center gap-1.5 text-indigo-600 text-xs font-bold shrink-0">
+              <span>{isFleetOdoExpanded ? 'Hide' : 'View'}</span>
+              {isFleetOdoExpanded ? (
+                <ChevronUpIcon className="w-4 h-4" />
+              ) : (
+                <ChevronDownIcon className="w-4 h-4" />
+              )}
+            </div>
+          </button>
 
-              return (
-                <div 
-                  key={v.id}
-                  className={`p-3.5 rounded-2xl border transition-all duration-200 flex flex-col justify-between gap-3 shadow-xs hover:shadow-md ${
-                    isMaintenance 
-                      ? 'bg-amber-50/40 border-amber-200/80 hover:border-amber-300' 
-                      : 'bg-white hover:bg-slate-50/50 border-slate-200 hover:border-indigo-300'
-                  }`}
-                >
-                  {/* Vehicle Header & Plate */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <TruckIcon className="w-4 h-4 text-slate-400 shrink-0" />
-                        <span className="font-extrabold text-sm text-slate-900 truncate" title={v.name}>
+          {/* Expandable Read-Only List */}
+          {isFleetOdoExpanded && (
+            <div className="border-t border-slate-100 p-3 sm:p-4 bg-slate-50/60 animate-in fade-in duration-200">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                {vehicles.map(v => {
+                  const odoInfo = fleetVehicleOdometerMap[v.id];
+                  const lastKm = odoInfo ? odoInfo.lastOdometer : (v.currentOdometer || 0);
+                  const isMaintenance = v.vehicleStatus === 'Under Maintenance';
+                  const lastUpdatedDate = odoInfo?.lastDate
+                    ? parseAsLocal(odoInfo.lastDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+                    : null;
+
+                  return (
+                    <div 
+                      key={v.id}
+                      className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="bg-slate-900 text-white font-mono font-black text-xs px-2 py-0.5 rounded shadow-2xs tracking-wider">
+                            {v.plateNumber}
+                          </span>
+                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isMaintenance ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
+                        </div>
+                        <div className="text-[11px] font-semibold text-slate-500 truncate mt-1">
                           {v.name}
-                        </span>
+                        </div>
                       </div>
-                      <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                        {/* Realistic Automotive Plate Badge */}
-                        <span className="inline-block bg-slate-900 text-white font-mono font-black text-xs px-2.5 py-0.5 rounded-md shadow-xs border border-slate-700 tracking-wider">
-                          {v.plateNumber}
-                        </span>
+
+                      <div className="text-right shrink-0">
+                        <div className="text-xs sm:text-sm font-black text-slate-900 tracking-tight font-mono">
+                          {lastKm.toLocaleString()} <span className="text-[10px] font-bold text-indigo-600">KM</span>
+                        </div>
+                        {lastUpdatedDate && (
+                          <div className="text-[9px] font-semibold text-slate-400">
+                            {lastUpdatedDate}
+                          </div>
+                        )}
                       </div>
                     </div>
-
-                    {/* Status Pill */}
-                    <span className={`inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full shrink-0 uppercase tracking-wider ${
-                      isMaintenance 
-                        ? 'bg-amber-100 text-amber-900 border border-amber-200' 
-                        : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${isMaintenance ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse'}`}></span>
-                      <span>{v.vehicleStatus || 'Active'}</span>
-                    </span>
-                  </div>
-
-                  {/* Odometer Metric Tile */}
-                  <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 flex items-center justify-between">
-                    <div>
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
-                        Latest Odometer
-                      </span>
-                      <div className="flex items-baseline gap-1 mt-0.5">
-                        <span className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
-                          {lastKm.toLocaleString()}
-                        </span>
-                        <span className="text-xs font-bold text-indigo-600">KM</span>
-                      </div>
-                    </div>
-                    {lastUpdatedDate && (
-                      <div className="text-right">
-                        <span className="text-[9px] font-semibold text-slate-400 block">Recorded</span>
-                        <span className="text-[10px] font-bold text-slate-600">{lastUpdatedDate}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Quick Action Button for this Vehicle */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedBookingIds([]);
-                      setSelectedVehicleForOdometer(v.id);
-                      setIsOdometerLogOpen(true);
-                    }}
-                    className="w-full py-2 px-3 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-200 hover:border-indigo-600 rounded-xl text-xs font-extrabold transition-all duration-150 shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
-                    title={`Log odometer for ${v.name} (${v.plateNumber})`}
-                  >
-                    <GaugeIcon className="w-3.5 h-3.5" />
-                    <span>Log Meter for {v.plateNumber}</span>
-                  </button>
-                </div>
-              );
-            })}
-          </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
