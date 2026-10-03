@@ -146,7 +146,9 @@ const App: React.FC = () => {
         {renderContent()}
       </main>
       <UndoToast />
-      <FeedbackButton currentRoute={currentUser?.role === 'admin' ? activeView : 'driver-portal'} />
+      {currentUser?.role !== 'driver' && (
+        <FeedbackButton currentRoute={currentUser?.role === 'admin' ? activeView : 'driver-portal'} />
+      )}
     </div>
   );
 };

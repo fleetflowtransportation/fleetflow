@@ -22,6 +22,8 @@ import {
 } from './icons/Icons';
 import CalendarView from './CalendarView';
 import DriverScheduleManager from './DriverScheduleManager';
+import DriverSpeedDial from './DriverSpeedDial';
+import { FeedbackModal } from './FeedbackModal';
 import { parseAsLocal, getPickupLocationDisplay, isOtherPickup } from '../utils';
 
 interface DriverDashboardProps {
@@ -50,6 +52,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
   const [isFuelLogOpen, setIsFuelLogOpen] = useState(false);
   const [isOdometerLogOpen, setIsOdometerLogOpen] = useState(false);
   const [isIssueLogOpen, setIsIssueLogOpen] = useState(false);
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [selectedVehicleForOdometer, setSelectedVehicleForOdometer] = useState<string | undefined>(undefined);
   
   // Multiple booking selection states
@@ -1104,6 +1107,15 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
         </div>
       )}
 
+      {/* Driver Floating Speed Dial Action Button */}
+      <DriverSpeedDial
+        onOpenFuelLog={() => setIsFuelLogOpen(true)}
+        onOpenOdometer={handleOpenGeneralOdometer}
+        onOpenIssueLog={() => setIsIssueLogOpen(true)}
+        onOpenFeedback={() => setIsFeedbackOpen(true)}
+        className={selectedBookingIds.length > 0 ? 'bottom-24 sm:bottom-24' : ''}
+      />
+
       {/* Forms & Modals */}
       <FuelLogForm
         isOpen={isFuelLogOpen}
@@ -1127,6 +1139,12 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
         isOpen={isIssueLogOpen}
         onClose={() => setIsIssueLogOpen(false)}
         reporterId={driver.id}
+      />
+
+      <FeedbackModal
+        isOpen={isFeedbackOpen}
+        onClose={() => setIsFeedbackOpen(false)}
+        currentRoute="driver-portal"
       />
 
     </div>
