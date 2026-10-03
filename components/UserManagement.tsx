@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import UserForm from './UserForm';
+import UserStatusHistoryModal from './UserStatusHistoryModal';
 import { PlusIcon, EditIcon, TrashIcon, SearchIcon, UsersIcon, UserCircleIcon, CheckCircleIcon, XCircleIcon } from './icons/Icons';
 import type { User } from '../types';
 
@@ -25,8 +26,11 @@ const StatCard: React.FC<{
 const UserManagement: React.FC = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [historyUser, setHistoryUser] = useState<User | null>(null);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'driver'>('all');
+  const [employmentFilter, setEmploymentFilter] = useState<'all' | 'full_time' | 'part_time'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   
   const { users, deleteUser, currentUser } = useAppContext();
@@ -47,6 +51,11 @@ const UserManagement: React.FC = () => {
     }
     setEditingUser(user);
     setIsFormOpen(true);
+  };
+
+  const handleOpenHistory = (user: User) => {
+    setHistoryUser(user);
+    setIsHistoryOpen(true);
   };
 
   const handleDeleteUser = (userId: string) => {
@@ -83,8 +92,9 @@ const UserManagement: React.FC = () => {
     const total = users.length;
     const admins = users.filter(u => u.role === 'admin').length;
     const drivers = users.filter(u => u.role === 'driver').length;
+    const partTimeDrivers = users.filter(u => u.role === 'driver' && u.employmentType === 'part_time').length;
     const active = users.filter(u => u.status === 'active').length;
-    return { total, admins, drivers, active };
+    return { total, admins, drivers, partTimeDrivers, active };
   }, [users]);
 
   // Filtered & Sorted list
@@ -98,10 +108,12 @@ const UserManagement: React.FC = () => {
 
       const matchesRole = roleFilter === 'all' || user.role === roleFilter;
       const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
+      const matchesEmployment = employmentFilter === 'all' || 
+        (user.role === 'driver' && (user.employmentType || 'full_time') === employmentFilter);
 
-      return matchesSearch && matchesRole && matchesStatus;
+      return matchesSearch && matchesRole && matchesStatus && matchesEmployment;
     }).sort((a, b) => a.name.localeCompare(b.name));
-  }, [users, searchQuery, roleFilter, statusFilter]);
+  }, [users, searchQuery, roleFilter, statusFilter, employmentFilter]);
 
   return (
     <div className="space-y-6">
@@ -123,32 +135,39 @@ const UserManagement: React.FC = () => {
       </div>
 
       {/* Summary KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
         <StatCard 
           title="Total Users" 
           value={stats.total} 
-          icon={<UsersIcon className="w-6 h-6" />} 
+          icon={<UsersIcon className="w-5 h-5 sm:w-6 sm:h-6" />} 
           colorBg="bg-slate-100" 
           colorText="text-slate-700" 
         />
         <StatCard 
           title="Administrators" 
           value={stats.admins} 
-          icon={<UserCircleIcon className="w-6 h-6" />} 
+          icon={<UserCircleIcon className="w-5 h-5 sm:w-6 sm:h-6" />} 
           colorBg="bg-indigo-100" 
           colorText="text-indigo-700" 
         />
         <StatCard 
-          title="Transport Drivers" 
-          value={stats.drivers} 
-          icon={<UsersIcon className="w-6 h-6" />} 
+          title="Full-Time Drivers" 
+          value={stats.drivers - stats.partTimeDrivers} 
+          icon={<UsersIcon className="w-5 h-5 sm:w-6 sm:h-6" />} 
           colorBg="bg-blue-100" 
           colorText="text-blue-700" 
         />
         <StatCard 
+          title="Part-Time Drivers" 
+          value={stats.partTimeDrivers} 
+          icon={<UsersIcon className="w-5 h-5 sm:w-6 sm:h-6" />} 
+          colorBg="bg-purple-100" 
+          colorText="text-purple-700" 
+        />
+        <StatCard 
           title="Active Accounts" 
           value={stats.active} 
-          icon={<CheckCircleIcon className="w-6 h-6" />} 
+          icon={<CheckCircleIcon className="w-5 h-5 sm:w-6 sm:h-6" />} 
           colorBg="bg-emerald-100" 
           colorText="text-emerald-700" 
         />
@@ -169,7 +188,7 @@ const UserManagement: React.FC = () => {
           />
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap sm:flex-nowrap">
           <select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value as any)}
@@ -178,6 +197,16 @@ const UserManagement: React.FC = () => {
             <option value="all">All Roles</option>
             <option value="admin">Administrators</option>
             <option value="driver">Drivers</option>
+          </select>
+
+          <select
+            value={employmentFilter}
+            onChange={(e) => setEmploymentFilter(e.target.value as any)}
+            className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+          >
+            <option value="all">All Employments</option>
+            <option value="full_time">Full-Time Only</option>
+            <option value="part_time">Part-Time Only</option>
           </select>
 
           <select
@@ -200,8 +229,8 @@ const UserManagement: React.FC = () => {
               <tr>
                 <th scope="col" className="px-6 py-3.5 text-left text-xs font-bold text-slate-600 uppercase tracking-wider">User Details</th>
                 <th scope="col" className="px-6 py-3.5 text-left text-xs font-bold text-slate-600 uppercase tracking-wider">Contact</th>
-                <th scope="col" className="px-6 py-3.5 text-left text-xs font-bold text-slate-600 uppercase tracking-wider">Role & Permissions</th>
-                <th scope="col" className="px-6 py-3.5 text-left text-xs font-bold text-slate-600 uppercase tracking-wider">Status</th>
+                <th scope="col" className="px-6 py-3.5 text-left text-xs font-bold text-slate-600 uppercase tracking-wider">Role & Classification</th>
+                <th scope="col" className="px-6 py-3.5 text-left text-xs font-bold text-slate-600 uppercase tracking-wider">Status & Lifecycle</th>
                 <th scope="col" className="px-6 py-3.5 text-left text-xs font-bold text-slate-600 uppercase tracking-wider">Joining Date</th>
                 <th scope="col" className="px-6 py-3.5 text-right text-xs font-bold text-slate-600 uppercase tracking-wider">Actions</th>
               </tr>
@@ -229,7 +258,7 @@ const UserManagement: React.FC = () => {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${
                           user.role === 'admin' 
                             ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' 
@@ -237,6 +266,17 @@ const UserManagement: React.FC = () => {
                         }`}>
                           {user.role === 'admin' ? '🛡️ Administrator' : '🚙 Driver'}
                         </span>
+                        {user.role === 'driver' && (
+                          user.employmentType === 'part_time' ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-100 text-purple-800 border border-purple-200">
+                              Part-Time
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-50 text-blue-800 border border-blue-200">
+                              Full-Time
+                            </span>
+                          )
+                        )}
                         {user.isOwner && (
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300" title="Primary Organization Super Admin">
                             👑 Super Admin
@@ -245,20 +285,45 @@ const UserManagement: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-full ${
-                        user.status === 'active' 
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
-                          : 'bg-rose-50 text-rose-700 border border-rose-200'
-                      }`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${user.status === 'active' ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
-                        {user.status === 'active' ? 'Active' : 'Inactive'}
-                      </span>
+                      <div>
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-full ${
+                          user.status === 'active' 
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                            : 'bg-rose-50 text-rose-700 border border-rose-200'
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${user.status === 'active' ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                          {user.status === 'active' ? 'Active' : 'Inactive'}
+                        </span>
+                        {user.status === 'inactive' && user.terminationDate && (
+                          <span className="text-[10px] text-slate-500 font-medium block mt-0.5">
+                            Ended: {new Date(user.terminationDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                          </span>
+                        )}
+                        {user.status === 'active' && user.reactivationDate && (
+                          <span className="text-[10px] text-emerald-600 font-medium block mt-0.5">
+                            Reactivated: {new Date(user.reactivationDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 font-medium">
                       {user.joiningDate ? new Date(user.joiningDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-1.5">
+                        {/* History Log Action Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenHistory(user)}
+                          className="text-slate-500 hover:text-indigo-600 p-2 rounded-xl hover:bg-indigo-50 border border-transparent hover:border-indigo-100 transition cursor-pointer"
+                          title="View Lifecycle & Status History"
+                          aria-label="View history"
+                        >
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </button>
+
                         {/* Edit Action Button */}
                         {(() => {
                           const canEdit = currentUser?.isOwner || (currentUser?.role === 'admin' && user.role === 'driver') || (user.id === currentUser?.id);
@@ -333,9 +398,9 @@ const UserManagement: React.FC = () => {
                       </div>
                       <p className="text-sm font-bold text-gray-700">No users match your criteria</p>
                       <p className="text-xs text-gray-500">Try adjusting your search filters or add a new account.</p>
-                      {(searchQuery || roleFilter !== 'all' || statusFilter !== 'all') && (
+                      {(searchQuery || roleFilter !== 'all' || statusFilter !== 'all' || employmentFilter !== 'all') && (
                         <button
-                          onClick={() => { setSearchQuery(''); setRoleFilter('all'); setStatusFilter('all'); }}
+                          onClick={() => { setSearchQuery(''); setRoleFilter('all'); setStatusFilter('all'); setEmploymentFilter('all'); }}
                           className="mt-2 text-xs font-bold text-indigo-600 hover:text-indigo-800"
                         >
                           Clear Filters
@@ -354,6 +419,15 @@ const UserManagement: React.FC = () => {
         isOpen={isFormOpen} 
         onClose={handleCloseForm} 
         userToEdit={editingUser} 
+      />
+
+      <UserStatusHistoryModal
+        isOpen={isHistoryOpen}
+        onClose={() => {
+          setIsHistoryOpen(false);
+          setHistoryUser(null);
+        }}
+        user={historyUser}
       />
     </div>
   );

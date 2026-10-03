@@ -1,3 +1,14 @@
+export interface UserStatusLog {
+  id: string;
+  action: 'created' | 'deactivated' | 'reactivated' | 'updated';
+  timestamp: string;      // ISO String
+  performedBy: string;    // Admin name or email
+  effectiveDate?: string; // Date of termination or reactivation
+  reason?: string;        // Notes/reason provided by Admin
+  previousStatus?: 'active' | 'inactive';
+  newStatus: 'active' | 'inactive';
+}
+
 export interface User {
   id: string;
   name: string;
@@ -11,6 +22,12 @@ export interface User {
   password?: string;
   tenantId?: string;
   isOwner?: boolean;
+  employmentType?: 'full_time' | 'part_time'; // Default: 'full_time'
+  terminationDate?: string;                   // ISO Date e.g. '2026-10-31'
+  terminationReason?: string;                 // Notes / reasons for termination
+  reactivationDate?: string;                  // ISO Date e.g. '2026-11-01'
+  reactivationReason?: string;                // Notes / reasons for reactivation
+  statusHistory?: UserStatusLog[];            // Chronological audit log
 }
 
 export type VehicleType = 

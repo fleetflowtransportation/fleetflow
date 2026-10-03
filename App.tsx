@@ -18,9 +18,10 @@ import { PublicBookingPage } from './components/PublicBookingPage';
 import { PublicOdometerPage } from './components/PublicOdometerPage';
 import { SettingsView } from './components/SettingsView';
 import { FeedbackButton } from './components/FeedbackButton';
+import { InactiveAccountScreen } from './components/InactiveAccountScreen';
 
 const App: React.FC = () => {
-  const { currentUser, isLoading, loadError, reload } = useAppContext();
+  const { currentUser, users, isLoading, loadError, reload } = useAppContext();
   const [activeView, setActiveView] = useState<'dashboard' | 'bookings' | 'reports' | 'logs' | 'archive' | 'vehicles' | 'users' | 'self-drive' | 'calendar' | 'maintenance' | 'issues' | 'schedule' | 'settings'>('dashboard');
 
   // Check public action URLs (booking form or self-drive odometer portal)
@@ -124,8 +125,13 @@ const App: React.FC = () => {
     switch (currentUser.role) {
       case 'admin':
         return renderAdminContent();
-      case 'driver':
+      case 'driver': {
+        const fullDriver = users.find(u => u.id === currentUser.id);
+        if (fullDriver && fullDriver.status === 'inactive') {
+          return <InactiveAccountScreen user={fullDriver} />;
+        }
         return <DriverDashboard driver={currentUser} />;
+      }
       default:
         return <AuthPage />;
     }

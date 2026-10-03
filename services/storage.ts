@@ -29,6 +29,12 @@ const toDbUser = (u: Partial<User>) => {
     ...(u.role !== undefined && { role: u.role }),
     ...(u.status !== undefined && { status: u.status }),
     ...(u.password !== undefined && { password: u.password }),
+    ...(u.employmentType !== undefined && { employment_type: u.employmentType }),
+    ...(u.terminationDate !== undefined && { termination_date: u.terminationDate || null }),
+    ...(u.terminationReason !== undefined && { termination_reason: u.terminationReason || null }),
+    ...(u.reactivationDate !== undefined && { reactivation_date: u.reactivationDate || null }),
+    ...(u.reactivationReason !== undefined && { reactivation_reason: u.reactivationReason || null }),
+    ...(u.statusHistory !== undefined && { status_history: u.statusHistory }),
     tenant_id: u.tenantId || getTenantId(),
   };
 };
@@ -58,6 +64,12 @@ const fromDbUser = (row: any): User => {
     password: row.password || undefined,
     tenantId: row.tenant_id || getTenantId(),
     isOwner: isDefaultOwner,
+    employmentType: row.employment_type || 'full_time',
+    terminationDate: row.termination_date || undefined,
+    terminationReason: row.termination_reason || undefined,
+    reactivationDate: row.reactivation_date || undefined,
+    reactivationReason: row.reactivation_reason || undefined,
+    statusHistory: Array.isArray(row.status_history) ? row.status_history : [],
   };
 };
 
@@ -1032,11 +1044,33 @@ export const storageService = {
         }
       }
 
-      const dbRow = toDbUser(data);
+      const dbRow: any = toDbUser(data);
       const { error } = await supabase.from('fleet_users').insert([dbRow]);
       if (error) {
-        console.error('[Supabase] createUser error:', error.message);
-        throw new Error(error.message);
+        console.warn('[Supabase] createUser full column error:', error.message);
+        if (error.message && (error.message.includes('column') || error.message.includes('schema'))) {
+          // Fallback to core columns if Supabase SQL migration has not run yet
+          const coreRow = {
+            id: dbRow.id,
+            name: dbRow.name,
+            email: dbRow.email,
+            phone: dbRow.phone,
+            joining_date: dbRow.joining_date,
+            address: dbRow.address,
+            comments: dbRow.comments,
+            role: dbRow.role,
+            status: dbRow.status,
+            password: dbRow.password,
+            tenant_id: dbRow.tenant_id,
+          };
+          const { error: coreErr } = await supabase.from('fleet_users').insert([coreRow]);
+          if (coreErr) {
+            console.error('[Supabase] createUser fallback error:', coreErr.message);
+            throw new Error(coreErr.message);
+          }
+        } else {
+          throw new Error(error.message);
+        }
       }
     } catch (err: any) {
       console.error('[Supabase] createUser exception:', err.message);
@@ -1047,9 +1081,27 @@ export const storageService = {
 
   updateUser: async (data: Partial<User> & { id: string }): Promise<any> => {
     try {
-      const dbRow = toDbUser(data);
+      const dbRow: any = toDbUser(data);
       const { error } = await supabase.from('fleet_users').update(dbRow).eq('id', data.id);
-      if (error) console.error('[Supabase] updateUser error:', error.message);
+      if (error) {
+        console.warn('[Supabase] updateUser full column error:', error.message);
+        if (error.message && (error.message.includes('column') || error.message.includes('schema'))) {
+          // Fallback to core columns
+          const coreRow: any = {
+            ...(dbRow.name !== undefined && { name: dbRow.name }),
+            ...(dbRow.email !== undefined && { email: dbRow.email }),
+            ...(dbRow.phone !== undefined && { phone: dbRow.phone }),
+            ...(dbRow.joining_date !== undefined && { joining_date: dbRow.joining_date }),
+            ...(dbRow.address !== undefined && { address: dbRow.address }),
+            ...(dbRow.comments !== undefined && { comments: dbRow.comments }),
+            ...(dbRow.role !== undefined && { role: dbRow.role }),
+            ...(dbRow.status !== undefined && { status: dbRow.status }),
+            ...(dbRow.password !== undefined && { password: dbRow.password }),
+          };
+          const { error: coreErr } = await supabase.from('fleet_users').update(coreRow).eq('id', data.id);
+          if (coreErr) console.error('[Supabase] updateUser core fallback error:', coreErr.message);
+        }
+      }
     } catch (err: any) {
       console.error('[Supabase] updateUser exception:', err.message);
     }

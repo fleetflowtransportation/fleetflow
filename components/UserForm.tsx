@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
-import type { User } from '../types';
+import type { User, UserStatusLog } from '../types';
 import { XIcon } from './icons/Icons';
 
 interface UserFormProps {
@@ -19,6 +19,11 @@ const emptyFormData = {
   role: 'driver' as 'admin' | 'driver',
   status: 'active' as 'active' | 'inactive',
   password: '',
+  employmentType: 'full_time' as 'full_time' | 'part_time',
+  terminationDate: '',
+  terminationReason: '',
+  reactivationDate: '',
+  reactivationReason: '',
 };
 
 type FormData = typeof emptyFormData;
@@ -36,6 +41,10 @@ const UserForm: React.FC<UserFormProps> = ({ isOpen, onClose, userToEdit }) => {
     setFormData({
       ...emptyFormData,
       joiningDate: new Date().toISOString().split('T')[0],
+      terminationDate: '',
+      terminationReason: '',
+      reactivationDate: '',
+      reactivationReason: '',
     });
     setFormError(null);
     setShowPassword(false);
@@ -62,6 +71,11 @@ const UserForm: React.FC<UserFormProps> = ({ isOpen, onClose, userToEdit }) => {
           role: userToEdit.role,
           status: userToEdit.status,
           password: '', // Always clear password for editing
+          employmentType: userToEdit.employmentType || 'full_time',
+          terminationDate: userToEdit.terminationDate || '',
+          terminationReason: userToEdit.terminationReason || '',
+          reactivationDate: userToEdit.reactivationDate || '',
+          reactivationReason: userToEdit.reactivationReason || '',
         });
       } else {
         resetForm();
@@ -83,7 +97,14 @@ const UserForm: React.FC<UserFormProps> = ({ isOpen, onClose, userToEdit }) => {
 
   const handleStatusToggle = () => {
     if (isSelf) return; // Prevent self-deactivation
-    setFormData(prev => ({ ...prev, status: prev.status === 'active' ? 'inactive' : 'active' }));
+    const nextStatus = formData.status === 'active' ? 'inactive' : 'active';
+    const today = new Date().toISOString().split('T')[0];
+    setFormData(prev => ({
+      ...prev,
+      status: nextStatus,
+      ...(nextStatus === 'inactive' && !prev.terminationDate && { terminationDate: today }),
+      ...(nextStatus === 'active' && !prev.reactivationDate && { reactivationDate: today }),
+    }));
     setFormError(null);
   };
 
@@ -123,7 +144,50 @@ const UserForm: React.FC<UserFormProps> = ({ isOpen, onClose, userToEdit }) => {
       return;
     }
 
+    const nowIso = new Date().toISOString();
+    const todayDate = nowIso.split('T')[0];
+    const adminName = currentUser?.name || currentUser?.email || 'Administrator';
+    let newLog: UserStatusLog | null = null;
+
     if (userToEdit) {
+      if (userToEdit.status === 'active' && formData.status === 'inactive') {
+        newLog = {
+          id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          action: 'deactivated',
+          timestamp: nowIso,
+          performedBy: adminName,
+          effectiveDate: formData.terminationDate || todayDate,
+          reason: formData.terminationReason?.trim() || 'Account deactivated by administrator',
+          previousStatus: 'active',
+          newStatus: 'inactive',
+        };
+      } else if (userToEdit.status === 'inactive' && formData.status === 'active') {
+        newLog = {
+          id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          action: 'reactivated',
+          timestamp: nowIso,
+          performedBy: adminName,
+          effectiveDate: formData.reactivationDate || todayDate,
+          reason: formData.reactivationReason?.trim() || 'Account reactivated by administrator',
+          previousStatus: 'inactive',
+          newStatus: 'active',
+        };
+      } else if (formData.terminationReason && formData.status === 'inactive' && formData.terminationReason !== userToEdit.terminationReason) {
+        newLog = {
+          id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          action: 'updated',
+          timestamp: nowIso,
+          performedBy: adminName,
+          effectiveDate: formData.terminationDate || todayDate,
+          reason: formData.terminationReason?.trim(),
+          previousStatus: 'inactive',
+          newStatus: 'inactive',
+        };
+      }
+
+      const existingHistory = userToEdit.statusHistory || [];
+      const updatedHistory = newLog ? [...existingHistory, newLog] : existingHistory;
+
       const updatedData: Partial<Omit<User, 'id'>> = {
         name: formData.name.trim(),
         email: formData.email.trim(),
@@ -133,6 +197,12 @@ const UserForm: React.FC<UserFormProps> = ({ isOpen, onClose, userToEdit }) => {
         comments: formData.comments.trim() || null,
         role: formData.role,
         status: formData.status,
+        employmentType: formData.role === 'driver' ? formData.employmentType : undefined,
+        terminationDate: formData.status === 'inactive' ? (formData.terminationDate || todayDate) : undefined,
+        terminationReason: formData.status === 'inactive' ? (formData.terminationReason?.trim() || undefined) : undefined,
+        reactivationDate: formData.status === 'active' ? (formData.reactivationDate || todayDate) : undefined,
+        reactivationReason: formData.status === 'active' ? (formData.reactivationReason?.trim() || undefined) : undefined,
+        statusHistory: updatedHistory,
       };
 
       if (formData.password) {
@@ -145,6 +215,17 @@ const UserForm: React.FC<UserFormProps> = ({ isOpen, onClose, userToEdit }) => {
         setFormError('Please enter an initial password for the new user.');
         return;
       }
+
+      const initialLog: UserStatusLog = {
+        id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        action: 'created',
+        timestamp: nowIso,
+        performedBy: adminName,
+        effectiveDate: formData.joiningDate,
+        reason: 'New user registration',
+        newStatus: formData.status,
+      };
+
       addUser({
         name: formData.name.trim(),
         email: formData.email.trim(),
@@ -155,6 +236,10 @@ const UserForm: React.FC<UserFormProps> = ({ isOpen, onClose, userToEdit }) => {
         role: formData.role,
         status: formData.status,
         password: formData.password.trim(),
+        employmentType: formData.role === 'driver' ? formData.employmentType : undefined,
+        terminationDate: formData.status === 'inactive' ? (formData.terminationDate || todayDate) : undefined,
+        terminationReason: formData.status === 'inactive' ? (formData.terminationReason?.trim() || undefined) : undefined,
+        statusHistory: [initialLog],
       });
     }
     onClose();
@@ -373,6 +458,143 @@ const UserForm: React.FC<UserFormProps> = ({ isOpen, onClose, userToEdit }) => {
                 )}
               </div>
             </div>
+
+            {/* Driver Employment Classification (When Role is Driver) */}
+            {formData.role === 'driver' && (
+              <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-black text-indigo-950 uppercase tracking-wider">
+                    Driver Employment Classification
+                  </label>
+                  <span className="text-[10px] font-bold text-indigo-600 bg-indigo-100/70 px-2 py-0.5 rounded-full">
+                    {formData.employmentType === 'part_time' ? 'Part-Time / Temporary' : 'Full-Time Permanent'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, employmentType: 'full_time' }))}
+                    className={`p-3 rounded-xl border text-left transition flex items-center justify-between cursor-pointer ${
+                      formData.employmentType === 'full_time'
+                        ? 'bg-white border-indigo-600 ring-2 ring-indigo-500/20 shadow-xs'
+                        : 'bg-white/80 border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-extrabold text-xs text-slate-900">Full-Time Driver</span>
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">Permanent</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">Regular dedicated driver</p>
+                    </div>
+                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${formData.employmentType === 'full_time' ? 'border-indigo-600 bg-indigo-600' : 'border-slate-300'}`}>
+                      {formData.employmentType === 'full_time' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, employmentType: 'part_time' }))}
+                    className={`p-3 rounded-xl border text-left transition flex items-center justify-between cursor-pointer ${
+                      formData.employmentType === 'part_time'
+                        ? 'bg-white border-purple-600 ring-2 ring-purple-500/20 shadow-xs'
+                        : 'bg-white/80 border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-extrabold text-xs text-slate-900">Part-Time / Temporary</span>
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800">Contract (1-2 mo)</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">Relief, seasonal, or temporary</p>
+                    </div>
+                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${formData.employmentType === 'part_time' ? 'border-purple-600 bg-purple-600' : 'border-slate-300'}`}>
+                      {formData.employmentType === 'part_time' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Inactive / Termination Details Card */}
+            {formData.status === 'inactive' && !userToEdit?.isOwner && (
+              <div className="bg-rose-50/70 border border-rose-200 rounded-2xl p-4 space-y-3 animate-in fade-in duration-150">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse"></span>
+                  <h4 className="text-xs font-black text-rose-950 uppercase tracking-wider">
+                    Deactivation & Termination Details
+                  </h4>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      Termination / End Date
+                    </label>
+                    <input
+                      type="date"
+                      name="terminationDate"
+                      value={formData.terminationDate}
+                      onChange={handleChange}
+                      className="block w-full border border-rose-300 rounded-xl shadow-xs p-2.5 text-xs bg-white focus:ring-2 focus:ring-rose-500 outline-none font-medium"
+                    />
+                    <p className="text-[10px] text-slate-500 mt-1">Official last day of contract or service</p>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      Reason / Remarks
+                    </label>
+                    <input
+                      type="text"
+                      name="terminationReason"
+                      value={formData.terminationReason}
+                      onChange={handleChange}
+                      placeholder="e.g. Completed 2-month contract, Resigned..."
+                      className="block w-full border border-rose-300 rounded-xl shadow-xs p-2.5 text-xs bg-white focus:ring-2 focus:ring-rose-500 outline-none font-medium"
+                    />
+                    <p className="text-[10px] text-slate-500 mt-1">Saved to user audit history log</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Reactivation Details Card (When switching from Inactive to Active) */}
+            {userToEdit?.status === 'inactive' && formData.status === 'active' && (
+              <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-4 space-y-3 animate-in fade-in duration-150">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
+                  <h4 className="text-xs font-black text-emerald-950 uppercase tracking-wider">
+                    Reactivation Audit Details
+                  </h4>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      Reactivation Effective Date
+                    </label>
+                    <input
+                      type="date"
+                      name="reactivationDate"
+                      value={formData.reactivationDate}
+                      onChange={handleChange}
+                      className="block w-full border border-emerald-300 rounded-xl shadow-xs p-2.5 text-xs bg-white focus:ring-2 focus:ring-emerald-500 outline-none font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      Reactivation Reason / Remarks
+                    </label>
+                    <input
+                      type="text"
+                      name="reactivationReason"
+                      value={formData.reactivationReason}
+                      onChange={handleChange}
+                      placeholder="e.g. Rehired for holiday season relief, Returned to duty..."
+                      className="block w-full border border-emerald-300 rounded-xl shadow-xs p-2.5 text-xs bg-white focus:ring-2 focus:ring-emerald-500 outline-none font-medium"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Password</label>
