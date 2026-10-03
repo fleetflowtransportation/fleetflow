@@ -46,34 +46,30 @@ export const DriverSpeedDial: React.FC<DriverSpeedDialProps> = ({
     {
       id: 'fuel',
       label: 'Fuel Log',
-      icon: <FuelIcon className="h-5 w-5" />,
-      colorClass: 'bg-amber-500 hover:bg-amber-600 text-white ring-amber-300',
+      icon: <FuelIcon className="h-5 w-5 sm:h-6 sm:w-6" />,
+      colorClass: 'bg-gradient-to-tr from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white ring-amber-300/60 shadow-amber-500/30',
       action: onOpenFuelLog,
-      description: 'Record fuel receipt & liters',
     },
     {
       id: 'odometer',
       label: 'Odometer Log',
-      icon: <GaugeIcon className="h-5 w-5" />,
-      colorClass: 'bg-emerald-600 hover:bg-emerald-700 text-white ring-emerald-300',
+      icon: <GaugeIcon className="h-5 w-5 sm:h-6 sm:w-6" />,
+      colorClass: 'bg-gradient-to-tr from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white ring-emerald-300/60 shadow-emerald-500/30',
       action: onOpenOdometer,
-      description: 'Submit odometer mileage',
     },
     {
       id: 'issue',
       label: 'Report Issue',
-      icon: <WrenchScrewdriverIcon className="h-5 w-5" />,
-      colorClass: 'bg-rose-500 hover:bg-rose-600 text-white ring-rose-300',
+      icon: <WrenchScrewdriverIcon className="h-5 w-5 sm:h-6 sm:w-6" />,
+      colorClass: 'bg-gradient-to-tr from-rose-600 to-rose-500 hover:from-rose-500 hover:to-rose-400 text-white ring-rose-300/60 shadow-rose-500/30',
       action: onOpenIssueLog,
-      description: 'Report vehicle problem & photo',
     },
     {
       id: 'feedback',
       label: 'Feedback',
-      icon: <ChatBubbleIcon className="h-5 w-5" />,
-      colorClass: 'bg-indigo-600 hover:bg-indigo-700 text-white ring-indigo-300',
+      icon: <ChatBubbleIcon className="h-5 w-5 sm:h-6 sm:w-6" />,
+      colorClass: 'bg-gradient-to-tr from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white ring-indigo-300/60 shadow-indigo-500/30',
       action: onOpenFeedback,
-      description: 'Share app suggestions or ideas',
     },
   ];
 
@@ -83,18 +79,18 @@ export const DriverSpeedDial: React.FC<DriverSpeedDialProps> = ({
       {isOpen && (
         <div 
           onClick={() => setIsOpen(false)}
-          className="fixed inset-0 bg-slate-950/40 backdrop-blur-[2px] z-40 transition-opacity duration-200 animate-in fade-in"
+          className="fixed inset-0 bg-slate-950/50 backdrop-blur-[3px] z-40 transition-opacity duration-200 animate-in fade-in"
           aria-hidden="true"
         />
       )}
 
-      {/* Floating Speed Dial Container */}
+      {/* Floating Speed Dial Container — with generous spacing from screen edge */}
       <div 
-        className={`fixed bottom-5 right-5 sm:bottom-6 sm:right-6 z-50 flex flex-col items-end select-none print:hidden ${className}`}
+        className={`fixed bottom-7 right-7 sm:bottom-8 sm:right-8 z-50 flex flex-col items-end select-none print:hidden ${className}`}
       >
         {/* Speed Dial Bubbles */}
         <div 
-          className={`flex flex-col items-end space-y-3 mb-3 transition-all duration-300 ease-out origin-bottom ${
+          className={`flex flex-col items-end space-y-3.5 mb-3.5 transition-all duration-300 ease-out origin-bottom ${
             isOpen 
               ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto' 
               : 'opacity-0 scale-75 translate-y-6 pointer-events-none invisible'
@@ -103,7 +99,8 @@ export const DriverSpeedDial: React.FC<DriverSpeedDialProps> = ({
           {speedDialItems.map((item, index) => (
             <div 
               key={item.id}
-              className="flex items-center gap-3 group"
+              className="flex items-center gap-3.5 group cursor-pointer"
+              onClick={() => handleAction(item.action)}
               style={{
                 transitionDelay: isOpen ? `${index * 35}ms` : '0ms',
               }}
@@ -111,17 +108,23 @@ export const DriverSpeedDial: React.FC<DriverSpeedDialProps> = ({
               {/* Text Pill Label */}
               <button
                 type="button"
-                onClick={() => handleAction(item.action)}
-                className="bg-slate-900/90 text-white text-xs sm:text-sm font-extrabold px-3 py-1.5 rounded-xl shadow-lg border border-slate-700/80 hover:bg-slate-900 transition-all duration-150 cursor-pointer active:scale-95 flex items-center gap-1.5 whitespace-nowrap backdrop-blur-md"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAction(item.action);
+                }}
+                className="bg-slate-900/95 text-white text-xs sm:text-sm font-extrabold px-3.5 py-2 rounded-xl shadow-xl border border-slate-700/80 hover:bg-slate-800 transition-all duration-150 cursor-pointer active:scale-95 flex items-center gap-1.5 whitespace-nowrap backdrop-blur-md"
               >
                 <span>{item.label}</span>
               </button>
 
-              {/* Action Bubble Button */}
+              {/* Action Bubble Button — larger and tactile */}
               <button
                 type="button"
-                onClick={() => handleAction(item.action)}
-                className={`h-11 w-11 sm:h-12 sm:w-12 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 cursor-pointer active:scale-90 hover:scale-105 ring-2 ring-white/40 ${item.colorClass}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAction(item.action);
+                }}
+                className={`h-12 w-12 sm:h-13 sm:w-13 rounded-full shadow-xl flex items-center justify-center transition-all duration-200 cursor-pointer active:scale-90 hover:scale-105 ring-2 ring-white/60 ${item.colorClass}`}
                 title={item.label}
                 aria-label={item.label}
               >
@@ -131,17 +134,17 @@ export const DriverSpeedDial: React.FC<DriverSpeedDialProps> = ({
           ))}
         </div>
 
-        {/* Primary FAB Toggle Button */}
+        {/* Primary FAB Toggle Button — larger (16x16 / 64px) with safe margin from edge */}
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
           aria-expanded={isOpen}
           aria-label={isOpen ? 'Close quick actions menu' : 'Open quick actions menu'}
           title={isOpen ? 'Close' : 'Quick Actions'}
-          className={`group h-13 w-13 sm:h-14 sm:w-14 rounded-full shadow-xl flex items-center justify-center transition-all duration-300 cursor-pointer focus:outline-none focus:ring-4 active:scale-95 border border-white/20 ${
+          className={`group h-16 w-16 rounded-full shadow-2xl flex items-center justify-center transition-all duration-300 cursor-pointer focus:outline-none focus:ring-4 active:scale-95 border-2 border-white/40 ${
             isOpen 
-              ? 'bg-slate-900 text-white hover:bg-slate-800 focus:ring-slate-500 shadow-slate-900/40' 
-              : 'bg-indigo-600 hover:bg-indigo-500 text-white focus:ring-indigo-300 shadow-indigo-600/40 hover:scale-105'
+              ? 'bg-slate-900 text-white hover:bg-slate-800 focus:ring-slate-500 shadow-slate-900/50' 
+              : 'bg-gradient-to-tr from-indigo-700 via-indigo-600 to-indigo-500 hover:from-indigo-600 hover:to-indigo-400 text-white focus:ring-indigo-300 shadow-indigo-600/50 hover:scale-105'
           }`}
         >
           <div 
@@ -149,7 +152,7 @@ export const DriverSpeedDial: React.FC<DriverSpeedDialProps> = ({
               isOpen ? 'rotate-45' : 'rotate-0'
             }`}
           >
-            <PlusIcon className="h-6 w-6 sm:h-7 sm:w-7 stroke-[2.5]" />
+            <PlusIcon className="h-8 w-8 stroke-[2.75]" />
           </div>
         </button>
       </div>
