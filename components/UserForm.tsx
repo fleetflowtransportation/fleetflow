@@ -504,9 +504,9 @@ const UserForm: React.FC<UserFormProps> = ({ isOpen, onClose, userToEdit }) => {
                     <div>
                       <div className="flex items-center gap-1.5">
                         <span className="font-extrabold text-xs text-slate-900">Part-Time / Temporary</span>
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800">Contract (1-2 mo)</span>
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800">Contract</span>
                       </div>
-                      <p className="text-[11px] text-slate-500 mt-0.5">Relief, seasonal, or temporary</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">Relief, seasonal, or temporary contract</p>
                     </div>
                     <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${formData.employmentType === 'part_time' ? 'border-purple-600 bg-purple-600' : 'border-slate-300'}`}>
                       {formData.employmentType === 'part_time' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
@@ -548,7 +548,7 @@ const UserForm: React.FC<UserFormProps> = ({ isOpen, onClose, userToEdit }) => {
                       name="terminationReason"
                       value={formData.terminationReason}
                       onChange={handleChange}
-                      placeholder="e.g. Completed 2-month contract, Resigned..."
+                      placeholder="e.g. Completed part-time contract, Resigned..."
                       className="block w-full border border-rose-300 rounded-xl shadow-xs p-2.5 text-xs bg-white focus:ring-2 focus:ring-rose-500 outline-none font-medium"
                     />
                     <p className="text-[10px] text-slate-500 mt-1">Saved to user audit history log</p>

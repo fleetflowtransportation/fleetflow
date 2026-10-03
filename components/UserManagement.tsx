@@ -12,12 +12,16 @@ const StatCard: React.FC<{
   colorBg: string;
   colorText: string;
 }> = ({ title, value, icon, colorBg, colorText }) => (
-  <div className="bg-white rounded-2xl p-4 sm:p-5 border border-gray-200 shadow-xs flex items-center justify-between">
-    <div>
-      <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">{title}</p>
-      <p className="text-2xl font-black text-gray-900 mt-1">{value}</p>
+  <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs flex items-center justify-between gap-2.5 overflow-hidden min-w-0">
+    <div className="min-w-0 flex-1">
+      <p className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider truncate block" title={title}>
+        {title}
+      </p>
+      <p className="text-xl sm:text-2xl font-black text-slate-900 mt-0.5 tracking-tight font-mono">
+        {value}
+      </p>
     </div>
-    <div className={`p-3 rounded-xl ${colorBg} ${colorText}`}>
+    <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl shrink-0 ${colorBg} ${colorText} flex items-center justify-center border border-current/10 shadow-2xs`}>
       {icon}
     </div>
   </div>
@@ -135,39 +139,39 @@ const UserManagement: React.FC = () => {
       </div>
 
       {/* Summary KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-3.5">
         <StatCard 
           title="Total Users" 
           value={stats.total} 
-          icon={<UsersIcon className="w-5 h-5 sm:w-6 sm:h-6" />} 
+          icon={<UsersIcon className="w-4 h-4 sm:w-5 sm:h-5" />} 
           colorBg="bg-slate-100" 
           colorText="text-slate-700" 
         />
         <StatCard 
           title="Administrators" 
           value={stats.admins} 
-          icon={<UserCircleIcon className="w-5 h-5 sm:w-6 sm:h-6" />} 
+          icon={<UserCircleIcon className="w-4 h-4 sm:w-5 sm:h-5" />} 
           colorBg="bg-indigo-100" 
           colorText="text-indigo-700" 
         />
         <StatCard 
           title="Full-Time Drivers" 
           value={stats.drivers - stats.partTimeDrivers} 
-          icon={<UsersIcon className="w-5 h-5 sm:w-6 sm:h-6" />} 
+          icon={<UsersIcon className="w-4 h-4 sm:w-5 sm:h-5" />} 
           colorBg="bg-blue-100" 
           colorText="text-blue-700" 
         />
         <StatCard 
           title="Part-Time Drivers" 
           value={stats.partTimeDrivers} 
-          icon={<UsersIcon className="w-5 h-5 sm:w-6 sm:h-6" />} 
+          icon={<UsersIcon className="w-4 h-4 sm:w-5 sm:h-5" />} 
           colorBg="bg-purple-100" 
           colorText="text-purple-700" 
         />
         <StatCard 
           title="Active Accounts" 
           value={stats.active} 
-          icon={<CheckCircleIcon className="w-5 h-5 sm:w-6 sm:h-6" />} 
+          icon={<CheckCircleIcon className="w-4 h-4 sm:w-5 sm:h-5" />} 
           colorBg="bg-emerald-100" 
           colorText="text-emerald-700" 
         />
