@@ -611,11 +611,100 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
   const calendarPortalUrl = `${origin}/?action=calendar&tenant_id=${tenantIdParam}`;
 
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
+  const [qrModalData, setQrModalData] = useState<{ title: string; subtitle: string; url: string } | null>(null);
 
   const copyToClipboard = (url: string, key: string) => {
     navigator.clipboard.writeText(url);
     setCopiedLink(key);
     setTimeout(() => setCopiedLink(null), 2500);
+  };
+
+  const handleDownloadQr = () => {
+    if (!qrModalData) return;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    canvas.width = 600;
+    canvas.height = 760;
+
+    // Background white
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Outer border
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(16, 16, canvas.width - 32, canvas.height - 32);
+
+    // Header banner background
+    ctx.fillStyle = '#4f46e5'; // Indigo
+    ctx.fillRect(16, 16, canvas.width - 32, 100);
+
+    // Header text: Organization / Fleet Flow
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 18px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(activeTenant?.name ? `${activeTenant.name} • Fleet Portal` : 'Fleet Management Portal', canvas.width / 2, 55);
+
+    ctx.font = '13px system-ui, sans-serif';
+    ctx.fillStyle = '#c7d2fe';
+    ctx.fillText('SCAN WITH MOBILE PHONE CAMERA', canvas.width / 2, 82);
+
+    // Portal Title
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold 22px system-ui, sans-serif';
+    ctx.fillText(qrModalData.title, canvas.width / 2, 155);
+
+    // Subtitle
+    ctx.fillStyle = '#64748b';
+    ctx.font = '13px system-ui, sans-serif';
+    ctx.fillText(qrModalData.subtitle, canvas.width / 2, 180);
+
+    // Load QR Code image
+    const qrImg = new Image();
+    qrImg.crossOrigin = 'anonymous';
+    qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(qrModalData.url)}`;
+    qrImg.onload = () => {
+      // Draw QR box background
+      ctx.fillStyle = '#f8fafc';
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(130, 205, 340, 340, 20);
+      ctx.fill();
+      ctx.stroke();
+
+      // Draw QR image inside
+      ctx.drawImage(qrImg, 155, 230, 290, 290);
+
+      // URL box at bottom
+      ctx.fillStyle = '#f1f5f9';
+      ctx.beginPath();
+      ctx.roundRect(40, 580, 520, 75, 12);
+      ctx.fill();
+
+      ctx.fillStyle = '#334155';
+      ctx.font = 'bold 12px system-ui, sans-serif';
+      ctx.fillText('DIRECT WEB LINK:', canvas.width / 2, 608);
+
+      ctx.fillStyle = '#4f46e5';
+      ctx.font = '12px monospace';
+      const maxLen = 65;
+      const displayUrl = qrModalData.url.length > maxLen ? qrModalData.url.substring(0, maxLen) + '...' : qrModalData.url;
+      ctx.fillText(displayUrl, canvas.width / 2, 632);
+
+      // Footer brand
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '11px system-ui, sans-serif';
+      ctx.fillText('Powered by Armada Flow Fleet Management System', canvas.width / 2, 705);
+
+      // Trigger download
+      const link = document.createElement('a');
+      link.download = `${qrModalData.title.toLowerCase().replace(/[^a-z0-9]/g, '_')}_qr_card.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    };
   };
 
   // -------------------------------------------------------------
@@ -1113,6 +1202,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
                     >
                       {copiedLink === 'book' ? '✓ Copied' : 'Copy Link'}
                     </button>
+                    <button
+                      onClick={() => setQrModalData({
+                        title: '1. Staff Booking Portal',
+                        subtitle: 'Allow employees and staff to request vehicles without logging in.',
+                        url: bookingPortalUrl
+                      })}
+                      className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer flex items-center gap-1.5"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                      </svg>
+                      <span>QR Code</span>
+                    </button>
                     <a
                       href={bookingPortalUrl}
                       target="_blank"
@@ -1147,6 +1249,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
                       className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer"
                     >
                       {copiedLink === 'odo' ? '✓ Copied' : 'Copy Link'}
+                    </button>
+                    <button
+                      onClick={() => setQrModalData({
+                        title: '2. Self-Drive Mileage & Odometer Submission',
+                        subtitle: 'Fast mobile portal for drivers to submit odometer readings before and after trips.',
+                        url: odometerPortalUrl
+                      })}
+                      className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer flex items-center gap-1.5"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                      </svg>
+                      <span>QR Code</span>
                     </button>
                     <a
                       href={odometerPortalUrl}
@@ -1183,6 +1298,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
                     >
                       {copiedLink === 'cal' ? '✓ Copied' : 'Copy Link'}
                     </button>
+                    <button
+                      onClick={() => setQrModalData({
+                        title: '3. Live Vehicle Availability Calendar',
+                        subtitle: 'Read-only overview showing active bookings and upcoming fleet reservations.',
+                        url: calendarPortalUrl
+                      })}
+                      className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer flex items-center gap-1.5"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                      </svg>
+                      <span>QR Code</span>
+                    </button>
                     <a
                       href={calendarPortalUrl}
                       target="_blank"
@@ -1192,6 +1320,108 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
                       Open ↗
                     </a>
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* QR Code Modal */}
+          {qrModalData && (
+            <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+              <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200 p-6 text-center space-y-5">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                  <div className="text-left">
+                    <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">
+                      Scan & Access Portal
+                    </span>
+                    <h3 className="text-base font-black text-slate-900">
+                      {qrModalData.title}
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setQrModalData(null)}
+                    className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <p className="text-xs text-slate-500">
+                  {qrModalData.subtitle}
+                </p>
+
+                {/* QR Code Image Card */}
+                <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 inline-block mx-auto shadow-inner">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrModalData.url)}`}
+                    alt="QR Code"
+                    className="w-48 h-48 sm:w-56 sm:h-56 mx-auto rounded-xl object-contain bg-white p-2 border border-slate-200 shadow-sm"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={qrModalData.url}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono bg-slate-50 text-slate-600 outline-none select-all text-center"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={handleDownloadQr}
+                    className="flex-1 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    <span>Download QR Card</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const printWindow = window.open('', '_blank');
+                      if (printWindow) {
+                        printWindow.document.write(`
+                          <html>
+                            <head>
+                              <title>QR Code - ${qrModalData.title}</title>
+                              <style>
+                                body { font-family: system-ui, sans-serif; text-align: center; padding: 40px; color: #1e293b; }
+                                .card { max-width: 400px; margin: 0 auto; border: 2px solid #cbd5e1; border-radius: 24px; padding: 32px; background: #fff; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+                                h2 { font-size: 20px; font-weight: 800; margin-bottom: 4px; color: #0f172a; }
+                                p { font-size: 13px; color: #64748b; margin-bottom: 24px; }
+                                img { width: 260px; height: 260px; object-fit: contain; margin-bottom: 20px; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; }
+                                .url { font-size: 11px; font-family: monospace; color: #475569; background: #f1f5f9; padding: 10px; border-radius: 8px; word-break: break-all; }
+                              </style>
+                            </head>
+                            <body>
+                              <div class="card">
+                                <h2>${qrModalData.title}</h2>
+                                <p>${qrModalData.subtitle}</p>
+                                <img src="https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrModalData.url)}" />
+                                <div class="url">${qrModalData.url}</div>
+                              </div>
+                              <script>
+                                window.onload = function() { window.print(); };
+                              </script>
+                            </body>
+                          </html>
+                        `);
+                        printWindow.document.close();
+                      }
+                    }}
+                    className="flex-1 py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    <span>Print QR Card</span>
+                  </button>
                 </div>
               </div>
             </div>
