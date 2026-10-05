@@ -4,7 +4,7 @@ import type { Booking, PassengerCount } from '../types';
 import { DEPARTMENTS, PICKUP_POINTS } from '../types';
 import { XIcon, PaperClipIcon, ClockIcon } from './icons/Icons';
 import { BookingResultModal } from './BookingResultModal';
-import { normalizeDate, normalizeTime, type AutoAssignResult } from '../services/bookingEngine';
+import { evaluateBookingAssignment, normalizeDate, normalizeTime, type AutoAssignResult } from '../services/bookingEngine';
 import { isOtherPickup } from '../utils';
 
 interface BookingFormProps {
@@ -61,7 +61,7 @@ const fileToBase64 = (file: File): Promise<string> => {
 };
 
 const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, bookingToEdit }) => {
-  const { addBooking, updateBooking, vehicles, users } = useAppContext();
+  const { addBooking, updateBooking, vehicles, users, driverSchedules, lastDriverAssignedId, bookings } = useAppContext();
   const [formData, setFormData] = useState<FormData>(emptyFormData);
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [existingAttachment, setExistingAttachment] = useState<{ name: string; url: string } | null>(null);
@@ -300,26 +300,58 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
     }
 
     if (bookingToEdit) {
-        const driverName = bookingToEdit.driverId
-            ? (users.find(u => u.id === bookingToEdit.driverId)?.name || '')
-            : (formData.serviceType === 'Self-Drive' ? 'Self-Drive' : '');
-        const deptStr = formData.department ? ` (${formData.department})` : '';
-        const updatedTitle = driverName
-            ? `(${driverName}) ${formData.requesterName.trim()}${deptStr} → ${formData.destination.trim()}`
-            : `${formData.requesterName.trim()}${deptStr} → ${formData.destination.trim()}`;
-        processedData.calendarEventTitle = updatedTitle;
+        const baseInput = {
+            requesterName: formData.requesterName.trim(),
+            requesterEmail: formData.requesterEmail.trim(),
+            department: formData.department,
+            bookingDate: formData.bookingDate,
+            startTime: formData.startTime,
+            endTime: formData.endTime,
+            purpose: formData.purpose.trim(),
+            destination: formData.destination.trim(),
+            pickupPoint: formData.pickupPoint,
+            address: isOtherPickup(formData.pickupPoint) ? formData.address.trim() : '',
+            staffCount: Number(formData.staffCount) || 0,
+            kidsCount: Number(formData.kidsCount) || 0,
+            teenagersCount: Number(formData.teenagersCount) || 0,
+            serviceType: formData.serviceType,
+            vehiclePreference: formData.vehiclePreference,
+            shouldWait: formData.shouldWait,
+            remarks: formData.remarks.trim(),
+            icNumber: formData.icNumber.trim(),
+        };
 
-        if (formData.serviceType === 'Self-Drive') {
-            const alza = vehicles.find(v => v.name.toLowerCase().includes('alza'));
-            if (alza) processedData.vehicleId = alza.id;
-        } else if (formData.vehiclePreference && formData.vehiclePreference !== FREE_VEHICLE_CHOICE) {
-            const matchedVehicle = vehicles.find(v => v.name.toLowerCase() === formData.vehiclePreference.toLowerCase());
-            if (matchedVehicle) {
-                processedData.vehicleId = matchedVehicle.id;
+        const result = evaluateBookingAssignment({
+            booking: baseInput,
+            existingBookings: bookings.filter(b => b.id !== bookingToEdit.id),
+            driverSchedules,
+            users,
+            vehicles,
+            lastDriverAssignedId,
+        });
+
+        if (result.status === 'Conflict') {
+            const confirmConflict = window.confirm(
+                `⚠️ CONFLICT DETECTED FOR THIS DATE & TIME:\n\n${result.conflictReason}\n\nDo you still want to force update this booking? (It will be flagged as Conflict).`
+            );
+            if (!confirmConflict) {
+                setIsUploading(false);
+                return;
             }
         }
 
-        updateBooking(bookingToEdit.id, processedData);
+        const updatedPayload: Partial<Booking> = {
+            ...processedData,
+            status: result.status === 'Conflict' ? 'Conflict' : result.status,
+            driverId: result.driverId || bookingToEdit.driverId,
+            vehicleId: result.vehicleId || bookingToEdit.vehicleId,
+            calendarEventTitle: result.calendarEventTitle || bookingToEdit.calendarEventTitle,
+            calendarColor: result.calendarColor || bookingToEdit.calendarColor,
+            conflictReason: result.conflictReason,
+            adminNotes: result.adminNotes || `Updated via Admin Dashboard at ${new Date().toLocaleTimeString()}.`,
+        };
+
+        updateBooking(bookingToEdit.id, updatedPayload);
         onClose();
     } else {
         const newBooking: Omit<Booking, 'id'> = {
