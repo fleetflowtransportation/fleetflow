@@ -226,10 +226,13 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
       return;
     }
 
+    let calculatedEndTime = formData.endTime;
+    if (!calculatedEndTime || calculatedEndTime <= formData.startTime) {
+      const [h, m] = formData.startTime.split(':').map(Number);
+      calculatedEndTime = `${String(Math.min(h + 2, 23)).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
     const dateTime = `${formData.bookingDate}T${formData.startTime}:00`;
-    const finishDateTime = formData.endTime
-      ? `${formData.bookingDate}T${formData.endTime}:00`
-      : undefined;
+    const finishDateTime = `${formData.bookingDate}T${calculatedEndTime}:00`;
 
     const processedData: Partial<Booking> = {
       requesterName: formData.requesterName.trim(),

@@ -117,9 +117,23 @@ export const formatTime12H = (time24: string): string => {
 // Check if two time intervals overlap on the same day: [startA, endA] and [startB, endB]
 export const isTimeOverlap = (startA: string, endA: string, startB: string, endB: string): boolean => {
   const sA = normalizeTime(startA);
-  const eA = normalizeTime(endA);
+  let eA = normalizeTime(endA);
   const sB = normalizeTime(startB);
-  const eB = normalizeTime(endB);
+  let eB = normalizeTime(endB);
+
+  // If start times are identical, they immediately overlap
+  if (sA === sB) return true;
+
+  // Ensure end times are valid positive intervals (default to +2 hours if end <= start or 0 duration)
+  if (eA <= sA) {
+    const [h, m] = sA.split(':').map(Number);
+    eA = `${pad2(Math.min(h + 2, 23))}:${pad2(m)}`;
+  }
+  if (eB <= sB) {
+    const [h, m] = sB.split(':').map(Number);
+    eB = `${pad2(Math.min(h + 2, 23))}:${pad2(m)}`;
+  }
+
   // Overlap if max(sA, sB) < min(eA, eB)
   return sA < eB && eA > sB;
 };

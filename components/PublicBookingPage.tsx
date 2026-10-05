@@ -193,6 +193,38 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
 
     setIsSubmitting(true);
 
+    // Fetch real-time active bookings and schedules to prevent stale client race conditions
+    let freshBookings = bookings;
+    let freshSchedules = driverSchedules;
+    let freshUsers = users;
+    let freshVehicles = vehicles;
+    try {
+      const [b, s, u, v] = await Promise.all([
+        storageService.getBookings(),
+        storageService.getDriverSchedules(),
+        storageService.getUsers(),
+        storageService.getVehicles(),
+      ]);
+      if (b && b.length >= 0) {
+        freshBookings = b;
+        setBookings(b);
+      }
+      if (s && s.length >= 0) {
+        freshSchedules = s;
+        setDriverSchedules(s);
+      }
+      if (u && u.length > 0) {
+        freshUsers = u;
+        setUsers(u);
+      }
+      if (v && v.length > 0) {
+        freshVehicles = v;
+        setVehicles(v);
+      }
+    } catch (e) {
+      console.warn('[PublicBookingPage] Real-time fetch warning:', e);
+    }
+
     const baseInput = {
       requesterName: formData.requesterName.trim(),
       requesterEmail: formData.requesterEmail.trim(),
@@ -214,13 +246,13 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
       icNumber: formData.icNumber.trim(),
     };
 
-    // Evaluate auto assignment engine
+    // Evaluate auto assignment engine against real-time bookings
     const result = evaluateBookingAssignment({
       booking: baseInput,
-      existingBookings: bookings,
-      driverSchedules,
-      users,
-      vehicles,
+      existingBookings: freshBookings,
+      driverSchedules: freshSchedules,
+      users: freshUsers,
+      vehicles: freshVehicles,
       lastDriverAssignedId: null,
     });
 
@@ -231,10 +263,13 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
       return;
     }
 
+    let calculatedEndTime = formData.endTime;
+    if (!calculatedEndTime || calculatedEndTime <= formData.startTime) {
+      const [h, m] = formData.startTime.split(':').map(Number);
+      calculatedEndTime = `${String(Math.min(h + 2, 23)).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
     const dateTime = `${formData.bookingDate}T${formData.startTime}:00`;
-    const finishDateTime = formData.endTime
-      ? `${formData.bookingDate}T${formData.endTime}:00`
-      : undefined;
+    const finishDateTime = `${formData.bookingDate}T${calculatedEndTime}:00`;
 
     const newBooking: Booking = {
       id: `booking-${Date.now()}`,
