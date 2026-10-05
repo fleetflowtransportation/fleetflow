@@ -787,6 +787,12 @@ export const googleCalendarService = {
     vehicles?: Vehicle[],
     users?: User[]
   ): Promise<boolean> => {
+    // Only update if this booking already has an associated calendarEventId.
+    // Odometer logs, fuel logs, and status changes must NEVER create new calendar events.
+    if (!booking.calendarEventId) {
+      return false;
+    }
+
     const startIso = formatMalaysiaIso(booking.dateTime);
     let endIso = booking.finishDateTime ? formatMalaysiaIso(booking.finishDateTime) : '';
     if (!endIso) {

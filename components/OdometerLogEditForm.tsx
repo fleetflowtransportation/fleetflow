@@ -9,6 +9,8 @@ interface OdometerLogEditFormProps {
   logToEdit?: OdometerLog | null;
   initialVehicleId?: string;
   initialDriverId?: string;
+  defaultBookingId?: string;
+  defaultBookingIds?: string[];
 }
 
 const emptyFormData = {
@@ -30,9 +32,11 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
   onClose, 
   logToEdit,
   initialVehicleId,
-  initialDriverId
+  initialDriverId,
+  defaultBookingId,
+  defaultBookingIds
 }) => {
-  const { updateOdometerLog, addOdometerLog, vehicles, users, currentUser, odometerLogs } = useAppContext();
+  const { updateOdometerLog, addOdometerLog, vehicles, users, currentUser, odometerLogs, bookings } = useAppContext();
   const [formData, setFormData] = useState<FormData>(emptyFormData);
   const [error, setError] = useState('');
 
@@ -78,24 +82,42 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
         });
       } else {
         // Create mode
-        const defaultVId = initialVehicleId || vehicles[0]?.id || '';
+        let fromLoc = 'HQ / Operations Base';
+        let toLoc = '';
+        let purpose = '';
+        let chosenVId = initialVehicleId || vehicles[0]?.id || '';
+        
+        const bIds = defaultBookingIds && defaultBookingIds.length > 0 ? defaultBookingIds : (defaultBookingId ? [defaultBookingId] : []);
+        if (bIds.length > 0) {
+          const selectedBookings = bookings.filter(b => bIds.includes(b.id));
+          if (selectedBookings.length > 0) {
+            const sorted = [...selectedBookings].sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
+            fromLoc = sorted[0].pickupPoint || fromLoc;
+            const toLocs = sorted.map(b => b.destination).filter(Boolean);
+            toLoc = Array.from(new Set(toLocs)).join(', ');
+            purpose = sorted.map(b => b.purpose).filter(Boolean).join(', ');
+            const foundVeh = sorted.find(b => b.vehicleId)?.vehicleId;
+            if (foundVeh) chosenVId = foundVeh;
+          }
+        }
+
         const defaultDId = initialDriverId || (currentUser?.role === 'driver' ? currentUser.id : (drivers[0]?.id || ''));
-        const latestOdo = defaultVId ? getLatestOdoForVehicle(defaultVId) : 0;
+        const latestOdo = chosenVId ? getLatestOdoForVehicle(chosenVId) : 0;
 
         setFormData({
-          vehicleId: defaultVId,
+          vehicleId: chosenVId,
           driverId: defaultDId,
           date: new Date().toISOString().split('T')[0],
-          fromLocation: 'HQ / Operations Base',
-          toLocation: '',
-          purpose: '',
+          fromLocation: fromLoc,
+          toLocation: toLoc,
+          purpose: purpose,
           startOdometer: latestOdo > 0 ? String(latestOdo) : '',
           endOdometer: '',
           remarks: '',
         });
       }
     }
-  }, [isOpen, logToEdit, initialVehicleId, initialDriverId, vehicles, drivers, currentUser, getLatestOdoForVehicle]);
+  }, [isOpen, logToEdit, initialVehicleId, initialDriverId, defaultBookingId, defaultBookingIds, vehicles, drivers, currentUser, bookings, getLatestOdoForVehicle]);
 
   const handleVehicleChange = (newVId: string) => {
     setFormData(prev => {
@@ -162,6 +184,8 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
       toLocation: formData.toLocation.trim() ? formData.toLocation.trim() : undefined,
       purpose: formData.purpose.trim() ? formData.purpose.trim() : undefined,
       remarks: formData.remarks.trim() ? formData.remarks.trim() : undefined,
+      bookingId: defaultBookingId || (defaultBookingIds && defaultBookingIds[0]) || undefined,
+      bookingIds: defaultBookingIds && defaultBookingIds.length > 0 ? defaultBookingIds : undefined,
     };
 
     if (logToEdit) {

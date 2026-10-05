@@ -679,7 +679,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return prev.map(b => (b.id === bookingId ? updatedFullBooking : b));
     });
 
-    if (activeTenant) {
+    // Only sync to Google Calendar if this booking already has an active calendar event
+    if (activeTenant && updatedFullBooking.calendarEventId) {
       googleCalendarService.updateEvent(activeTenant, updatedFullBooking, vehicles, users).catch(err => {
         console.warn('Gagal sync kemaskini kalendar:', err);
       });

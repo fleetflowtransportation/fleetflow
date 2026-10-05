@@ -166,58 +166,13 @@ function doPost(e) {
           title: event.getTitle()
         })).setMimeType(ContentService.MimeType.JSON);
       } else {
-        var guestList = [];
-        if (data.guests && typeof data.guests === 'string') {
-          guestList = data.guests.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s.indexOf('@') !== -1; });
-        } else {
-          if (requesterEmail && requesterEmail.indexOf("@") !== -1) guestList.push(requesterEmail);
-          if (data.driverEmail && data.driverEmail.indexOf("@") !== -1) guestList.push(data.driverEmail);
-        }
-        guestList = guestList.filter(function(item, pos) { return guestList.indexOf(item) === pos; });
-
-        var eventOptions = {
-          description: description,
-          location: location,
-          sendInvites: true
-        };
-        if (guestList.length > 0) {
-          eventOptions.guests = guestList.join(',');
-        }
-        var newEv = cal.createEvent(title, startTime, endTime, eventOptions);
-        
-        if (requesterEmail && (data.emailHtml || data.sendEmail)) {
-          try {
-            MailApp.sendEmail({
-              to: requesterEmail,
-              subject: data.emailSubject || ("📝 Booking Updated: " + title),
-              htmlBody: data.emailHtml || ("<p>Your booking <strong>" + title + "</strong> has been updated.</p>"),
-              name: "Armada Flow Transport"
-            });
-          } catch (mErr) {
-            Logger.log("Requester email err: " + mErr.toString());
-          }
-        }
-
-        var driverEmail = data.driverEmail || "";
-        if (driverEmail && driverEmail.indexOf("@") !== -1) {
-          try {
-            MailApp.sendEmail({
-              to: driverEmail,
-              subject: data.driverEmailSubject || ("📝 Trip Updated: " + title),
-              htmlBody: data.driverEmailHtml || data.emailHtml || ("<p>Trip <strong>" + title + "</strong> has been updated.</p>"),
-              name: "Armada Flow Transport"
-            });
-          } catch (dErr) {
-            Logger.log("Driver email err: " + dErr.toString());
-          }
-        }
-
+        // No existing calendar event found - DO NOT create a fallback event!
+        // Only actual vehicle bookings should create calendar events via createCalendarEvent.
         return ContentService.createTextOutput(JSON.stringify({
           status: "success",
           success: true,
-          action: "created_fallback",
-          id: newEv.getId(),
-          title: newEv.getTitle()
+          action: "skipped_no_event",
+          message: "No existing calendar event found to update."
         })).setMimeType(ContentService.MimeType.JSON);
       }
     }
@@ -304,73 +259,83 @@ function doPost(e) {
     }
 
     // -----------------------------------------------------------------------
-    // 4. ACTION: createCalendarEvent (With Guest Invitation & Automated Email)
+    // 4. ACTION: createCalendarEvent (Only for vehicle bookings)
     // -----------------------------------------------------------------------
-    var calendarId = data.calendarId || "primary";
-    var cal = (calendarId && calendarId !== "primary" && calendarId.indexOf("@") !== -1)
-      ? (CalendarApp.getCalendarById(calendarId) || CalendarApp.getDefaultCalendar())
-      : CalendarApp.getDefaultCalendar();
+    if (data.action === "createCalendarEvent" || data.actionType === "createCalendarEvent" || data.action === "createEvent" || data.actionType === "createEvent") {
+      var calendarId = data.calendarId || "primary";
+      var cal = (calendarId && calendarId !== "primary" && calendarId.indexOf("@") !== -1)
+        ? (CalendarApp.getCalendarById(calendarId) || CalendarApp.getDefaultCalendar())
+        : CalendarApp.getDefaultCalendar();
 
-    var title = data.title || data.summary || ("Vehicle Booking - " + (data.requesterName || "User"));
-    var description = data.description || "";
-    var location = data.location || "";
-    var requesterEmail = data.requesterEmail || data.guestEmail || "";
-    var driverEmail = data.driverEmail || "";
-    
-    var startStr = data.startTime || data.startIso || (data.start && data.start.dateTime);
-    var endStr = data.endTime || data.endIso || (data.end && data.end.dateTime);
-    var startTime = startStr ? new Date(startStr) : new Date();
-    var endTime = endStr ? new Date(endStr) : new Date(startTime.getTime() + 60 * 60 * 1000);
-    if (isNaN(startTime.getTime())) startTime = new Date();
-    if (isNaN(endTime.getTime())) endTime = new Date(startTime.getTime() + 60 * 60 * 1000);
+      var title = data.title || data.summary || ("Vehicle Booking - " + (data.requesterName || "User"));
+      var description = data.description || "";
+      var location = data.location || "";
+      var requesterEmail = data.requesterEmail || data.guestEmail || "";
+      var driverEmail = data.driverEmail || "";
+      
+      var startStr = data.startTime || data.startIso || (data.start && data.start.dateTime);
+      var endStr = data.endTime || data.endIso || (data.end && data.end.dateTime);
+      var startTime = startStr ? new Date(startStr) : new Date();
+      var endTime = endStr ? new Date(endStr) : new Date(startTime.getTime() + 60 * 60 * 1000);
+      if (isNaN(startTime.getTime())) startTime = new Date();
+      if (isNaN(endTime.getTime())) endTime = new Date(startTime.getTime() + 60 * 60 * 1000);
 
-    // Build unique guest emails list for calendar invites
-    var guestList = [];
-    if (data.guests && typeof data.guests === 'string') {
-      guestList = data.guests.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s.indexOf('@') !== -1; });
-    } else {
-      if (requesterEmail && requesterEmail.indexOf("@") !== -1) guestList.push(requesterEmail);
-      if (driverEmail && driverEmail.indexOf("@") !== -1) guestList.push(driverEmail);
-    }
-    guestList = guestList.filter(function(item, pos) { return guestList.indexOf(item) === pos; });
-
-    var eventOptions = {
-      description: description,
-      location: location,
-      sendInvites: true
-    };
-    if (guestList.length > 0) {
-      eventOptions.guests = guestList.join(',');
-    }
-
-    var createdEvent = cal.createEvent(title, startTime, endTime, eventOptions);
-
-    // 1. Dispatch confirmation HTML email to Requester
-    if (requesterEmail && (data.emailHtml || data.sendEmail)) {
-      try {
-        MailApp.sendEmail({
-          to: requesterEmail,
-          subject: data.emailSubject || ("✅ Booking Confirmed: " + title),
-          htmlBody: data.emailHtml || ("<p>Your vehicle reservation <strong>" + title + "</strong> has been confirmed.</p>"),
-          name: "Armada Flow Transport"
-        });
-      } catch (mailErr) {
-        Logger.log("Requester MailApp error: " + mailErr.toString());
+      // Build unique guest emails list for calendar invites
+      var guestList = [];
+      if (data.guests && typeof data.guests === 'string') {
+        guestList = data.guests.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s.indexOf('@') !== -1; });
+      } else {
+        if (requesterEmail && requesterEmail.indexOf("@") !== -1) guestList.push(requesterEmail);
+        if (driverEmail && driverEmail.indexOf("@") !== -1) guestList.push(driverEmail);
       }
-    }
+      guestList = guestList.filter(function(item, pos) { return guestList.indexOf(item) === pos; });
 
-    // 2. Dispatch duty notification HTML email to Driver
-    if (driverEmail && driverEmail.indexOf("@") !== -1) {
-      try {
-        MailApp.sendEmail({
-          to: driverEmail,
-          subject: data.driverEmailSubject || ("🚐 New Trip Assignment: " + title),
-          htmlBody: data.driverEmailHtml || data.emailHtml || ("<p>You have been assigned to trip: <strong>" + title + "</strong></p>"),
-          name: "Armada Flow Transport"
-        });
-      } catch (driverErr) {
-        Logger.log("Driver MailApp error: " + driverErr.toString());
+      var eventOptions = {
+        description: description,
+        location: location,
+        sendInvites: true
+      };
+      if (guestList.length > 0) {
+        eventOptions.guests = guestList.join(',');
       }
+
+      var createdEvent = cal.createEvent(title, startTime, endTime, eventOptions);
+
+      // 1. Dispatch confirmation HTML email to Requester
+      if (requesterEmail && (data.emailHtml || data.sendEmail)) {
+        try {
+          MailApp.sendEmail({
+            to: requesterEmail,
+            subject: data.emailSubject || ("✅ Booking Confirmed: " + title),
+            htmlBody: data.emailHtml || ("<p>Your vehicle reservation <strong>" + title + "</strong> has been confirmed.</p>"),
+            name: "Armada Flow Transport"
+          });
+        } catch (mailErr) {
+          Logger.log("Requester MailApp error: " + mailErr.toString());
+        }
+      }
+
+      // 2. Dispatch duty notification HTML email to Driver
+      if (driverEmail && driverEmail.indexOf("@") !== -1) {
+        try {
+          MailApp.sendEmail({
+            to: driverEmail,
+            subject: data.driverEmailSubject || ("🚐 New Trip Assignment: " + title),
+            htmlBody: data.driverEmailHtml || data.emailHtml || ("<p>You have been assigned to trip: <strong>" + title + "</strong></p>"),
+            name: "Armada Flow Transport"
+          });
+        } catch (driverErr) {
+          Logger.log("Driver MailApp error: " + driverErr.toString());
+        }
+      }
+
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success",
+        success: true,
+        action: "created",
+        id: createdEvent.getId(),
+        title: createdEvent.getTitle()
+      })).setMimeType(ContentService.MimeType.JSON);
     }
 
     // -----------------------------------------------------------------------
