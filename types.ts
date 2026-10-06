@@ -197,6 +197,7 @@ export interface OdometerLog {
   bookingId?: string; // ID tempahan yang diselesaikan
   bookingIds?: string[]; // Senarai ID tempahan yang diselesaikan serentak
   tenantId?: string;
+  staffName?: string; // Nama pemandu / staf (e.g. Unknown atau pemandu luar)
 }
 
 export interface IssueLog {

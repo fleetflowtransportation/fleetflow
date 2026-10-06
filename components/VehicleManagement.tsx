@@ -32,8 +32,8 @@ const OdometerHistoryModal: React.FC<OdometerHistoryModalProps> = ({ vehicle, on
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [odometerLogs, vehicle]);
 
-  const getDriverName = (driverId: string) => {
-    return users.find(u => u.id === driverId)?.name || 'Unknown';
+  const getDriverName = (driverId?: string | null, staffName?: string | null) => {
+    return (driverId ? users.find(u => u.id === driverId)?.name : null) || staffName || 'Unknown';
   };
   
   const handleEdit = (log: OdometerLog) => {
@@ -140,7 +140,7 @@ const OdometerHistoryModal: React.FC<OdometerHistoryModalProps> = ({ vehicle, on
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-800">
                           <div className="flex items-center">
                               <UserCircleIcon className="h-5 w-5 mr-2 text-gray-400" />
-                              {getDriverName(log.driverId)}
+                              {getDriverName(log.driverId, log.staffName)}
                           </div>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{log.fromLocation || '-'} → {log.toLocation || '-'}</td>

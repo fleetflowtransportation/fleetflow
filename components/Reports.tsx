@@ -97,9 +97,13 @@ const Reports: React.FC = () => {
 
   const drivers = useMemo(() => users.filter(u => u.role === 'driver' || u.role === 'admin'), [users]);
 
-  const getDriverName = useCallback((driverId: string | null | undefined) => {
-    if (!driverId) return 'Unassigned Driver';
-    return users.find(d => d.id === driverId)?.name || 'Driver';
+  const getDriverName = useCallback((driverId: string | null | undefined, staffName?: string | null) => {
+    if (driverId) {
+      const user = users.find(d => d.id === driverId);
+      if (user) return user.name;
+    }
+    if (staffName) return staffName;
+    return 'Unknown';
   }, [users]);
 
   const getVehicleInfo = useCallback((vehicleId: string | null | undefined) => {
@@ -192,7 +196,13 @@ const Reports: React.FC = () => {
       // Vehicle filter
       if (odoVehicleFilter && log.vehicleId !== odoVehicleFilter) return false;
       // Driver filter
-      if (odoDriverFilter && log.driverId !== odoDriverFilter) return false;
+      if (odoDriverFilter) {
+        if (odoDriverFilter === 'unknown') {
+          if (log.driverId) return false;
+        } else if (log.driverId !== odoDriverFilter) {
+          return false;
+        }
+      }
       // Date filter
       if (!checkDateMatch(log.date, odoDateFilter, odoStartDate, odoEndDate)) return false;
 
@@ -203,7 +213,7 @@ const Reports: React.FC = () => {
         const d = users.find(usr => usr.id === log.driverId);
 
         const matchV = v?.name.toLowerCase().includes(q) || v?.plateNumber.toLowerCase().includes(q);
-        const matchD = d?.name.toLowerCase().includes(q);
+        const matchD = d?.name.toLowerCase().includes(q) || (log.staffName && log.staffName.toLowerCase().includes(q));
         const matchFrom = log.fromLocation?.toLowerCase().includes(q);
         const matchTo = log.toLocation?.toLowerCase().includes(q);
         const matchPurpose = log.purpose?.toLowerCase().includes(q);
@@ -796,6 +806,7 @@ const Reports: React.FC = () => {
                   className="w-full p-2 text-xs border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 font-medium"
                 >
                   <option value="">All Drivers</option>
+                  <option value="unknown">Unknown / Lain-lain</option>
                   {drivers.map(d => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
@@ -879,7 +890,7 @@ const Reports: React.FC = () => {
                   {filteredOdoLogs.length > 0 ? (
                     filteredOdoLogs.map(log => {
                       const veh = getVehicleInfo(log.vehicleId);
-                      const driverName = getDriverName(log.driverId);
+                      const driverName = getDriverName(log.driverId, log.staffName);
                       const displayDate = log.date ? new Date(log.date).toLocaleDateString('en-GB', {
                         day: 'numeric',
                         month: 'short',

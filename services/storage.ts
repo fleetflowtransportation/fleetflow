@@ -328,6 +328,7 @@ const toDbOdometerLog = (o: Partial<OdometerLog>) => ({
   ...(o.remarks !== undefined && { remarks: o.remarks }),
   ...(o.bookingId !== undefined && { booking_id: o.bookingId }),
   ...(o.bookingIds !== undefined && { booking_ids: o.bookingIds }),
+  ...(o.staffName !== undefined && { staff_name: o.staffName }),
   tenant_id: o.tenantId || getTenantId(),
 });
 
@@ -345,6 +346,7 @@ const fromDbOdometerLog = (row: any): OdometerLog => ({
   remarks: row.remarks || undefined,
   bookingId: row.booking_id || undefined,
   bookingIds: row.booking_ids || undefined,
+  staffName: row.staff_name || undefined,
   tenantId: row.tenant_id || getTenantId(),
 });
 
