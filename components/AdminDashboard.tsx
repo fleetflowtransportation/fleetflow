@@ -93,7 +93,7 @@ const AdminDashboard: React.FC = () => {
   }, [fuelLogs]);
 
   const handleCreateBooking = () => {
-    setIsFormOpen(true);
+    window.open('https://armadaflow.vercel.app/?action=book&tenant_id=yck', '_blank');
   };
 
   return (

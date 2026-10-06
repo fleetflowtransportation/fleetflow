@@ -409,6 +409,22 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
               </button>
             </div>
 
+            {/* Public Portal Link Quick Action */}
+            {!bookingToEdit && (
+              <div className="bg-indigo-50 border-b border-indigo-100 px-6 py-2.5 flex items-center justify-between text-xs text-indigo-900">
+                <span className="font-medium">
+                  🔗 Public Booking Portal Link:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => window.open('https://armadaflow.vercel.app/?action=book&tenant_id=yck', '_blank')}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1 rounded-lg transition shadow-xs cursor-pointer"
+                >
+                  Open Public Link ↗
+                </button>
+              </div>
+            )}
+
             {/* Scrollable Form Body */}
             <form onSubmit={handleSubmit} className="p-5 sm:p-7 space-y-6 max-h-[82vh] overflow-y-auto">
               

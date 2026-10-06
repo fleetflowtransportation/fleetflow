@@ -240,7 +240,7 @@ const toDbBooking = (b: Partial<Booking>) => {
     ...(b.conflictReason !== undefined && { conflict_reason: b.conflictReason }),
     ...(b.isPreWorkingHour !== undefined && { is_pre_working_hour: b.isPreWorkingHour }),
     ...(b.warningNotes !== undefined && { warning_notes: b.warningNotes }),
-    ...(b.tenantId !== undefined ? { tenant_id: b.tenantId } : (b.id ? {} : { tenant_id: getTenantId() })),
+    tenant_id: b.tenantId || getTenantId(),
   };
 };
 

@@ -826,12 +826,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   }, []);
 
   const handleCreateNewBooking = () => {
-    if (onRequestBooking) {
-      onRequestBooking();
-    } else if (isAdmin) {
-      setEditingBooking(null);
-      setIsFormOpen(true);
-    }
+    window.open('https://armadaflow.vercel.app/?action=book&tenant_id=yck', '_blank');
   };
 
   const handleEditBooking = (b: Booking) => {
