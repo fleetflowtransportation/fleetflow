@@ -113,9 +113,9 @@ export interface VehicleRenewal {
   tenantId?: string;
 }
 
-export type PassengerCategory = 'Staff' | 'Kids' | 'Teenagers' | 'Adults' | 'Others';
+export type PassengerCategory = 'Staff' | 'Kids' | 'Teenagers' | 'Parents' | 'Adults' | 'Others';
 
-export const PASSENGER_CATEGORIES: PassengerCategory[] = ['Staff', 'Kids', 'Teenagers', 'Adults', 'Others'];
+export const PASSENGER_CATEGORIES: PassengerCategory[] = ['Staff', 'Kids', 'Teenagers', 'Parents', 'Adults', 'Others'];
 
 export interface PassengerCount {
   category: PassengerCategory;

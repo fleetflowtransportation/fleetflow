@@ -31,6 +31,7 @@ const statusStyles: { [key in Booking['status']]: { bg: string; text: string; ri
 
 const categoryAbbreviation: Record<PassengerCategory, string> = {
     'Staff': 'S',
+    'Parents': 'P',
     'Kids': 'K',
     'Teenagers': 'T',
     'Adults': 'A',

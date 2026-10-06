@@ -40,6 +40,7 @@ const emptyFormData = {
   pickupPoint: '',
   address: '',
   staffCount: '1',
+  parentsCount: '0',
   kidsCount: '0',
   teenagersCount: '0',
   serviceType: 'Perlu Driver' as 'Perlu Driver' | 'Self-Drive',
@@ -126,6 +127,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
         const { date, time: startTime } = splitIso(bookingToEdit.dateTime);
         const { time: endTime } = splitIso(bookingToEdit.finishDateTime);
         const staffCount = bookingToEdit.passengers?.find(p => p.category === 'Staff')?.count ?? 1;
+        const parentsCount = bookingToEdit.passengers?.find(p => p.category === 'Parents')?.count ?? 0;
         const kidsCount = bookingToEdit.passengers?.find(p => p.category === 'Kids')?.count ?? 0;
         const teenagersCount = bookingToEdit.passengers?.find(p => p.category === 'Teenagers')?.count ?? 0;
 
@@ -144,6 +146,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
           pickupPoint: isOtherPickup(bookingToEdit.pickupPoint) ? OTHER_PICKUP : (bookingToEdit.pickupPoint || ''),
           address: (isOtherPickup(bookingToEdit.pickupPoint) || (bookingToEdit.address && bookingToEdit.address !== bookingToEdit.destination)) ? (bookingToEdit.address || '') : '',
           staffCount: String(staffCount),
+          parentsCount: String(parentsCount),
           kidsCount: String(kidsCount),
           teenagersCount: String(teenagersCount),
           serviceType: (bookingToEdit.serviceType === 'Self-Drive' ? 'Self-Drive' : 'Perlu Driver') as any,
@@ -189,8 +192,8 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
   };
 
   const totalPassengers = useMemo(() => {
-    return (Number(formData.staffCount) || 0) + (Number(formData.kidsCount) || 0) + (Number(formData.teenagersCount) || 0);
-  }, [formData.staffCount, formData.kidsCount, formData.teenagersCount]);
+    return (Number(formData.staffCount) || 0) + (Number(formData.parentsCount) || 0) + (Number(formData.kidsCount) || 0) + (Number(formData.teenagersCount) || 0);
+  }, [formData.staffCount, formData.parentsCount, formData.kidsCount, formData.teenagersCount]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -198,11 +201,12 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
 
     const passengers: PassengerCount[] = [];
     if (Number(formData.staffCount) > 0) passengers.push({ category: 'Staff', count: Number(formData.staffCount) });
+    if (Number(formData.parentsCount) > 0) passengers.push({ category: 'Parents', count: Number(formData.parentsCount) });
     if (Number(formData.kidsCount) > 0) passengers.push({ category: 'Kids', count: Number(formData.kidsCount) });
     if (Number(formData.teenagersCount) > 0) passengers.push({ category: 'Teenagers', count: Number(formData.teenagersCount) });
     
     if (passengers.length === 0) {
-      alert('Please specify at least one passenger (Staff, Children, or Teenagers).');
+      alert('Please specify at least one passenger (Staff, Parents, Kids, or Teenagers).');
       return;
     }
 
@@ -649,16 +653,29 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
                 </div>
 
                 {/* Passenger Counts */}
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                      Staff / Adults
+                      Staff
                     </label>
                     <input
                       type="number"
                       min="0"
                       name="staffCount"
                       value={formData.staffCount}
+                      onChange={handleChange}
+                      className="w-full text-center py-2 px-2 border border-slate-200 rounded-xl text-sm font-bold bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      Parents
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      name="parentsCount"
+                      value={formData.parentsCount}
                       onChange={handleChange}
                       className="w-full text-center py-2 px-2 border border-slate-200 rounded-xl text-sm font-bold bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
                     />

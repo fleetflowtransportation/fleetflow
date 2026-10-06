@@ -49,6 +49,7 @@ const emptyFormData = {
   pickupPoint: '',
   address: '',
   staffCount: 1,
+  parentsCount: 0,
   kidsCount: 0,
   teenagersCount: 0,
   serviceType: 'Perlu Driver' as 'Perlu Driver' | 'Self-Drive',
@@ -115,7 +116,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const updatePassengerCount = (field: 'staffCount' | 'kidsCount' | 'teenagersCount', delta: number) => {
+  const updatePassengerCount = (field: 'staffCount' | 'parentsCount' | 'kidsCount' | 'teenagersCount', delta: number) => {
     setFormData(prev => {
       const current = Number(prev[field]) || 0;
       const updated = Math.max(0, current + delta);
@@ -136,8 +137,8 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
   };
 
   const totalPassengers = useMemo(() => {
-    return (Number(formData.staffCount) || 0) + (Number(formData.kidsCount) || 0) + (Number(formData.teenagersCount) || 0);
-  }, [formData.staffCount, formData.kidsCount, formData.teenagersCount]);
+    return (Number(formData.staffCount) || 0) + (Number(formData.parentsCount) || 0) + (Number(formData.kidsCount) || 0) + (Number(formData.teenagersCount) || 0);
+  }, [formData.staffCount, formData.parentsCount, formData.kidsCount, formData.teenagersCount]);
 
   // Check if start time falls into driver break hours
   const breakTimeWarning = useMemo(() => {
@@ -168,11 +169,12 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
 
     const passengers: PassengerCount[] = [];
     if (Number(formData.staffCount) > 0) passengers.push({ category: 'Staff', count: Number(formData.staffCount) });
+    if (Number(formData.parentsCount) > 0) passengers.push({ category: 'Parents', count: Number(formData.parentsCount) });
     if (Number(formData.kidsCount) > 0) passengers.push({ category: 'Kids', count: Number(formData.kidsCount) });
     if (Number(formData.teenagersCount) > 0) passengers.push({ category: 'Teenagers', count: Number(formData.teenagersCount) });
     
     if (passengers.length === 0) {
-      alert('Please enter at least 1 passenger (Staff, Children, or Teenagers).');
+      alert('Please enter at least 1 passenger (Staff, Parents, Kids, or Teenagers).');
       return;
     }
 
@@ -1092,7 +1094,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {/* Staff Stepper */}
                     <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-center space-y-2">
                       <span className="text-xs font-extrabold text-slate-700 block">Staff</span>
@@ -1115,6 +1117,35 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                         <button
                           type="button"
                           onClick={() => updatePassengerCount('staffCount', 1)}
+                          className="w-8 h-8 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold flex items-center justify-center cursor-pointer active:scale-95 transition"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Parents Stepper */}
+                    <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-center space-y-2">
+                      <span className="text-xs font-extrabold text-slate-700 block">Parents</span>
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => updatePassengerCount('parentsCount', -1)}
+                          className="w-8 h-8 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold flex items-center justify-center cursor-pointer active:scale-95 transition"
+                        >
+                          -
+                        </button>
+                        <input
+                          type="number"
+                          min="0"
+                          name="parentsCount"
+                          value={formData.parentsCount}
+                          onChange={handleChange}
+                          className="w-14 text-center font-bold text-sm bg-white border border-slate-300 rounded-lg py-1 text-slate-900"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => updatePassengerCount('parentsCount', 1)}
                           className="w-8 h-8 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold flex items-center justify-center cursor-pointer active:scale-95 transition"
                         >
                           +
