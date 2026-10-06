@@ -3,6 +3,7 @@ import { useAppContext } from '../context/AppContext';
 import type { IssueLog } from '../types';
 import { XIcon, PaperClipIcon } from './icons/Icons';
 import { uploadToGoogleDrive } from '../services/googleDrive';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 interface IssueLogFormProps {
   isOpen: boolean;
@@ -126,19 +127,26 @@ const IssueLogForm: React.FC<IssueLogFormProps> = ({ isOpen, onClose, reporterId
     onClose();
   };
 
+  useBodyScrollLock(isOpen);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex justify-center items-center p-4 backdrop-blur-xs">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden max-h-[90vh]">
-        <div className="flex justify-between items-center p-5 border-b bg-gray-50">
+    <div 
+      className="fixed inset-0 bg-black/60 z-50 flex justify-center items-center p-2 sm:p-4 backdrop-blur-xs overscroll-contain animate-in fade-in duration-150"
+      onTouchMove={(e) => {
+        if (e.target === e.currentTarget) e.preventDefault();
+      }}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden max-h-[92vh] sm:max-h-[90vh] overscroll-contain animate-in zoom-in-95 duration-150">
+        <div className="shrink-0 flex justify-between items-center p-5 border-b bg-gray-50">
           <div>
             <h2 className="text-lg font-extrabold text-gray-900 tracking-tight">Report New Vehicle Issue</h2>
             <p className="text-xs text-gray-500 font-medium mt-0.5">Submit maintenance issue and save photo to Google Drive</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1.5 hover:bg-gray-200 rounded-full transition cursor-pointer"><XIcon className="h-6 w-6" /></button>
         </div>
-        <form onSubmit={handleSubmit} className="overflow-y-auto p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto overscroll-contain touch-pan-y p-5 sm:p-6 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label className="block text-xs font-bold uppercase text-gray-400 mb-1">Vehicle *</label>

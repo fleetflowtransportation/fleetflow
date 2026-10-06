@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import type { DriverSchedule } from '../types';
 import { XIcon, TrashIcon, PlusIcon, CalendarIcon, ClockIcon } from './icons/Icons';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTH_LABELS = [
@@ -530,6 +531,8 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
   const [tamat, setTamat] = useState(toTimeHHMM(editSchedule?.Tamat || '') || '17:00');
   const [targetDriverId, setTargetDriverId] = useState<string>('all');
 
+  useBodyScrollLock(Boolean(modal));
+
   if (!modal) return null;
 
   const isBulkDelete = modal.mode === 'bulkDelete';
@@ -581,9 +584,14 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
   if (isDayDetail) {
     const { dateKey, daySchedules } = modal;
     return (
-      <div className="fixed inset-0 bg-black/60 z-50 flex justify-center items-end sm:items-center p-0 sm:p-4 backdrop-blur-xs">
-        <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] sm:max-h-[90vh] flex flex-col overflow-hidden">
-          <div className="flex justify-between items-center p-4 sm:p-5 border-b bg-gray-50">
+      <div 
+        className="fixed inset-0 bg-black/60 z-50 flex justify-center items-end sm:items-center p-0 sm:p-4 backdrop-blur-xs overscroll-contain animate-in fade-in duration-150"
+        onTouchMove={(e) => {
+          if (e.target === e.currentTarget) e.preventDefault();
+        }}
+      >
+        <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] sm:max-h-[90vh] flex flex-col overflow-hidden overscroll-contain">
+          <div className="shrink-0 flex justify-between items-center p-4 sm:p-5 border-b bg-gray-50">
             <div>
               <h3 className="text-base sm:text-lg font-extrabold text-gray-900 tracking-tight">
                 Shift Roster Details
@@ -597,7 +605,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
             </button>
           </div>
 
-          <div className="p-4 sm:p-6 overflow-y-auto space-y-4">
+          <div className="flex-1 p-4 sm:p-6 overflow-y-auto overscroll-contain touch-pan-y space-y-4">
             {daySchedules.length > 0 ? (
               <div className="space-y-2.5">
                 <label className="block text-xs font-bold uppercase text-gray-400">Scheduled Drivers ({daySchedules.length})</label>
@@ -668,9 +676,14 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
 
   if (isBulkDelete) {
     return (
-      <div className="fixed inset-0 bg-black/60 z-50 flex justify-center items-end sm:items-center p-0 sm:p-4 backdrop-blur-xs">
-        <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] sm:max-h-[90vh] flex flex-col overflow-hidden">
-          <div className="flex justify-between items-center p-4 sm:p-5 border-b bg-gray-50">
+      <div 
+        className="fixed inset-0 bg-black/60 z-50 flex justify-center items-end sm:items-center p-0 sm:p-4 backdrop-blur-xs overscroll-contain animate-in fade-in duration-150"
+        onTouchMove={(e) => {
+          if (e.target === e.currentTarget) e.preventDefault();
+        }}
+      >
+        <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] sm:max-h-[90vh] flex flex-col overflow-hidden overscroll-contain">
+          <div className="shrink-0 flex justify-between items-center p-4 sm:p-5 border-b bg-gray-50">
             <h3 className="text-base sm:text-lg font-extrabold text-gray-900 tracking-tight">
               Bulk Delete Shifts ({modal.dates.length} Dates)
             </h3>
@@ -679,7 +692,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="overflow-y-auto p-4 sm:p-6 space-y-4">
+          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto overscroll-contain touch-pan-y p-4 sm:p-6 space-y-4">
             <div>
               <label className="block text-xs font-bold uppercase text-gray-400 mb-1">Selected Dates</label>
               <div className="max-h-24 overflow-y-auto bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-xs text-gray-600 space-y-0.5">
@@ -717,16 +730,21 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex justify-center items-end sm:items-center p-0 sm:p-4 backdrop-blur-xs">
-      <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] sm:max-h-[90vh] flex flex-col overflow-hidden">
-        <div className="flex justify-between items-center p-4 sm:p-5 border-b bg-gray-50">
+    <div 
+      className="fixed inset-0 bg-black/60 z-50 flex justify-center items-end sm:items-center p-0 sm:p-4 backdrop-blur-xs overscroll-contain animate-in fade-in duration-150"
+      onTouchMove={(e) => {
+        if (e.target === e.currentTarget) e.preventDefault();
+      }}
+    >
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] sm:max-h-[90vh] flex flex-col overflow-hidden overscroll-contain">
+        <div className="shrink-0 flex justify-between items-center p-4 sm:p-5 border-b bg-gray-50">
           <h3 className="text-base sm:text-lg font-extrabold text-gray-900 tracking-tight">
             {isEdit ? 'Edit Shift' : modal.mode === 'add' && modal.dates.length > 1 ? `Set Shifts (${modal.dates.length} Dates)` : 'Add Shift'}
           </h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1.5 hover:bg-gray-200 rounded-full transition cursor-pointer"><XIcon className="h-5 w-5" /></button>
         </div>
 
-        <form onSubmit={handleSubmit} className="overflow-y-auto p-4 sm:p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto overscroll-contain touch-pan-y p-4 sm:p-6 space-y-4">
           {modal.mode === 'add' && (
             <div>
               <label className="block text-xs font-bold uppercase text-gray-400 mb-1">Date</label>

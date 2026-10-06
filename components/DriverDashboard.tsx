@@ -20,12 +20,15 @@ import {
   XIcon,
   CalendarIcon,
   ChevronDownIcon,
-  ChevronUpIcon
+  ChevronUpIcon,
+  ClipboardListIcon
 } from './icons/Icons';
 import CalendarView from './CalendarView';
 import DriverScheduleManager from './DriverScheduleManager';
 import DriverSpeedDial from './DriverSpeedDial';
 import { FeedbackModal } from './FeedbackModal';
+import { BookingDetailModal } from './BookingDetailModal';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { parseAsLocal, getPickupLocationDisplay, isOtherPickup } from '../utils';
 
 interface DriverDashboardProps {
@@ -49,14 +52,15 @@ const isPastTrip = (dateTimeStr: string): boolean => {
 };
 
 const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
-  const { bookings, odometerLogs, fuelLogs, updateBookingStatus, vehicles } = useAppContext();
+  const { bookings, odometerLogs, fuelLogs, updateBookingStatus, vehicles, users } = useAppContext();
   const [activeTab, setActiveTab] = useState<ActiveTab>('today');
   const [isFuelLogOpen, setIsFuelLogOpen] = useState(false);
   const [isOdometerLogOpen, setIsOdometerLogOpen] = useState(false);
   const [isIssueLogOpen, setIsIssueLogOpen] = useState(false);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [selectedVehicleForOdometer, setSelectedVehicleForOdometer] = useState<string | undefined>(undefined);
-  
+  const [viewingBooking, setViewingBooking] = useState<Booking | null>(null);
+
   // Multiple booking selection states
   const [selectedBookingIds, setSelectedBookingIds] = useState<string[]>([]);
   const [driverSearchQuery, setDriverSearchQuery] = useState('');
@@ -64,6 +68,9 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [scheduleModalTab, setScheduleModalTab] = useState<'calendar' | 'schedule'>('calendar');
   const [isFleetOdoExpanded, setIsFleetOdoExpanded] = useState(false);
+
+  // Lock body scroll whenever schedule modal or viewingBooking modal is active
+  useBodyScrollLock(isScheduleModalOpen || Boolean(viewingBooking));
 
   // Fleet vehicle odometer lookup for driver dashboard
   const fleetVehicleOdometerMap = useMemo(() => {
@@ -349,6 +356,17 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
             <span className="text-[10px] font-mono font-bold bg-white/80 px-2 py-0.5 rounded border border-slate-200/60 text-slate-700">
               #{booking.id.split('-')[1] || booking.id.slice(0, 5)}
             </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setViewingBooking(booking);
+              }}
+              className="px-2 py-0.5 text-[10px] font-bold text-indigo-700 bg-white hover:bg-indigo-50 rounded border border-indigo-200 transition cursor-pointer shadow-2xs"
+              title="View full booking info"
+            >
+              Info
+            </button>
           </div>
         </div>
 
@@ -480,6 +498,18 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
               <p className="leading-snug">{booking.adminNotes}</p>
             </div>
           )}
+
+          {/* VIEW FULL DETAILS LINK */}
+          <div className="pt-0.5 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setViewingBooking(booking)}
+              className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer py-1 px-2 rounded-lg hover:bg-indigo-50/60 transition"
+            >
+              <ClipboardListIcon className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Full Trip Details & Info</span>
+            </button>
+          </div>
 
           {/* ACTION BUTTONS */}
           <div className="pt-1.5 border-t border-slate-100">
@@ -928,10 +958,15 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
 
       {/* DRIVER SCHEDULE & CALENDAR MODAL */}
       {isScheduleModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-sm p-3 sm:p-6 flex items-center justify-center animate-in fade-in duration-150">
-          <div className="bg-white w-full max-w-5xl max-h-[92vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-900/80 backdrop-blur-sm overscroll-contain animate-in fade-in duration-150"
+          onTouchMove={(e) => {
+            if (e.target === e.currentTarget) e.preventDefault();
+          }}
+        >
+          <div className="bg-white w-full max-w-5xl h-[92vh] sm:h-auto sm:max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 overscroll-contain">
             {/* Modal Header */}
-            <div className="px-4 sm:px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-4">
+            <div className="shrink-0 px-4 sm:px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-indigo-100 text-indigo-700 rounded-xl border border-indigo-200">
                   <CalendarIcon className="h-5 w-5" />
@@ -980,7 +1015,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
             </div>
 
             {/* Switch on Mobile */}
-            <div className="sm:hidden flex border-b border-slate-200 bg-slate-100 p-1 text-xs font-semibold">
+            <div className="shrink-0 sm:hidden flex border-b border-slate-200 bg-slate-100 p-1 text-xs font-semibold">
               <button
                 onClick={() => setScheduleModalTab('calendar')}
                 className={`flex-1 py-2 rounded-lg text-center transition cursor-pointer ${
@@ -1004,7 +1039,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
             </div>
 
             {/* Modal Body */}
-            <div className="p-3 sm:p-5 overflow-y-auto flex-1 bg-slate-50/50 min-h-[350px]">
+            <div className="flex-1 p-3 sm:p-5 overflow-y-auto overscroll-contain touch-pan-y bg-slate-50/50 min-h-0">
               {scheduleModalTab === 'calendar' ? (
                 <CalendarView readOnly={true} />
               ) : (
@@ -1013,7 +1048,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
             </div>
 
             {/* Modal Footer */}
-            <div className="px-4 py-3 bg-white border-t border-slate-200 flex justify-between items-center text-xs text-slate-500">
+            <div className="shrink-0 px-4 py-3 bg-white border-t border-slate-200 flex justify-between items-center text-xs text-slate-500">
               <span className="font-medium">
                 View: <strong className="text-slate-700">{scheduleModalTab === 'calendar' ? 'Trip & Booking Calendar' : 'Driver Shift & Duty Schedule'}</strong>
               </span>
@@ -1117,6 +1152,15 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
         isOpen={isFeedbackOpen}
         onClose={() => setIsFeedbackOpen(false)}
         currentRoute="driver-portal"
+      />
+
+      {/* Driver View Booking Detail Modal */}
+      <BookingDetailModal
+        booking={viewingBooking}
+        onClose={() => setViewingBooking(null)}
+        isAdmin={false}
+        users={users}
+        vehicles={vehicles}
       />
 
     </div>

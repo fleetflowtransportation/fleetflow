@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { submitFeedback, FeedbackPayload, DEFAULT_DEVELOPER_EMAIL } from '../services/feedbackService';
 import { XIcon, CheckCircleIcon } from './icons/Icons';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 interface FeedbackModalProps {
   isOpen: boolean;
@@ -88,14 +89,23 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, c
     onClose();
   };
 
+  useBodyScrollLock(isOpen);
+
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-xs overscroll-contain animate-in fade-in duration-150"
+      onTouchMove={(e) => {
+        if (e.target === e.currentTarget) e.preventDefault();
+      }}
+    >
       <div 
-        className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-150"
+        className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh] overscroll-contain animate-in zoom-in-95 duration-150"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-indigo-900 via-slate-900 to-indigo-950 p-5 sm:p-6 text-white flex items-center justify-between relative">
+        <div className="shrink-0 bg-gradient-to-r from-indigo-900 via-slate-900 to-indigo-950 p-5 sm:p-6 text-white flex items-center justify-between relative">
           <div>
             <div className="flex items-center gap-2">
               <span className="text-xl">💬</span>
@@ -148,7 +158,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, c
             </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="p-5 sm:p-6 overflow-y-auto space-y-4">
+          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto overscroll-contain touch-pan-y p-5 sm:p-6 space-y-4">
             {/* Identity context indicator */}
             <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-2xl p-3 text-xs">
               <div className="flex items-center gap-2">

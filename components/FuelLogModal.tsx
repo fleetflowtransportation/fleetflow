@@ -3,6 +3,7 @@ import { useAppContext } from '../context/AppContext';
 import type { FuelLog } from '../types';
 import { XIcon, FuelIcon, PaperClipIcon, TrashIcon } from './icons/Icons';
 import { uploadToGoogleDrive, formatFuelReceiptFileName, deleteFromGoogleDrive } from '../services/googleDrive';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 interface FuelLogModalProps {
   isOpen: boolean;
@@ -291,15 +292,22 @@ const FuelLogModal: React.FC<FuelLogModalProps> = ({
     }
   };
 
+  useBodyScrollLock(isOpen);
+
   if (!isOpen) return null;
 
   const selectedVehicle = vehicles.find(v => v.id === formData.vehicleId);
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex justify-center items-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col my-8 border border-slate-100 animate-in fade-in zoom-in-95 duration-150">
+    <div 
+      className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex justify-center items-center p-2 sm:p-4 overscroll-contain animate-in fade-in duration-150"
+      onTouchMove={(e) => {
+        if (e.target === e.currentTarget) e.preventDefault();
+      }}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] sm:max-h-[90vh] flex flex-col border border-slate-100 overflow-hidden overscroll-contain animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-slate-50/70 rounded-t-2xl">
+        <div className="shrink-0 flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-slate-50/70 rounded-t-2xl">
           <div className="flex items-center space-x-2.5">
             <div className="p-2 bg-amber-100 text-amber-700 rounded-xl">
               <FuelIcon className="h-5 w-5" />
@@ -323,7 +331,7 @@ const FuelLogModal: React.FC<FuelLogModalProps> = ({
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="flex-1 p-5 sm:p-6 space-y-4 overflow-y-auto overscroll-contain touch-pan-y">
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl font-medium flex items-center">
               <span className="mr-2 font-bold">⚠️</span> {error}

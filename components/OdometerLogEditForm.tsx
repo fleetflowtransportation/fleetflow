@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAppContext } from '../context/AppContext';
 import type { OdometerLog } from '../types';
 import { XIcon, GaugeIcon } from './icons/Icons';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 interface OdometerLogEditFormProps {
   isOpen: boolean;
@@ -37,6 +38,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
   defaultBookingIds
 }) => {
   const { updateOdometerLog, addOdometerLog, vehicles, users, currentUser, odometerLogs, bookings } = useAppContext();
+  useBodyScrollLock(isOpen);
   const [formData, setFormData] = useState<FormData>(emptyFormData);
   const [error, setError] = useState('');
 
@@ -200,9 +202,14 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex justify-center items-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col my-8 border border-slate-100 animate-in fade-in zoom-in-95 duration-150">
-        <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-slate-50/70 rounded-t-2xl">
+    <div 
+      className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex justify-center items-center p-2 sm:p-4 overscroll-contain animate-in fade-in duration-150"
+      onTouchMove={(e) => {
+        if (e.target === e.currentTarget) e.preventDefault();
+      }}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] sm:max-h-[90vh] flex flex-col border border-slate-100 overflow-hidden overscroll-contain animate-in fade-in zoom-in-95 duration-150">
+        <div className="shrink-0 flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-slate-50/70 rounded-t-2xl">
           <div className="flex items-center space-x-2.5">
             <div className="p-2 bg-indigo-100 text-indigo-700 rounded-xl">
               <GaugeIcon className="h-5 w-5" />
@@ -219,13 +226,13 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
           <button 
             type="button" 
             onClick={onClose} 
-            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition"
+            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer"
           >
             <XIcon className="h-5 w-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="flex-1 p-5 sm:p-6 space-y-4 overflow-y-auto overscroll-contain touch-pan-y">
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl font-medium flex items-center">
               <span className="mr-2 font-bold">⚠️</span> {error}
