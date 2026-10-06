@@ -211,10 +211,65 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const reload = useCallback(() => setReloadTick(t => t + 1), []);
 
-  // Auto-refresh setiap 15 saat supaya perubahan dari device/pengguna lain turut terpapar.
+  // 100% Automated Multi-Tenant Realtime Sync via Supabase WebSockets
+  // Listens to database WAL change events (INSERT, UPDATE, DELETE) filtered by tenant_id.
+  // Replaces the heavy 15-second polling loop, resulting in 0 idle queries and instant multi-device sync!
   useEffect(() => {
-    const interval = setInterval(() => reload(), 15000);
-    return () => clearInterval(interval);
+    if (!tenantInitialized || !activeTenant?.id) return;
+
+    const tenantId = activeTenant.id;
+    const client = getSupabase();
+
+    const channelName = `tenant-realtime-${tenantId}`;
+    const channel = client
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          filter: `tenant_id=eq.${tenantId}`,
+        },
+        (payload) => {
+          console.log(`[Realtime Sync] Change detected on ${payload.table} (${payload.eventType})`);
+          reload();
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log(`[Realtime Sync] Connected to realtime channel for tenant "${tenantId}"`);
+        }
+      });
+
+    return () => {
+      client.removeChannel(channel);
+    };
+  }, [activeTenant?.id, tenantInitialized, reload]);
+
+  // Smart Visibility & Screen Wakeup Catch-up
+  // When a driver or user wakes their phone screen or refocuses after being idle,
+  // silently checks if any data was modified while the device was asleep.
+  useEffect(() => {
+    let lastActiveTime = Date.now();
+
+    const handleWakeup = () => {
+      if (document.visibilityState === 'visible') {
+        const elapsed = Date.now() - lastActiveTime;
+        // If device was asleep or tab hidden for > 3 minutes, perform a quiet catchup reload
+        if (elapsed > 3 * 60 * 1000) {
+          reload();
+        }
+        lastActiveTime = Date.now();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleWakeup);
+    window.addEventListener('focus', handleWakeup);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleWakeup);
+      window.removeEventListener('focus', handleWakeup);
+    };
   }, [reload]);
 
   // Active session watcher: Instantly detects if the currently logged-in account
