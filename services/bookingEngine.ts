@@ -138,6 +138,17 @@ export const isTimeOverlap = (startA: string, endA: string, startB: string, endB
   return sA < eB && eA > sB;
 };
 
+// Calculate booking duration in minutes
+export const getBookingDurationMinutes = (b: Booking): number => {
+  const start = normalizeTime(b.dateTime);
+  const end = normalizeTime(b.finishDateTime || b.dateTime);
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  let dur = (eh * 60 + em) - (sh * 60 + sm);
+  if (dur <= 0) dur = 120; // default 2 hours if invalid or 0
+  return dur;
+};
+
 // Get Driver color based on project rules
 export const getDriverCalendarColor = (driverName: string = '', serviceType?: string): 'blue' | 'green' | 'grey' | 'purple' | 'amber' | 'teal' => {
   if (serviceType === 'Self-Drive') return 'grey';
@@ -432,24 +443,94 @@ export function evaluateBookingAssignment({
     };
   }
 
-  // e. Choose driver
-  let chosen: WorkingDriverInfo;
+  // e. Choose driver with Daily Workload Balancing & Fair Rotation
+  // Rule: If Driver A already received a booking earlier on this same day,
+  // prioritize other eligible/available drivers for the subsequent booking of the day.
 
-  if (isPreWorkingHour) {
-    availableDrivers.sort((a, b) => a.shiftStart.localeCompare(b.shiftStart));
-    chosen = availableDrivers[0];
-  } else {
-    if (availableDrivers.length === 1) {
-      chosen = availableDrivers[0];
-    } else {
-      const otherDrivers = availableDrivers.filter(w => w.driver.id !== lastDriverAssignedId);
-      if (otherDrivers.length > 0) {
-        chosen = otherDrivers[0];
-      } else {
-        chosen = availableDrivers[0];
-      }
-    }
+  // 1. Resolve fallback lastDriverAssignedId from existing bookings if null
+  const effectiveLastDriverId = lastDriverAssignedId || (
+    [...existingBookings]
+      .filter(b => b.status !== 'Cancelled' && b.driverId)
+      .sort((a, b) => (b.dateTime || '').localeCompare(a.dateTime || ''))[0]?.driverId
+  ) || null;
+
+  // 2. Identify all active/confirmed bookings on this specific bookingDate
+  const bookingsOnDate = existingBookings.filter(b => {
+    if (b.status === 'Cancelled') return false;
+    if (!b.driverId) return false;
+    return normalizeDate(b.dateTime) === bookingDate;
+  });
+
+  // Identify the driver assigned to the most recent booking on this date (chronologically by time)
+  const sortedDayBookings = [...bookingsOnDate].sort((a, b) => {
+    return normalizeTime(b.dateTime).localeCompare(normalizeTime(a.dateTime));
+  });
+  const latestDriverIdOnDate = sortedDayBookings[0]?.driverId || null;
+
+  // 3. Compute workload metrics for each available driver on this date
+  interface DriverDailyWorkload {
+    driverInfo: WorkingDriverInfo;
+    dayBookingsCount: number;
+    totalMinutesToday: number;
+    isLatestDriverOnDate: boolean;
+    isLastAssignedDriver: boolean;
   }
+
+  const driverWorkloads: DriverDailyWorkload[] = availableDrivers.map(w => {
+    const driverDayTrips = bookingsOnDate.filter(b => b.driverId === w.driver.id);
+    const dayBookingsCount = driverDayTrips.length;
+    const totalMinutesToday = driverDayTrips.reduce((sum, b) => sum + getBookingDurationMinutes(b), 0);
+    const isLatestDriverOnDate = w.driver.id === latestDriverIdOnDate;
+    const isLastAssignedDriver = w.driver.id === effectiveLastDriverId;
+
+    return {
+      driverInfo: w,
+      dayBookingsCount,
+      totalMinutesToday,
+      isLatestDriverOnDate,
+      isLastAssignedDriver,
+    };
+  });
+
+  // 4. Sort drivers:
+  // - Priority 1: Driver with FEWEST trips on this day (e.g. if Driver A has 1 trip, Driver B has 0 trips -> Driver B chosen)
+  // - Priority 2: If trip counts are tied, avoid the driver who just took the latest trip today
+  // - Priority 3: Avoid the globally last assigned driver
+  // - Priority 4: Driver with fewer total booked minutes today
+  // - Priority 5: If pre-working hour, earlier shiftStart
+  // - Priority 6: Alphabetical tie-breaker
+  driverWorkloads.sort((a, b) => {
+    // 1. Lowest daily booking count first (Daily Load Balancing)
+    if (a.dayBookingsCount !== b.dayBookingsCount) {
+      return a.dayBookingsCount - b.dayBookingsCount;
+    }
+
+    // 2. Avoid back-to-back same driver on the same day if another driver has same trip count
+    if (a.isLatestDriverOnDate !== b.isLatestDriverOnDate) {
+      return a.isLatestDriverOnDate ? 1 : -1;
+    }
+
+    // 3. Avoid lastDriverAssignedId
+    if (a.isLastAssignedDriver !== b.isLastAssignedDriver) {
+      return a.isLastAssignedDriver ? 1 : -1;
+    }
+
+    // 4. Prefer driver with fewer total minutes worked today
+    if (a.totalMinutesToday !== b.totalMinutesToday) {
+      return a.totalMinutesToday - b.totalMinutesToday;
+    }
+
+    // 5. If pre-working hour, earlier shift start
+    if (isPreWorkingHour && a.driverInfo.shiftStart !== b.driverInfo.shiftStart) {
+      return a.driverInfo.shiftStart.localeCompare(b.driverInfo.shiftStart);
+    }
+
+    // 6. Alphabetical tie-breaker
+    return a.driverInfo.driver.name.localeCompare(b.driverInfo.driver.name);
+  });
+
+  const chosenWorkload = driverWorkloads[0];
+  const chosen = chosenWorkload.driverInfo;
 
   // Vehicle Allocation
   let allocatedVehicle: Vehicle | null = null;
@@ -483,9 +564,13 @@ export function evaluateBookingAssignment({
     ? `Vehicle: ${allocatedVehicle.name} (${allocatedVehicle.plateNumber}).`
     : `Vehicle: Any / Unassigned (Driver will select vehicle upon odometer check-in).`;
 
+  const dailyTripsSummary = driverWorkloads
+    .map(dw => `${dw.driverInfo.driver.name}: ${dw.dayBookingsCount} trip(s)`)
+    .join(', ');
+
   const adminNotes = isPreWorkingHour
-    ? `CONFIRMED (Pre-working-hour): Auto-assigned to ${chosen.driver.name} (Earliest shift starts at: ${formatTime12H(chosen.shiftStart)}). ${preWorkingWarning}`
-    : `CONFIRMED: Auto-assigned to ${chosen.driver.name} via ${availableDrivers.length > 1 ? 'Round-Robin' : 'Single Eligible Driver'}. ${vehicleNotice}`;
+    ? `CONFIRMED (Pre-working-hour): Auto-assigned to ${chosen.driver.name} (Earliest shift: ${formatTime12H(chosen.shiftStart)} | Today's trips: ${chosenWorkload.dayBookingsCount}). ${preWorkingWarning}`
+    : `CONFIRMED: Auto-assigned to ${chosen.driver.name} via Daily Load Balancing (${dailyTripsSummary}). ${vehicleNotice}`;
 
   const totalPassengers = staffCount + kidsCount + teenagersCount;
   const passengerDetails = [
