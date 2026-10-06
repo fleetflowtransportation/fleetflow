@@ -69,8 +69,16 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
   const [scheduleModalTab, setScheduleModalTab] = useState<'calendar' | 'schedule'>('calendar');
   const [isFleetOdoExpanded, setIsFleetOdoExpanded] = useState(false);
 
-  // Lock body scroll whenever schedule modal or viewingBooking modal is active
-  useBodyScrollLock(isScheduleModalOpen || Boolean(viewingBooking));
+  // Check if any modal popup is open in the Driver portal
+  const isAnyModalOpen = isScheduleModalOpen || 
+    isFuelLogOpen || 
+    isOdometerLogOpen || 
+    isIssueLogOpen || 
+    isFeedbackOpen || 
+    Boolean(viewingBooking);
+
+  // Lock body scroll whenever any modal is active
+  useBodyScrollLock(isAnyModalOpen);
 
   // Fleet vehicle odometer lookup for driver dashboard
   const fleetVehicleOdometerMap = useMemo(() => {
@@ -1064,8 +1072,8 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
       )}
 
       {/* FLOATING ACTION BOTTOM BAR FOR MULTI-TRIP (BULK / LUMPSUM) */}
-      {selectedBookingIds.length > 0 && (
-        <div className="fixed bottom-6 left-4 right-4 md:left-auto md:right-auto md:w-[768px] bg-slate-900 text-white p-3.5 rounded-2xl shadow-2xl border border-slate-700 flex flex-wrap items-center justify-between gap-3 z-40 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2">
+      {selectedBookingIds.length > 0 && !isAnyModalOpen && (
+        <div className="fixed bottom-6 left-4 right-4 md:left-auto md:right-auto md:w-[768px] bg-slate-900 text-white p-3.5 rounded-2xl shadow-2xl border border-slate-700 flex flex-wrap items-center justify-between gap-3 z-30 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2">
           <div className="flex items-center space-x-3">
             <div className="bg-indigo-600 text-white font-extrabold h-8 w-8 rounded-full flex items-center justify-center text-xs shadow-sm border border-indigo-400">
               {selectedBookingIds.length}
@@ -1121,6 +1129,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
         onOpenIssueLog={() => setIsIssueLogOpen(true)}
         onOpenFeedback={() => setIsFeedbackOpen(true)}
         className={selectedBookingIds.length > 0 ? 'bottom-28 sm:bottom-28' : ''}
+        isHidden={isAnyModalOpen}
       />
 
       {/* Forms & Modals */}

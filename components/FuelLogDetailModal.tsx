@@ -11,6 +11,7 @@ import {
   EditIcon,
   RefreshIcon
 } from './icons/Icons';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 interface FuelLogDetailModalProps {
   isOpen: boolean;
@@ -77,6 +78,8 @@ export const FuelLogDetailModal: React.FC<FuelLogDetailModalProps> = ({
     }
   }, [isOpen, fuelLog?.id]);
 
+  useBodyScrollLock(isOpen);
+
   if (!isOpen || !fuelLog) return null;
 
   const vehicle = vehicles.find(v => v.id === fuelLog.vehicleId);
@@ -135,17 +138,20 @@ export const FuelLogDetailModal: React.FC<FuelLogDetailModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overscroll-contain animate-in fade-in duration-200"
       onClick={onClose}
+      onTouchMove={(e) => {
+        if (e.target === e.currentTarget) e.preventDefault();
+      }}
       role="dialog"
       aria-modal="true"
     >
       <div
-        className="relative bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden flex flex-col max-h-[92vh]"
+        className="relative bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh] overscroll-contain"
         onClick={e => e.stopPropagation()}
       >
         {/* MODAL HEADER */}
-        <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-slate-100 bg-linear-to-r from-amber-500/10 via-amber-500/5 to-transparent">
+        <div className="shrink-0 flex items-center justify-between px-5 sm:px-6 py-4 border-b border-slate-100 bg-linear-to-r from-amber-500/10 via-amber-500/5 to-transparent">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-md shadow-amber-500/20 shrink-0">
               <FuelIcon className="w-5 h-5" />
@@ -173,7 +179,7 @@ export const FuelLogDetailModal: React.FC<FuelLogDetailModalProps> = ({
         </div>
 
         {/* MODAL BODY */}
-        <div className="p-5 sm:p-6 overflow-y-auto space-y-6">
+        <div className="flex-1 p-5 sm:p-6 overflow-y-auto overscroll-contain touch-pan-y space-y-6">
           {/* TOP METRICS SUMMARY BANNER */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {/* Total Cost */}

@@ -13,6 +13,7 @@ interface DriverSpeedDialProps {
   onOpenIssueLog: () => void;
   onOpenFeedback: () => void;
   className?: string;
+  isHidden?: boolean;
 }
 
 export const DriverSpeedDial: React.FC<DriverSpeedDialProps> = ({
@@ -21,8 +22,12 @@ export const DriverSpeedDial: React.FC<DriverSpeedDialProps> = ({
   onOpenIssueLog,
   onOpenFeedback,
   className = '',
+  isHidden = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+
+  // If hidden (e.g. when any modal popup is open in Driver UI), do not render
+  if (isHidden) return null;
 
   // Close on Escape key press
   useEffect(() => {
@@ -79,14 +84,14 @@ export const DriverSpeedDial: React.FC<DriverSpeedDialProps> = ({
       {isOpen && (
         <div 
           onClick={() => setIsOpen(false)}
-          className="fixed inset-0 bg-slate-950/50 backdrop-blur-[3px] z-40 transition-opacity duration-200 animate-in fade-in"
+          className="fixed inset-0 bg-slate-950/50 backdrop-blur-[3px] z-20 transition-opacity duration-200 animate-in fade-in"
           aria-hidden="true"
         />
       )}
 
-      {/* Floating Speed Dial Container — with generous spacing from screen edge */}
+      {/* Floating Speed Dial Container — below modals (z-30) */}
       <div 
-        className={`fixed bottom-7 right-7 sm:bottom-8 sm:right-8 z-50 flex flex-col items-end select-none print:hidden ${className}`}
+        className={`fixed bottom-7 right-7 sm:bottom-8 sm:right-8 z-30 flex flex-col items-end select-none print:hidden ${className}`}
       >
         {/* Speed Dial Bubbles */}
         <div 
