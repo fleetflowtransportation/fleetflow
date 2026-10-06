@@ -113,6 +113,9 @@ export const extractDriveFileId = (input?: string | null): string | null => {
   return null;
 };
 
+export const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwsKTRbN2EAxSO1DtKXFCmaaH3ElzM2cPkQm5qJRcwZOK_zLi_WSKKQXgWsaCcVUn7d/exec';
+export const DEFAULT_DRIVE_FOLDER_ID = '1JR8y0J3B1S9RHJaeR_JtgRSkMOx6gqwC';
+
 /**
  * Deletes a file from Google Drive via the organization's Google Apps Script webhook.
  */
@@ -129,7 +132,7 @@ export const deleteFromGoogleDrive = async (
     tenant?.googleAppsScriptUrl || 
     localStorage.getItem('fleetflow_google_script_url') || 
     (import.meta as any).env?.VITE_GOOGLE_SCRIPT_UPLOAD_URL ||
-    'https://script.google.com/macros/s/AKfycbyV8lp3aIrFYWPy54mEwCSa3Totbo7rjpfXJtf_ok8_gze2dYXodYs0Zia2nPy9MsvQIA/exec';
+    DEFAULT_APPS_SCRIPT_URL;
 
   if (!appsScriptUrl || !appsScriptUrl.includes('script.google.com')) {
     console.warn('[Google Drive] Cannot delete file: Google Apps Script Webhook not configured');
@@ -237,9 +240,153 @@ export const fileToDataUrl = (file: File): Promise<string> =>
   });
 
 /**
+ * Checks if a stored attachment URL is an embedded Base64 string that bloats database egress.
+ */
+export const isBase64Attachment = (url?: string | null): boolean => {
+  if (!url) return false;
+  const trimmed = url.trim();
+  if (trimmed.startsWith('data:image/') || trimmed.startsWith('data:application/')) {
+    return true;
+  }
+  // Check if string is long raw base64 without protocol
+  if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://') && !trimmed.startsWith('blob:') && trimmed.length > 300) {
+    return true;
+  }
+  return false;
+};
+
+/**
+ * Uploads raw Base64 data or Data URL directly to Google Drive via Apps Script Webhook.
+ */
+export const uploadBase64StringToGoogleDrive = async (
+  base64OrDataUrl: string,
+  options: {
+    folderName?: string;
+    folderPath?: string | string[];
+    fileName: string;
+    mimeType?: string;
+    tenant?: Tenant | null;
+  }
+): Promise<GoogleDriveUploadResult> => {
+  const targetFolder = options.folderName || 'fuel_logs';
+  const customFileName = options.fileName || `receipt_${Date.now()}.jpg`;
+  const tenant = options.tenant;
+
+  let mimeType = options.mimeType || 'image/jpeg';
+  let rawBase64 = base64OrDataUrl;
+
+  if (base64OrDataUrl.startsWith('data:')) {
+    const mimeMatch = base64OrDataUrl.match(/^data:([^;]+);base64,/);
+    if (mimeMatch && mimeMatch[1]) {
+      mimeType = mimeMatch[1];
+    }
+    rawBase64 = base64OrDataUrl.includes(',') ? base64OrDataUrl.split(',')[1] : base64OrDataUrl;
+  }
+
+  // Format folderPath
+  let folderPathString = '';
+  if (Array.isArray(options.folderPath)) {
+    folderPathString = options.folderPath.filter(Boolean).join('/');
+  } else if (typeof options.folderPath === 'string' && options.folderPath.trim()) {
+    folderPathString = options.folderPath.trim();
+  } else {
+    folderPathString = targetFolder;
+  }
+
+  // Resolve Google Apps Script endpoint
+  const appsScriptUrl = 
+    tenant?.googleAppsScriptUrl || 
+    localStorage.getItem('fleetflow_google_script_url') || 
+    (import.meta as any).env?.VITE_GOOGLE_SCRIPT_UPLOAD_URL ||
+    DEFAULT_APPS_SCRIPT_URL;
+
+  // Resolve parent Drive folder ID
+  const rawDriveId = tenant?.googleDriveId || localStorage.getItem('fleetflow_google_drive_id') || '';
+  const rootDriveFolderId = extractDriveFolderId(rawDriveId);
+
+  if (!appsScriptUrl || !appsScriptUrl.includes('script.google.com')) {
+    return {
+      success: false,
+      url: '',
+      name: customFileName,
+      folderName: targetFolder,
+      error: 'Google Apps Script Webhook is not configured in Settings > Integrations.',
+    };
+  }
+
+  try {
+    const payload = {
+      action: 'uploadFile',
+      actionType: 'uploadFile',
+      base64: rawBase64,
+      fileName: customFileName,
+      mimeType: mimeType,
+      folder: folderPathString || targetFolder,
+      folderName: folderPathString || targetFolder,
+      subFolder: folderPathString || targetFolder,
+      folderPath: folderPathString,
+      subFolderPath: folderPathString,
+      driveId: rootDriveFolderId || undefined,
+      folderId: rootDriveFolderId || undefined,
+    };
+
+    const response = await fetch(appsScriptUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const resText = await response.text();
+    let resJson: any = null;
+    try {
+      resJson = JSON.parse(resText);
+    } catch {
+      console.warn('[Google Drive] Non-JSON response during base64 upload:', resText.substring(0, 150));
+    }
+
+    if (resJson && (resJson.success === true || resJson.status === 'success') && (resJson.url || resJson.fileId)) {
+      const fileId = resJson.fileId || resJson.id;
+      const directUrl = fileId ? `https://lh3.googleusercontent.com/d/${fileId}` : resJson.directUrl || resJson.url;
+      const webViewLink = resJson.url || (fileId ? `https://drive.google.com/file/d/${fileId}/view` : '');
+
+      return {
+        success: true,
+        url: directUrl || webViewLink,
+        fileId: fileId,
+        directUrl: directUrl,
+        thumbnailUrl: fileId ? `https://lh3.googleusercontent.com/d/${fileId}` : undefined,
+        webViewLink: webViewLink,
+        name: resJson.name || customFileName,
+        folderName: targetFolder,
+        folderPath: folderPathString,
+        isLocalFallback: false,
+      };
+    } else {
+      return {
+        success: false,
+        url: '',
+        name: customFileName,
+        folderName: targetFolder,
+        error: resJson?.message || 'Google Drive webhook returned an error response.',
+      };
+    }
+  } catch (err: any) {
+    return {
+      success: false,
+      url: '',
+      name: customFileName,
+      folderName: targetFolder,
+      error: err.message || 'Failed to upload file to Google Drive.',
+    };
+  }
+};
+
+/**
  * Uploads a file to Google Drive under a dedicated subfolder or nested folder path (e.g. ['Fuel Logs', 'VAA8821']).
  * Automatically uses active tenant's Google Apps Script URL and Google Drive ID.
- * Falls back to high-fidelity Data URL for cross-device compatibility if Apps Script is not configured.
+ * Strict mode: refuses to embed massive Base64 strings to protect Supabase egress bandwidth.
  */
 export const uploadToGoogleDrive = async (
   file: File,
@@ -269,92 +416,97 @@ export const uploadToGoogleDrive = async (
     tenant?.googleAppsScriptUrl || 
     localStorage.getItem('fleetflow_google_script_url') || 
     (import.meta as any).env?.VITE_GOOGLE_SCRIPT_UPLOAD_URL ||
-    'https://script.google.com/macros/s/AKfycbyV8lp3aIrFYWPy54mEwCSa3Totbo7rjpfXJtf_ok8_gze2dYXodYs0Zia2nPy9MsvQIA/exec';
+    DEFAULT_APPS_SCRIPT_URL;
 
   // Resolve parent Drive folder ID
   const rawDriveId = tenant?.googleDriveId || localStorage.getItem('fleetflow_google_drive_id') || '';
   const rootDriveFolderId = extractDriveFolderId(rawDriveId);
 
-  if (appsScriptUrl && appsScriptUrl.includes('script.google.com')) {
-    try {
-      const base64Str = await fileToBase64(file);
-
-      const payload = {
-        action: 'uploadFile',
-        actionType: 'uploadFile',
-        base64: base64Str,
-        fileName: customFileName,
-        mimeType: file.type || 'image/jpeg',
-        folder: folderPathString || targetFolder,
-        folderName: folderPathString || targetFolder,
-        subFolder: folderPathString || targetFolder,
-        folderPath: folderPathString,
-        subFolderPath: folderPathString,
-        driveId: rootDriveFolderId || undefined,
-        folderId: rootDriveFolderId || undefined,
-      };
-
-      const response = await fetch(appsScriptUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'text/plain;charset=utf-8',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const resText = await response.text();
-      let resJson: any = null;
-      try {
-        resJson = JSON.parse(resText);
-      } catch {
-        console.warn('[Google Drive] Non-JSON response:', resText.substring(0, 150));
-      }
-
-      if (resJson && (resJson.success === true || resJson.status === 'success') && (resJson.url || resJson.fileId)) {
-        const fileId = resJson.fileId || resJson.id;
-        const directUrl = fileId ? `https://lh3.googleusercontent.com/d/${fileId}` : resJson.directUrl || resJson.url;
-        const webViewLink = resJson.url || (fileId ? `https://drive.google.com/file/d/${fileId}/view` : '');
-
-        return {
-          success: true,
-          url: directUrl || webViewLink,
-          fileId: fileId,
-          directUrl: directUrl,
-          thumbnailUrl: fileId ? `https://lh3.googleusercontent.com/d/${fileId}` : undefined,
-          webViewLink: webViewLink,
-          name: resJson.name || customFileName,
-          folderName: targetFolder,
-          folderPath: folderPathString,
-          isLocalFallback: false,
-        };
-      }
-    } catch (err: any) {
-      console.warn(`[Google Drive] Upload to folder path "${folderPathString}" failed, generating device-portable data URL:`, err.message);
-    }
+  if (!appsScriptUrl || !appsScriptUrl.includes('script.google.com')) {
+    return {
+      success: false,
+      url: '',
+      name: customFileName,
+      folderName: targetFolder,
+      folderPath: folderPathString,
+      isLocalFallback: false,
+      error: 'Google Apps Script Webhook URL is not configured. Please configure it in Settings > Integrations so files can be saved to Google Drive.',
+    };
   }
 
-  // Cross-device fallback: Compress/encode as Base64 Data URL so it saves in Supabase and can be opened on ANY device
   try {
-    const dataUrl = await fileToDataUrl(file);
-    return {
-      success: true,
-      url: dataUrl,
-      name: customFileName,
-      folderName: targetFolder,
+    const base64Str = await fileToBase64(file);
+
+    const payload = {
+      action: 'uploadFile',
+      actionType: 'uploadFile',
+      base64: base64Str,
+      fileName: customFileName,
+      mimeType: file.type || 'image/jpeg',
+      folder: folderPathString || targetFolder,
+      folderName: folderPathString || targetFolder,
+      subFolder: folderPathString || targetFolder,
       folderPath: folderPathString,
-      isLocalFallback: true,
-      error: 'Google Apps Script not configured or unreachable. Stored as cross-device Data URL.',
+      subFolderPath: folderPathString,
+      driveId: rootDriveFolderId || undefined,
+      folderId: rootDriveFolderId || undefined,
     };
+
+    const response = await fetch(appsScriptUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const resText = await response.text();
+    let resJson: any = null;
+    try {
+      resJson = JSON.parse(resText);
+    } catch {
+      console.warn('[Google Drive] Non-JSON response:', resText.substring(0, 150));
+    }
+
+    if (resJson && (resJson.success === true || resJson.status === 'success') && (resJson.url || resJson.fileId)) {
+      const fileId = resJson.fileId || resJson.id;
+      const directUrl = fileId ? `https://lh3.googleusercontent.com/d/${fileId}` : resJson.directUrl || resJson.url;
+      const webViewLink = resJson.url || (fileId ? `https://drive.google.com/file/d/${fileId}/view` : '');
+
+      return {
+        success: true,
+        url: directUrl || webViewLink,
+        fileId: fileId,
+        directUrl: directUrl,
+        thumbnailUrl: fileId ? `https://lh3.googleusercontent.com/d/${fileId}` : undefined,
+        webViewLink: webViewLink,
+        name: resJson.name || customFileName,
+        folderName: targetFolder,
+        folderPath: folderPathString,
+        isLocalFallback: false,
+      };
+    } else {
+      return {
+        success: false,
+        url: '',
+        name: customFileName,
+        folderName: targetFolder,
+        folderPath: folderPathString,
+        isLocalFallback: false,
+        error: resJson?.message || 'Google Drive webhook did not return a valid file link. Please check your Apps Script deployment.',
+      };
+    }
   } catch (err: any) {
-    const objectUrl = URL.createObjectURL(file);
+    console.warn(`[Google Drive] Upload to folder "${folderPathString}" failed:`, err.message);
     return {
-      success: true,
-      url: objectUrl,
+      success: false,
+      url: '',
       name: customFileName,
       folderName: targetFolder,
       folderPath: folderPathString,
-      isLocalFallback: true,
-      error: err.message,
+      isLocalFallback: false,
+      error: `Failed to connect to Google Drive: ${err.message}. Please check your internet connection or Google Apps Script URL.`,
     };
   }
 };
+

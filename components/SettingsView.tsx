@@ -7,6 +7,7 @@ import BookingArchive from './BookingArchive';
 import SelfDriveStaffManagement from './SelfDriveStaffManagement';
 import type { Tenant } from '../types';
 import { googleCalendarService } from '../services/googleCalendar';
+import { isBase64Attachment, uploadBase64StringToGoogleDrive, formatFuelReceiptFileName } from '../services/googleDrive';
 import { 
   BuildingOfficeIcon,
   ClockIcon,
@@ -464,7 +465,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
     vehicles, 
     bookings, 
     driverSchedules, 
-    selfDriveStaff 
+    selfDriveStaff,
+    fuelLogs,
+    updateFuelLog
   } = useAppContext();
 
   useEffect(() => {
@@ -765,6 +768,128 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
     setCodeCopied(true);
     setTimeout(() => setCodeCopied(false), 2500);
   };
+
+  // -------------------------------------------------------------
+  // Base64 Egress & Google Drive Receipt Migration State
+  // -------------------------------------------------------------
+  const [isMigratingReceipts, setIsMigratingReceipts] = useState(false);
+  const [isClearingBase64, setIsClearingBase64] = useState(false);
+  const [migrationProgress, setMigrationProgress] = useState<{
+    current: number;
+    total: number;
+    successCount: number;
+    failCount: number;
+    currentItem?: string;
+  } | null>(null);
+  const [migrationResult, setMigrationResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const base64Logs = useMemo(() => {
+    return fuelLogs.filter(log => isBase64Attachment(log.receiptAttachmentUrl));
+  }, [fuelLogs]);
+
+  const driveLogsCount = useMemo(() => {
+    return fuelLogs.filter(log => log.receiptAttachmentUrl && !isBase64Attachment(log.receiptAttachmentUrl)).length;
+  }, [fuelLogs]);
+
+  const estimatedBase64Megabytes = useMemo(() => {
+    let totalChars = 0;
+    base64Logs.forEach(log => {
+      if (log.receiptAttachmentUrl) {
+        totalChars += log.receiptAttachmentUrl.length;
+      }
+    });
+    return (totalChars / (1024 * 1024)).toFixed(1);
+  }, [base64Logs]);
+
+  const handleMigrateBase64Receipts = async () => {
+    if (!activeTenant) return;
+    if (base64Logs.length === 0) return;
+
+    const targetUrl = integrationForm.appsScriptUrl.trim() || activeTenant.googleAppsScriptUrl;
+    if (!targetUrl || !targetUrl.includes('script.google.com')) {
+      setMigrationResult({
+        success: false,
+        message: 'Please configure and save a valid Google Apps Script Webhook URL above before starting migration.'
+      });
+      return;
+    }
+
+    setIsMigratingReceipts(true);
+    setMigrationResult(null);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < base64Logs.length; i++) {
+      const log = base64Logs[i];
+      const vehicle = vehicles.find(v => v.id === log.vehicleId);
+      const plateNumber = (vehicle?.plateNumber || 'VEHICLE').trim().toUpperCase();
+      const fileName = formatFuelReceiptFileName(log.date, plateNumber, log.receiptAttachmentName || 'receipt.jpg');
+
+      setMigrationProgress({
+        current: i + 1,
+        total: base64Logs.length,
+        successCount,
+        failCount,
+        currentItem: `${plateNumber} (${new Date(log.date).toLocaleDateString()})`
+      });
+
+      try {
+        const uploadRes = await uploadBase64StringToGoogleDrive(log.receiptAttachmentUrl!, {
+          folderName: 'fuel_logs',
+          folderPath: ['Fuel Logs', plateNumber],
+          fileName,
+          tenant: activeTenant,
+        });
+
+        if (uploadRes.success && uploadRes.url) {
+          await updateFuelLog(log.id, {
+            receiptAttachmentUrl: uploadRes.url,
+            receiptAttachmentName: uploadRes.name || fileName
+          });
+          successCount++;
+        } else {
+          failCount++;
+        }
+      } catch (err) {
+        failCount++;
+      }
+    }
+
+    setIsMigratingReceipts(false);
+    setMigrationProgress(null);
+    setMigrationResult({
+      success: successCount > 0,
+      message: `Migration completed: ${successCount} receipt(s) moved to Google Drive and sanitized in Supabase.${failCount > 0 ? ` (${failCount} failed)` : ''}`
+    });
+  };
+
+  const handleClearLegacyBase64 = async () => {
+    if (base64Logs.length === 0) return;
+    if (!window.confirm(`Are you sure you want to sanitize ${base64Logs.length} fuel log(s)? This will remove heavy Base64 strings from Supabase while preserving all odometer, fuel liters, and cost records.`)) {
+      return;
+    }
+
+    setIsClearingBase64(true);
+    setMigrationResult(null);
+    let count = 0;
+    for (const log of base64Logs) {
+      try {
+        await updateFuelLog(log.id, {
+          receiptAttachmentUrl: undefined,
+          receiptAttachmentName: undefined
+        });
+        count++;
+      } catch (err) {
+        console.warn('Failed to clear base64 for log', log.id, err);
+      }
+    }
+    setIsClearingBase64(false);
+    setMigrationResult({
+      success: true,
+      message: `Successfully sanitized ${count} fuel logs in Supabase. Egress bandwidth usage reduced.`
+    });
+  };
+
 
   // -------------------------------------------------------------
   // TAB 4: Account & Security (My Profile)
@@ -1607,6 +1732,121 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
                       <pre className="p-4 overflow-x-auto max-h-96 text-[11px] leading-relaxed select-all">
                         {GOOGLE_APPS_SCRIPT_CODE}
                       </pre>
+                    </div>
+                  )}
+                </div>
+
+                {/* Section: Database Egress & Receipt Storage Optimization */}
+                <div className="border-t border-slate-200 pt-6 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-bold text-slate-900">Database Egress & Receipt Storage Optimization</h3>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          Supabase Saver
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Ensure all fuel receipts are stored in Google Drive instead of heavy Base64 data inside PostgreSQL to prevent exceeding Supabase Egress limits.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Metrics Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Fuel Logs</p>
+                      <p className="text-lg font-bold text-slate-900 mt-1 font-mono tabular-nums">{fuelLogs.length}</p>
+                    </div>
+
+                    <div className={`p-3.5 border rounded-xl ${base64Logs.length > 0 ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200'}`}>
+                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Base64 In Database</p>
+                      <p className={`text-lg font-bold mt-1 font-mono tabular-nums ${base64Logs.length > 0 ? 'text-amber-700' : 'text-slate-900'}`}>
+                        {base64Logs.length}
+                      </p>
+                    </div>
+
+                    <div className={`p-3.5 border rounded-xl ${Number(estimatedBase64Megabytes) > 0 ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200'}`}>
+                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Database Payload Size</p>
+                      <p className={`text-lg font-bold mt-1 font-mono tabular-nums ${Number(estimatedBase64Megabytes) > 0 ? 'text-rose-700' : 'text-slate-900'}`}>
+                        ~{estimatedBase64Megabytes} MB
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl">
+                      <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">Google Drive Receipts</p>
+                      <p className="text-lg font-bold text-emerald-800 mt-1 font-mono tabular-nums">{driveLogsCount}</p>
+                    </div>
+                  </div>
+
+                  {/* Migration Progress Bar */}
+                  {isMigratingReceipts && migrationProgress && (
+                    <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-xl space-y-2">
+                      <div className="flex items-center justify-between text-xs font-bold text-indigo-900">
+                        <span>Migrating receipt {migrationProgress.current} of {migrationProgress.total}...</span>
+                        <span className="font-mono">{Math.round((migrationProgress.current / migrationProgress.total) * 100)}%</span>
+                      </div>
+                      <div className="w-full bg-indigo-200 rounded-full h-2.5 overflow-hidden">
+                        <div 
+                          className="bg-indigo-600 h-2.5 rounded-full transition-all duration-300"
+                          style={{ width: `${(migrationProgress.current / migrationProgress.total) * 100}%` }}
+                        ></div>
+                      </div>
+                      {migrationProgress.currentItem && (
+                        <p className="text-[11px] text-indigo-700 truncate">Processing: {migrationProgress.currentItem}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Migration / Sanitize Result Alert */}
+                  {migrationResult && (
+                    <div className={`p-3.5 rounded-xl border text-xs font-semibold ${
+                      migrationResult.success 
+                        ? 'bg-emerald-50 text-emerald-900 border-emerald-200' 
+                        : 'bg-rose-50 text-rose-900 border-rose-200'
+                    }`}>
+                      {migrationResult.success ? '✅ ' : '⚠️ '} {migrationResult.message}
+                    </div>
+                  )}
+
+                  {/* Action Controls */}
+                  {base64Logs.length > 0 ? (
+                    <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-xl space-y-3">
+                      <div className="flex items-start gap-2 text-xs text-amber-900">
+                        <span className="text-base leading-none">⚠️</span>
+                        <div>
+                          <p className="font-bold">Detected {base64Logs.length} legacy fuel log(s) with embedded Base64 image data.</p>
+                          <p className="text-amber-800 mt-0.5 leading-relaxed">
+                            These large strings download ~{estimatedBase64Megabytes} MB each time the fuel log or dashboard loads. Migrate them directly to Google Drive to keep Supabase egress low and preserve your free-tier limits.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={handleMigrateBase64Receipts}
+                          disabled={isMigratingReceipts || isClearingBase64}
+                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                        >
+                          {isMigratingReceipts ? 'Migrating to Google Drive...' : '🚀 Migrate Base64 Receipts to Google Drive'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleClearLegacyBase64}
+                          disabled={isMigratingReceipts || isClearingBase64}
+                          className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition disabled:opacity-50 cursor-pointer"
+                        >
+                          {isClearingBase64 ? 'Sanitizing...' : '🧹 Clear Base64 Strings from DB'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2">
+                      <CheckCircleIcon className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                      <span>
+                        <strong>Supabase Egress Optimized:</strong> Zero heavy Base64 image strings found in the database. All fuel logs are utilizing lightweight cloud links.
+                      </span>
                     </div>
                   )}
                 </div>

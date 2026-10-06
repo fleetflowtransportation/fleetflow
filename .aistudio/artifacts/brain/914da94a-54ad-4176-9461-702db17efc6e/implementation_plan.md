@@ -1,121 +1,94 @@
-# Implementation Plan: Driver Lifecycle, Reactivation Audit Logs & Supabase Schema
+# Google Drive Receipt Integration & Supabase Egress Cleanup Plan
 
-Implement a complete, audit-safe driver lifecycle tracking system that supports Part-Time / Full-Time classification, Active/Inactive toggling, Termination Dates & Reasons, Reactivation Dates & Reasons, a full persistent status history audit log, a dedicated restricted access screen for inactive drivers, and a ready-to-run Supabase SQL migration script.
+Complete data remediation and architecture enforcement to re-upload existing Base64 receipts to Google Drive, sanitize high-egress database rows in Supabase, and enforce mandatory Google Drive storage for all future fuel receipts.
 
 ---
 
-## 1. Data Model & Types (`types.ts`)
+### User Review & Critical Decisions
 
-### New Type: `UserStatusLog`
-Tracks each state transition with timestamp and audit attribution:
-```ts
-export interface UserStatusLog {
-  id: string;
-  action: 'created' | 'deactivated' | 'reactivated' | 'updated';
-  timestamp: string;      // ISO String
-  performedBy: string;    // Name or Email of the Admin who performed the action
-  effectiveDate?: string; // Date of termination or reactivation
-  reason?: string;        // Notes/reason provided by Admin
-  previousStatus?: 'active' | 'inactive';
-  newStatus: 'active' | 'inactive';
-}
+> [!IMPORTANT]
+> Based on your confirmed choices, we are applying the following strategy:
+> 1. **Data Remediation**: Extract all heavy Base64 receipts currently stored in the Supabase `fuel_logs` table, re-upload them to the tenant's dedicated Google Drive folder via Google Apps Script Webhook, and replace the database entries with lightweight Google Drive URLs (`https://lh3.googleusercontent.com/d/...`).
+> 2. **Enforce Drive Storage & Ban Base64 in Database**: Prevent fuel log submissions from falling back to multi-megabyte Base64 strings in Supabase when Google Drive is unconfigured or unreachable. The system will clearly notify the user if Google Drive needs configuration, preventing runaway Supabase bandwidth/egress spikes.
+
+- **Confirmed Remediation Strategy**: Automated batch migration of Base64 strings to Google Drive + purging Base64 payloads from Supabase.
+- **Confirmed Upload Enforcement**: Mandatory Google Drive upload verification with user feedback when Google Drive is disconnected.
+
+---
+
+### 1. Overview & Core Concept
+
+- **What It Does**: 
+  - Resolves the root cause of high Supabase egress by migrating existing embedded Base64 image data out of the PostgreSQL database and into Google Drive.
+  - Upgrades the fuel log submission pipeline so every attached receipt is formatted systematically (`DD-MM-YYYY_PLATENUMBER.ext`) and saved directly to Google Drive under `Fuel Logs/{PlateNumber}/`.
+  - Provides a one-click **"Clean & Sync Receipts to Drive"** tool in **Settings > Integrations** with live progress tracking and bandwidth savings metrics.
+- **Target Audience / Persona**: Fleet managers and drivers who record fuel transactions and need reliable, low-bandwidth receipt storage.
+- **Key Value**: Drastically reduces Supabase egress bandwidth consumption, ensures all receipts are centralized in company Google Drive folders, and prevents database bloat.
+
+---
+
+### 2. User Experience & Visual Design
+
+- **Fuel Log Form & Modal UX**:
+  - When attaching a receipt, the upload status clearly indicates Google Drive upload progression.
+  - If Google Drive is not connected or Apps Script is unreachable, the form presents an informative notice with direct guidance to configure or test the Google Drive integration in Settings.
+- **Settings > Integrations Cleanup & Sync Card**:
+  - A dedicated **"Database Egress & Receipt Storage Optimization"** card in the Integrations tab.
+  - Displays the count of legacy Base64 receipts detected in the database.
+  - An interactive button **"Migrate Base64 Receipts to Google Drive"** that processes items sequentially with a real-time progress bar.
+  - Displays instant summary stats (e.g. `24 receipts migrated`, `~48 MB Supabase egress saved`).
+- **Visual Identity & Theme**:
+  - Consistent with FleetFlow dark/light slate palette (`#0F172A`, `#1E293B`, `#3B82F6`).
+  - Clear state indicators: emerald for verified Google Drive connection, amber for pending sync, and rose for upload alerts.
+  - Data numbers and counts formatted with `font-mono tabular-nums`.
+
+---
+
+### 3. Key Product Decisions & Trade-Offs
+
+- **Decision 1: Direct Google Drive Webhook vs. Heavy Base64 Fallback**
+  - *Chosen Approach*: Enforce direct Google Drive file creation via the Apps Script Webhook / Drive API and remove Base64 storage in database fields.
+  - *Why*: Storing multi-megabyte Base64 strings in relational database columns downloads huge payloads on every table fetch, quickly consuming free-tier Supabase egress.
+  - *Alternatives Considered*: Storing Base64 in local browser storage was rejected because receipts must remain visible across all team devices.
+- **Decision 2: Automated Migration Script & On-Demand UI Trigger**
+  - *Chosen Approach*: Provide both an automated background remediation pass on app initialization (for admin) and a manual trigger in Settings.
+  - *Why*: Allows immediate remediation of active records while giving administrators full visibility into storage health.
+
+---
+
+### 4. Technical Architecture & Data Strategy
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      FleetFlow Client                       │
+├──────────────────────────────┬──────────────────────────────┤
+│  Fuel Log Form & Modal       │  Settings > Integrations     │
+│  (Receipt File Picker)       │  (Egress Optimization Card)  │
+└──────────────┬───────────────┴──────────────┬───────────────┘
+               │                              │
+               │ Direct File / Migrated Base64│
+               ▼                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│        Google Apps Script Webhook / Google Drive API        │
+│         - Creates / Retrieves folder: Fuel Logs/{Plate}     │
+│         - Decodes blob & saves file with public view link   │
+│         - Returns direct URL (https://lh3.googleusercontent)│
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+                               │ Lightweight URL (< 100 bytes)
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│                 Supabase PostgreSQL Database                │
+│    table: fuel_logs                                         │
+│    - receipt_attachment_url: Lightweight Google Drive URL   │
+│    - Zero heavy Base64 strings -> Minimal Egress Bandwidth  │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### Updates to `User` Interface:
-```ts
-export interface User {
-  // Existing properties...
-  employmentType?: 'full_time' | 'part_time'; // Default: 'full_time'
-  terminationDate?: string;                   // ISO date string
-  terminationReason?: string;                 // Reason for deactivation/termination
-  reactivationDate?: string;                  // ISO date string of latest reactivation
-  reactivationReason?: string;                // Reason for reactivation
-  statusHistory?: UserStatusLog[];            // Chronological audit log of all transitions
-}
-```
-
----
-
-## 2. Supabase SQL Migration Script (`fleet_users`)
-
-Run this SQL snippet in the Supabase Dashboard (`SQL Editor` -> `New Query` -> `Run`):
-
-```sql
--- Migration: Add Employment Type, Lifecycle Dates, and Audit Log to fleet_users
-ALTER TABLE fleet_users
-ADD COLUMN IF NOT EXISTS employment_type TEXT DEFAULT 'full_time',
-ADD COLUMN IF NOT EXISTS termination_date DATE,
-ADD COLUMN IF NOT EXISTS termination_reason TEXT,
-ADD COLUMN IF NOT EXISTS reactivation_date DATE,
-ADD COLUMN IF NOT EXISTS reactivation_reason TEXT,
-ADD COLUMN IF NOT EXISTS status_history JSONB DEFAULT '[]'::jsonb;
-
--- Optional Index for fast filtering by employment status & tenant
-CREATE INDEX IF NOT EXISTS idx_fleet_users_status 
-ON fleet_users(tenant_id, status, employment_type);
-```
-
-### Storage Layer Compatibility (`services/storage.ts`):
-- Update `toDbUser` and `fromDbUser` to serialize and deserialize `employment_type`, `termination_date`, `termination_reason`, `reactivation_date`, `reactivation_reason`, and `status_history`.
-- Add backward-compatibility fallback in `updateUser`/`createUser`: if new columns do not exist yet on an un-migrated Supabase table, gracefully catch column errors so existing user operations continue uninterrupted.
-
----
-
-## 3. Dedicated Inactive Driver Restricted Screen
-
-### Create `components/InactiveAccountScreen.tsx`:
-When an inactive driver opens the portal:
-- **Restriction Banner**: `Account Suspended / Access Restricted` with a lock shield icon and clear status alert.
-- **Account Summary Card**:
-  - Driver Name & Photo/Avatar
-  - Employment Classification (`Part-Time` or `Full-Time`)
-  - Status: `Inactive`
-- **Timeline & Notes**:
-  - If `terminationDate`: Displays **Contract / Service End Date: [Date]**.
-  - If `terminationReason`: Displays **Status Notice: [Reason]**.
-  - If reactivated in the past: Shows previous active periods.
-- **Direct Resolution Action**:
-  - Prominent **"Contact Admin to Reactivate"** button linking directly to WhatsApp and Phone call.
-  - Display admin/dispatch contact details (organization phone & email).
-  - Clean **"Sign Out / Switch Account"** button so other users or dispatchers on the device can switch accounts easily.
-
----
-
-## 4. Admin User Management & Audit History Modal
-
-### Updates in `components/UserForm.tsx`:
-- Add **Employment Type** selector (`Full-Time Driver` vs `Part-Time / Temporary Driver`).
-- When changing status from `active` to `inactive`:
-  - Show **Termination / End Date** picker.
-  - Show **Deactivation / Termination Reason** input.
-- When changing status from `inactive` to `active` (Reactivating):
-  - Show **Reactivation Date** picker (defaults to today).
-  - Show **Reactivation Reason** input (e.g. "Rehired for peak season relief").
-- On Save, append a new `UserStatusLog` record to `formData.statusHistory`.
-
-### Updates in `components/UserManagement.tsx`:
-- Add badges in the driver table:
-  - Employment: `Part-Time` (Purple pill) vs `Full-Time` (Blue pill).
-  - Status: `Active` (Emerald) vs `Inactive` (Slate/Rose).
-- Add filter: Filter by Employment Type (`All`, `Full-Time`, `Part-Time`).
-- Add **"View Lifecycle History"** modal button:
-  - Admin can inspect the full chronological audit trail of when the driver was created, deactivated (with termination date & notes), and reactivated (with reactivation date & notes), along with which admin made each change.
-
----
-
-## 5. App Routing Enforcement (`App.tsx`)
-
-- In `renderContent()`, check if `currentUser.role === 'driver'` and user status is `'inactive'`:
-  - Render `<InactiveAccountScreen user={driverRecord} />` instead of `<DriverDashboard />`.
-  - Suppress the floating speed-dial button when inactive.
-
----
-
-## 6. Verification & Testing
-
-1. **New Part-Time Driver**: Add a new driver tagged as "Part-Time" and verify active state.
-2. **Deactivate Driver**: Set status to Inactive, fill in Termination Date (`2026-10-31`) and note, save and verify audit log entry.
-3. **Reactivate Driver**: Switch status back to Active, fill in Reactivation Date (`2026-11-01`) and reason, save and verify second audit log entry.
-4. **Audit History Modal**: Open the driver's history modal in User Management and verify all timeline entries with timestamps and admin attribution.
-5. **Inactive Driver UI**: Switch to an inactive driver account and verify that the restricted screen appears with correct dates and admin contact links.
-6. **Lint & Build**: Run `npm run lint` and `compile_applet` to confirm zero TypeScript compilation errors.
+- **Data Model & State**:
+  - `fuel_logs.receipt_attachment_url`: Guaranteed to contain clean web URLs (Google Drive `lh3` or `drive.google.com` links).
+  - Sanitization logic checks for `data:image/` or raw Base64 strings $\ge 1000$ characters and initiates migration.
+- **Verification Plan**:
+  - Execute migration utility against Supabase `fuel_logs` records.
+  - Validate new fuel log submissions with receipt upload to verify Google Drive file creation and lightweight URL persistence.
+  - Run `compile_applet` and test all views to ensure zero regressions.

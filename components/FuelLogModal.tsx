@@ -250,13 +250,15 @@ const FuelLogModal: React.FC<FuelLogModalProps> = ({
           attachmentUrl = uploadRes.url;
           attachmentName = uploadRes.name || customFileName;
         } else {
-          attachmentUrl = URL.createObjectURL(receiptFile);
-          attachmentName = customFileName;
+          setError(uploadRes.error || 'Failed to upload receipt to Google Drive. Please check your Google Apps Script configuration in Settings > Integrations.');
+          setIsUploading(false);
+          return;
         }
       } catch (err: any) {
-        console.warn('[FuelLog] Receipt upload fallback to local URL:', err);
-        attachmentUrl = URL.createObjectURL(receiptFile);
-        attachmentName = customFileName;
+        console.error('[FuelLog] Receipt upload error:', err);
+        setError(err.message || 'Google Drive upload failed. Please verify your connection.');
+        setIsUploading(false);
+        return;
       }
     }
 
