@@ -125,14 +125,23 @@ const calculateDayCollisionLayout = (
     let endM = startM + 60;
     if (b.finishDateTime) {
       const e = parseAsLocal(b.finishDateTime);
-      endM = Math.max(startM + 30, e.getHours() * 60 + e.getMinutes());
+      const finishM = e.getHours() * 60 + e.getMinutes();
+      if (finishM > startM) {
+        endM = finishM;
+      } else if (finishM === startM) {
+        endM = startM + 60;
+      } else {
+        endM = finishM + 1440;
+      }
     }
 
     const clampedStart = Math.max(rangeStartMinutes, Math.min(rangeStartMinutes + totalRangeMinutes, startM));
-    const clampedEnd = Math.max(clampedStart + 25, Math.min(rangeStartMinutes + totalRangeMinutes, endM));
+    // Allow short events like 15 minutes (e.g. 11:45am - 12:00pm)
+    const clampedEnd = Math.max(clampedStart + 15, Math.min(rangeStartMinutes + totalRangeMinutes, endM));
 
     const topPercent = Math.max(0, ((clampedStart - rangeStartMinutes) / totalRangeMinutes) * 100);
-    const heightPercent = Math.max(3.2, ((clampedEnd - clampedStart) / totalRangeMinutes) * 100);
+    // Minimum 18px in a 1536px timeline (18 / 1536 * 100 = 1.17%) so 15-min event is compact & readable
+    const heightPercent = Math.max(1.17, ((clampedEnd - clampedStart) / totalRangeMinutes) * 100);
 
     return {
       booking: b,
@@ -716,6 +725,20 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     return Array.from({ length: 24 }, (_, i) => i);
   }, []);
 
+  // Live current time indicator that updates and moves every 15 seconds
+  const [currentTime, setCurrentTime] = useState<Date>(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 15000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const currentMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+  const currentPercent = (currentMinutes / 1440) * 100;
+  const currentTimeLabel = currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
   // Filtered drivers list
   const driversList = useMemo(() => {
     return users.filter(u => {
@@ -1187,80 +1210,131 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               {(() => {
                 const key = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
                 const dayBookings = bookingsByDay.get(key) || [];
-                // Full 24-hour range: 0 (12:00 AM) to 24 (12:00 AM next day)
                 const positionedEvents = calculateDayCollisionLayout(dayBookings, 0, 24);
+                const isDayToday = currentDate.toDateString() === currentTime.toDateString();
 
                 return (
-                  <div className="relative" style={{ height: `${24 * 64}px` }}>
-                    {/* 24 Hour Rows */}
-                    {allDayHours.map(hour => {
-                      return (
+                  <div className="flex relative" style={{ height: `${24 * 64}px` }}>
+                    {/* Time Gutter on Left (Dedicated Flex Child - will NOT be encroached by events) */}
+                    <div className="w-14 sm:w-16 shrink-0 border-r border-slate-200 bg-slate-50/70 relative select-none">
+                      {allDayHours.map(hour => (
                         <div 
                           key={hour} 
-                          className="flex h-[64px] border-b border-slate-100 relative group"
+                          className="h-[64px] border-b border-slate-100 p-2 text-right text-[10px] sm:text-xs font-mono font-bold text-slate-500"
                         >
-                          {/* Time Gutter on Left */}
-                          <div className="w-16 sm:w-20 shrink-0 p-2 text-right text-[10px] sm:text-xs font-mono font-bold select-none border-r border-slate-200 bg-slate-50/80 text-slate-500">
-                            {formatHourLabel(hour)}
-                          </div>
-
-                          {/* Grid Track */}
-                          <div className="flex-1 relative group-hover:bg-slate-50/40 transition" />
+                          {formatHourLabel(hour)}
                         </div>
-                      );
-                    })}
+                      ))}
 
-                    {/* Render Events Side-by-Side with Collision Columns */}
-                    {positionedEvents.map(item => {
-                      const { booking, topPercent, heightPercent, colIndex, totalCols } = item;
-                      const dName = getDriverName(booking.driverId);
-                      const style = getEventCardStyle(booking, dName);
-                      const startDt = parseAsLocal(booking.dateTime);
-                      const finishDt = booking.finishDateTime ? parseAsLocal(booking.finishDateTime) : null;
-                      const timeStr = `${startDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}${finishDt ? ' – ' + finishDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : ''}`;
-
-                      const colWidthPercent = 100 / totalCols;
-                      const leftPercent = colIndex * colWidthPercent;
-
-                      return (
+                      {/* Live current time indicator marker on gutter if today */}
+                      {isDayToday && (
                         <div
-                          key={booking.id}
-                          onClick={() => setSelectedBookingId(booking.id)}
-                          style={{
-                            top: `${topPercent}%`,
-                            height: `${heightPercent}%`,
-                            left: `calc(64px + (100% - 64px) * ${leftPercent / 100} + 4px)`,
-                            width: `calc((100% - 64px) * ${colWidthPercent / 100} - 8px)`,
-                          }}
-                          className={`absolute z-20 p-2 sm:p-2.5 rounded-xl border shadow-xs transition cursor-pointer hover:shadow-md hover:scale-[1.005] flex flex-col justify-between overflow-hidden ${style.bg} ${style.border} ${style.text}`}
+                          style={{ top: `${currentPercent}%` }}
+                          className="absolute right-0 -mt-2.5 bg-red-600 text-white font-mono text-[9px] font-bold px-1.5 py-0.5 rounded-l shadow-xs z-30"
                         >
-                          <div className="overflow-hidden">
-                            <div className="flex items-center justify-between gap-1 mb-1">
-                              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded font-mono bg-white/80 border border-slate-200/60 text-slate-700">
-                                {timeStr}
-                              </span>
-                              <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded uppercase ${style.badge}`}>
-                                {booking.serviceType === 'Self-Drive' ? 'Self-Drive' : dName.split(' ')[0]}
-                              </span>
-                            </div>
-
-                            <p className="font-extrabold text-xs sm:text-sm leading-snug line-clamp-2">
-                              {booking.requesterName}
-                              {booking.department ? ` (${booking.department})` : ''}{' '}
-                              <span className="font-normal text-slate-600">→</span>{' '}
-                              <span className="font-bold text-slate-900">{booking.destination}</span>
-                            </p>
-                          </div>
-
-                          <div className="pt-1 mt-1 border-t border-slate-200/70 flex items-center justify-between text-[10px] text-slate-500">
-                            <span className="truncate">{booking.purpose || 'Official Transport'}</span>
-                            <span className="font-semibold shrink-0 ml-1">
-                              {booking.shouldWait ? '⏳ Standby' : '🚗 Drop'}
-                            </span>
-                          </div>
+                          {currentTimeLabel}
                         </div>
-                      );
-                    })}
+                      )}
+                    </div>
+
+                    {/* Event Track (Dedicated Flex Child - 100% physically clean & separated) */}
+                    <div className="flex-1 relative">
+                      {/* 24 Hour Grid Lines */}
+                      {allDayHours.map(hour => (
+                        <div 
+                          key={hour} 
+                          className="h-[64px] border-b border-slate-100 hover:bg-slate-50/30 transition" 
+                        />
+                      ))}
+
+                      {/* Live Moving Horizontal Red Line if Today */}
+                      {isDayToday && (
+                        <div
+                          style={{ top: `${currentPercent}%` }}
+                          className="absolute left-0 right-0 z-40 pointer-events-none flex items-center -mt-[5px]"
+                        >
+                          <div className="h-2.5 w-2.5 rounded-full bg-red-600 shadow-sm -ml-1.5 shrink-0" />
+                          <div className="h-[2px] bg-red-500 w-full shadow-2xs" />
+                        </div>
+                      )}
+
+                      {/* Render Events */}
+                      {positionedEvents.map(item => {
+                        const { booking, topPercent, heightPercent, colIndex, totalCols } = item;
+                        const dName = getDriverName(booking.driverId);
+                        const style = getEventCardStyle(booking, dName);
+                        const startDt = parseAsLocal(booking.dateTime);
+                        const finishDt = booking.finishDateTime ? parseAsLocal(booking.finishDateTime) : null;
+                        const timeStr = `${startDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}${finishDt ? ' – ' + finishDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : ''}`;
+
+                        const colWidthPercent = 100 / totalCols;
+                        const leftPercent = colIndex * colWidthPercent;
+                        const isShort = heightPercent < 2.5; // < ~36px (e.g. 15-30 min)
+
+                        return (
+                          <div
+                            key={booking.id}
+                            onClick={() => setSelectedBookingId(booking.id)}
+                            style={{
+                              top: `${topPercent}%`,
+                              height: `${heightPercent}%`,
+                              left: `calc(${leftPercent}% + 4px)`,
+                              width: `calc(${colWidthPercent}% - 8px)`,
+                            }}
+                            className={`absolute z-20 rounded-xl border shadow-xs transition cursor-pointer hover:shadow-md hover:scale-[1.005] overflow-hidden ${style.bg} ${style.border} ${style.text}`}
+                            title={`${timeStr} | ${booking.requesterName} → ${booking.destination}`}
+                          >
+                            {isShort ? (
+                              <div className="flex items-center justify-between gap-1.5 px-2 h-full overflow-hidden leading-none select-none text-[10px] font-bold">
+                                <div className="flex items-center gap-1.5 truncate">
+                                  <span className="font-mono text-[9px] px-1 py-0.2 rounded bg-white/80 border border-slate-200/60 text-slate-700 shrink-0">
+                                    {timeStr}
+                                  </span>
+                                  <span className="truncate">
+                                    <span className="font-extrabold text-slate-900">
+                                      {booking.serviceType === 'Self-Drive' ? '[Self-Drive]' : `(${dName.split(' ')[0]})`}
+                                    </span>{' '}
+                                    {booking.requesterName} → {booking.destination}
+                                  </span>
+                                </div>
+                                <span className={`text-[8px] font-bold px-1.5 py-0.2 rounded uppercase shrink-0 ${style.badge}`}>
+                                  {booking.serviceType === 'Self-Drive' ? 'Self' : dName.split(' ')[0]}
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="p-2 sm:p-2.5 h-full flex flex-col justify-between overflow-hidden">
+                                <div className="overflow-hidden">
+                                  <div className="flex items-center justify-between gap-1 mb-1">
+                                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded font-mono bg-white/80 border border-slate-200/60 text-slate-700">
+                                      {timeStr}
+                                    </span>
+                                    <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded uppercase ${style.badge}`}>
+                                      {booking.serviceType === 'Self-Drive' ? 'Self-Drive' : dName.split(' ')[0]}
+                                    </span>
+                                  </div>
+
+                                  <p className="font-extrabold text-xs sm:text-sm leading-snug line-clamp-2">
+                                    {booking.requesterName}
+                                    {booking.department ? ` (${booking.department})` : ''}{' '}
+                                    <span className="font-normal text-slate-600">→</span>{' '}
+                                    <span className="font-bold text-slate-900">{booking.destination}</span>
+                                  </p>
+                                </div>
+
+                                {heightPercent >= 4.5 && (
+                                  <div className="pt-1 mt-1 border-t border-slate-200/70 flex items-center justify-between text-[10px] text-slate-500">
+                                    <span className="truncate">{booking.purpose || 'Official Transport'}</span>
+                                    <span className="font-semibold shrink-0 ml-1">
+                                      {booking.shouldWait ? '⏳ Standby' : '🚗 Drop'}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 );
               })()}
@@ -1269,91 +1343,163 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         )}
 
         {/* ========================================================
-            VIEW 2: 3-DAYS VIEW (Scrollable 12:00 AM - 11:00 PM)
+            VIEW 2: 3-DAYS VIEW (Google Calendar Continuous Matrix)
             ======================================================== */}
         {viewMode === '3days' && (
           <div className="p-3 sm:p-5">
-            <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
-              {/* 3 Days Column Headers */}
-              <div className="grid grid-cols-4 border-b border-slate-200 bg-slate-50 sticky top-0 z-30">
-                <div className="py-2.5 px-2 text-center text-[10px] font-bold uppercase text-slate-400 border-r border-slate-200">
-                  Time
+            <div className="border border-slate-200 rounded-xl overflow-x-auto bg-white shadow-xs">
+              <div className="min-w-[640px]">
+                {/* 3 Days Column Headers */}
+                <div className="flex border-b border-slate-200 bg-slate-50 sticky top-0 z-30">
+                  <div className="w-14 sm:w-16 shrink-0 py-2.5 px-2 text-center text-[10px] font-bold uppercase text-slate-400 border-r border-slate-200">
+                    Time
+                  </div>
+
+                  <div className="flex-1 grid grid-cols-3 divide-x divide-slate-200">
+                    {threeDays.map(({ date, isToday }) => (
+                      <div
+                        key={date.toISOString()}
+                        onClick={() => {
+                          setCurrentDate(date);
+                          setViewMode('day');
+                        }}
+                        className={`py-2 px-1 text-center transition cursor-pointer hover:bg-slate-100 ${
+                          isToday ? 'bg-indigo-50/70' : ''
+                        }`}
+                      >
+                        <p className={`text-[10px] font-bold uppercase ${isToday ? 'text-indigo-600' : 'text-slate-500'}`}>
+                          {DAY_NAMES_SHORT[date.getDay()]}
+                        </p>
+                        <span
+                          className={`inline-flex items-center justify-center h-6 w-6 rounded-full text-xs font-bold mt-0.5 ${
+                            isToday ? 'bg-indigo-600 text-white shadow-2xs' : 'text-slate-800'
+                          }`}
+                        >
+                          {date.getDate()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
-                {threeDays.map(({ date, isToday }) => (
-                  <div
-                    key={date.toISOString()}
-                    onClick={() => {
-                      setCurrentDate(date);
-                      setViewMode('day');
-                    }}
-                    className={`py-2 px-1 text-center border-r border-slate-200 transition cursor-pointer hover:bg-slate-100 ${
-                      isToday ? 'bg-indigo-50/70' : ''
-                    }`}
-                  >
-                    <p className={`text-[10px] font-bold uppercase ${isToday ? 'text-indigo-600' : 'text-slate-500'}`}>
-                      {DAY_NAMES_SHORT[date.getDay()]}
-                    </p>
-                    <span
-                      className={`inline-flex items-center justify-center h-6 w-6 rounded-full text-xs font-bold mt-0.5 ${
-                        isToday ? 'bg-indigo-600 text-white shadow-2xs' : 'text-slate-800'
-                      }`}
-                    >
-                      {date.getDate()}
-                    </span>
-                  </div>
-                ))}
-              </div>
+                {/* 3-Days Continuous Scrollable Timeline */}
+                <div 
+                  ref={timelineScrollRef}
+                  className="overflow-y-auto max-h-[640px] sm:max-h-[720px] bg-white relative"
+                >
+                  <div className="flex relative" style={{ height: `${24 * 64}px` }}>
+                    {/* Time Gutter on Left */}
+                    <div className="w-14 sm:w-16 shrink-0 border-r border-slate-200 bg-slate-50/70 relative select-none">
+                      {allDayHours.map(hour => (
+                        <div
+                          key={hour}
+                          className="h-[64px] border-b border-slate-100 text-[10px] font-mono font-bold text-center pt-1 text-slate-400"
+                        >
+                          {formatHourLabel(hour)}
+                        </div>
+                      ))}
+                      {/* Current time marker badge on gutter if any of 3 days is today */}
+                      {threeDays.some(d => d.isToday) && (
+                        <div
+                          style={{ top: `${currentPercent}%` }}
+                          className="absolute right-0 -mt-2 bg-red-600 text-white font-mono text-[8px] font-bold px-1 py-0.5 rounded-l shadow-xs z-30"
+                        >
+                          {currentTimeLabel}
+                        </div>
+                      )}
+                    </div>
 
-              {/* 3-Days Hourly Scrollable Matrix */}
-              <div 
-                ref={timelineScrollRef}
-                className="overflow-y-auto max-h-[640px] sm:max-h-[720px] bg-white divide-y divide-slate-100"
-              >
-                {allDayHours.map(hour => {
-                  return (
-                    <div key={hour} className="grid grid-cols-4 min-h-[64px]">
-                      {/* Time Gutter */}
-                      <div className="text-[10px] font-mono font-bold text-center pt-1.5 border-r border-slate-200 bg-slate-50/80 text-slate-400 select-none">
-                        {formatHourLabel(hour)}
-                      </div>
-
-                      {/* 3 Days Columns */}
+                    {/* 3 Days Event Columns */}
+                    <div className="flex-1 grid grid-cols-3 divide-x divide-slate-100 relative">
                       {threeDays.map(({ date, dateKey, isToday }, idx) => {
                         const dayBookings = bookingsByDay.get(dateKey) || [];
-                        const hourBookings = dayBookings.filter(b => {
-                          const dt = parseAsLocal(b.dateTime);
-                          return dt.getHours() === hour;
-                        });
+                        const positioned = calculateDayCollisionLayout(dayBookings, 0, 24);
 
                         return (
                           <div
                             key={idx}
-                            className={`border-r border-slate-100 p-1 relative transition hover:bg-slate-50/60 ${
-                              isToday ? 'bg-indigo-50/20' : ''
+                            className={`relative h-full transition hover:bg-slate-50/20 ${
+                              isToday ? 'bg-indigo-50/15' : ''
                             }`}
                           >
-                            {hourBookings.map(b => {
-                              const dName = getDriverName(b.driverId);
-                              const style = getEventCardStyle(b, dName);
-                              const timeStr = parseAsLocal(b.dateTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                            {/* Background Hour Lines */}
+                            {allDayHours.map(hour => (
+                              <div
+                                key={hour}
+                                className="h-[64px] border-b border-slate-100"
+                              />
+                            ))}
+
+                            {/* Live moving red line if today */}
+                            {isToday && (
+                              <div
+                                style={{ top: `${currentPercent}%` }}
+                                className="absolute left-0 right-0 z-40 pointer-events-none flex items-center -mt-[4px]"
+                              >
+                                <div className="h-2 w-2 rounded-full bg-red-600 shadow-sm -ml-1 shrink-0" />
+                                <div className="h-[2px] bg-red-500 w-full" />
+                              </div>
+                            )}
+
+                            {/* Events */}
+                            {positioned.map(item => {
+                              const { booking, topPercent, heightPercent, colIndex, totalCols } = item;
+                              const dName = getDriverName(booking.driverId);
+                              const style = getEventCardStyle(booking, dName);
+                              const startDt = parseAsLocal(booking.dateTime);
+                              const finishDt = booking.finishDateTime ? parseAsLocal(booking.finishDateTime) : null;
+                              const timeStr = `${startDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}${finishDt ? ' – ' + finishDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : ''}`;
+
+                              const colWidthPercent = 100 / totalCols;
+                              const leftPercent = colIndex * colWidthPercent;
+                              const isShort = heightPercent < 2.5;
 
                               return (
                                 <div
-                                  key={b.id}
+                                  key={booking.id}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setSelectedBookingId(b.id);
+                                    setSelectedBookingId(booking.id);
                                   }}
-                                  className={`p-1.5 mb-1 rounded-lg border shadow-2xs text-[10px] leading-snug cursor-pointer transition hover:shadow-xs ${style.bg} ${style.border} ${style.text}`}
+                                  style={{
+                                    top: `${topPercent}%`,
+                                    height: `${heightPercent}%`,
+                                    left: `calc(${leftPercent}% + 2px)`,
+                                    width: `calc(${colWidthPercent}% - 4px)`,
+                                  }}
+                                  className={`absolute z-20 rounded-md border shadow-2xs transition cursor-pointer hover:shadow-md hover:scale-[1.01] overflow-hidden ${style.bg} ${style.border} ${style.text}`}
+                                  title={`${timeStr} | ${booking.requesterName} → ${booking.destination}`}
                                 >
-                                  <div className="flex justify-between items-center text-[9px] font-semibold text-slate-600 mb-0.5">
-                                    <span>{timeStr}</span>
-                                    <span>{b.serviceType === 'Self-Drive' ? 'Self' : dName.split(' ')[0]}</span>
-                                  </div>
-                                  <p className="font-bold line-clamp-2 text-slate-900">
-                                    {b.requesterName} → {b.destination}
-                                  </p>
+                                  {isShort ? (
+                                    <div className="flex items-center gap-1 px-1 h-full overflow-hidden leading-none select-none text-[9px] font-bold">
+                                      <span className="shrink-0 text-slate-600 font-mono">
+                                        {startDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                                      </span>
+                                      <span className="truncate">
+                                        {booking.serviceType === 'Self-Drive' ? '[Self]' : `(${dName.split(' ')[0]})`}{' '}
+                                        {booking.destination}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <div className="p-1 sm:p-1.5 flex flex-col justify-between h-full overflow-hidden">
+                                      <div className="overflow-hidden">
+                                        <div className="flex items-center justify-between gap-1 mb-0.5">
+                                          <span className="text-[8px] font-bold font-mono px-1 py-0.1 rounded bg-white/80 border border-slate-200/60 text-slate-700 truncate">
+                                            {startDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                                          </span>
+                                          <span className={`text-[8px] font-bold px-1 py-0.1 rounded uppercase shrink-0 ${style.badge}`}>
+                                            {booking.serviceType === 'Self-Drive' ? 'Self' : dName.split(' ')[0]}
+                                          </span>
+                                        </div>
+                                        <p className="font-extrabold text-[10px] sm:text-xs leading-tight line-clamp-2">
+                                          {booking.destination}
+                                        </p>
+                                        <p className="text-[9px] text-slate-600 truncate mt-0.5">
+                                          {booking.requesterName}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })}
@@ -1361,109 +1507,185 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         );
                       })}
                     </div>
-                  );
-                })}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         )}
 
         {/* ========================================================
-            VIEW 3: 7-DAYS WEEK VIEW (Scrollable 12:00 AM - 11:00 PM)
+            VIEW 3: 7-DAYS WEEK VIEW (Google Calendar Continuous Grid)
             ======================================================== */}
         {viewMode === 'week' && (
           <div className="p-3 sm:p-5">
-            <div className="border border-slate-200 rounded-xl overflow-x-auto bg-white">
-              <div className="min-w-[720px]">
+            <div className="border border-slate-200 rounded-xl overflow-x-auto bg-white shadow-xs">
+              <div className="min-w-[840px]">
                 {/* 7 Days Header */}
-                <div className="grid grid-cols-8 border-b border-slate-200 bg-slate-50 sticky top-0 z-30">
-                  <div className="py-2.5 px-2 text-center text-[10px] font-bold uppercase text-slate-400 border-r border-slate-200">
+                <div className="flex border-b border-slate-200 bg-slate-50 sticky top-0 z-30">
+                  <div className="w-14 sm:w-16 shrink-0 py-2.5 px-2 text-center text-[10px] font-bold uppercase text-slate-400 border-r border-slate-200 bg-slate-50">
                     Time
                   </div>
 
-                  {weekDays.map(({ date, isToday }) => (
-                    <div
-                      key={date.toISOString()}
-                      onClick={() => {
-                        setCurrentDate(date);
-                        setViewMode('day');
-                      }}
-                      className={`py-2 px-1 text-center border-r border-slate-200 transition cursor-pointer hover:bg-slate-100 ${
-                        isToday ? 'bg-indigo-50/70' : ''
-                      }`}
-                    >
-                      <p className={`text-[10px] font-bold uppercase ${isToday ? 'text-indigo-600' : 'text-slate-500'}`}>
-                        {DAY_NAMES_SHORT[date.getDay()]}
-                      </p>
-                      <span
-                        className={`inline-flex items-center justify-center h-6 w-6 rounded-full text-xs font-bold mt-0.5 ${
-                          isToday ? 'bg-indigo-600 text-white shadow-2xs' : 'text-slate-800'
+                  <div className="flex-1 grid grid-cols-7 divide-x divide-slate-200">
+                    {weekDays.map(({ date, isToday }) => (
+                      <div
+                        key={date.toISOString()}
+                        onClick={() => {
+                          setCurrentDate(date);
+                          setViewMode('day');
+                        }}
+                        className={`py-2 px-1 text-center transition cursor-pointer hover:bg-slate-100 ${
+                          isToday ? 'bg-indigo-50/70' : ''
                         }`}
                       >
-                        {date.getDate()}
-                      </span>
-                    </div>
-                  ))}
+                        <p className={`text-[10px] font-bold uppercase ${isToday ? 'text-indigo-600' : 'text-slate-500'}`}>
+                          {DAY_NAMES_SHORT[date.getDay()]}
+                        </p>
+                        <span
+                          className={`inline-flex items-center justify-center h-6 w-6 rounded-full text-xs font-bold mt-0.5 ${
+                            isToday ? 'bg-indigo-600 text-white shadow-2xs' : 'text-slate-800'
+                          }`}
+                        >
+                          {date.getDate()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
-                {/* 7-Days Hourly Rows */}
+                {/* 7-Days Continuous Scrollable Grid (Proportional Box Height) */}
                 <div 
                   ref={timelineScrollRef}
-                  className="overflow-y-auto max-h-[640px] sm:max-h-[720px] bg-white divide-y divide-slate-100"
+                  className="overflow-y-auto max-h-[640px] sm:max-h-[720px] bg-white relative"
                 >
-                  {allDayHours.map(hour => {
-                    return (
-                      <div key={hour} className="grid grid-cols-8 min-h-[60px]">
-                        {/* Time Gutter */}
-                        <div className="text-[10px] font-mono font-bold text-center pt-1.5 border-r border-slate-200 bg-slate-50/80 text-slate-400 select-none">
+                  <div className="flex relative" style={{ height: `${24 * 64}px` }}>
+                    {/* Time Gutter on Left */}
+                    <div className="w-14 sm:w-16 shrink-0 border-r border-slate-200 bg-slate-50/70 relative select-none">
+                      {allDayHours.map(hour => (
+                        <div
+                          key={hour}
+                          className="h-[64px] border-b border-slate-100 text-[10px] font-mono font-bold text-center pt-1 text-slate-400"
+                        >
                           {formatHourLabel(hour)}
                         </div>
+                      ))}
+                      {/* Live current time badge on gutter if any day of week is today */}
+                      {weekDays.some(w => w.isToday) && (
+                        <div
+                          style={{ top: `${currentPercent}%` }}
+                          className="absolute right-0 -mt-2 bg-red-600 text-white font-mono text-[8px] font-bold px-1 py-0.5 rounded-l shadow-xs z-30"
+                        >
+                          {currentTimeLabel}
+                        </div>
+                      )}
+                    </div>
 
-                        {/* 7 Days Columns */}
-                        {weekDays.map(({ date, dateKey, isToday }, idx) => {
-                          const dayBookings = bookingsByDay.get(dateKey) || [];
-                          const hourBookings = dayBookings.filter(b => {
-                            const dt = parseAsLocal(b.dateTime);
-                            return dt.getHours() === hour;
-                          });
+                    {/* 7 Days Columns */}
+                    <div className="flex-1 grid grid-cols-7 divide-x divide-slate-100 relative">
+                      {weekDays.map(({ date, dateKey, isToday }, idx) => {
+                        const dayBookings = bookingsByDay.get(dateKey) || [];
+                        const positioned = calculateDayCollisionLayout(dayBookings, 0, 24);
 
-                          return (
-                            <div
-                              key={idx}
-                              onClick={() => {
-                                setCurrentDate(date);
-                                setViewMode('day');
-                              }}
-                              className={`border-r border-slate-100 p-1 relative transition cursor-pointer hover:bg-slate-50 ${
-                                isToday ? 'bg-indigo-50/20' : ''
-                              }`}
-                            >
-                              {hourBookings.map(b => {
-                                const dName = getDriverName(b.driverId);
-                                const style = getEventCardStyle(b, dName);
-                                return (
-                                  <div
-                                    key={b.id}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setSelectedBookingId(b.id);
-                                    }}
-                                    className={`p-1 mb-1 rounded border text-[9px] font-medium leading-tight truncate ${style.monthChip}`}
-                                    title={`${b.requesterName} → ${b.destination}`}
-                                  >
-                                    <span className="font-bold">
-                                      {b.serviceType === 'Self-Drive' ? '[Self]' : `(${dName.split(' ')[0]})`}
-                                    </span>{' '}
-                                    {b.destination}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
+                        return (
+                          <div
+                            key={idx}
+                            className={`relative h-full transition hover:bg-slate-50/20 ${
+                              isToday ? 'bg-indigo-50/15' : ''
+                            }`}
+                          >
+                            {/* Background Hour Lines */}
+                            {allDayHours.map(hour => (
+                              <div
+                                key={hour}
+                                className="h-[64px] border-b border-slate-100"
+                              />
+                            ))}
+
+                            {/* Live moving red line if today */}
+                            {isToday && (
+                              <div
+                                style={{ top: `${currentPercent}%` }}
+                                className="absolute left-0 right-0 z-40 pointer-events-none flex items-center -mt-[4px]"
+                              >
+                                <div className="h-2 w-2 rounded-full bg-red-600 shadow-sm -ml-1 shrink-0" />
+                                <div className="h-[2px] bg-red-500 w-full" />
+                              </div>
+                            )}
+
+                            {/* Positioned Events for this day - stretched accurately by booking time! */}
+                            {positioned.map(item => {
+                              const { booking, topPercent, heightPercent, colIndex, totalCols } = item;
+                              const dName = getDriverName(booking.driverId);
+                              const style = getEventCardStyle(booking, dName);
+                              const startDt = parseAsLocal(booking.dateTime);
+                              const finishDt = booking.finishDateTime ? parseAsLocal(booking.finishDateTime) : null;
+                              const timeStr = `${startDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}${finishDt ? ' – ' + finishDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : ''}`;
+
+                              const colWidthPercent = 100 / totalCols;
+                              const leftPercent = colIndex * colWidthPercent;
+                              const isShort = heightPercent < 2.5;
+
+                              return (
+                                <div
+                                  key={booking.id}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedBookingId(booking.id);
+                                  }}
+                                  style={{
+                                    top: `${topPercent}%`,
+                                    height: `${heightPercent}%`,
+                                    left: `calc(${leftPercent}% + 2px)`,
+                                    width: `calc(${colWidthPercent}% - 4px)`,
+                                  }}
+                                  className={`absolute z-20 rounded-md border shadow-2xs transition cursor-pointer hover:shadow-md hover:scale-[1.01] overflow-hidden ${style.bg} ${style.border} ${style.text}`}
+                                  title={`${timeStr} | ${booking.requesterName} → ${booking.destination}`}
+                                >
+                                  {isShort ? (
+                                    <div className="flex items-center gap-1 px-1 h-full overflow-hidden leading-none select-none text-[9px] font-bold">
+                                      <span className="shrink-0 text-slate-600 font-mono">
+                                        {startDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                                      </span>
+                                      <span className="truncate">
+                                        {booking.serviceType === 'Self-Drive' ? '[Self]' : `(${dName.split(' ')[0]})`}{' '}
+                                        {booking.destination}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <div className="p-1 sm:p-1.5 flex flex-col justify-between h-full overflow-hidden">
+                                      <div className="overflow-hidden">
+                                        <div className="flex items-center justify-between gap-1 mb-0.5">
+                                          <span className="text-[8px] font-bold font-mono px-1 py-0.1 rounded bg-white/80 border border-slate-200/60 text-slate-700 truncate">
+                                            {startDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                                          </span>
+                                          <span className={`text-[8px] font-bold px-1 py-0.1 rounded uppercase shrink-0 ${style.badge}`}>
+                                            {booking.serviceType === 'Self-Drive' ? 'Self' : dName.split(' ')[0]}
+                                          </span>
+                                        </div>
+                                        <p className="font-extrabold text-[10px] sm:text-xs leading-tight line-clamp-2">
+                                          {booking.destination}
+                                        </p>
+                                        <p className="text-[9px] text-slate-600 truncate mt-0.5">
+                                          {booking.requesterName}
+                                        </p>
+                                      </div>
+                                      {heightPercent >= 5 && (
+                                        <div className="text-[8px] text-slate-500 truncate pt-0.5 border-t border-slate-200/50 flex items-center justify-between">
+                                          <span className="truncate">{booking.purpose || 'Official'}</span>
+                                          <span>{booking.shouldWait ? '⏳' : '🚗'}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
