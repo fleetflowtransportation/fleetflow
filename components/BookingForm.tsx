@@ -90,23 +90,18 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
   } = useAppContext();
   
   const [formData, setFormData] = useState<FormData>(emptyFormData);
-  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
-  const [existingAttachment, setExistingAttachment] = useState<{ name: string; url: string } | null>(null);
   const [isRecurring, setIsRecurring] = useState(false);
   const [submissionResult, setSubmissionResult] = useState<AutoAssignResult | null>(null);
   const [recurrence, setRecurrence] = useState({
     frequency: 'weekly' as 'weekly' | 'bi-weekly' | 'monthly',
     endDate: ''
   });
-  const [isUploading, setIsUploading] = useState(false);
 
   const prevIsOpenRef = React.useRef(false);
   const prevBookingIdRef = React.useRef<string | null | undefined>(undefined);
 
   const resetForm = useCallback(() => {
     setFormData(emptyFormData);
-    setAttachmentFile(null);
-    setExistingAttachment(null);
     setIsRecurring(false);
     setRecurrence({ frequency: 'weekly', endDate: '' });
   }, []);
@@ -155,12 +150,6 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
           icNumber: bookingToEdit.icNumber || '',
           remarks: bookingToEdit.remarks || '',
         });
-        if (bookingToEdit.attachmentName && bookingToEdit.attachmentUrl) {
-          setExistingAttachment({ name: bookingToEdit.attachmentName, url: bookingToEdit.attachmentUrl });
-        } else {
-          setExistingAttachment(null);
-        }
-        setAttachmentFile(null);
         setIsRecurring(false);
       } else {
         resetForm();
@@ -177,27 +166,12 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setAttachmentFile(e.target.files[0]);
-      setExistingAttachment(null);
-    }
-  };
-
-  const removeAttachment = () => {
-    setAttachmentFile(null);
-    setExistingAttachment(null);
-    const fileInput = document.getElementById('admin-booking-attachment-input') as HTMLInputElement;
-    if (fileInput) fileInput.value = '';
-  };
-
   const totalPassengers = useMemo(() => {
     return (Number(formData.staffCount) || 0) + (Number(formData.parentsCount) || 0) + (Number(formData.kidsCount) || 0) + (Number(formData.teenagersCount) || 0);
   }, [formData.staffCount, formData.parentsCount, formData.kidsCount, formData.teenagersCount]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isUploading) return;
 
     const passengers: PassengerCount[] = [];
     if (Number(formData.staffCount) > 0) passengers.push({ category: 'Staff', count: Number(formData.staffCount) });
@@ -257,62 +231,9 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
       recurrence: isRecurring ? recurrence : undefined,
     };
 
-    if (attachmentFile) {
-      if (bookingToEdit?.attachmentUrl && bookingToEdit.attachmentUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(bookingToEdit.attachmentUrl);
-      }
-      processedData.attachmentName = attachmentFile.name;
-      
-      const driveUrl = activeTenant?.googleAppsScriptUrl || 
-        localStorage.getItem('fleetflow_google_script_url') || 
-        (import.meta as any).env?.VITE_GOOGLE_SCRIPT_UPLOAD_URL;
-
-      if (driveUrl) {
-        setIsUploading(true);
-        try {
-          const base64Str = await fileToBase64(attachmentFile);
-          const response = await fetch(driveUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'text/plain;charset=utf-8'
-            },
-            body: JSON.stringify({
-              action: 'uploadFile',
-              base64: base64Str,
-              fileName: attachmentFile.name,
-              mimeType: attachmentFile.type,
-              folder: 'bookings'
-            })
-          });
-          
-          const resText = await response.text();
-          let resJson;
-          try {
-            resJson = JSON.parse(resText);
-          } catch {
-            throw new Error("Invalid response format from Google Apps Script endpoint.");
-          }
-
-          if (resJson && (resJson.success || resJson.url)) {
-            processedData.attachmentUrl = resJson.url;
-          } else {
-            throw new Error(resJson?.error || 'File upload to Google Drive failed.');
-          }
-        } catch (error: any) {
-          console.warn("Google Drive upload error:", error);
-          processedData.attachmentUrl = URL.createObjectURL(attachmentFile);
-        } finally {
-          setIsUploading(false);
-        }
-      } else {
-        processedData.attachmentUrl = URL.createObjectURL(attachmentFile);
-      }
-    } else if (existingAttachment) {
-      processedData.attachmentName = existingAttachment.name;
-      processedData.attachmentUrl = existingAttachment.url;
-    } else {
-      processedData.attachmentName = undefined;
-      processedData.attachmentUrl = undefined;
+    if (bookingToEdit?.attachmentUrl) {
+      processedData.attachmentName = bookingToEdit.attachmentName;
+      processedData.attachmentUrl = bookingToEdit.attachmentUrl;
     }
 
     const baseInput = {
@@ -854,62 +775,9 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
                     04
                   </div>
                   <div>
-                    <h3 className="text-sm font-extrabold text-slate-900">Attachments & Additional Notes</h3>
-                    <p className="text-xs text-slate-500">Program itineraries, passenger lists, and recurring schedule</p>
+                    <h3 className="text-sm font-extrabold text-slate-900">Additional Notes & Recurring Schedule</h3>
+                    <p className="text-xs text-slate-500">Special instructions, client notes, and recurring frequency</p>
                   </div>
-                </div>
-
-                {/* Attachment Upload */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Program Paperwork / Schedule Document (Optional)
-                  </label>
-                  
-                  {existingAttachment ? (
-                    <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs">
-                      <div className="flex items-center gap-2 text-indigo-600 font-bold truncate">
-                        <PaperClipIcon className="w-4 h-4 shrink-0" />
-                        <span className="truncate">{existingAttachment.name}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={removeAttachment}
-                        className="text-rose-500 hover:text-rose-700 p-1 font-bold cursor-pointer"
-                        title="Remove attachment"
-                      >
-                        <TrashIcon className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : attachmentFile ? (
-                    <div className="flex items-center justify-between p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-xs">
-                      <div className="flex items-center gap-2 text-indigo-700 font-bold truncate">
-                        <PaperClipIcon className="w-4 h-4 shrink-0" />
-                        <span className="truncate">{attachmentFile.name} ({(attachmentFile.size / 1024).toFixed(1)} KB)</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={removeAttachment}
-                        className="text-rose-500 hover:text-rose-700 p-1 font-bold cursor-pointer"
-                        title="Remove attachment"
-                      >
-                        <TrashIcon className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="relative border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-2xl p-4 text-center transition bg-slate-50/50 cursor-pointer">
-                      <input
-                        id="admin-booking-attachment-input"
-                        type="file"
-                        onChange={handleFileChange}
-                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                      />
-                      <PaperClipIcon className="w-6 h-6 text-slate-400 mx-auto mb-1" />
-                      <span className="text-xs font-bold text-indigo-600 block">
-                        Upload Itinerary or Document
-                      </span>
-                      <span className="text-[10px] text-slate-400">PDF, Word, or Image up to 10MB</span>
-                    </div>
-                  )}
                 </div>
 
                 {/* Remarks */}
@@ -987,17 +855,9 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
                 </button>
                 <button
                   type="submit"
-                  disabled={isUploading}
                   className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-sm cursor-pointer disabled:opacity-50 flex items-center gap-2"
                 >
-                  {isUploading ? (
-                    <>
-                      <span className="animate-spin text-sm">⏳</span>
-                      <span>Uploading Document...</span>
-                    </>
-                  ) : (
-                    <span>{bookingToEdit ? 'Save Changes' : 'Confirm & Assign Trip'}</span>
-                  )}
+                  <span>{bookingToEdit ? 'Save Changes' : 'Confirm & Assign Trip'}</span>
                 </button>
               </div>
 

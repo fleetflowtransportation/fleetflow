@@ -17,10 +17,12 @@ import {
   SearchIcon,
   DocumentReportIcon,
   ChevronDownIcon,
-  ChevronUpIcon
+  ChevronUpIcon,
+  InformationCircleIcon
 } from './icons/Icons';
 import OdometerLogEditForm from './OdometerLogEditForm';
 import FuelLogModal from './FuelLogModal';
+import FuelLogDetailModal from './FuelLogDetailModal';
 import FuelAnalyticsDashboard from './FuelAnalyticsDashboard';
 
 declare global {
@@ -72,6 +74,8 @@ const Reports: React.FC = () => {
   // --- Fuel Logs State & Bulk Selection ---
   const [editingFuelLog, setEditingFuelLog] = useState<FuelLog | null>(null);
   const [isFuelModalOpen, setIsFuelModalOpen] = useState(false);
+  const [selectedFuelLogForDetail, setSelectedFuelLogForDetail] = useState<FuelLog | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [fuelSearch, setFuelSearch] = useState('');
   const [fuelViewMode, setFuelViewMode] = useState<'grouped' | 'table'>('grouped');
   const [collapsedVehicles, setCollapsedVehicles] = useState<Set<string>>(new Set());
@@ -134,7 +138,13 @@ const Reports: React.FC = () => {
     setIsFuelModalOpen(true);
   };
 
+  const handleOpenFuelLogDetail = (log: FuelLog) => {
+    setSelectedFuelLogForDetail(log);
+    setIsDetailModalOpen(true);
+  };
+
   const handleEditFuelLog = (log: FuelLog) => {
+    setIsDetailModalOpen(false);
     setEditingFuelLog(log);
     setIsFuelModalOpen(true);
   };
@@ -1381,13 +1391,15 @@ const Reports: React.FC = () => {
                                 return (
                                   <tr
                                     key={log.id}
-                                    className={`transition ${
+                                    onClick={() => handleOpenFuelLogDetail(log)}
+                                    className={`transition cursor-pointer ${
                                       isSelected
                                         ? 'bg-amber-50/60 font-semibold'
-                                        : 'hover:bg-slate-50/80'
+                                        : 'hover:bg-amber-50/40'
                                     }`}
+                                    title="Click to view fuel log info & receipt attachment"
                                   >
-                                    <td className="px-3.5 py-3 text-center">
+                                    <td className="px-3.5 py-3 text-center" onClick={e => e.stopPropagation()}>
                                       <input
                                         type="checkbox"
                                         checked={isSelected}
@@ -1418,21 +1430,41 @@ const Reports: React.FC = () => {
                                     </td>
                                     <td className="px-4 py-3 text-center whitespace-nowrap">
                                       {log.receiptAttachmentUrl ? (
-                                        <a
-                                          href={log.receiptAttachmentUrl}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="inline-flex items-center text-xs text-indigo-600 hover:text-indigo-800 font-bold hover:underline"
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleOpenFuelLogDetail(log);
+                                          }}
+                                          className="inline-flex items-center gap-1 text-xs text-amber-800 bg-amber-100 hover:bg-amber-200 px-2.5 py-1 rounded-lg font-bold transition cursor-pointer shadow-2xs"
+                                          title="View receipt preview modal"
                                         >
-                                          <PaperClipIcon className="h-3.5 w-3.5 mr-1" />
+                                          <PaperClipIcon className="h-3.5 w-3.5" />
                                           Receipt
-                                        </a>
+                                        </button>
                                       ) : (
-                                        <span className="text-slate-400 text-[11px] italic">None</span>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleOpenFuelLogDetail(log);
+                                          }}
+                                          className="inline-flex items-center text-slate-400 hover:text-slate-600 text-[11px] italic transition cursor-pointer px-2 py-1"
+                                          title="View details"
+                                        >
+                                          None
+                                        </button>
                                       )}
                                     </td>
-                                    <td className="px-4 py-3 text-center whitespace-nowrap">
+                                    <td className="px-4 py-3 text-center whitespace-nowrap" onClick={e => e.stopPropagation()}>
                                       <div className="flex items-center justify-center space-x-1">
+                                        <button
+                                          onClick={() => handleOpenFuelLogDetail(log)}
+                                          className="p-1.5 text-slate-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition cursor-pointer"
+                                          title="View Details & Receipt"
+                                        >
+                                          <InformationCircleIcon className="h-4 w-4" />
+                                        </button>
                                         <button
                                           onClick={() => handleEditFuelLog(log)}
                                           className="p-1.5 text-slate-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition cursor-pointer"
@@ -1558,13 +1590,15 @@ const Reports: React.FC = () => {
                         return (
                           <tr
                             key={log.id}
-                            className={`transition ${
+                            onClick={() => handleOpenFuelLogDetail(log)}
+                            className={`transition cursor-pointer ${
                               isSelected
                                 ? 'bg-amber-50/60 font-semibold'
-                                : 'hover:bg-slate-50/80'
+                                : 'hover:bg-amber-50/40'
                             }`}
+                            title="Click to view fuel log info & receipt attachment"
                           >
-                            <td className="px-3.5 py-3 text-center">
+                            <td className="px-3.5 py-3 text-center" onClick={e => e.stopPropagation()}>
                               <input
                                 type="checkbox"
                                 checked={isSelected}
@@ -1601,21 +1635,41 @@ const Reports: React.FC = () => {
                             </td>
                             <td className="px-4 py-3 text-center whitespace-nowrap">
                               {log.receiptAttachmentUrl ? (
-                                <a
-                                  href={log.receiptAttachmentUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center text-xs text-indigo-600 hover:text-indigo-800 font-bold hover:underline"
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenFuelLogDetail(log);
+                                  }}
+                                  className="inline-flex items-center gap-1 text-xs text-amber-800 bg-amber-100 hover:bg-amber-200 px-2.5 py-1 rounded-lg font-bold transition cursor-pointer shadow-2xs"
+                                  title="View receipt preview modal"
                                 >
-                                  <PaperClipIcon className="h-3.5 w-3.5 mr-1" />
+                                  <PaperClipIcon className="h-3.5 w-3.5" />
                                   Receipt
-                                </a>
+                                </button>
                               ) : (
-                                <span className="text-slate-400 text-[11px] italic">None</span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenFuelLogDetail(log);
+                                  }}
+                                  className="inline-flex items-center text-slate-400 hover:text-slate-600 text-[11px] italic transition cursor-pointer px-2 py-1"
+                                  title="View details"
+                                >
+                                  None
+                                </button>
                               )}
                             </td>
-                            <td className="px-4 py-3 text-center whitespace-nowrap">
+                            <td className="px-4 py-3 text-center whitespace-nowrap" onClick={e => e.stopPropagation()}>
                               <div className="flex items-center justify-center space-x-1">
+                                <button
+                                  onClick={() => handleOpenFuelLogDetail(log)}
+                                  className="p-1.5 text-slate-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition cursor-pointer"
+                                  title="View Details & Receipt"
+                                >
+                                  <InformationCircleIcon className="h-4 w-4" />
+                                </button>
                                 <button
                                   onClick={() => handleEditFuelLog(log)}
                                   className="p-1.5 text-slate-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition cursor-pointer"
@@ -2025,6 +2079,19 @@ const Reports: React.FC = () => {
           setEditingFuelLog(null);
         }}
         logToEdit={editingFuelLog}
+      />
+
+      {/* FUEL LOG DETAIL & RECEIPT MODAL */}
+      <FuelLogDetailModal
+        isOpen={isDetailModalOpen}
+        onClose={() => {
+          setIsDetailModalOpen(false);
+          setSelectedFuelLogForDetail(null);
+        }}
+        fuelLog={selectedFuelLogForDetail}
+        vehicles={vehicles}
+        users={users}
+        onEdit={handleEditFuelLog}
       />
 
     </div>

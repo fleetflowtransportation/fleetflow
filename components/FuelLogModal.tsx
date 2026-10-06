@@ -38,6 +38,7 @@ const FuelLogModal: React.FC<FuelLogModalProps> = ({
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [existingReceiptUrl, setExistingReceiptUrl] = useState<string | undefined>(undefined);
   const [existingReceiptName, setExistingReceiptName] = useState<string | undefined>(undefined);
+  const [showReceiptPreview, setShowReceiptPreview] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -476,14 +477,13 @@ const FuelLogModal: React.FC<FuelLogModalProps> = ({
                       : existingReceiptName}
                   </span>
                   {(receiptFile || existingReceiptUrl) && (
-                    <a
-                      href={receiptFile ? URL.createObjectURL(receiptFile) : existingReceiptUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-indigo-600 hover:underline font-bold text-[11px]"
+                    <button
+                      type="button"
+                      onClick={() => setShowReceiptPreview(true)}
+                      className="text-indigo-600 hover:text-indigo-800 font-bold text-[11px] hover:underline cursor-pointer"
                     >
-                      View
-                    </a>
+                      Preview
+                    </button>
                   )}
                   <button
                     type="button"
@@ -528,6 +528,39 @@ const FuelLogModal: React.FC<FuelLogModalProps> = ({
           </div>
         </form>
       </div>
+
+      {/* RECEIPT PREVIEW LIGHTBOX */}
+      {showReceiptPreview && (receiptFile || existingReceiptUrl) && (
+        <div 
+          className="fixed inset-0 z-60 bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setShowReceiptPreview(false)}
+        >
+          <div 
+            className="relative bg-slate-900 rounded-2xl p-4 max-w-2xl max-h-[85vh] flex flex-col items-center"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="w-full flex items-center justify-between pb-3 text-white border-b border-slate-700 mb-3">
+              <span className="text-xs font-bold truncate">
+                {receiptFile ? receiptFile.name : (existingReceiptName || 'Attached Receipt')}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowReceiptPreview(false)}
+                className="text-slate-400 hover:text-white p-1"
+              >
+                <XIcon className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="overflow-auto flex items-center justify-center w-full">
+              <img
+                src={receiptFile ? URL.createObjectURL(receiptFile) : existingReceiptUrl}
+                alt="Receipt Preview"
+                className="max-h-[65vh] max-w-full object-contain rounded-lg shadow-md"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

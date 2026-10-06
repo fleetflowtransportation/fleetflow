@@ -80,7 +80,6 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
   
   const [activeTab, setActiveTab] = useState<'form' | 'calendar'>(initialTab);
   const [formData, setFormData] = useState(emptyFormData);
-  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState<AutoAssignResult | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -122,18 +121,6 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
       const updated = Math.max(0, current + delta);
       return { ...prev, [field]: updated };
     });
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setAttachmentFile(e.target.files[0]);
-    }
-  };
-
-  const removeAttachment = () => {
-    setAttachmentFile(null);
-    const fileInput = document.getElementById('public-attachment-input') as HTMLInputElement;
-    if (fileInput) fileInput.value = '';
   };
 
   const totalPassengers = useMemo(() => {
@@ -302,35 +289,6 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
       warningNotes: result.warningNotes,
       tenantId: tenantId,
     };
-
-    // Google script attachment upload
-    if (attachmentFile) {
-      newBooking.attachmentName = attachmentFile.name;
-      const driveUrl = import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL;
-      if (driveUrl) {
-        try {
-          const base64Str = await fileToBase64(attachmentFile);
-          const response = await fetch(driveUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({
-              base64: base64Str,
-              fileName: attachmentFile.name,
-              mimeType: attachmentFile.type
-            })
-          });
-          const resJson = await response.json();
-          if (resJson && resJson.success && resJson.url) {
-            newBooking.attachmentUrl = resJson.url;
-          }
-        } catch (error) {
-          console.error("Failed to upload attachment to Drive, using local fallback URL", error);
-          newBooking.attachmentUrl = URL.createObjectURL(attachmentFile);
-        }
-      } else {
-        newBooking.attachmentUrl = URL.createObjectURL(attachmentFile);
-      }
-    }
 
     // Google Calendar Sync
     if (tenant) {
@@ -685,7 +643,6 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                   type="button"
                   onClick={() => {
                     setFormData(emptyFormData);
-                    setAttachmentFile(null);
                     setIsSuccess(false);
                     setSubmitResult(null);
                   }}
@@ -1248,44 +1205,6 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                     className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none transition resize-y"
                   ></textarea>
                 </div>
-
-                {/* Modern File Attachment Dropzone */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Supporting Document / Approval Letter (Optional)
-                  </label>
-                  
-                  {!attachmentFile ? (
-                    <div className="p-4 border-2 border-dashed border-slate-300 hover:border-indigo-400 bg-slate-50/50 hover:bg-indigo-50/30 rounded-2xl text-center transition cursor-pointer relative">
-                      <input
-                        id="public-attachment-input"
-                        type="file"
-                        onChange={handleFileChange}
-                        accept="image/*,application/pdf"
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      />
-                      <PaperClipIcon className="w-6 h-6 text-slate-400 mx-auto mb-1" />
-                      <p className="text-xs font-bold text-slate-700">Click to browse or drop file</p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">PDF, PNG, JPG up to 10MB</p>
-                    </div>
-                  ) : (
-                    <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-200 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2 truncate">
-                        <PaperClipIcon className="w-5 h-5 text-indigo-600 shrink-0" />
-                        <span className="text-xs font-bold text-indigo-950 truncate">{attachmentFile.name}</span>
-                        <span className="text-[10px] text-indigo-600 font-mono">({(attachmentFile.size / 1024).toFixed(1)} KB)</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={removeAttachment}
-                        className="text-xs font-extrabold text-rose-600 hover:text-rose-800 px-2.5 py-1 rounded-lg hover:bg-rose-50 transition cursor-pointer"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  )}
-                </div>
-
               </div>
 
               {/* ------------------------------------------------------------- */}
