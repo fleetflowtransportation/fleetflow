@@ -1846,17 +1846,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         )}
 
       </div>
-
-      {/* Floating Action Button (+) for Easy Booking - only in internal app */}
-      {!isPublic && (
-        <button
-          onClick={handleCreateNewBooking}
-          className="fixed bottom-6 right-6 z-40 h-14 w-14 rounded-2xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white shadow-xl flex items-center justify-center transition cursor-pointer"
-          title="Create New Vehicle Booking"
-        >
-          <PlusIcon className="h-6 w-6 stroke-[2.5]" />
-        </button>
-      )}
     </>
   );
 };
