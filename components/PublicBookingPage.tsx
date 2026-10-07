@@ -1002,7 +1002,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                       <optgroup label="Dedicated Fleet">
                         {vehicles.map(v => (
                           <option key={v.id} value={v.name}>
-                            🚐 {v.name} ({v.plateNumber}) {v.vehicleType ? `- ${v.vehicleType}` : ''}
+                            🚐 {v.name} ({v.plateNumber}) • {v.seatingCapacity || 10} Seater {v.vehicleType ? `- ${v.vehicleType}` : ''}
                           </option>
                         ))}
                       </optgroup>

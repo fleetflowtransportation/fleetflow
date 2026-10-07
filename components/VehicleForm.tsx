@@ -44,6 +44,7 @@ interface FormState {
   currentOdometer: string;
   maxPayloadCapacityKg: string;
   engineCapacityCc: string;
+  seatingCapacity: string;
 
   // Section 4: Initial Compliance & Expiry Dates
   roadTaxExpiry: string;
@@ -76,6 +77,7 @@ const defaultFormState: FormState = {
   currentOdometer: '0',
   maxPayloadCapacityKg: '',
   engineCapacityCc: '',
+  seatingCapacity: '10',
 
   roadTaxExpiry: '',
   insuranceExpiry: '',
@@ -143,6 +145,7 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({ isOpen, onClose, vehic
         currentOdometer: vehicleToEdit.currentOdometer !== undefined ? vehicleToEdit.currentOdometer.toString() : '0',
         maxPayloadCapacityKg: vehicleToEdit.maxPayloadCapacityKg ? vehicleToEdit.maxPayloadCapacityKg.toString() : '',
         engineCapacityCc: vehicleToEdit.engineCapacityCc ? vehicleToEdit.engineCapacityCc.toString() : '',
+        seatingCapacity: vehicleToEdit.seatingCapacity !== undefined ? vehicleToEdit.seatingCapacity.toString() : '10',
 
         roadTaxExpiry: vehicleToEdit.roadTaxExpiry || '',
         insuranceExpiry: vehicleToEdit.insuranceExpiry || '',
@@ -413,6 +416,7 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({ isOpen, onClose, vehic
         currentOdometer: Number(formData.currentOdometer) || 0,
         maxPayloadCapacityKg: formData.maxPayloadCapacityKg ? parseFloat(formData.maxPayloadCapacityKg) : undefined,
         engineCapacityCc: formData.engineCapacityCc ? parseInt(formData.engineCapacityCc, 10) : undefined,
+        seatingCapacity: formData.seatingCapacity ? parseInt(formData.seatingCapacity, 10) : 10,
 
         roadTaxExpiry: formData.roadTaxExpiry || undefined,
         insuranceExpiry: formData.insuranceExpiry || undefined,
@@ -1041,6 +1045,24 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({ isOpen, onClose, vehic
                     value={formData.engineCapacityCc}
                     onChange={handleInputChange}
                     placeholder="e.g. 1496 / 2494"
+                    className="w-full text-sm font-mono border border-slate-300 rounded-xl p-2.5 outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                {/* Seating Capacity */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Seating Capacity (Pax) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    name="seatingCapacity"
+                    min="1"
+                    max="100"
+                    required
+                    value={formData.seatingCapacity}
+                    onChange={handleInputChange}
+                    placeholder="e.g. 10 / 12 / 15"
                     className="w-full text-sm font-mono border border-slate-300 rounded-xl p-2.5 outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>

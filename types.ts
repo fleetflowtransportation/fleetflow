@@ -88,6 +88,7 @@ export interface Vehicle {
   permitExpiry?: string; // permit_expiry (YYYY-MM-DD)
   grantAttachmentUrl?: string; // grant_document
   grantAttachmentName?: string;
+  seatingCapacity?: number; // seating capacity
   specifications?: string;
   tenantId?: string;
 }

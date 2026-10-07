@@ -1,96 +1,43 @@
-# Professional Browser URL Routing & Deep-Linking Navigation Plan
+# Vehicle Seating Capacity Integration & Public Booking Upgrade Plan
 
-Implement standard, clean browser URL paths (e.g. `/dashboard`, `/bookings`, `/calendar`, `/reports`, `/maintenance`, `/vehicles`, `/settings`, `/book`, `/odometer`) with full browser history (Back / Forward button) and deep-link bookmarking support across all desktop and mobile devices.
+Add vehicle seating capacity tracking across fleet vehicles, update Vehicle Management forms for administrators, display seating info directly next to vehicle names in the Public Booking Form, and provide the Supabase SQL script for database column migration.
 
 ---
 
 ### User Review & Critical Decisions
 
 > [!IMPORTANT]
-> We will upgrade the navigation architecture so each page and module has its own distinct, clean URL path:
-> 1. **Clean Route Structure**:
->    - `/dashboard` → Main Fleet Analytics & Activity
->    - `/bookings` → Dispatch & Booking Management List
->    - `/calendar` → Interactive Live Trip Schedule Calendar
->    - `/reports` / `/fuel` → Fuel, Mileage & Odometer Reports
->    - `/maintenance` → Maintenance Schedules & Issue Tracker
->    - `/vehicles` → Fleet Vehicles & Road Tax / Insurance Expiries
->    - `/users` → Drivers & Staff User Management
->    - `/schedule` → Driver Duty Roster & Leave Planner
->    - `/settings` (and `/settings/integrations`) → Organization & Google Sync Settings
->    - `/driver` → Dedicated Driver Portal View
->    - `/book` (or `/book?tenant_id=...`) → Public Reservation Form
->    - `/odometer` (or `/odometer?tenant_id=...`) → Public Driver Odometer Submission Form
-> 2. **Browser Back & Forward Buttons (`popstate`)**: Full mobile swipe-back and browser Back/Forward navigation support.
-> 3. **Backward Compatibility**: Existing query URLs (`?action=book`, `?action=odometer`) and QR codes will continue to work seamlessly.
+> We are implementing the following changes:
+> 1. **Data Model (`Vehicle`)**: Add `seatingCapacity` (number of seats, e.g. 10, 12, 15) to the vehicle type.
+> 2. **Database Mapper (`services/storage.ts`)**: Map `seating_capacity` in PostgreSQL `vehicles` table to `seatingCapacity` in TypeScript.
+> 3. **Admin Vehicle Form (`VehicleForm.tsx`)**: Add a dedicated input field for Seating Capacity.
+> 4. **Public Booking Form (`PublicBookingPage.tsx`)**: Display seating capacity prominently next to vehicle names in selection options so users can easily choose the right van.
+> 5. **Supabase SQL Migration Script**: Provide a ready-to-run SQL snippet for Supabase SQL Editor.
 
-- **Confirmed Decision**: Implement clean URL routing, browser history integration, and bookmarkable deep links.
+- **Confirmed Decision**: Add seating capacity to vehicle info and display it right next to vehicle names in the Public Booking form selection list.
 
 ---
 
-### 1. Overview & Core Concept
+### 1. Supabase SQL Migration Script
 
-- **What It Does**:
-  - Updates the browser address bar dynamically as users switch between tabs and views.
-  - Allows managers and drivers to bookmark or share exact links directly (e.g. sending `https://armadaflow.vercel.app/calendar` or `https://armadaflow.vercel.app/reports` in a message).
-  - Enables smooth back-button navigation on mobile smartphones without exiting the web app.
-- **Target Audience / Persona**: All fleet managers, dispatchers, drivers, and external booking staff.
-- **Key Value**: Professional SaaS user experience matching modern web apps like SimplyFleet, Notion, and Google Calendar.
+Run this SQL snippet in your Supabase SQL Editor to add the seating capacity column to your `vehicles` table:
 
----
+```sql
+-- Add seating capacity column to vehicles table
+ALTER TABLE vehicles 
+ADD COLUMN IF NOT EXISTS seating_capacity INTEGER DEFAULT 10;
 
-### 2. User Experience & Visual Design
-
-- **Address Bar Feedback**:
-  - Visiting `/calendar` opens the calendar immediately.
-  - Visiting `/reports` opens fuel and odometer reports directly.
-  - Visiting `/settings/integrations` opens the Super Admin Google Drive & Calendar configuration directly.
-- **Navigation Interaction**:
-  - Zero page-flicker or full-page reload on route changes (smooth client-side transition $< 50\text{ms}$).
-  - Active navigation state in the Header reflects the current URL path.
-
----
-
-### 3. Key Product Decisions & Trade-Offs
-
-- **Decision 1: Native HTML5 History Router vs. Heavy External Router Library**
-  - *Chosen Approach*: Lightweight HTML5 History API (`window.history.pushState` + `popstate` listener + route parser).
-  - *Why*: Zero additional bundle overhead, 100% compatible with existing Vite SPA setup and Vercel hosting, and supports existing query parameters without breaking legacy links.
-- **Decision 2: Automatic Role Guarding & Fallback**
-  - *Chosen Approach*: If an unauthenticated user or driver visits an admin-only path (`/settings`), the router gracefully redirects to `/login` or `/driver`.
-
----
-
-### 4. Technical Architecture & Data Strategy
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      Browser Address Bar                    │
-│   (e.g. /dashboard, /calendar, /reports, /settings/vehicles)│
-└──────────────────────────────┬──────────────────────────────┘
-                               │
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│                  App Navigation & Route Parser              │
-│   - Reads window.location.pathname & search parameters      │
-│   - Listens to 'popstate' for browser back/forward buttons  │
-│   - Exports navigate(path) helper for Header & Links        │
-└──────────────────────────────┬──────────────────────────────┘
-                               │
-               ┌───────────────┼───────────────┐
-               ▼               ▼               ▼
-┌────────────────────┐┌─────────────────┐┌────────────────────┐
-│   Admin Views      ││   Driver View   ││   Public Portals   │
-│ - /dashboard       ││ - /driver       ││ - /book            │
-│ - /bookings        ││                 ││ - /odometer        │
-│ - /calendar        ││                 ││ - /calendar        │
-│ - /reports         ││                 ││                    │
-│ - /maintenance     ││                 ││                    │
-│ - /settings/*      ││                 ││                    │
-└────────────────────┘└─────────────────┘└────────────────────┘
+-- Optional: Update existing vehicles with default seating if needed
+UPDATE vehicles 
+SET seating_capacity = 12 
+WHERE seating_capacity IS NULL;
 ```
 
-- **Implementation Details**:
-  1. Add route resolution and `navigate` helper in `App.tsx` and `Header.tsx`.
-  2. Map routes to respective components and sub-tabs.
-  3. Ensure Vercel / dev server single-page app rewrites work seamlessly.
+---
+
+### 2. Overview of Code Changes
+
+- **`types.ts`**: Add `seatingCapacity?: number;` to `Vehicle`.
+- **`services/storage.ts`**: Update `toDbVehicle` and `fromDbVehicle` to read/write `seating_capacity`.
+- **`components/VehicleForm.tsx`**: Add "Seating Capacity" number input field.
+- **`components/PublicBookingPage.tsx`**: Display seating badge/text next to vehicle names in vehicle selection controls.

@@ -129,6 +129,7 @@ const toDbVehicle = (v: Partial<Vehicle>) => {
     ...(v.permitExpiry !== undefined && { permit_expiry: v.permitExpiry }),
     grant_attachment_url: v.grantAttachmentUrl ? v.grantAttachmentUrl : null,
     grant_attachment_name: v.grantAttachmentName ? v.grantAttachmentName : null,
+    ...(v.seatingCapacity !== undefined && { seating_capacity: v.seatingCapacity }),
     specifications: packedSpecs,
     tenant_id: v.tenantId || getTenantId(),
   };
@@ -189,6 +190,7 @@ const fromDbVehicle = (row: any): Vehicle => {
     permitExpiry: row.permit_expiry || meta.permitExpiry || undefined,
     grantAttachmentUrl: resolvedGrantUrl,
     grantAttachmentName: resolvedGrantName,
+    seatingCapacity: row.seating_capacity !== undefined && row.seating_capacity !== null ? Number(row.seating_capacity) : (meta.seatingCapacity !== undefined ? Number(meta.seatingCapacity) : 10),
     tenantId: row.tenant_id || getTenantId(),
   };
 };

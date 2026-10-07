@@ -1,6 +1,6 @@
 {
-  "summary": "Implementation plan for adding clean browser URL routing (/dashboard, /bookings, /calendar, /fuel, /maintenance, /settings, /book, /odometer) with full deep-linking and browser back/forward history support.",
-  "updatedAt": "2026-10-07T03:10:34.430894778Z",
+  "summary": "Implementation plan for adding seating capacity to vehicles, updating Vehicle Management and Public Booking Form, and providing the Supabase SQL migration script.",
+  "updatedAt": "2026-10-07T03:31:49.235862077Z",
   "requestFeedback": true,
   "userFacing": true
 }
