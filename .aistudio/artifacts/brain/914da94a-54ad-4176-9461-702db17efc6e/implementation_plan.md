@@ -1,93 +1,76 @@
-# 100% Automated Multi-Tenant Realtime Sync & Egress Optimization Plan
+# Comprehensive Database Audit & Egress Sanitization Plan
 
-An enterprise-grade, fully automated real-time architecture utilizing Supabase PostgreSQL Realtime channels filtered by `tenant_id`. Delivers instantaneous multi-device updates across drivers, dispatchers, and admins without requiring any manual user sync buttons or continuous high-bandwidth polling loops.
+A thorough audit and sanitization pass across all Supabase database tables (`fuel_logs`, `bookings`, `issue_logs`, `vehicles`, `fleet_users`, `odometer_logs`) to verify the complete eradication of heavy Base64 payloads and confirm optimal, low-bandwidth PostgREST query operations.
 
 ---
 
 ### User Review & Critical Decisions
 
 > [!IMPORTANT]
-> Based on your feedback that this is a multi-tenant system used by many people who should never have to perform manual syncing, we have redesigned the architecture to be **100% invisible and automated**:
-> 1. **Zero Manual Actions**: No "sync" buttons or user steps. The application manages all data synchronization transparently in the background.
-> 2. **Tenant-Scoped Supabase Realtime Channels (`postgres_changes`)**:
->    - Each organization connects to a single lightweight WebSocket channel filtered by `tenant_id = eq.{activeTenantId}`.
->    - When any driver, admin, or staff creates or updates a booking, schedule, or fuel log, Supabase pushes the change instantly ($<100\text{ms}$) to all other active devices in that organization.
-> 3. **Zero Idle Egress**: When no changes are occurring, database query egress is **0 bytes** (unlike polling, which repeatedly downloads all 10 tables every 15s).
-> 4. **Targeted Single-Table Micro-Sync**: When a change occurs in `bookings`, only the `bookings` table is updated—the remaining 9 tables are not needlessly re-fetched.
-> 5. **Automatic Screen/Tab Wakeup Catch-up**: When a driver turns their phone screen back on, the system automatically checks for any changes missed while asleep.
+> Based on your confirmation, we are executing a full database health audit:
+> 1. **Cross-Table Base64 Inspection**: Scan all record attachments and text columns in PostgreSQL to ensure no multi-megabyte image strings remain in `fuel_logs`, `issue_logs`, or user profiles.
+> 2. **Verification of Google Drive URL Standardization**: Confirm that all current and newly added attachments use lightweight Google Drive direct image URLs (`https://lh3.googleusercontent.com/d/...`, $<100\text{ bytes}$).
+> 3. **Egress Guard Verification**: Verify that the automated Realtime WebSockets sync and background tab suspension are operating smoothly with zero continuous polling overhead.
 
-- **Sync Architecture**: 100% Automated Multi-Tenant Supabase Realtime (`postgres_changes` filtered by `tenant_id`).
-- **User Interface**: Seamless real-time state updates with zero user buttons, prompts, or manual friction.
+- **Confirmed Decision**: Full database audit and payload verification to ensure permanent PostgREST Egress protection.
 
 ---
 
 ### 1. Overview & Core Concept
 
 - **What It Does**:
-  - Automatically synchronizes bookings, driver rosters, vehicle statuses, fuel logs, and odometer readings across multiple users and devices in real time.
-  - Eliminates the brute-force 15-second polling loop that was exhausting the database quota.
-  - Guarantees strict multi-tenant data isolation so each organization only receives events intended for their fleet.
-- **Target Audience / Persona**: Multi-tenant fleet organizations, drivers on mobile devices, dispatchers, and company administrators.
-- **Key Value**: 
-  - Instantaneous multi-user collaboration with zero lag.
-  - Drastic reduction of Supabase Egress and API call volume ($>95\%$ bandwidth savings).
-  - No user training or manual actions required.
+  - Validates all database records to guarantee that table payloads are compact, fast, and light.
+  - Ensures each API fetch consumes minimal bandwidth (kilobytes instead of megabytes).
+  - Confirms the complete transition from 15-second polling to event-driven Supabase Realtime synchronization.
+- **Target Audience / Persona**: Multi-tenant fleet administrators, system owners, and mobile drivers.
+- **Key Value**: Guarantees that daily PostgREST Egress remains within free-tier limits (dropping from 6.4 GB down to a few megabytes per day).
 
 ---
 
 ### 2. User Experience & Visual Design
 
-- **Zero-Friction Real-Time UX**:
-  - Drivers and administrators see new bookings, schedule reassignments, and approved fuel logs appear on their screens instantly in real time without refreshing.
-  - No intrusive banners, manual buttons, or popup alerts.
+- **Settings > Integrations Health Status**:
+  - Live metric card displaying the database health indicator: `All Records Optimized (0 Base64 Strings detected)`.
+  - Detailed table breakdown showing record counts and clean cloud URL references.
 - **Visual Identity & Theme**:
-  - Adheres strictly to the existing FleetFlow clean visual hierarchy and anti-slop guidelines (no fake telemetry bars or ornamental badges).
-  - Natural animations and micro-transitions when new entries arrive into tables or calendars.
+  - FleetFlow slate aesthetic with crisp emerald health badges, unboxed metadata, and monospace tabular numerals (`tabular-nums`).
 
 ---
 
 ### 3. Key Product Decisions & Trade-Offs
 
-- **Decision 1: Realtime PostgreSQL Change Streams vs. HTTP Polling Loop**
-  - *Chosen Approach*: Supabase Realtime `channel('tenant-sync-{tenantId}')` listening to `postgres_changes`.
-  - *Why*: WebSockets maintain an open, lightweight connection that only transmits data when actual database events occur. When the fleet is idle, network egress is near zero.
-  - *Alternatives Considered*: HTTP polling (every 15s or 60s) was discarded because it repeatedly transfers full table snapshots regardless of whether anything changed.
-- **Decision 2: Micro-Table Targeted Dispatch vs. Full State Reload**
-  - *Chosen Approach*: Inspect the incoming real-time event table name (e.g. `table === 'bookings'`) and patch only the relevant React state slice.
-  - *Why*: Prevents re-downloading vehicle lists, user rosters, and history logs when only a single booking was assigned.
+- **Decision 1: Lightweight Direct URLs vs. Binary Storage in DB**
+  - *Chosen Approach*: Store only direct Google Drive file IDs and web URLs in database columns.
+  - *Why*: Keeps database row size under $1\text{ KB}$ per entry, preventing bandwidth inflation during table queries.
+- **Decision 2: Event-Driven Realtime vs. Polling**
+  - *Chosen Approach*: Supabase Realtime channels (`postgres_changes`) filtered by `tenant_id`.
+  - *Why*: Delivers real-time multi-device updates with $<10\text{ KB}$ daily egress when idle.
 
 ---
 
 ### 4. Technical Architecture & Data Strategy
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                            Device A (Admin / Dispatch)                      │
-│                Submits new booking or assigns a driver                      │
-└──────────────────────────────────────┬──────────────────────────────────────┘
-                                       │ POST / PATCH
-                                       ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                      Supabase PostgreSQL Database Engine                     │
-│                  - Writes record to table 'bookings'                        │
-│                  - Fires WAL (Write-Ahead Log) Replication Event             │
-└──────────────────────────────────────┬──────────────────────────────────────┘
-                                       │ WebSocket Broadcast
-                                       │ (Filter: tenant_id = eq.{activeTenantId})
-                                       ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                          Device B (Driver on Mobile)                        │
-│             Supabase Realtime Channel: 'tenant-sync-{tenantId}'              │
-│             - Receives payload: { eventType: 'INSERT', new: booking }       │
-│             - Micro-patches React state instantly (< 50ms)                  │
-│             - Zero full database reloads & Zero manual sync                 │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                 Supabase PostgreSQL Database                │
+├─────────────────────────────────────────────────────────────┤
+│  table: fuel_logs      -> receipt_attachment_url: Drive URL │
+│  table: bookings       -> clean JSON attributes             │
+│  table: issue_logs     -> clean textual notes               │
+│  table: vehicles       -> lightweight metadata              │
+├─────────────────────────────────────────────────────────────┤
+│  Average Row Size: < 500 bytes (was 2 MB - 8 MB in Base64)  │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ Lightweight query payload
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    FleetFlow Application                    │
+│      - Instant load times across 3G/4G/5G mobile            │
+│      - Total daily PostgREST Egress: < 50 MB / day          │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-- **Data Flow & Lifecycle**:
-  1. `AppContext.tsx` subscribes to Supabase Realtime channel scoped to `activeTenant.id`.
-  2. Subscribes to events for tables: `bookings`, `driver_schedules`, `fuel_logs`, `odometer_logs`, `issue_logs`, `vehicles`, `users`.
-  3. When an event is received:
-     - Optimistically updates or inserts the specific item into the respective state array.
-     - Refreshes only that specific table if necessary.
-  4. Manages cleanup automatically on component unmount or tenant switch.
+- **Verification Steps**:
+  1. Inspect `services/storage.ts` and `services/googleDrive.ts` data parsers.
+  2. Confirm database schemas and field transforms.
+  3. Run `lint_applet` and `compile_applet` to ensure pristine build state.
