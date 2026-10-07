@@ -1,50 +1,63 @@
-# Comprehensive Database Audit & Egress Sanitization Plan
+# Professional Browser URL Routing & Deep-Linking Navigation Plan
 
-A thorough audit and sanitization pass across all Supabase database tables (`fuel_logs`, `bookings`, `issue_logs`, `vehicles`, `fleet_users`, `odometer_logs`) to verify the complete eradication of heavy Base64 payloads and confirm optimal, low-bandwidth PostgREST query operations.
+Implement standard, clean browser URL paths (e.g. `/dashboard`, `/bookings`, `/calendar`, `/reports`, `/maintenance`, `/vehicles`, `/settings`, `/book`, `/odometer`) with full browser history (Back / Forward button) and deep-link bookmarking support across all desktop and mobile devices.
 
 ---
 
 ### User Review & Critical Decisions
 
 > [!IMPORTANT]
-> Based on your confirmation, we are executing a full database health audit:
-> 1. **Cross-Table Base64 Inspection**: Scan all record attachments and text columns in PostgreSQL to ensure no multi-megabyte image strings remain in `fuel_logs`, `issue_logs`, or user profiles.
-> 2. **Verification of Google Drive URL Standardization**: Confirm that all current and newly added attachments use lightweight Google Drive direct image URLs (`https://lh3.googleusercontent.com/d/...`, $<100\text{ bytes}$).
-> 3. **Egress Guard Verification**: Verify that the automated Realtime WebSockets sync and background tab suspension are operating smoothly with zero continuous polling overhead.
+> We will upgrade the navigation architecture so each page and module has its own distinct, clean URL path:
+> 1. **Clean Route Structure**:
+>    - `/dashboard` → Main Fleet Analytics & Activity
+>    - `/bookings` → Dispatch & Booking Management List
+>    - `/calendar` → Interactive Live Trip Schedule Calendar
+>    - `/reports` / `/fuel` → Fuel, Mileage & Odometer Reports
+>    - `/maintenance` → Maintenance Schedules & Issue Tracker
+>    - `/vehicles` → Fleet Vehicles & Road Tax / Insurance Expiries
+>    - `/users` → Drivers & Staff User Management
+>    - `/schedule` → Driver Duty Roster & Leave Planner
+>    - `/settings` (and `/settings/integrations`) → Organization & Google Sync Settings
+>    - `/driver` → Dedicated Driver Portal View
+>    - `/book` (or `/book?tenant_id=...`) → Public Reservation Form
+>    - `/odometer` (or `/odometer?tenant_id=...`) → Public Driver Odometer Submission Form
+> 2. **Browser Back & Forward Buttons (`popstate`)**: Full mobile swipe-back and browser Back/Forward navigation support.
+> 3. **Backward Compatibility**: Existing query URLs (`?action=book`, `?action=odometer`) and QR codes will continue to work seamlessly.
 
-- **Confirmed Decision**: Full database audit and payload verification to ensure permanent PostgREST Egress protection.
+- **Confirmed Decision**: Implement clean URL routing, browser history integration, and bookmarkable deep links.
 
 ---
 
 ### 1. Overview & Core Concept
 
 - **What It Does**:
-  - Validates all database records to guarantee that table payloads are compact, fast, and light.
-  - Ensures each API fetch consumes minimal bandwidth (kilobytes instead of megabytes).
-  - Confirms the complete transition from 15-second polling to event-driven Supabase Realtime synchronization.
-- **Target Audience / Persona**: Multi-tenant fleet administrators, system owners, and mobile drivers.
-- **Key Value**: Guarantees that daily PostgREST Egress remains within free-tier limits (dropping from 6.4 GB down to a few megabytes per day).
+  - Updates the browser address bar dynamically as users switch between tabs and views.
+  - Allows managers and drivers to bookmark or share exact links directly (e.g. sending `https://armadaflow.vercel.app/calendar` or `https://armadaflow.vercel.app/reports` in a message).
+  - Enables smooth back-button navigation on mobile smartphones without exiting the web app.
+- **Target Audience / Persona**: All fleet managers, dispatchers, drivers, and external booking staff.
+- **Key Value**: Professional SaaS user experience matching modern web apps like SimplyFleet, Notion, and Google Calendar.
 
 ---
 
 ### 2. User Experience & Visual Design
 
-- **Settings > Integrations Health Status**:
-  - Live metric card displaying the database health indicator: `All Records Optimized (0 Base64 Strings detected)`.
-  - Detailed table breakdown showing record counts and clean cloud URL references.
-- **Visual Identity & Theme**:
-  - FleetFlow slate aesthetic with crisp emerald health badges, unboxed metadata, and monospace tabular numerals (`tabular-nums`).
+- **Address Bar Feedback**:
+  - Visiting `/calendar` opens the calendar immediately.
+  - Visiting `/reports` opens fuel and odometer reports directly.
+  - Visiting `/settings/integrations` opens the Super Admin Google Drive & Calendar configuration directly.
+- **Navigation Interaction**:
+  - Zero page-flicker or full-page reload on route changes (smooth client-side transition $< 50\text{ms}$).
+  - Active navigation state in the Header reflects the current URL path.
 
 ---
 
 ### 3. Key Product Decisions & Trade-Offs
 
-- **Decision 1: Lightweight Direct URLs vs. Binary Storage in DB**
-  - *Chosen Approach*: Store only direct Google Drive file IDs and web URLs in database columns.
-  - *Why*: Keeps database row size under $1\text{ KB}$ per entry, preventing bandwidth inflation during table queries.
-- **Decision 2: Event-Driven Realtime vs. Polling**
-  - *Chosen Approach*: Supabase Realtime channels (`postgres_changes`) filtered by `tenant_id`.
-  - *Why*: Delivers real-time multi-device updates with $<10\text{ KB}$ daily egress when idle.
+- **Decision 1: Native HTML5 History Router vs. Heavy External Router Library**
+  - *Chosen Approach*: Lightweight HTML5 History API (`window.history.pushState` + `popstate` listener + route parser).
+  - *Why*: Zero additional bundle overhead, 100% compatible with existing Vite SPA setup and Vercel hosting, and supports existing query parameters without breaking legacy links.
+- **Decision 2: Automatic Role Guarding & Fallback**
+  - *Chosen Approach*: If an unauthenticated user or driver visits an admin-only path (`/settings`), the router gracefully redirects to `/login` or `/driver`.
 
 ---
 
@@ -52,25 +65,32 @@ A thorough audit and sanitization pass across all Supabase database tables (`fue
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                 Supabase PostgreSQL Database                │
-├─────────────────────────────────────────────────────────────┤
-│  table: fuel_logs      -> receipt_attachment_url: Drive URL │
-│  table: bookings       -> clean JSON attributes             │
-│  table: issue_logs     -> clean textual notes               │
-│  table: vehicles       -> lightweight metadata              │
-├─────────────────────────────────────────────────────────────┤
-│  Average Row Size: < 500 bytes (was 2 MB - 8 MB in Base64)  │
+│                      Browser Address Bar                    │
+│   (e.g. /dashboard, /calendar, /reports, /settings/vehicles)│
 └──────────────────────────────┬──────────────────────────────┘
-                               │ Lightweight query payload
+                               │
                                ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    FleetFlow Application                    │
-│      - Instant load times across 3G/4G/5G mobile            │
-│      - Total daily PostgREST Egress: < 50 MB / day          │
-└─────────────────────────────────────────────────────────────┘
+│                  App Navigation & Route Parser              │
+│   - Reads window.location.pathname & search parameters      │
+│   - Listens to 'popstate' for browser back/forward buttons  │
+│   - Exports navigate(path) helper for Header & Links        │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+               ┌───────────────┼───────────────┐
+               ▼               ▼               ▼
+┌────────────────────┐┌─────────────────┐┌────────────────────┐
+│   Admin Views      ││   Driver View   ││   Public Portals   │
+│ - /dashboard       ││ - /driver       ││ - /book            │
+│ - /bookings        ││                 ││ - /odometer        │
+│ - /calendar        ││                 ││ - /calendar        │
+│ - /reports         ││                 ││                    │
+│ - /maintenance     ││                 ││                    │
+│ - /settings/*      ││                 ││                    │
+└────────────────────┘└─────────────────┘└────────────────────┘
 ```
 
-- **Verification Steps**:
-  1. Inspect `services/storage.ts` and `services/googleDrive.ts` data parsers.
-  2. Confirm database schemas and field transforms.
-  3. Run `lint_applet` and `compile_applet` to ensure pristine build state.
+- **Implementation Details**:
+  1. Add route resolution and `navigate` helper in `App.tsx` and `Header.tsx`.
+  2. Map routes to respective components and sub-tabs.
+  3. Ensure Vercel / dev server single-page app rewrites work seamlessly.

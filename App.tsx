@@ -22,7 +22,42 @@ import { InactiveAccountScreen } from './components/InactiveAccountScreen';
 
 const App: React.FC = () => {
   const { currentUser, users, isLoading, loadError, reload } = useAppContext();
-  const [activeView, setActiveView] = useState<'dashboard' | 'bookings' | 'reports' | 'logs' | 'archive' | 'vehicles' | 'users' | 'self-drive' | 'calendar' | 'maintenance' | 'issues' | 'schedule' | 'settings'>('dashboard');
+  
+  type NavView = 'dashboard' | 'bookings' | 'reports' | 'logs' | 'archive' | 'vehicles' | 'users' | 'self-drive' | 'calendar' | 'maintenance' | 'issues' | 'schedule' | 'settings';
+
+  const getViewFromPath = (): NavView => {
+    const path = window.location.pathname.replace(/^\/+/, '').toLowerCase();
+    if (!path || path === '' || path === 'dashboard') return 'dashboard';
+    if (path === 'bookings') return 'bookings';
+    if (path === 'calendar') return 'calendar';
+    if (path === 'reports' || path === 'fuel' || path === 'logs') return 'reports';
+    if (path === 'maintenance' || path === 'issues') return 'maintenance';
+    if (path === 'vehicles') return 'vehicles';
+    if (path === 'users') return 'users';
+    if (path === 'schedule') return 'schedule';
+    if (path === 'self-drive') return 'self-drive';
+    if (path === 'archive') return 'archive';
+    if (path.startsWith('settings')) return 'settings';
+    return 'dashboard';
+  };
+
+  const [activeView, setActiveView] = useState<NavView>(getViewFromPath);
+
+  React.useEffect(() => {
+    const handlePopState = () => {
+      setActiveView(getViewFromPath());
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const handleSetView = (view: NavView) => {
+    setActiveView(view);
+    const targetPath = view === 'dashboard' ? '/' : `/${view}`;
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState(null, '', targetPath);
+    }
+  };
 
   // Check public action URLs (booking form or self-drive odometer portal)
   const urlParams = new URLSearchParams(window.location.search);
@@ -141,12 +176,7 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-gray-50 font-sans text-gray-800">
       <Header
         activeView={activeView}
-        setActiveView={(view) => {
-          setActiveView(view);
-          if (currentUser?.role !== 'admin') {
-              // Reset to a default view if a non-admin somehow tries to switch views
-          }
-        }}
+        setActiveView={handleSetView}
       />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
         {renderContent()}
