@@ -3,6 +3,8 @@ import { useAppContext } from '../context/AppContext';
 import { parseAsLocal, getPickupLocationDisplay } from '../utils';
 import type { Booking, User, Vehicle } from '../types';
 import { getDriverCalendarColor, normalizeDate, normalizeTime } from '../services/bookingEngine';
+import { supabase, resetSupabaseConfig } from '../services/supabaseClient';
+import { storageService } from '../services/storage';
 import { 
   CalendarIcon, 
   ClockIcon, 
@@ -232,7 +234,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     context = useAppContext();
   } catch {}
 
-  const bookings = customBookings || context?.bookings || [];
   const users = customUsers || context?.users || [];
   const vehicles = customVehicles || context?.vehicles || [];
   const currentUser = context?.currentUser || null;
@@ -250,9 +251,302 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [driverFilter, setDriverFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState<boolean>(false);
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
+
+  // Server-side lightweight date-range bookings state
+  const [serverBookings, setServerBookings] = useState<Booking[]>([]);
+  const [hasFetched, setHasFetched] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // In-memory cache for full on-demand detail payloads (prevents redundant fetches)
+  const detailsCacheRef = useRef<Map<string, Booking>>(new Map());
+
+  // WebSocket channel ref for leak-free unmount cleanup
+  const realtimeChannelRef = useRef<any>(null);
+
+  // 1. Calculate Date Range (Start & End Date) based on current ViewMode
+  const getDateRange = useCallback(() => {
+    const d = new Date(currentDate);
+    let start = new Date(d);
+    let end = new Date(d);
+
+    if (viewMode === 'day') {
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+    } else if (viewMode === '3days') {
+      start.setHours(0, 0, 0, 0);
+      end.setDate(start.getDate() + 2);
+      end.setHours(23, 59, 59, 999);
+    } else if (viewMode === 'week') {
+      const day = start.getDay();
+      const diff = start.getDate() - day + (day === 0 ? -6 : 1);
+      start = new Date(start.setDate(diff));
+      start.setHours(0, 0, 0, 0);
+      end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      end.setHours(23, 59, 59, 999);
+    } else if (viewMode === 'schedule') {
+      start.setHours(0, 0, 0, 0);
+      end.setDate(start.getDate() + 30);
+      end.setHours(23, 59, 59, 999);
+    } else {
+      // Month: Ensure 7x6 matrix coverage (tail of prev month, head of next month)
+      const year = d.getFullYear();
+      const month = d.getMonth();
+      start = new Date(year, month - 1, 20, 0, 0, 0, 0);
+      end = new Date(year, month + 1, 15, 23, 59, 59, 999);
+    }
+
+    const startStr = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}T00:00:00`;
+    const endStr = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}T23:59:59`;
+
+    return { startStr, endStr, start, end };
+  }, [currentDate, viewMode]);
+
+  // Fallback function to extract bookings from context within the active date range
+  const fallbackToContextBookings = useCallback((rangeStart: Date, rangeEnd: Date) => {
+    const allContext = context?.bookings || [];
+    const tenantId = context?.activeTenant?.id || currentUser?.tenantId || storageService.getTenantId();
+    const startTime = rangeStart.getTime();
+    const endTime = rangeEnd.getTime();
+
+    const filtered = allContext.filter((b: Booking) => {
+      if (tenantId && b.tenantId && b.tenantId !== tenantId) return false;
+      const t = new Date(b.dateTime).getTime();
+      return t >= startTime && t <= endTime;
+    });
+
+    setServerBookings(filtered);
+    setHasFetched(true);
+  }, [context?.bookings, context?.activeTenant?.id, currentUser?.tenantId]);
+
+  // 2. Fetch Lightweight Data based on Date Range & Specific Column Selection (Reduces Supabase Egress)
+  const fetchCalendarBookings = useCallback(async () => {
+    if (customBookings) {
+      setServerBookings(customBookings);
+      setHasFetched(true);
+      return;
+    }
+
+    setLoading(true);
+    const { startStr, endStr, start, end } = getDateRange();
+    const tenantId = context?.activeTenant?.id || currentUser?.tenantId || storageService.getTenantId();
+
+    try {
+      const buildQuery = (client = supabase) => {
+        let q = client
+          .from('bookings')
+          .select(`
+            id,
+            destination,
+            purpose,
+            date_time,
+            finish_date_time,
+            pickup_point,
+            status,
+            driver_id,
+            vehicle_id,
+            requester_name,
+            requester_email,
+            department,
+            service_type,
+            calendar_event_title,
+            calendar_color,
+            tenant_id
+          `)
+          .gte('date_time', startStr)
+          .lte('date_time', endStr);
+
+        if (tenantId) {
+          q = q.eq('tenant_id', tenantId);
+        }
+        return q;
+      };
+
+      let { data, error } = await buildQuery(supabase);
+
+      // Self-heal: If invalid API key or auth token error, reset to master credentials and retry once
+      if (error && (error.message?.includes('API key') || error.message?.includes('JWT') || error.code === 'PGRST301')) {
+        console.warn('[CalendarView] API key error detected, resetting Supabase credentials and retrying...');
+        resetSupabaseConfig();
+        const retryResult = await buildQuery(supabase);
+        data = retryResult.data;
+        error = retryResult.error;
+      }
+
+      if (error) {
+        console.warn('[CalendarView] Date-range query notice:', error.message);
+        fallbackToContextBookings(start, end);
+        return;
+      }
+
+      if (data) {
+        const lightweightList: Booking[] = data.map((row: any) => ({
+          id: row.id,
+          destination: row.destination || '',
+          purpose: row.purpose || '',
+          dateTime: row.date_time,
+          finishDateTime: row.finish_date_time || undefined,
+          pickupPoint: row.pickup_point || '',
+          address: '',
+          passengers: [],
+          shouldWait: false,
+          status: (row.status || 'Pending') as Booking['status'],
+          driverId: row.driver_id || null,
+          vehicleId: row.vehicle_id || null,
+          requesterName: row.requester_name || '',
+          requesterEmail: row.requester_email || '',
+          department: row.department || '',
+          serviceType: (row.service_type || 'Perlu Driver') as Booking['serviceType'],
+          calendarEventTitle: row.calendar_event_title || undefined,
+          calendarColor: row.calendar_color || undefined,
+          tenantId: row.tenant_id || tenantId,
+        }));
+        setServerBookings(lightweightList);
+        setHasFetched(true);
+      }
+    } catch (err: any) {
+      console.warn('[CalendarView] Network exception:', err?.message);
+      fallbackToContextBookings(start, end);
+    } finally {
+      setLoading(false);
+    }
+  }, [customBookings, getDateRange, fallbackToContextBookings, context?.activeTenant?.id, currentUser?.tenantId]);
+
+  // 3. Realtime WebSocket Subscription with Leak-Free Cleanup
+  useEffect(() => {
+    fetchCalendarBookings();
+
+    // Clean up any existing channel before setting up a new one
+    if (realtimeChannelRef.current) {
+      supabase.removeChannel(realtimeChannelRef.current);
+      realtimeChannelRef.current = null;
+    }
+
+    // Subscribe to live database changes
+    const channel = supabase
+      .channel(`calendar-db-sync-${Date.now()}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'bookings' },
+        () => {
+          fetchCalendarBookings();
+        }
+      )
+      .subscribe();
+
+    realtimeChannelRef.current = channel;
+
+    // CLEANUP: Ensure channel is unsubscribed when component unmounts or date/view changes
+    return () => {
+      if (realtimeChannelRef.current) {
+        supabase.removeChannel(realtimeChannelRef.current);
+        realtimeChannelRef.current = null;
+      }
+    };
+  }, [fetchCalendarBookings]);
+
+  // 4. Fetch Full Detail On-Demand (Google Drive URL, Passengers, Notes) only when clicked
+  const handleSelectBooking = useCallback(async (bookingId: string) => {
+    setSelectedBookingId(bookingId);
+
+    // 1. Check in-memory cache first
+    if (detailsCacheRef.current.has(bookingId)) {
+      setSelectedBooking(detailsCacheRef.current.get(bookingId)!);
+      return;
+    }
+
+    // 2. Set initial preview immediately from lightweight loaded bookings or context
+    const preview = serverBookings.find(b => b.id === bookingId) || context?.bookings?.find(b => b.id === bookingId);
+    if (preview) {
+      setSelectedBooking(preview);
+    }
+
+    // 3. Fetch full payload on-demand
+    setLoadingDetail(true);
+    try {
+      let { data, error } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('id', bookingId)
+        .single();
+
+      if (error && (error.message?.includes('API key') || error.message?.includes('JWT') || error.code === 'PGRST301')) {
+        resetSupabaseConfig();
+        const retryRes = await supabase
+          .from('bookings')
+          .select('*')
+          .eq('id', bookingId)
+          .single();
+        data = retryRes.data;
+        error = retryRes.error;
+      }
+
+      if (data) {
+        const fullBooking: Booking = {
+          id: data.id,
+          destination: data.destination || '',
+          purpose: data.purpose || '',
+          dateTime: data.date_time,
+          finishDateTime: data.finish_date_time || undefined,
+          pickupPoint: data.pickup_point || '',
+          address: data.address || '',
+          passengers: data.passengers || [],
+          escort: data.escort || undefined,
+          shouldWait: Boolean(data.should_wait),
+          returnTrip: data.return_trip !== undefined ? Boolean(data.return_trip) : undefined,
+          status: (data.status || 'Pending') as Booking['status'],
+          driverId: data.driver_id || null,
+          vehicleId: data.vehicle_id || null,
+          attachmentName: data.attachment_name || undefined,
+          attachmentUrl: data.attachment_url || undefined,
+          remarks: data.remarks || undefined,
+          requesterName: data.requester_name || '',
+          requesterEmail: data.requester_email || '',
+          department: data.department || '',
+          serviceType: (data.service_type || 'Perlu Driver') as Booking['serviceType'],
+          vehiclePreference: data.vehicle_preference || undefined,
+          icNumber: data.ic_number || undefined,
+          recurrenceId: data.recurrence_id || undefined,
+          recurrence: data.recurrence || undefined,
+          startOdometer: data.start_odometer ? Number(data.start_odometer) : undefined,
+          endOdometer: data.end_odometer ? Number(data.end_odometer) : undefined,
+          distance: data.distance ? Number(data.distance) : undefined,
+          calendarEventId: data.calendar_event_id || undefined,
+          calendarEventTitle: data.calendar_event_title || undefined,
+          calendarColor: data.calendar_color || undefined,
+          adminNotes: data.admin_notes || undefined,
+          conflictReason: data.conflict_reason || undefined,
+          isPreWorkingHour: Boolean(data.is_pre_working_hour),
+          warningNotes: data.warning_notes || undefined,
+          tenantId: data.tenant_id,
+        };
+
+        detailsCacheRef.current.set(bookingId, fullBooking);
+        setSelectedBooking(fullBooking);
+      }
+    } catch (err: any) {
+      console.warn('[CalendarView] Detail fetch notice:', err?.message);
+    } finally {
+      setLoadingDetail(false);
+    }
+  }, [serverBookings, context?.bookings]);
+
+  const handleCloseDetail = useCallback(() => {
+    setSelectedBookingId(null);
+    setSelectedBooking(null);
+  }, []);
+
+  // Effective bookings to render in calendar views
+  const bookings = useMemo(() => {
+    if (customBookings) return customBookings;
+    if (hasFetched) return serverBookings;
+    return context?.bookings || [];
+  }, [customBookings, hasFetched, serverBookings, context?.bookings]);
 
   // Timeline container ref for auto-scrolling to daytime (~8am or current hour)
   const timelineScrollRef = useRef<HTMLDivElement | null>(null);
@@ -340,7 +634,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     if (viewMode === 'day' || viewMode === '3days' || viewMode === 'week') {
       const timer = setTimeout(() => {
         if (timelineScrollRef.current) {
-          // Find earliest booking of current date or default to 8am (hour 8)
           const key = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
           const dayBookings = bookingsByDay.get(key) || [];
           let targetHour = 8;
@@ -348,7 +641,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             const firstHour = parseAsLocal(dayBookings[0].dateTime).getHours();
             targetHour = Math.max(0, Math.min(23, firstHour - 1));
           }
-          // Each hour row is ~64px
           timelineScrollRef.current.scrollTop = targetHour * 64;
         }
       }, 50);
@@ -395,11 +687,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       setIsFormOpen(true);
     }
   };
-
-  const selectedBooking = useMemo(() => {
-    if (!selectedBookingId) return null;
-    return bookings.find(b => b.id === selectedBookingId) || null;
-  }, [selectedBookingId, bookings]);
 
   // Computed Date Arrays
   const monthLabel = MONTH_NAMES[currentDate.getMonth()];
@@ -483,7 +770,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     <>
       <BookingDetailModal 
         booking={selectedBooking} 
-        onClose={() => setSelectedBookingId(null)} 
+        onClose={handleCloseDetail} 
         onEdit={handleEditBooking}
         onDelete={deleteBooking}
         isAdmin={isAdmin}
@@ -520,6 +807,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 >
                   <span>{monthLabel} {yearLabel}</span>
                   <span className="text-xs text-slate-400">▾</span>
+                  {loading && (
+                    <div className="w-3.5 h-3.5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin shrink-0" title="Loading calendar events..."></div>
+                  )}
                 </button>
 
                 {/* Quick Month Selector Popup */}
@@ -811,7 +1101,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         return (
                           <div
                             key={booking.id}
-                            onClick={() => setSelectedBookingId(booking.id)}
+                            onClick={() => handleSelectBooking(booking.id)}
                             style={{
                               top: `${topPercent}%`,
                               height: `${heightPercent}%`,
@@ -996,7 +1286,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                   key={booking.id}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setSelectedBookingId(booking.id);
+                                    handleSelectBooking(booking.id);
                                   }}
                                   style={{
                                     top: `${topPercent}%`,
@@ -1168,7 +1458,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                   key={booking.id}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setSelectedBookingId(booking.id);
+                                    handleSelectBooking(booking.id);
                                   }}
                                   style={{
                                     top: `${topPercent}%`,
@@ -1295,7 +1585,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                               key={b.id}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setSelectedBookingId(b.id);
+                                handleSelectBooking(b.id);
                               }}
                               className={`w-full text-left px-1.5 py-1 rounded-md text-[10px] leading-tight truncate border transition cursor-pointer font-medium ${style.monthChip}`}
                               title={`${b.requesterName} → ${b.destination} (${dName})`}
@@ -1355,7 +1645,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         return (
                           <div
                             key={b.id}
-                            onClick={() => setSelectedBookingId(b.id)}
+                            onClick={() => handleSelectBooking(b.id)}
                             className={`p-3 rounded-xl border shadow-2xs cursor-pointer transition hover:shadow-xs ${style.bg} ${style.border} ${style.text}`}
                           >
                             <div className="flex justify-between items-start">

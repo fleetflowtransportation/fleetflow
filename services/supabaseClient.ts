@@ -4,15 +4,33 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 export const DEFAULT_SUPABASE_URL = 'https://ydmeokfmsfgwrpbgmarv.supabase.co';
 export const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlkbWVva2Ztc2Znd3JwYmdtYXJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyMzI4NzgsImV4cCI6MjEwNTgwODg3OH0.3sxjdlS9b3bPwTJ81uTkHvm6MHXJR4b_adURNE4qrn0';
 
+// Sanitize localStorage immediately to eliminate any corrupted, truncated, or invalid custom API keys
+try {
+  const localUrl = localStorage.getItem('fleetflow_supabase_url');
+  const localKey = localStorage.getItem('fleetflow_supabase_anon_key');
+  
+  // If stored project is the master database or invalid URL/key format, purge local override to guarantee canonical keys
+  if (
+    !localUrl ||
+    localUrl.includes('ydmeokfmsfgwrpbgmarv') ||
+    !localUrl.trim().startsWith('https://') ||
+    !localKey ||
+    !localKey.trim().startsWith('eyJ') ||
+    localKey.trim().length < 50
+  ) {
+    localStorage.removeItem('fleetflow_supabase_url');
+    localStorage.removeItem('fleetflow_supabase_anon_key');
+  }
+} catch {
+  // ignore in non-browser or storage restricted environments
+}
+
 export function getActiveSupabaseUrl(): string {
   try {
     const local = localStorage.getItem('fleetflow_supabase_url');
-    if (local && local.trim().startsWith('http')) {
+    if (local && local.trim().startsWith('https://')) {
       const clean = local.trim().replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
-      // If user had stored an old or invalid database URL, clean it up immediately
-      if (!clean.includes('ydmeokfmsfgwrpbgmarv')) {
-        localStorage.removeItem('fleetflow_supabase_url');
-        localStorage.removeItem('fleetflow_supabase_anon_key');
+      if (clean.includes('ydmeokfmsfgwrpbgmarv')) {
         return DEFAULT_SUPABASE_URL;
       }
       return clean;
@@ -22,11 +40,12 @@ export function getActiveSupabaseUrl(): string {
   }
 
   const rawEnv = (import.meta as any).env?.VITE_SUPABASE_URL;
-  if (rawEnv && rawEnv.trim().startsWith('http')) {
+  if (rawEnv && rawEnv.trim().startsWith('https://')) {
     const cleanEnv = rawEnv.trim().replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
     if (cleanEnv.includes('ydmeokfmsfgwrpbgmarv')) {
-      return cleanEnv;
+      return DEFAULT_SUPABASE_URL;
     }
+    return cleanEnv;
   }
 
   return DEFAULT_SUPABASE_URL;
@@ -35,29 +54,41 @@ export function getActiveSupabaseUrl(): string {
 export function getActiveSupabaseAnonKey(): string {
   try {
     const localUrl = localStorage.getItem('fleetflow_supabase_url');
-    if (localUrl && !localUrl.includes('ydmeokfmsfgwrpbgmarv')) {
-      localStorage.removeItem('fleetflow_supabase_url');
-      localStorage.removeItem('fleetflow_supabase_anon_key');
+    // If running with default project ydmeokfmsfgwrpbgmarv, ALWAYS enforce the verified master anon key
+    if (!localUrl || localUrl.includes('ydmeokfmsfgwrpbgmarv')) {
+      const local = localStorage.getItem('fleetflow_supabase_anon_key');
+      if (local && local.trim() !== DEFAULT_SUPABASE_ANON_KEY) {
+        localStorage.removeItem('fleetflow_supabase_anon_key');
+      }
       return DEFAULT_SUPABASE_ANON_KEY;
     }
+
     const local = localStorage.getItem('fleetflow_supabase_anon_key');
-    if (local && local.trim().length > 20) {
-      return local.trim();
+    if (local && local.trim().startsWith('eyJ') && local.trim().length > 50) {
+      return local.trim().replace(/[\r\n\s]+/g, '').replace(/^["']|["']$/g, '');
     }
   } catch {
     // ignore
   }
 
   const rawEnv = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY;
-  if (rawEnv && rawEnv.trim().length > 20) {
-    return rawEnv.trim();
+  if (rawEnv && rawEnv.trim().startsWith('eyJ') && rawEnv.trim().length > 50) {
+    return rawEnv.trim().replace(/[\r\n\s]+/g, '').replace(/^["']|["']$/g, '');
   }
 
   return DEFAULT_SUPABASE_ANON_KEY;
 }
 
 export function createDirectSupabaseClient(url: string = DEFAULT_SUPABASE_URL, anonKey: string = DEFAULT_SUPABASE_ANON_KEY): SupabaseClient {
-  return createClient(url, anonKey, {
+  const cleanUrl = (url || DEFAULT_SUPABASE_URL).trim().replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
+  let cleanKey = (anonKey || DEFAULT_SUPABASE_ANON_KEY).trim().replace(/[\r\n\s]+/g, '').replace(/^["']|["']$/g, '');
+
+  // Safety guard: For the official project or whenever key format is suspicious, always guarantee canonical verified anon key
+  if (cleanUrl.includes('ydmeokfmsfgwrpbgmarv') || !cleanKey.startsWith('eyJ') || cleanKey.length < 50) {
+    cleanKey = DEFAULT_SUPABASE_ANON_KEY;
+  }
+
+  return createClient(cleanUrl, cleanKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
@@ -66,8 +97,8 @@ export function createDirectSupabaseClient(url: string = DEFAULT_SUPABASE_URL, a
     },
     global: {
       headers: {
-        'apikey': anonKey,
-        'Authorization': `Bearer ${anonKey}`
+        'apikey': cleanKey,
+        'Authorization': `Bearer ${cleanKey}`
       }
     }
   });
@@ -86,7 +117,11 @@ export function getSupabase(): SupabaseClient {
 export function updateSupabaseConfig(url: string, anonKey: string): { success: boolean; client: SupabaseClient } {
   try {
     const cleanUrl = url.trim().replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
-    const cleanKey = anonKey.trim();
+    let cleanKey = anonKey.trim().replace(/[\r\n\s]+/g, '').replace(/^["']|["']$/g, '');
+
+    if (cleanUrl.includes('ydmeokfmsfgwrpbgmarv') || !cleanKey.startsWith('eyJ') || cleanKey.length < 50) {
+      cleanKey = DEFAULT_SUPABASE_ANON_KEY;
+    }
 
     localStorage.setItem('fleetflow_supabase_url', cleanUrl);
     localStorage.setItem('fleetflow_supabase_anon_key', cleanKey);
@@ -103,10 +138,10 @@ export function resetSupabaseConfig(): void {
   try {
     localStorage.removeItem('fleetflow_supabase_url');
     localStorage.removeItem('fleetflow_supabase_anon_key');
-    currentClient = createDirectSupabaseClient(DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_ANON_KEY);
   } catch {
     // ignore
   }
+  currentClient = createDirectSupabaseClient(DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_ANON_KEY);
 }
 
 // Proxy wrapper so any direct `supabase.from(...)` call always uses active client

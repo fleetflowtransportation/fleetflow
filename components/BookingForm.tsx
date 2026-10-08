@@ -19,10 +19,11 @@ import { BookingResultModal } from './BookingResultModal';
 import { evaluateBookingAssignment, normalizeDate, normalizeTime, type AutoAssignResult } from '../services/bookingEngine';
 import { isOtherPickup } from '../utils';
 
-interface BookingFormProps {
+export interface BookingFormProps {
   isOpen?: boolean;
   onClose: () => void;
   bookingToEdit?: Booking | null;
+  onSuccess?: () => void;
 }
 
 const OTHER_PICKUP = 'Other Location (Please Specify)';
@@ -77,7 +78,7 @@ const fileToBase64 = (file: File): Promise<string> => {
   });
 };
 
-const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, bookingToEdit }) => {
+const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, bookingToEdit, onSuccess }) => {
   const { 
     addBooking, 
     updateBooking, 
@@ -92,10 +93,30 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
   const [formData, setFormData] = useState<FormData>(emptyFormData);
   const [isRecurring, setIsRecurring] = useState(false);
   const [submissionResult, setSubmissionResult] = useState<AutoAssignResult | null>(null);
+  const [loading, setLoading] = useState(false);
   const [recurrence, setRecurrence] = useState({
     frequency: 'weekly' as 'weekly' | 'bi-weekly' | 'monthly',
     endDate: ''
   });
+
+  // 4. Caching Base Data (Drivers & Vehicles) efficiently to prevent redundant refetches
+  const cachedDrivers = useMemo(() => {
+    return (users || [])
+      .filter(u => {
+        const role = (u.role || '').toLowerCase();
+        return role === 'driver' || role === 'pemandu' || u.isDriver;
+      })
+      .map(u => ({ id: u.id, name: u.name, phone: u.phone }));
+  }, [users]);
+
+  const cachedVehicles = useMemo(() => {
+    return (vehicles || []).map(v => ({
+      id: v.id,
+      name: v.name,
+      plateNumber: v.plateNumber,
+      capacity: v.seatingCapacity || v.capacity || 10,
+    }));
+  }, [vehicles]);
 
   const prevIsOpenRef = React.useRef(false);
   const prevBookingIdRef = React.useRef<string | null | undefined>(undefined);
@@ -288,6 +309,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
       };
 
       updateBooking(bookingToEdit.id, updatedPayload);
+      if (onSuccess) onSuccess();
       onClose();
     } else {
       const newBooking: Omit<Booking, 'id'> = {
@@ -298,6 +320,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
       };
       const result = addBooking(newBooking);
       setSubmissionResult(result);
+      if (onSuccess) onSuccess();
     }
   };
 
@@ -699,9 +722,9 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
                         className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition text-slate-800"
                       >
                         <option value={FREE_VEHICLE_CHOICE}>Any / Free Choice (Smart Engine Selects)</option>
-                        {vehicles.map(v => (
+                        {cachedVehicles.map(v => (
                           <option key={v.id} value={v.name}>
-                            {v.name} ({v.plateNumber}) • {v.seatingCapacity || v.capacity || 10} Seats
+                            {v.name} ({v.plateNumber}) • {v.capacity} Seats
                           </option>
                         ))}
                       </select>

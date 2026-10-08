@@ -5,6 +5,7 @@ import { postVehicleRenew } from '../services/renewalApi';
 import { parseAsLocal } from '../utils';
 import { evaluateBookingAssignment, normalizeDate, normalizeTime, getDriverCalendarColor, type AutoAssignResult } from '../services/bookingEngine';
 import { googleCalendarService } from '../services/googleCalendar';
+import { syncWithGoogleServices } from '../services/googleSyncService';
 import { updateSupabaseConfig, resetSupabaseConfig, getSupabase } from '../services/supabaseClient';
 import { deleteFromGoogleDrive } from '../services/googleDrive';
 
@@ -632,23 +633,54 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
 
       setBookings(prev => [...newBookings, ...prev]);
-      if (activeTenant) {
-        newBookings.forEach(b => {
-          googleCalendarService.createEvent(activeTenant, b, vehicles, users).then(eventId => {
-            if (eventId) {
-              setBookings(prev => prev.map(x => (x.id === b.id ? { ...x, calendarEventId: eventId } : x)));
-              storageService.updateBooking({ id: b.id, calendarEventId: eventId }).catch(() => {});
-            }
-          }).catch(() => {});
-        });
-      }
+
+      // 1. Transaction separation: Save recurring bookings to Supabase first
       newBookings.forEach(b => {
         storageService.createBooking(b)
-          .then(saved => {
+          .then(async saved => {
             setBookings(prev => prev.map(x => (x.id === b.id ? { ...b, ...saved } : x)));
+
+            // 2. ONLY sync to Google Apps Script / Google Calendar after Supabase succeeds
+            try {
+              const matchedDriver = users.find(u => u.id === b.driverId);
+              const totalPassengers = (b.passengers || []).reduce((sum, p) => sum + (p.count || 0), 0);
+              const gasRes = await syncWithGoogleServices({
+                bookingId: b.id,
+                requesterName: b.requesterName,
+                destination: b.destination,
+                pickupLocation: b.pickupPoint,
+                startTime: b.dateTime,
+                endTime: b.finishDateTime || b.dateTime,
+                driverName: matchedDriver?.name,
+                purpose: b.purpose,
+                passengers: totalPassengers,
+                requesterEmail: b.requesterEmail,
+                department: b.department,
+              });
+
+              const eventId = gasRes?.googleEventId || gasRes?.calendarEventId;
+              const driveUrl = gasRes?.driveFolderUrl;
+
+              if (eventId || driveUrl) {
+                const patch: Partial<Booking> = {};
+                if (eventId) patch.calendarEventId = eventId;
+                if (driveUrl) patch.attachmentUrl = driveUrl;
+
+                setBookings(prev => prev.map(x => (x.id === b.id ? { ...x, ...patch } : x)));
+                await storageService.updateBooking({ id: b.id, ...patch }).catch(() => {});
+              } else if (activeTenant) {
+                const legacyEventId = await googleCalendarService.createEvent(activeTenant, b, vehicles, users);
+                if (legacyEventId) {
+                  setBookings(prev => prev.map(x => (x.id === b.id ? { ...x, calendarEventId: legacyEventId } : x)));
+                  await storageService.updateBooking({ id: b.id, calendarEventId: legacyEventId }).catch(() => {});
+                }
+              }
+            } catch (err: any) {
+              console.warn('[AppContext] Google sync notice for recurring booking:', err?.message);
+            }
           })
           .catch(err => {
-            console.warn('Gagal simpan booking berulang:', err.message);
+            console.warn('[AppContext] Supabase create error, skipping Google Sync:', err.message);
           });
       });
 
@@ -699,21 +731,61 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       };
 
       setBookings(prev => [newBooking, ...prev]);
-      if (activeTenant) {
-        googleCalendarService.createEvent(activeTenant, newBooking, vehicles, users).then(eventId => {
-          if (eventId) {
-            newBooking.calendarEventId = eventId;
-            setBookings(prev => prev.map(b => (b.id === newBooking.id ? { ...b, calendarEventId: eventId } : b)));
-            storageService.updateBooking({ id: newBooking.id, calendarEventId: eventId }).catch(() => {});
-          }
-        }).catch(() => {});
-      }
+
+      // 1. Transaction separation: Save record to Supabase first
       storageService.createBooking(newBooking)
-        .then(saved => {
+        .then(async saved => {
           setBookings(prev => prev.map(b => (b.id === newBooking.id ? { ...newBooking, ...saved } : b)));
+
+          // 2. ONLY call Google Apps Script API after Supabase responds with success
+          try {
+            const matchedDriver = users.find(u => u.id === newBooking.driverId);
+            const totalPassengers = (newBooking.passengers || []).reduce((sum, p) => sum + (p.count || 0), 0);
+
+            const gasRes = await syncWithGoogleServices({
+              bookingId: newBooking.id,
+              requesterName: newBooking.requesterName,
+              destination: newBooking.destination,
+              pickupLocation: newBooking.pickupPoint,
+              startTime: newBooking.dateTime,
+              endTime: newBooking.finishDateTime || newBooking.dateTime,
+              driverName: matchedDriver?.name,
+              purpose: newBooking.purpose,
+              passengers: totalPassengers,
+              requesterEmail: newBooking.requesterEmail,
+              department: newBooking.department,
+            });
+
+            // 3. Persist returned google_event_id / calendarEventId and driveFolderUrl into Supabase
+            const eventId = gasRes?.googleEventId || gasRes?.calendarEventId;
+            const driveUrl = gasRes?.driveFolderUrl;
+
+            if (eventId || driveUrl) {
+              const patch: Partial<Booking> = {};
+              if (eventId) patch.calendarEventId = eventId;
+              if (driveUrl) patch.attachmentUrl = driveUrl;
+
+              newBooking.calendarEventId = eventId || newBooking.calendarEventId;
+              if (driveUrl) newBooking.attachmentUrl = driveUrl;
+
+              setBookings(prev => prev.map(b => (b.id === newBooking.id ? { ...b, ...patch } : b)));
+              await storageService.updateBooking({ id: newBooking.id, ...patch }).catch(() => {});
+            } else if (activeTenant) {
+              // Fallback to tenant Google Calendar integration if dedicated GAS returned no ID
+              const legacyEventId = await googleCalendarService.createEvent(activeTenant, newBooking, vehicles, users);
+              if (legacyEventId) {
+                newBooking.calendarEventId = legacyEventId;
+                setBookings(prev => prev.map(b => (b.id === newBooking.id ? { ...b, calendarEventId: legacyEventId } : b)));
+                await storageService.updateBooking({ id: newBooking.id, calendarEventId: legacyEventId }).catch(() => {});
+              }
+            }
+          } catch (syncErr: any) {
+            console.warn('[AppContext] Google sync after Supabase creation notice:', syncErr?.message);
+          }
         })
         .catch(err => {
-          console.warn('Gagal simpan booking ke server, rekod kekal dalam state:', err.message);
+          // Prevent retry loops and ghost events in Google Calendar if Supabase fails
+          console.warn('[AppContext] Supabase creation error, skipping Google Services sync:', err.message);
         });
 
       return result;
@@ -723,7 +795,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const updateBooking = useCallback((bookingId: string, updatedData: Partial<Omit<Booking, 'id'>>) => {
     const existingBooking = bookings.find(b => b.id === bookingId);
     if (!existingBooking) {
-      console.warn('Booking tidak dijumpai untuk dikemaskini:', bookingId);
+      console.warn('Booking not found for update:', bookingId);
       return;
     }
 
@@ -734,17 +806,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return prev.map(b => (b.id === bookingId ? updatedFullBooking : b));
     });
 
-    // Only sync to Google Calendar if this booking already has an active calendar event
-    if (activeTenant && updatedFullBooking.calendarEventId) {
-      googleCalendarService.updateEvent(activeTenant, updatedFullBooking, vehicles, users).catch(err => {
-        console.warn('Gagal sync kemaskini kalendar:', err);
+    // 1. Update database record in Supabase first
+    storageService.updateBooking({ id: bookingId, ...updatedData })
+      .then(() => {
+        // 2. Only sync to Google Calendar after Supabase update succeeds
+        if (activeTenant && updatedFullBooking.calendarEventId) {
+          googleCalendarService.updateEvent(activeTenant, updatedFullBooking, vehicles, users).catch(err => {
+            console.warn('[AppContext] Google Calendar update sync notice:', err?.message);
+          });
+        }
+      })
+      .catch(err => {
+        console.error('Failed to update booking in database:', err);
+        alert('Failed to update booking: ' + err.message);
       });
-    }
-
-    storageService.updateBooking({ id: bookingId, ...updatedData }).catch(err => {
-      console.error('Failed to update booking in database:', err);
-      alert('Failed to update booking: ' + err.message);
-    });
   }, [bookings, vehicles, users, setUndoableAction, activeTenant]);
 
   const deleteBooking = useCallback((bookingId: string) => {
