@@ -108,7 +108,7 @@ const App: React.FC = () => {
     return <AuthPage />;
   }
 
-  const adminContent = React.useMemo(() => {
+  const renderAdminContent = () => {
     switch (activeView) {
       case 'dashboard':
         return <AdminDashboard />;
@@ -154,23 +154,22 @@ const App: React.FC = () => {
       default:
         return <AdminDashboard />;
     }
-  }, [activeView]);
+  };
 
-  const driverContent = React.useMemo(() => {
-    if (!currentUser || currentUser.role !== 'driver') return null;
-    const fullDriver = users.find(u => u.id === currentUser.id);
-    if (fullDriver && fullDriver.status === 'inactive') {
-      return <InactiveAccountScreen user={fullDriver} />;
-    }
-    return <DriverDashboard driver={currentUser} />;
-  }, [currentUser, users]);
+  const isDriverRole = currentUser?.role?.toLowerCase() === 'driver';
 
   const renderContent = () => {
-    switch (currentUser.role) {
+    const role = currentUser?.role?.toLowerCase();
+    switch (role) {
       case 'admin':
-        return adminContent;
-      case 'driver':
-        return driverContent;
+        return renderAdminContent();
+      case 'driver': {
+        const fullDriver = users.find(u => u.id === currentUser.id);
+        if (fullDriver && fullDriver.status === 'inactive') {
+          return <InactiveAccountScreen user={fullDriver} />;
+        }
+        return <DriverDashboard driver={currentUser} />;
+      }
       default:
         return <AuthPage />;
     }
@@ -186,7 +185,7 @@ const App: React.FC = () => {
         {renderContent()}
       </main>
       <UndoToast />
-      {currentUser?.role !== 'driver' && (
+      {!isDriverRole && (
         <FeedbackButton currentRoute={currentUser?.role === 'admin' ? activeView : 'driver-portal'} />
       )}
     </div>

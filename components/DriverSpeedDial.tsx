@@ -26,10 +26,7 @@ export const DriverSpeedDial: React.FC<DriverSpeedDialProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
-  // If hidden (e.g. when any modal popup is open in Driver UI), do not render
-  if (isHidden) return null;
-
-  // Close on Escape key press
+  // Close on Escape key press (always called unconditionally)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -41,6 +38,9 @@ export const DriverSpeedDial: React.FC<DriverSpeedDialProps> = ({
     }
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen]);
+
+  // If hidden (e.g. when any modal popup is open in Driver UI), do not render
+  if (isHidden) return null;
 
   const handleAction = (action: () => void) => {
     setIsOpen(false);
@@ -84,14 +84,14 @@ export const DriverSpeedDial: React.FC<DriverSpeedDialProps> = ({
       {isOpen && (
         <div 
           onClick={() => setIsOpen(false)}
-          className="fixed inset-0 bg-slate-950/50 backdrop-blur-[3px] z-20 transition-opacity duration-200 animate-in fade-in"
+          className="fixed inset-0 bg-slate-950/50 backdrop-blur-[3px] z-35 transition-opacity duration-200 animate-in fade-in"
           aria-hidden="true"
         />
       )}
 
-      {/* Floating Speed Dial Container — below modals (z-30) */}
+      {/* Floating Speed Dial Container — above bottom bars, below modals (z-40) */}
       <div 
-        className={`fixed bottom-7 right-7 sm:bottom-8 sm:right-8 z-30 flex flex-col items-end select-none print:hidden ${className}`}
+        className={`fixed bottom-7 right-7 sm:bottom-8 sm:right-8 z-40 flex flex-col items-end select-none print:hidden ${className}`}
       >
         {/* Speed Dial Bubbles */}
         <div 
