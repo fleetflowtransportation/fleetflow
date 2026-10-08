@@ -108,7 +108,7 @@ const App: React.FC = () => {
     return <AuthPage />;
   }
 
-  const renderAdminContent = () => {
+  const adminContent = React.useMemo(() => {
     switch (activeView) {
       case 'dashboard':
         return <AdminDashboard />;
@@ -154,19 +154,23 @@ const App: React.FC = () => {
       default:
         return <AdminDashboard />;
     }
-  };
+  }, [activeView]);
+
+  const driverContent = React.useMemo(() => {
+    if (!currentUser || currentUser.role !== 'driver') return null;
+    const fullDriver = users.find(u => u.id === currentUser.id);
+    if (fullDriver && fullDriver.status === 'inactive') {
+      return <InactiveAccountScreen user={fullDriver} />;
+    }
+    return <DriverDashboard driver={currentUser} />;
+  }, [currentUser, users]);
 
   const renderContent = () => {
     switch (currentUser.role) {
       case 'admin':
-        return renderAdminContent();
-      case 'driver': {
-        const fullDriver = users.find(u => u.id === currentUser.id);
-        if (fullDriver && fullDriver.status === 'inactive') {
-          return <InactiveAccountScreen user={fullDriver} />;
-        }
-        return <DriverDashboard driver={currentUser} />;
-      }
+        return adminContent;
+      case 'driver':
+        return driverContent;
       default:
         return <AuthPage />;
     }
