@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { parseAsLocal } from '../utils';
-import type { Booking, FuelLog, User, Vehicle, OdometerLog } from '../types';
+import type { FuelLog, OdometerLog, Vehicle } from '../types';
 import { 
   PaperClipIcon, 
   EditIcon, 
@@ -9,7 +8,6 @@ import {
   TruckIcon, 
   RouteIcon, 
   FuelIcon, 
-  PrinterIcon, 
   DocumentDownloadIcon, 
   GaugeIcon, 
   UserCircleIcon,
@@ -24,17 +22,12 @@ import OdometerLogEditForm from './OdometerLogEditForm';
 import FuelLogModal from './FuelLogModal';
 import FuelLogDetailModal from './FuelLogDetailModal';
 import FuelAnalyticsDashboard from './FuelAnalyticsDashboard';
+import TripAnalyticsDashboard from './TripAnalyticsDashboard';
 
 declare global {
   interface Window {
     jspdf: any;
   }
-}
-
-interface FuelLogWithMetrics extends FuelLog {
-  distance?: number;
-  avgKML?: number;
-  costPerKM?: number;
 }
 
 const dateFilters = [
@@ -48,7 +41,6 @@ const dateFilters = [
 
 const Reports: React.FC = () => {
   const { 
-    bookings, 
     fuelLogs, 
     users, 
     vehicles, 
@@ -91,13 +83,6 @@ const Reports: React.FC = () => {
 
   // --- General Trip Filters for Reports Tab ---
   const [reportsView, setReportsView] = useState<'fuel_analytics' | 'trip_reports'>('fuel_analytics');
-  const [tripFilters, setTripFilters] = useState({ 
-    vehicleId: '', 
-    driverId: '', 
-    dateFilter: 'all',
-    startDate: '',
-    endDate: ''
-  });
 
   const drivers = useMemo(() => users.filter(u => u.role === 'driver' || u.role === 'admin'), [users]);
 
@@ -455,35 +440,6 @@ const Reports: React.FC = () => {
     downloadCSV(csvContent, `Fuel_Logs_Selected_${new Date().toISOString().slice(0, 10)}.csv`);
   };
 
-  // --- Reports Tab Calculations ---
-  const handlePrint = (elementId: string) => {
-    const node = document.getElementById(elementId);
-    if (!node) return;
-
-    const printContainer = document.createElement('div');
-    printContainer.id = 'print-container';
-    printContainer.innerHTML = node.innerHTML;
-    document.body.appendChild(printContainer);
-    document.body.classList.add('is-printing');
-    
-    window.print();
-    
-    document.body.removeChild(printContainer);
-    document.body.classList.remove('is-printing');
-  };
-
-  const convertToCSV = (data: any[], headers: { key: string; label: string }[]) => {
-    const headerRow = headers.map(h => h.label).join(',');
-    const rows = data.map(row => {
-      return headers.map(header => {
-        const value = header.key.split('.').reduce((o, i) => (o ? o[i] : ''), row);
-        const escaped = ('' + (value !== null && value !== undefined ? value : '')).replace(/"/g, '""');
-        return `"${escaped}"`;
-      }).join(',');
-    });
-    return [headerRow, ...rows].join('\n');
-  };
-
   const downloadCSV = (csvString: string, filename: string) => {
     const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
@@ -496,147 +452,6 @@ const Reports: React.FC = () => {
     document.body.removeChild(link);
   };
 
-  // Detailed Trip Report for Reports tab
-  const tripReportData = useMemo(() => {
-    const completed = bookings.filter(b => b.status === 'Completed');
-    return completed.filter(b => {
-      if (tripFilters.vehicleId && b.vehicleId !== tripFilters.vehicleId) return false;
-      if (tripFilters.driverId && b.driverId !== tripFilters.driverId) return false;
-      return checkDateMatch(b.dateTime, tripFilters.dateFilter, tripFilters.startDate, tripFilters.endDate);
-    });
-  }, [bookings, tripFilters, checkDateMatch]);
-
-  const monthlyTripReport = useMemo(() => {
-    const completedTrips = bookings.filter(b => b.status === 'Completed' && b.vehicleId);
-    const summary: Record<string, Record<string, { tripCount: number; totalDistance: number }>> = {};
-
-    completedTrips.forEach(trip => {
-      const tripDate = parseAsLocal(trip.dateTime);
-      const monthYear = tripDate.toLocaleString('default', { month: 'long', year: 'numeric' });
-      const vehicleId = trip.vehicleId!;
-
-      if (!summary[monthYear]) {
-        summary[monthYear] = {};
-      }
-      if (!summary[monthYear][vehicleId]) {
-        summary[monthYear][vehicleId] = { tripCount: 0, totalDistance: 0 };
-      }
-
-      summary[monthYear][vehicleId].tripCount += 1;
-      if (typeof trip.distance === 'number') {
-        summary[monthYear][vehicleId].totalDistance += trip.distance;
-      }
-    });
-
-    return Object.entries(summary).sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime());
-  }, [bookings]);
-
-  const handleExportTripSummary = (format: 'pdf' | 'csv') => {
-    const dataToExport = monthlyTripReport.flatMap(([month, vehicleData]) =>
-      Object.entries(vehicleData).map(([vehicleId, data]) => {
-        const vehicle = vehicles.find(v => v.id === vehicleId);
-        const tripData = data as { tripCount: number; totalDistance: number };
-        return {
-          month,
-          vehicle: `${vehicle?.name || 'Unknown'} (${vehicle?.plateNumber || 'N/A'})`,
-          tripCount: tripData.tripCount,
-          totalDistance: typeof tripData.totalDistance === 'number' ? `${tripData.totalDistance} km` : 'N/A',
-        };
-      })
-    );
-
-    if (dataToExport.length === 0) {
-      alert("No data available to export.");
-      return;
-    }
-
-    if (format === 'pdf') {
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
-      doc.text("Monthly Trip & Distance Summary", 14, 16);
-      doc.autoTable({
-        head: [['Month', 'Vehicle', 'Total Trips', 'Total Distance']],
-        body: dataToExport.map(d => [d.month, d.vehicle, d.tripCount, d.totalDistance]),
-        startY: 25,
-      });
-      doc.save('monthly_trip_summary.pdf');
-    } else {
-      const headers = [
-        { key: 'month', label: 'Month' },
-        { key: 'vehicle', label: 'Vehicle' },
-        { key: 'tripCount', label: 'Total Trips' },
-        { key: 'totalDistance', label: 'Total Distance' }
-      ];
-      const csv = convertToCSV(dataToExport, headers);
-      downloadCSV(csv, 'monthly_trip_summary.csv');
-    }
-  };
-
-  const exportDetailedTripReportPdf = (data: Booking[], vehicles: Vehicle[], users: User[]) => {
-    if (data.length === 0) {
-      alert("No data available to export.");
-      return;
-    }
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    doc.text("Detailed Trip Report", 14, 16);
-
-    const tableColumn = ["Date", "Vehicle", "Driver", "Destination", "Purpose"];
-    const tableRows: (string | number)[][] = [];
-
-    data.forEach(booking => {
-      const vehicle = vehicles.find(v => v.id === booking.vehicleId);
-      const driver = users.find(u => u.id === booking.driverId);
-      tableRows.push([
-        parseAsLocal(booking.dateTime).toLocaleDateString('en-GB'),
-        vehicle?.plateNumber || 'Any',
-        driver?.name || 'N/A',
-        booking.destination,
-        booking.purpose,
-      ]);
-    });
-
-    doc.autoTable({ head: [tableColumn], body: tableRows, startY: 25 });
-    doc.save(`trip_report_${new Date().toISOString().split('T')[0]}.pdf`);
-  };
-
-  // Detailed fuel report metrics
-  const fuelReportData = useMemo(() => {
-    const logsByVehicle = filteredFuelLogs
-      .filter(log => typeof log.odometer === 'number' && !isNaN(log.odometer))
-      .reduce((acc, log) => {
-        if (!acc[log.vehicleId]) {
-          acc[log.vehicleId] = [];
-        }
-        acc[log.vehicleId].push(log);
-        return acc;
-      }, {} as Record<string, FuelLog[]>);
-
-    const report: FuelLogWithMetrics[] = [];
-
-    for (const vehicleId in logsByVehicle) {
-      const sortedLogs = logsByVehicle[vehicleId].sort((a, b) => a.odometer - b.odometer);
-      for (let i = 0; i < sortedLogs.length; i++) {
-        const currentLog = sortedLogs[i];
-        let calculatedMetrics: Partial<FuelLogWithMetrics> = {};
-        if (i > 0) {
-          const prevLog = sortedLogs[i - 1];
-          const distance = currentLog.odometer - prevLog.odometer;
-          if (distance > 0) {
-            calculatedMetrics.distance = distance;
-            if (prevLog.liters > 0) {
-              calculatedMetrics.avgKML = distance / prevLog.liters;
-            }
-            if (distance > 0) {
-              calculatedMetrics.costPerKM = prevLog.cost / distance;
-            }
-          }
-        }
-        report.push({ ...currentLog, ...calculatedMetrics });
-      }
-    }
-    return report.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [filteredFuelLogs]);
 
   return (
     <div className="w-full space-y-6 pb-12">
@@ -1819,245 +1634,13 @@ const Reports: React.FC = () => {
               }}
             />
           ) : (
-            <div className="space-y-8">
-              {/* 1. Monthly Trip & Distance Summary */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-900 flex items-center">
-                      <RouteIcon className="h-5 w-5 mr-2 text-indigo-600" />
-                      Monthly Vehicle Trips & Distance Summary
-                    </h3>
-                <p className="text-xs text-slate-500">Aggregated completed trip counts and mileage breakdown by month & vehicle</p>
-              </div>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => handlePrint('monthly-trip-summary-printable')}
-                  className="flex items-center text-xs bg-white hover:bg-slate-50 text-slate-700 font-bold py-1.5 px-3 border border-slate-300 rounded-xl shadow-xs"
-                >
-                  <PrinterIcon className="h-3.5 w-3.5 mr-1.5 text-slate-500" /> Print
-                </button>
-                <button
-                  onClick={() => handleExportTripSummary('pdf')}
-                  className="flex items-center text-xs bg-white hover:bg-slate-50 text-slate-700 font-bold py-1.5 px-3 border border-slate-300 rounded-xl shadow-xs"
-                >
-                  <DocumentDownloadIcon className="h-3.5 w-3.5 mr-1.5 text-indigo-600" /> PDF
-                </button>
-                <button
-                  onClick={() => handleExportTripSummary('csv')}
-                  className="flex items-center text-xs bg-white hover:bg-slate-50 text-slate-700 font-bold py-1.5 px-3 border border-slate-300 rounded-xl shadow-xs"
-                >
-                  <DocumentDownloadIcon className="h-3.5 w-3.5 mr-1.5 text-emerald-600" /> CSV
-                </button>
-              </div>
-            </div>
-
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200" id="monthly-trip-summary-printable">
-              {monthlyTripReport.length > 0 ? (
-                monthlyTripReport.map(([month, vehicleData]) => (
-                  <div key={month} className="mb-6 last:mb-0">
-                    <h5 className="text-xs font-bold text-slate-800 bg-slate-200/80 px-3 py-2 rounded-t-lg uppercase tracking-wider">
-                      {month}
-                    </h5>
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-slate-200 border border-slate-200 text-xs bg-white">
-                        <thead className="bg-slate-100/70">
-                          <tr>
-                            <th className="px-4 py-2.5 text-left font-bold text-slate-700 uppercase">Vehicle</th>
-                            <th className="px-4 py-2.5 text-right font-bold text-slate-700 uppercase">Total Trips</th>
-                            <th className="px-4 py-2.5 text-right font-bold text-slate-700 uppercase">Total Distance (KM)</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {Object.entries(vehicleData).map(([vehicleId, data]) => {
-                            const veh = vehicles.find(v => v.id === vehicleId);
-                            const tripData = data as { tripCount: number; totalDistance: number };
-                            return (
-                              <tr key={vehicleId} className="hover:bg-slate-50">
-                                <td className="px-4 py-2.5 whitespace-nowrap text-slate-800 font-semibold">
-                                  {veh?.name} ({veh?.plateNumber})
-                                </td>
-                                <td className="px-4 py-2.5 whitespace-nowrap text-right font-bold text-slate-900">
-                                  {tripData.tripCount}
-                                </td>
-                                <td className="px-4 py-2.5 whitespace-nowrap text-right font-extrabold text-indigo-700">
-                                  {typeof tripData.totalDistance === 'number' ? tripData.totalDistance.toLocaleString() : 'N/A'} km
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-center py-6 text-slate-400 text-xs font-semibold">
-                  No completed trip records with mileage data found.
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* 2. Detailed Trip Log with Filters */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 flex items-center">
-                  <RouteIcon className="h-5 w-5 mr-2 text-indigo-600" />
-                  Detailed Trip Logs
-                </h3>
-                <p className="text-xs text-slate-500">Complete listing of historical vehicle bookings fulfilled by drivers</p>
-              </div>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => handlePrint('detailed-trip-log-printable')}
-                  className="flex items-center text-xs bg-white hover:bg-slate-50 text-slate-700 font-bold py-1.5 px-3 border border-slate-300 rounded-xl shadow-xs"
-                >
-                  <PrinterIcon className="h-3.5 w-3.5 mr-1.5 text-slate-500" /> Print
-                </button>
-                <button
-                  onClick={() => exportDetailedTripReportPdf(tripReportData, vehicles, users)}
-                  className="flex items-center text-xs bg-white hover:bg-slate-50 text-slate-700 font-bold py-1.5 px-3 border border-slate-300 rounded-xl shadow-xs"
-                >
-                  <DocumentDownloadIcon className="h-3.5 w-3.5 mr-1.5 text-indigo-600" /> Export PDF
-                </button>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto" id="detailed-trip-log-printable">
-              <table className="min-w-full divide-y divide-slate-200 text-xs border border-slate-200 rounded-xl overflow-hidden">
-                <thead className="bg-slate-100">
-                  <tr>
-                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Date</th>
-                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Vehicle</th>
-                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Driver</th>
-                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Destination</th>
-                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Purpose</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
-                  {tripReportData.length > 0 ? (
-                    tripReportData.map(b => {
-                      const veh = vehicles.find(v => v.id === b.vehicleId);
-                      const driver = users.find(u => u.id === b.driverId);
-                      return (
-                        <tr key={b.id} className="hover:bg-slate-50">
-                          <td className="px-4 py-2.5 whitespace-nowrap font-medium text-slate-700">
-                            {parseAsLocal(b.dateTime).toLocaleDateString('en-GB')}
-                          </td>
-                          <td className="px-4 py-2.5 whitespace-nowrap font-bold text-slate-900">
-                            {veh ? `${veh.name} (${veh.plateNumber})` : 'Any / Self-Drive'}
-                          </td>
-                          <td className="px-4 py-2.5 whitespace-nowrap text-slate-700 font-medium">
-                            {driver?.name || 'N/A'}
-                          </td>
-                          <td className="px-4 py-2.5 font-semibold text-slate-800">
-                            {b.destination}
-                          </td>
-                          <td className="px-4 py-2.5 text-slate-600">
-                            {b.purpose}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  ) : (
-                    <tr>
-                      <td colSpan={5} className="text-center py-6 text-slate-400 font-medium">
-                        No completed trips match the selected filter criteria.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* 3. Detailed Fuel Log & Economy Analysis */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 flex items-center">
-                  <FuelIcon className="h-5 w-5 mr-2 text-amber-600" />
-                  Fuel Efficiency & Mileage Economy Analysis
-                </h3>
-                <p className="text-xs text-slate-500">Continuous odometer comparison to calculate KM/Liter economy and Cost/KM metrics</p>
-              </div>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => handlePrint('detailed-fuel-log-printable')}
-                  className="flex items-center text-xs bg-white hover:bg-slate-50 text-slate-700 font-bold py-1.5 px-3 border border-slate-300 rounded-xl shadow-xs"
-                >
-                  <PrinterIcon className="h-3.5 w-3.5 mr-1.5 text-slate-500" /> Print
-                </button>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto" id="detailed-fuel-log-printable">
-              <table className="min-w-full divide-y divide-slate-200 text-xs border border-slate-200 rounded-xl overflow-hidden">
-                <thead className="bg-slate-100">
-                  <tr>
-                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Vehicle</th>
-                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Driver</th>
-                    <th className="px-4 py-2.5 text-left font-bold text-slate-700">Date</th>
-                    <th className="px-4 py-2.5 text-right font-bold text-slate-700">Odometer</th>
-                    <th className="px-4 py-2.5 text-right font-bold text-slate-700">Distance</th>
-                    <th className="px-4 py-2.5 text-right font-bold text-slate-700">Volume</th>
-                    <th className="px-4 py-2.5 text-right font-bold text-slate-700">Cost</th>
-                    <th className="px-4 py-2.5 text-right font-bold text-slate-700">Avg KM/L</th>
-                    <th className="px-4 py-2.5 text-right font-bold text-slate-700">Cost/KM</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
-                  {fuelReportData.length > 0 ? (
-                    fuelReportData.map(log => {
-                      const veh = vehicles.find(v => v.id === log.vehicleId);
-                      const driver = users.find(u => u.id === log.driverId);
-                      return (
-                        <tr key={log.id} className="hover:bg-slate-50">
-                          <td className="px-4 py-2.5 whitespace-nowrap font-bold text-slate-900">
-                            {veh ? `${veh.name} (${veh.plateNumber})` : 'N/A'}
-                          </td>
-                          <td className="px-4 py-2.5 whitespace-nowrap text-slate-700 font-medium">
-                            {driver?.name || 'N/A'}
-                          </td>
-                          <td className="px-4 py-2.5 whitespace-nowrap text-slate-600 font-medium">
-                            {new Date(log.date).toLocaleDateString('en-GB')}
-                          </td>
-                          <td className="px-4 py-2.5 text-right font-mono font-bold text-slate-800">
-                            {log.odometer ? `${log.odometer.toLocaleString()} km` : '-'}
-                          </td>
-                          <td className="px-4 py-2.5 text-right font-semibold text-slate-700">
-                            {log.distance ? `${log.distance.toLocaleString()} km` : '-'}
-                          </td>
-                          <td className="px-4 py-2.5 text-right font-bold text-slate-800">
-                            {log.liters.toFixed(2)} L
-                          </td>
-                          <td className="px-4 py-2.5 text-right font-extrabold text-amber-800">
-                            RM {log.cost.toFixed(2)}
-                          </td>
-                          <td className="px-4 py-2.5 text-right font-extrabold text-indigo-700">
-                            {log.avgKML ? `${log.avgKML.toFixed(2)} km/L` : '-'}
-                          </td>
-                          <td className="px-4 py-2.5 text-right font-semibold text-slate-700">
-                            {log.costPerKM ? `RM ${log.costPerKM.toFixed(2)}` : '-'}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  ) : (
-                    <tr>
-                      <td colSpan={9} className="text-center py-6 text-slate-400 font-medium">
-                        No fuel data available to generate efficiency analysis.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
+            <TripAnalyticsDashboard
+              onOpenOdoModal={() => {
+                setEditingOdoLog(null);
+                setIsOdoModalOpen(true);
+              }}
+            />
+          )}
     </div>
   )}
 
