@@ -15,11 +15,17 @@ import {
   PlusIcon, 
   PencilIcon, 
   TrashIcon, 
-  DocumentDownloadIcon, 
-  SearchIcon, 
-  XIcon, 
-  InformationCircleIcon 
+  DocumentDownloadIcon,
+  SearchIcon,
+  XIcon,
+  InformationCircleIcon,
 } from './icons/Icons';
+
+declare global {
+  interface Window {
+    jspdf: any;
+  }
+}
 
 export interface DerivedFuelMetric extends FuelLog {
   tripDistance: number | null; // delta D
@@ -78,6 +84,12 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
   const [calcVehicleId, setCalcVehicleId] = useState<string>('all');
   const [calcCustomFuelPrice, setCalcCustomFuelPrice] = useState<number>(2.05);
   const [chartVehicleFilter, setChartVehicleFilter] = useState<string>('all');
+
+  // UX: section tabs, pagination, mobile filters
+  const [activeTab, setActiveTab] = useState<'overview' | 'logs' | 'tools'>('overview');
+  const [pageSize, setPageSize] = useState<number>(25);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [filtersOpen, setFiltersOpen] = useState<boolean>(false);
 
   // Hover state for charts
   const [hoveredPoint, setHoveredPoint] = useState<{
@@ -612,7 +624,17 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
       setSortField(field);
       setSortAsc(false);
     }
+    setCurrentPage(1);
   };
+
+  // Paginated slice for table (prevents rendering hundreds of rows)
+  const totalPages = Math.max(1, Math.ceil(sortedTableData.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedTableData = useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return sortedTableData.slice(start, start + pageSize);
+  }, [sortedTableData, safePage, pageSize]);
+
 
   // ---------------------------------------------------------------------------
   // 10. CRUD FORM HELPERS (Validation, 2-way Price Calculation, Prev Odo check)
@@ -811,6 +833,44 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
     link.click();
   };
 
+  const handleExportPDF = () => {
+    if (sortedTableData.length === 0) {
+      alert('No fuel data available to export.');
+      return;
+    }
+    if (!window.jspdf) {
+      alert('PDF library not loaded. Please try CSV export instead.');
+      return;
+    }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'landscape' });
+    doc.setFontSize(14);
+    doc.text('Armada Flow — Fuel Analytics', 14, 14);
+    doc.setFontSize(9);
+    doc.text(
+      `${sortedTableData.length} fills · RM ${summaryKPIs.totalSpend.toFixed(2)} · ${summaryKPIs.avgEfficiencyKmL.toFixed(2)} km/L avg · ${new Date().toLocaleDateString('en-GB')}`,
+      14,
+      20
+    );
+    doc.autoTable({
+      startY: 26,
+      head: [['Date', 'Vehicle', 'Driver', 'Odo', 'Δ km', 'Liters', 'Cost', 'km/L', 'Status']],
+      body: sortedTableData.map(m => [
+        new Date(m.date).toISOString().split('T')[0],
+        `${m.vehicleName} (${m.plateNumber})`,
+        m.driverName,
+        m.odometer?.toLocaleString() ?? '—',
+        m.tripDistance != null ? m.tripDistance.toLocaleString() : '—',
+        m.liters.toFixed(1),
+        `RM ${m.cost.toFixed(2)}`,
+        m.efficiencyKmL != null ? m.efficiencyKmL.toFixed(2) : '—',
+        m.isOutlier ? 'Outlier' : m.isAnomaly ? 'Anomaly' : m.efficiencyStatus === 'above' ? 'Above' : 'Normal',
+      ]),
+      styles: { fontSize: 7 },
+    });
+    doc.save(`fuel_analytics_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
   // ---------------------------------------------------------------------------
   // RENDER UI
   // ---------------------------------------------------------------------------
@@ -837,83 +897,125 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
           <div className="flex items-center flex-wrap gap-2.5">
             <button
               onClick={handleExportCSV}
-              className="inline-flex items-center px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
-              title="Export complete analytics table as CSV"
+              className="inline-flex items-center px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+              title="Export as CSV"
             >
-              <DocumentDownloadIcon className="h-4 w-4 mr-1.5 text-slate-600" />
-              Export CSV
+              <DocumentDownloadIcon className="h-4 w-4 mr-1.5 text-emerald-600" />
+              CSV
+            </button>
+            <button
+              onClick={handleExportPDF}
+              className="inline-flex items-center px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+              title="Export as PDF"
+            >
+              <DocumentDownloadIcon className="h-4 w-4 mr-1.5 text-amber-600" />
+              PDF
             </button>
             <button
               onClick={() => handleOpenAddForm(selectedVehicleId !== 'all' ? selectedVehicleId : undefined)}
               className="inline-flex items-center px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-xs transition transform hover:-translate-y-0.5 cursor-pointer"
             >
               <PlusIcon className="h-4 w-4 mr-1.5" />
-              Record Fuel Purchase
+              Record Fuel
             </button>
           </div>
         </div>
 
-        {/* CONTROLS & DATE PRESETS */}
-        <div className="mt-5 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
-          {/* Vehicle Selector */}
-          <div className="flex items-center gap-2">
-            <label className="font-bold text-slate-600">Vehicle Scope:</label>
-            <select
-              value={selectedVehicleId}
-              onChange={(e) => setSelectedVehicleId(e.target.value)}
-              className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 font-bold text-slate-800 text-xs focus:ring-2 focus:ring-amber-500 outline-none"
-            >
-              <option value="all">All Fleet Vehicles ({vehicles.length})</option>
-              {vehicles.map(v => (
-                <option key={v.id} value={v.id}>
-                  {v.name} ({v.plateNumber})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Date Range Segmented Controls */}
-          <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
-            {(['all', '30d', '90d', 'year', 'custom'] as const).map(preset => (
-              <button
-                key={preset}
-                onClick={() => setDateRangePreset(preset)}
-                className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
-                  dateRangePreset === preset
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
+        {/* CONTROLS & DATE PRESETS — collapsible on mobile */}
+        <div className="mt-4 pt-4 border-t border-slate-100">
+          <button
+            type="button"
+            onClick={() => setFiltersOpen(o => !o)}
+            className="sm:hidden w-full flex items-center justify-between px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 mb-3"
+          >
+            <span>Filters · {selectedVehicleId === 'all' ? 'All vehicles' : '1 vehicle'} · {dateRangePreset === 'all' ? 'All time' : dateRangePreset}</span>
+            <span className="text-slate-400">{filtersOpen ? '▲' : '▼'}</span>
+          </button>
+          <div className={`${filtersOpen ? 'flex' : 'hidden'} sm:flex flex-wrap items-center justify-between gap-3 text-xs`}>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <label className="font-bold text-slate-600 shrink-0">Vehicle:</label>
+              <select
+                value={selectedVehicleId}
+                onChange={(e) => { setSelectedVehicleId(e.target.value); setCurrentPage(1); }}
+                className="flex-1 sm:flex-none bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 font-bold text-slate-800 text-xs focus:ring-2 focus:ring-amber-500 outline-none"
               >
-                {preset === 'all' && 'All Time'}
-                {preset === '30d' && 'Last 30 Days'}
-                {preset === '90d' && 'Last 90 Days'}
-                {preset === 'year' && 'This Year'}
-                {preset === 'custom' && 'Custom Date'}
-              </button>
-            ))}
-          </div>
-
-          {/* Custom Date Pickers */}
-          {dateRangePreset === 'custom' && (
-            <div className="flex items-center gap-2 animate-in fade-in duration-150">
-              <input
-                type="date"
-                value={customStartDate}
-                onChange={e => setCustomStartDate(e.target.value)}
-                className="border border-slate-300 rounded-lg px-2 py-1 text-xs text-slate-700 bg-white"
-              />
-              <span className="text-slate-400 font-bold">to</span>
-              <input
-                type="date"
-                value={customEndDate}
-                onChange={e => setCustomEndDate(e.target.value)}
-                className="border border-slate-300 rounded-lg px-2 py-1 text-xs text-slate-700 bg-white"
-              />
+                <option value="all">All Fleet Vehicles ({vehicles.length})</option>
+                {vehicles.map(v => (
+                  <option key={v.id} value={v.id}>
+                    {v.name} ({v.plateNumber})
+                  </option>
+                ))}
+              </select>
             </div>
-          )}
+
+            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl overflow-x-auto max-w-full">
+              {(['all', '30d', '90d', 'year', 'custom'] as const).map(preset => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => { setDateRangePreset(preset); setCurrentPage(1); }}
+                  className={`px-2.5 sm:px-3 py-1 text-xs font-bold rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
+                    dateRangePreset === preset
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {preset === 'all' && 'All Time'}
+                  {preset === '30d' && '30 Days'}
+                  {preset === '90d' && '90 Days'}
+                  {preset === 'year' && 'This Year'}
+                  {preset === 'custom' && 'Custom'}
+                </button>
+              ))}
+            </div>
+
+            {dateRangePreset === 'custom' && (
+              <div className="flex items-center gap-2 animate-in fade-in duration-150 w-full sm:w-auto">
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={e => { setCustomStartDate(e.target.value); setCurrentPage(1); }}
+                  className="border border-slate-300 rounded-lg px-2 py-1 text-xs text-slate-700 bg-white flex-1"
+                />
+                <span className="text-slate-400 font-bold">to</span>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={e => { setCustomEndDate(e.target.value); setCurrentPage(1); }}
+                  className="border border-slate-300 rounded-lg px-2 py-1 text-xs text-slate-700 bg-white flex-1"
+                />
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
+      {/* SECTION TABS — progressive disclosure */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-1.5 shadow-xs flex gap-1 sticky top-2 z-20">
+        {([
+          { id: 'overview' as const, label: 'Overview', hint: 'KPIs & trends' },
+          { id: 'logs' as const, label: 'Fuel Logs', hint: `${sortedTableData.length} records` },
+          { id: 'tools' as const, label: 'Estimator', hint: 'Trip cost planner' },
+        ]).map(tab => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex-1 rounded-xl px-3 py-2.5 text-center transition cursor-pointer ${
+              activeTab === tab.id
+                ? 'bg-amber-50 text-amber-900 shadow-xs border border-amber-200'
+                : 'text-slate-600 hover:bg-slate-50 border border-transparent'
+            }`}
+          >
+            <span className="block text-xs font-extrabold">{tab.label}</span>
+            <span className="block text-[10px] font-medium opacity-70 mt-0.5">{tab.hint}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* ═══ OVERVIEW TAB ═══ */}
+      {activeTab === 'overview' && (
+      <>
       {/* HEALTH ALERT BANNER (If degradation detected) */}
       {healthAlerts.length > 0 ? (
         <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4.5 text-amber-900 shadow-xs">
@@ -933,6 +1035,13 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
               <p className="text-xs text-amber-800 leading-relaxed">
                 The telematics engine detected 3 consecutive refueling intervals with declining fuel efficiency (km/L). This pattern is a primary indicator of mechanical drag, clogged air filters, fouled spark plugs, or suboptimal tire pressure.
               </p>
+              <button
+                type="button"
+                onClick={() => { setTableOutlierFilter('outliers_only'); setActiveTab('logs'); setCurrentPage(1); }}
+                className="mt-2 inline-flex items-center px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-[11px] font-bold cursor-pointer"
+              >
+                Review flagged records →
+              </button>
               <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                 {healthAlerts.map(a => (
                   <div key={a.vehicleId} className="bg-white/90 border border-amber-200 rounded-xl p-2.5 text-xs space-y-1">
@@ -1583,6 +1692,12 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
         </div>
       </div>
 
+      </>
+      )}
+
+      {/* ═══ TOOLS TAB — Estimator ═══ */}
+      {activeTab === 'tools' && (
+      <>
       {/* --------------------------------------------------------------------- */}
       {/* SECTION C: TRIP COST ESTIMATOR WIDGET                                 */}
       {/* --------------------------------------------------------------------- */}
@@ -1693,6 +1808,12 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
         </div>
       </div>
 
+      </>
+      )}
+
+      {/* ═══ LOGS TAB — Table ═══ */}
+      {activeTab === 'logs' && (
+      <>
       {/* --------------------------------------------------------------------- */}
       {/* SECTION D: DATA TABLE & CRUD (WITH ANOMALY INDICATORS)                */}
       {/* --------------------------------------------------------------------- */}
@@ -1809,8 +1930,8 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
-              {sortedTableData.length > 0 ? (
-                sortedTableData.map(log => {
+              {paginatedTableData.length > 0 ? (
+                paginatedTableData.map(log => {
                   return (
                     <tr key={log.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-3.5 py-2.5 whitespace-nowrap font-medium text-slate-700">
@@ -1904,15 +2025,90 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
                 })
               ) : (
                 <tr>
-                  <td colSpan={12} className="text-center py-8 text-slate-400 font-medium">
-                    No fuel purchase logs found matching the filter criteria.
+                  <td colSpan={12} className="text-center py-12">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl">
+                        <FuelIcon className="h-6 w-6" />
+                      </div>
+                      <p className="text-sm font-bold text-slate-700">No fuel records match these filters</p>
+                      <p className="text-xs text-slate-500 max-w-xs">Try widening the date range, switching vehicle, or clearing the search.</p>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenAddForm(selectedVehicleId !== 'all' ? selectedVehicleId : undefined)}
+                        className="mt-2 inline-flex items-center px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold cursor-pointer"
+                      >
+                        <PlusIcon className="h-4 w-4 mr-1.5" />
+                        Record first fill
+                      </button>
+                    </div>
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {sortedTableData.length > 0 && (
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1">
+            <div className="flex items-center gap-2 text-xs text-slate-600">
+              <span className="font-medium">
+                Showing {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, sortedTableData.length)} of {sortedTableData.length}
+              </span>
+              <select
+                value={pageSize}
+                onChange={e => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+                className="border border-slate-300 rounded-lg px-2 py-1 text-xs bg-white font-bold cursor-pointer"
+              >
+                <option value={10}>10 / page</option>
+                <option value={25}>25 / page</option>
+                <option value={50}>50 / page</option>
+                <option value={100}>100 / page</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                disabled={safePage <= 1}
+                onClick={() => setCurrentPage(1)}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-bold border border-slate-200 disabled:opacity-40 hover:bg-slate-50 cursor-pointer"
+              >
+                First
+              </button>
+              <button
+                type="button"
+                disabled={safePage <= 1}
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-bold border border-slate-200 disabled:opacity-40 hover:bg-slate-50 cursor-pointer"
+              >
+                Prev
+              </button>
+              <span className="px-3 py-1.5 text-xs font-extrabold text-slate-800">
+                {safePage} / {totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={safePage >= totalPages}
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-bold border border-slate-200 disabled:opacity-40 hover:bg-slate-50 cursor-pointer"
+              >
+                Next
+              </button>
+              <button
+                type="button"
+                disabled={safePage >= totalPages}
+                onClick={() => setCurrentPage(totalPages)}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-bold border border-slate-200 disabled:opacity-40 hover:bg-slate-50 cursor-pointer"
+              >
+                Last
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+
+      </>
+      )}
 
       {/* --------------------------------------------------------------------- */}
       {/* QUICK MODAL / FORM FOR NEW OR EDIT FUEL LOG                           */}
