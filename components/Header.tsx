@@ -1,5 +1,7 @@
 import React from 'react';
 import { useAppContext } from '../context/AppContext';
+import { SunIcon, MoonIcon } from './icons/Icons';
+import { useTheme } from '../hooks/useTheme';
 import { 
     TruckIcon, 
     LogoutIcon, 
@@ -45,6 +47,7 @@ const NavItem: React.FC<{
 
 const Header: React.FC<HeaderProps> = ({ activeView, setActiveView }) => {
     const { currentUser, activeTenant, logout } = useAppContext();
+    const { isDark, toggleTheme } = useTheme();
     
     const adminNavItems = [
         { view: 'dashboard', label: 'Dashboard', icon: <ViewGridIcon className="h-4 w-4" /> },
@@ -90,6 +93,15 @@ const Header: React.FC<HeaderProps> = ({ activeView, setActiveView }) => {
                                         </span>
                                     </div>
                                 </div>
+                                <button
+                                    type="button"
+                                    onClick={toggleTheme}
+                                    className="flex items-center justify-center bg-indigo-700/80 hover:bg-indigo-600 text-white p-2 rounded-xl border border-indigo-600 shadow-sm active:scale-95 transition"
+                                    aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                                    title={isDark ? 'Light mode' : 'Dark mode'}
+                                >
+                                    {isDark ? <SunIcon className="h-4 w-4" /> : <MoonIcon className="h-4 w-4" />}
+                                </button>
                                 <button
                                     onClick={logout}
                                     className="flex items-center bg-indigo-700/80 hover:bg-indigo-600 text-white font-medium p-2 sm:px-3 sm:py-2 rounded-xl text-sm transition border border-indigo-600 shadow-sm active:scale-95"

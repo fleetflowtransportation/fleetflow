@@ -12,17 +12,27 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['Inter', 'sans-serif'],
-            },
-          },
+<script>
+  // Apply theme BEFORE paint (elak white flash)
+  (function () {
+    try {
+      var t = localStorage.getItem('armada-theme');
+      var dark = t === 'dark' || (t !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      if (dark) document.documentElement.classList.add('dark');
+    } catch (e) {}
+  })();
+
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['Inter', 'sans-serif'],
         },
-      }
-    </script>
+      },
+    },
+  };
+</script>
     <style>
       @media print {
         body.is-printing > :not(#print-container) {
@@ -42,7 +52,7 @@
       }
     </style>
   </head>
-  <body class="bg-gray-50">
+<body class="bg-gray-50 text-gray-800 dark:bg-slate-950 dark:text-slate-100">
     <div id="root"></div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
