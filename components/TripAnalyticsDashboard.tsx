@@ -97,6 +97,12 @@ export const TripAnalyticsDashboard: React.FC<TripAnalyticsDashboardProps> = ({ 
   const [sortAsc, setSortAsc] = useState(false);
   const [mileageFilter, setMileageFilter] = useState<'all' | 'with_km' | 'missing_km'>('all');
 
+  // UX: section tabs, pagination, mobile filters
+  const [activeTab, setActiveTab] = useState<'overview' | 'logs'>('overview');
+  const [pageSize, setPageSize] = useState<number>(25);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [filtersOpen, setFiltersOpen] = useState<boolean>(false);
+
   const drivers = useMemo(
     () => users.filter(u => u.role === 'driver' || u.role === 'admin'),
     [users]
@@ -443,7 +449,15 @@ export const TripAnalyticsDashboard: React.FC<TripAnalyticsDashboardProps> = ({ 
       setSortField(field);
       setSortAsc(field === 'date' ? false : true);
     }
+    setCurrentPage(1);
   };
+
+  const totalPages = Math.max(1, Math.ceil(sortedTableData.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedTableData = useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return sortedTableData.slice(start, start + pageSize);
+  }, [sortedTableData, safePage, pageSize]);
 
   const handlePrint = () => {
     const node = document.getElementById('trip-analytics-printable');
@@ -587,12 +601,21 @@ export const TripAnalyticsDashboard: React.FC<TripAnalyticsDashboardProps> = ({ 
           </div>
         </div>
 
-        <div className="mt-5 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex items-center flex-wrap gap-2">
+        <div className="mt-4 pt-4 border-t border-slate-100">
+          <button
+            type="button"
+            onClick={() => setFiltersOpen(o => !o)}
+            className="sm:hidden w-full flex items-center justify-between px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 mb-3"
+          >
+            <span>Filters · {dateRangePreset === 'all' ? 'All time' : dateRangePreset}</span>
+            <span className="text-slate-400">{filtersOpen ? '▲' : '▼'}</span>
+          </button>
+          <div className={`${filtersOpen ? 'flex' : 'hidden'} sm:flex flex-wrap items-center justify-between gap-3 text-xs`}>
+          <div className="flex items-center flex-wrap gap-2 w-full lg:w-auto">
             <label className="font-bold text-slate-600">Vehicle:</label>
             <select
               value={selectedVehicleId}
-              onChange={e => setSelectedVehicleId(e.target.value)}
+              onChange={e => { setSelectedVehicleId(e.target.value); setCurrentPage(1); }}
               className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 font-bold text-slate-800 text-xs focus:ring-2 focus:ring-indigo-500 outline-none"
             >
               <option value="all">All Fleet Vehicles ({vehicles.length})</option>
@@ -606,7 +629,7 @@ export const TripAnalyticsDashboard: React.FC<TripAnalyticsDashboardProps> = ({ 
             <label className="font-bold text-slate-600 ml-1">Driver:</label>
             <select
               value={selectedDriverId}
-              onChange={e => setSelectedDriverId(e.target.value)}
+              onChange={e => { setSelectedDriverId(e.target.value); setCurrentPage(1); }}
               className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 font-bold text-slate-800 text-xs focus:ring-2 focus:ring-indigo-500 outline-none"
             >
               <option value="all">All Drivers</option>
@@ -619,58 +642,56 @@ export const TripAnalyticsDashboard: React.FC<TripAnalyticsDashboardProps> = ({ 
             </select>
           </div>
 
-          <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
+          <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl overflow-x-auto max-w-full">
             {(['all', '30d', '90d', 'year', 'custom'] as const).map(preset => (
               <button
                 key={preset}
                 type="button"
-                onClick={() => setDateRangePreset(preset)}
-                className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+                onClick={() => { setDateRangePreset(preset); setCurrentPage(1); }}
+                className={`px-2.5 sm:px-3 py-1 text-xs font-bold rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
                   dateRangePreset === preset
                     ? 'bg-white text-slate-900 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 {preset === 'all' && 'All Time'}
-                {preset === '30d' && 'Last 30 Days'}
-                {preset === '90d' && 'Last 90 Days'}
+                {preset === '30d' && '30 Days'}
+                {preset === '90d' && '90 Days'}
                 {preset === 'year' && 'This Year'}
-                {preset === 'custom' && 'Custom Date'}
+                {preset === 'custom' && 'Custom'}
               </button>
             ))}
           </div>
 
           {dateRangePreset === 'custom' && (
-            <div className="flex items-center gap-2 animate-in fade-in duration-150">
+            <div className="flex items-center gap-2 animate-in fade-in duration-150 w-full sm:w-auto">
               <input
                 type="date"
                 value={customStartDate}
-                onChange={e => setCustomStartDate(e.target.value)}
-                className="border border-slate-300 rounded-lg px-2 py-1 text-xs text-slate-700 bg-white"
+                onChange={e => { setCustomStartDate(e.target.value); setCurrentPage(1); }}
+                className="border border-slate-300 rounded-lg px-2 py-1 text-xs text-slate-700 bg-white flex-1"
               />
               <span className="text-slate-400 font-bold">to</span>
               <input
                 type="date"
                 value={customEndDate}
-                onChange={e => setCustomEndDate(e.target.value)}
-                className="border border-slate-300 rounded-lg px-2 py-1 text-xs text-slate-700 bg-white"
+                onChange={e => { setCustomEndDate(e.target.value); setCurrentPage(1); }}
+                className="border border-slate-300 rounded-lg px-2 py-1 text-xs text-slate-700 bg-white flex-1"
               />
             </div>
           )}
-        </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl w-full sm:w-auto">
             {([
-              { id: 'all', label: 'All Service Types' },
+              { id: 'all', label: 'All Types' },
               { id: 'driver', label: 'With Driver' },
               { id: 'self-drive', label: 'Self-Drive' },
             ] as const).map(opt => (
               <button
                 key={opt.id}
                 type="button"
-                onClick={() => setServiceFilter(opt.id)}
-                className={`px-3 py-1 text-[11px] font-bold rounded-lg transition cursor-pointer ${
+                onClick={() => { setServiceFilter(opt.id); setCurrentPage(1); }}
+                className={`px-2.5 sm:px-3 py-1 text-[11px] font-bold rounded-lg transition cursor-pointer whitespace-nowrap ${
                   serviceFilter === opt.id ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'
                 }`}
               >
@@ -678,9 +699,34 @@ export const TripAnalyticsDashboard: React.FC<TripAnalyticsDashboardProps> = ({ 
               </button>
             ))}
           </div>
+          </div>
         </div>
       </div>
 
+      {/* SECTION TABS */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-1.5 shadow-xs flex gap-1 sticky top-2 z-20">
+        {([
+          { id: 'overview' as const, label: 'Overview', hint: 'KPIs & trends' },
+          { id: 'logs' as const, label: 'Trip Log', hint: `${sortedTableData.length} records` },
+        ]).map(tab => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex-1 rounded-xl px-3 py-2.5 text-center transition cursor-pointer ${
+              activeTab === tab.id
+                ? 'bg-indigo-50 text-indigo-900 shadow-xs border border-indigo-200'
+                : 'text-slate-600 hover:bg-slate-50 border border-transparent'
+            }`}
+          >
+            <span className="block text-xs font-extrabold">{tab.label}</span>
+            <span className="block text-[10px] font-medium opacity-70 mt-0.5">{tab.hint}</span>
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'overview' && (
+      <>
       {healthOk ? (
         <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-3.5 flex items-center justify-between text-xs text-emerald-900">
           <div className="flex items-center gap-2">
@@ -713,6 +759,13 @@ export const TripAnalyticsDashboard: React.FC<TripAnalyticsDashboardProps> = ({ 
               <p className="text-xs text-amber-800 leading-relaxed">
                 {kpis.missingPct.toFixed(0)}% of trips in this period have no usable distance. Monthly vehicle km and driver workload will under-count until odometer logs (or booking end readings) are completed.
               </p>
+              <button
+                type="button"
+                onClick={() => { setMileageFilter('missing_km'); setActiveTab('logs'); setCurrentPage(1); }}
+                className="mt-2 inline-flex items-center px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-[11px] font-bold cursor-pointer"
+              >
+                Review missing trips →
+              </button>
             </div>
           </div>
         </div>
@@ -939,6 +992,12 @@ export const TripAnalyticsDashboard: React.FC<TripAnalyticsDashboardProps> = ({ 
         </div>
       </div>
 
+      </>
+      )}
+
+      {/* ═══ LOGS TAB ═══ */}
+      {activeTab === 'logs' && (
+      <>
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4" id="trip-analytics-printable">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
@@ -973,7 +1032,7 @@ export const TripAnalyticsDashboard: React.FC<TripAnalyticsDashboardProps> = ({ 
             </div>
             <select
               value={mileageFilter}
-              onChange={e => setMileageFilter(e.target.value as typeof mileageFilter)}
+              onChange={e => { setMileageFilter(e.target.value as typeof mileageFilter); setCurrentPage(1); }}
               className="border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs bg-slate-50 font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer"
             >
               <option value="all">All Records</option>
@@ -983,7 +1042,92 @@ export const TripAnalyticsDashboard: React.FC<TripAnalyticsDashboardProps> = ({ 
           </div>
         </div>
 
-        <div className="overflow-x-auto border border-slate-200 rounded-xl">
+        {/* Mobile card list */}
+        <div className="md:hidden space-y-3">
+          {paginatedTableData.length === 0 ? (
+            <div className="text-center py-12 border border-slate-200 rounded-xl bg-slate-50/50">
+              <div className="flex flex-col items-center gap-2">
+                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl">
+                  <RouteIcon className="h-6 w-6" />
+                </div>
+                <p className="text-sm font-bold text-slate-700">No trips match these filters</p>
+                <p className="text-xs text-slate-500">Widen the date range or clear search to see more results.</p>
+              </div>
+            </div>
+          ) : (
+            paginatedTableData.map(trip => (
+              <div
+                key={trip.id}
+                className={`rounded-2xl border p-4 space-y-3 shadow-xs ${
+                  trip.missingMileage ? 'border-amber-300 bg-amber-50/40' : 'border-slate-200 bg-white'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-bold text-slate-500 flex items-center gap-1.5">
+                      {parseAsLocal(trip.date).toLocaleDateString('en-GB')}
+                      <span className="text-slate-300">·</span>
+                      <span className="font-medium text-slate-400 flex items-center gap-0.5">
+                        <ClockIcon className="h-3 w-3" />
+                        {trip.source === 'odometer' ? 'Odo log' : 'Booking'}
+                      </span>
+                    </div>
+                    <div className="font-extrabold text-slate-900 text-sm truncate">{trip.vehicleName}</div>
+                    <div className="font-mono text-[11px] text-slate-500">{trip.plateNumber}</div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    {trip.missingMileage ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 font-bold text-[10px]">
+                        No km
+                      </span>
+                    ) : (
+                      <span className={`text-sm font-black ${trip.isLongHaul ? 'text-indigo-800' : 'text-slate-900'}`}>
+                        {formatKm(trip.distance, 0)}
+                      </span>
+                    )}
+                    <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+                      trip.serviceType === 'Self-Drive'
+                        ? 'bg-slate-200 text-slate-700'
+                        : 'bg-indigo-50 text-indigo-800'
+                    }`}>
+                      {trip.serviceType === 'Self-Drive' ? 'Self-Drive' : trip.serviceType === 'Perlu Driver' ? 'With Driver' : 'Unknown'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="text-xs">
+                  <div className="font-semibold text-slate-800">
+                    {trip.fromLocation} <span className="text-slate-400">→</span> {trip.toLocation}
+                  </div>
+                  <div className="text-slate-600 mt-0.5 truncate" title={trip.purpose}>{trip.purpose}</div>
+                  {trip.department && (
+                    <div className="text-[10px] text-slate-400 mt-0.5">{trip.department}</div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100 text-xs">
+                  <div className="text-slate-600">
+                    <span className="text-slate-400 font-medium">Driver </span>
+                    <span className="font-bold text-slate-800">{trip.driverName}</span>
+                  </div>
+                  <div className="text-slate-600">
+                    {trip.passengerCount > 0 ? (
+                      <span className="inline-flex items-center gap-1 font-semibold">
+                        <UsersIcon className="h-3.5 w-3.5 text-slate-400" />
+                        {trip.passengerCount} pax
+                      </span>
+                    ) : (
+                      <span className="text-slate-400">— pax</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden md:block overflow-x-auto border border-slate-200 rounded-xl">
           <table className="min-w-full divide-y divide-slate-200 text-xs">
             <thead className="bg-slate-50">
               <tr>
@@ -1013,7 +1157,7 @@ export const TripAnalyticsDashboard: React.FC<TripAnalyticsDashboardProps> = ({ 
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
               {sortedTableData.length > 0 ? (
-                sortedTableData.map(trip => (
+                paginatedTableData.map(trip => (
                   <tr key={trip.id} className={`hover:bg-slate-50 ${trip.missingMileage ? 'bg-amber-50/40' : ''}`}>
                     <td className="px-3.5 py-2.5 whitespace-nowrap font-medium text-slate-700">
                       <div>{parseAsLocal(trip.date).toLocaleDateString('en-GB')}</div>
@@ -1071,14 +1215,55 @@ export const TripAnalyticsDashboard: React.FC<TripAnalyticsDashboardProps> = ({ 
               ) : (
                 <tr>
                   <td colSpan={8} className="text-center py-10 text-slate-400 font-medium">
-                    No trips match the selected filters.
+                    <div className="flex flex-col items-center gap-2 py-4">
+                      <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl">
+                        <RouteIcon className="h-6 w-6" />
+                      </div>
+                      <p className="text-sm font-bold text-slate-700">No trips match these filters</p>
+                      <p className="text-xs text-slate-500">Widen the date range or clear search to see more results.</p>
+                    </div>
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {sortedTableData.length > 0 && (
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1">
+            <div className="flex items-center gap-2 text-xs text-slate-600">
+              <span className="font-medium">
+                Showing {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, sortedTableData.length)} of {sortedTableData.length}
+              </span>
+              <select
+                value={pageSize}
+                onChange={e => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+                className="border border-slate-300 rounded-lg px-2 py-1 text-xs bg-white font-bold cursor-pointer"
+              >
+                <option value={10}>10 / page</option>
+                <option value={25}>25 / page</option>
+                <option value={50}>50 / page</option>
+                <option value={100}>100 / page</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button type="button" disabled={safePage <= 1} onClick={() => setCurrentPage(1)}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-bold border border-slate-200 disabled:opacity-40 hover:bg-slate-50 cursor-pointer">First</button>
+              <button type="button" disabled={safePage <= 1} onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-bold border border-slate-200 disabled:opacity-40 hover:bg-slate-50 cursor-pointer">Prev</button>
+              <span className="px-3 py-1.5 text-xs font-extrabold text-slate-800">{safePage} / {totalPages}</span>
+              <button type="button" disabled={safePage >= totalPages} onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-bold border border-slate-200 disabled:opacity-40 hover:bg-slate-50 cursor-pointer">Next</button>
+              <button type="button" disabled={safePage >= totalPages} onClick={() => setCurrentPage(totalPages)}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-bold border border-slate-200 disabled:opacity-40 hover:bg-slate-50 cursor-pointer">Last</button>
+            </div>
+          </div>
+        )}
       </div>
+      </>
+      )}
+
     </div>
   );
 };
