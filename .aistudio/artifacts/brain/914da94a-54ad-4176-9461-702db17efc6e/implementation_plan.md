@@ -1,122 +1,96 @@
-# Fleet Vehicle Fuel Tank Capacity & Comprehensive Fuel Analytics Suite
+# Pelan Pelaksanaan: Minimalist Logs & Penyelesaian Edit Pemandu Self-Drive
 
-Implement vehicle fuel tank capacity (liters) configuration and an advanced, enterprise-grade Fuel & Efficiency analytics suite in FleetFlow to transform raw fuel receipts and odometer logs into actionable operational intelligence.
-
----
-
-### User Review & Critical Decisions
-
-> [!IMPORTANT]
-> The following core design decisions were confirmed via interactive consultation:
-
-- **Confirmed Decision 1 (Analytics Scope)**: Deploy a **Comprehensive Suite with All Fuel Metrics**, including estimated remaining driving range (km), tank fullness levels (%), true consumption (L/100km & km/L), cost per km (RM/km), refuel volume vs. tank capacity sanity checks, and sudden consumption anomaly alerts.
-- **Confirmed Decision 2 (Data Configuration)**: Vehicle fuel tank capacity is configured per vehicle in **Liters (L)** within Step 3 of the **Vehicle Profile / Vehicle Form**, equipped with quick-fill presets based on vehicle category (e.g. 50L for Sedan, 70L for Van/Hiace, 100L for Lorry).
-- **Confirmed Decision 3 (Interface Location)**: Delivered in a dedicated **Fuel & Efficiency Analytics** workspace inside the **Reports** module, accessible to fleet managers alongside trip odometer audit logs.
+Pelan ini memperkemaskan struktur navigasi **Logs** daripada 3 tab bertindih kepada **2 tab terfokus (Odometer & Trip Logs, dan Fuel Logs)**, menghapuskan tab "Reports & Exports" yang mengelirukan, dan menyelesaikan isu modal kemas kini odometer bagi pemandu luar (*other / self-drive driver*).
 
 ---
 
-### 1. Overview & Core Concept
+## Ringkasan Cadangan & Pandangan
 
-- **What It Does**: Enhances the fleet management system with tank capacity awareness. Fleet managers and supervisors can specify exact fuel tank capacities for every vehicle in the fleet. The analytics engine combines tank volume with historical odometer entries and fuel purchase logs to estimate real-time vehicle range, detect abnormal refuels (such as receipts exceeding physical tank limits or sudden drops in fuel economy), and deliver precision cost-efficiency breakdowns per vehicle and per driver.
-- **Target Audience / Persona**: Fleet managers, logistics coordinators, accountants, and drivers monitoring vehicle readiness and operational operating costs.
-- **Key Value**:
-  - Eliminates fuel theft / receipt tampering risks through tank capacity sanity checks.
-  - Improves dispatch safety by knowing estimated range autonomy before assigning long-distance trips.
-  - Optimizes maintenance scheduling by flagging vehicles with degrading fuel efficiency (>15% drop from baseline).
+> [!NOTE]
+> **Pandangan Jurutera:** Cadangan anda untuk menghapuskan tab *Reports & Exports* dan memindahkan analitik ke dalam tab log masing-masing adalah **langkah reka bentuk UX yang sangat tepat dan praktikal**. Sebelum ini berlaku pertindihan kerana pengguna terpaksa bertukar ke Tab 3 hanya untuk melihat carta atau muat turun laporan trip/minyak, sedangkan data asalnya berada di Tab 1 dan Tab 2.
 
----
-
-### 2. User Experience & Visual Design
-
-- **Key User Flows**:
-  1. *Vehicle Tank Setup*: When adding or editing a vehicle in `VehicleForm`, the user enters the fuel tank capacity in Liters (with one-click suggestion chips: `45L`, `55L`, `70L`, `100L`).
-  2. *Refuel Entry Validation*: When entering fuel logs in `FuelLogForm`, entering liters greater than the vehicle's tank capacity immediately triggers an advisory warning (*"Warning: 85L exceeds vehicle tank capacity of 70L"*).
-  3. *Fuel Analytics Exploration*: Navigating to `Reports > Fuel & Efficiency` presents:
-     - **Fleet Fuel Overview Strip**: Total fuel expenditure, fleet average efficiency (km/L & L/100km), active vehicles tracked, and detected anomaly alerts.
-     - **Vehicle Tank & Autonomy Gauges**: High-contrast, interactive cards showing each vehicle's physical tank capacity, estimated current fuel level, and projected remaining driving range (km).
-     - **Refuel Volume & Tank Utilization Chart**: Chronological timeline of refills mapped against vehicle capacity limits.
-     - **Anomaly & Risk Feed**: Clear, unboxed tabular log highlighting any overfills or steep efficiency drops (>15% deviation).
-     - **Trip Cost & Autonomy Estimator**: Interactive calculator allowing dispatchers to simulate route distance and view estimated fuel liters needed and cost for any vehicle.
-
-- **Visual Identity & Theme**:
-  - *Design System*: Follows the SaaS & Dashboard visual constitution (neutral dark slate `#0F172A` / clean `#FFFFFF` canvas, `border border-slate-200/80` hairline dividers, single-elevation depth).
-  - *Typography*: Clean sans display pairings (`Plus Jakarta Sans` / `DM Sans`), strictly enforcing monospace tabular figures (`font-mono tabular-nums`) for all volumes (L), distances (km), rates (RM/km), and currency values.
-  - *Zero-Pill Discipline*: Unboxed metadata with quiet typographic separators (`·`, `/`) instead of candy badge sandwiches.
-  - *Palette*:
-    - Nominal / High Efficiency: Emerald (`text-emerald-700 bg-emerald-50/70 border-emerald-200/80`)
-    - Warning / Near Empty / Moderate Drop: Amber (`text-amber-700 bg-amber-50/70 border-amber-200/80`)
-    - Alert / Overfill / Anomaly: Crimson (`text-rose-700 bg-rose-50/70 border-rose-200/80`)
-    - Primary Accents: Indigo / Slate (`text-indigo-600 bg-indigo-50/50`)
-
-- **Interactive Feedback & Empty States**:
-  - Rich shimmer skeleton loaders matching exact metric card geometry during data loading.
-  - Informative empty states when a vehicle has no tank capacity configured, with a 1-click `"Configure Tank Capacity"` direct action button.
+Struktur baharu ini memberikan pengalaman **"single source of truth"**:
+1. Melihat jarak dan perjalanan? Semuanya ada di **Odometer & Trip Logs**.
+2. Melihat kos dan penggunaan minyak? Semuanya ada di **Fuel Logs**.
+3. Menyunting log odometer pemandu luar? Boleh disimpan terus tanpa dipaksa memilih pemandu berdaftar.
 
 ---
 
-### 3. Key Product Decisions & Trade-Offs
-
-- **Decision 1: Graceful Tank Capacity Fallback**:
-  - *Chosen Approach*: If a vehicle's tank capacity has not yet been specified, default to a category-based baseline estimate (e.g. Sedan = 50L, Van = 70L, Lorry = 100L) with a visual indicator prompting the user to confirm the exact value.
-  - *Why*: Prevents analytics breakdown or divide-by-zero errors for existing fleets while encouraging data completeness.
-  - *Alternatives Considered*: Blocking analytics until all vehicles are manually updated (rejected as disruptive to daily operations).
-
-- **Decision 2: Refuel Volume vs. Full Tank Validation (Soft Warning)**:
-  - *Chosen Approach*: Soft warning and flagged anomaly status rather than hard blocking form submission.
-  - *Why*: Real-world edge cases exist (e.g. filling extra jerrycans for heavy machinery or remote trips); flagging as an anomaly preserves data while giving managers transparency.
-
-- **Decision 3: Range & Fuel Level Estimation Algorithm**:
-  - *Chosen Approach*: Combine the vehicle's rolling median km/L efficiency with the last known refuel date/odometer and subsequent trip logs to project realistic remaining range and tank level.
-  - *Why*: Significantly more accurate than static manufacturer claims, reflecting real driver habits and vehicle load conditions.
-
----
-
-### 4. Technical Architecture & Data Strategy
+## 1. Perubahan Struktur Tab (2-Tab Minimalist)
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                          FLEETFLOW APP STATE                           │
-│  AppContext (Vehicles, FuelLogs, OdometerLogs, Bookings, Users)        │
-└──────────────────┬─────────────────────────────────┬───────────────────┘
-                   │                                 │
-                   ▼                                 ▼
-┌────────────────────────────────────┐ ┌─────────────────────────────────┐
-│     Vehicle Form & Management      │ │   Fuel & Efficiency Analytics   │
-│  - fuelTankCapacityLiters (number) │ │   Engine (Reports Module)       │
-│  - Quick presets (45, 55, 70, 100) │ │                                 │
-│  - Realtime validation on edit     │ │  ┌───────────────────────────┐  │
-└────────────────────────────────────┘ │  │  Derived Metrics Pipeline │  │
-                                       │  │  - Chronological Sorting  │  │
-                                       │  │  - Tank Fullness (%)      │  │
-                                       │  │  - Range Remaining (KM)   │  │
-                                       │  │  - True km/L & L/100km    │  │
-                                       │  │  - Overfill & Drop Audits │  │
-                                       │  │  - Cost / KM (RM)         │  │
-                                       │  └─────────────┬─────────────┘  │
-                                       │                │                │
-                                       │  ┌─────────────▼─────────────┐  │
-                                       │  │ UI Visualizations:        │  │
-                                       │  │ - Fleet Summary KPIs      │  │
-                                       │  │ - Vehicle Autonomy Gauges │  │
-                                       │  │ - Refuel Sanity Feed      │  │
-                                       │  │ - Trip Cost Estimator     │  │
-                                       │  └───────────────────────────┘  │
-                                       └─────────────────────────────────┘
+SEBELUM (3 Tab + Sub-switchers yang berselerak):
+├── Tab 1: Odometer Logs (Jadual & Kad Asas)
+├── Tab 2: Fuel Purchase Logs (Jadual & Bulk Delete)
+└── Tab 3: Reports & Export
+    ├── Sub-view A: Fuel Analytics Dashboard (Graf, KPI, Anomali, Eksport)
+    └── Sub-view B: Fleet Trip Reports & Export (Trip mileage, Bulanan, Eksport)
+
+SELEPAS (2 Tab Bersih & Bersepadu):
+├── Tab 1: Odometer & Trip Logs
+│   ├── Sub-toggle Kemas / Segmented Switcher:
+│   │   ├── [Analitik & Laporan] (KPI Jarak, Trend Bulanan, Eksport CSV/PDF Trip)
+│   │   └── [Senarai Log Perjalanan] (Jadual terperinci Odometer & Perjalanan + Edit)
+│   └── Butang Tindakan Pantas: "Log Odometer Baharu" & "Eksport Laporan"
+└── Tab 2: Fuel Purchase Logs
+    ├── Sub-toggle Kemas / Segmented Switcher:
+    │   ├── [Telematik & Analitik] (Kecekapan km/L, Amaran Enjin, Kos & Anomali)
+    │   └── [Senarai Pembelian Minyak] (Jadual terperinci resit & belian minyak)
+    └── Butang Tindakan Pantas: "Tambah Belian Minyak" & "Eksport Laporan"
 ```
 
-#### A. Data Model Enhancements (`types.ts`)
-- Add `fuelTankCapacityLiters?: number;` to the `Vehicle` interface.
-- Add `tankCapacityLiters?: number;`, `estimatedRemainingRangeKm?: number;`, `tankFullnessPercent?: number;`, and `isOverfillAnomaly?: boolean;` to `DerivedFuelMetric`.
+---
 
-#### B. Component Modifications
-1. `types.ts`: Update `Vehicle` and metric types.
-2. `components/VehicleForm.tsx`: Add field `fuelTankCapacityLiters` to Section 3 (Technical & Fuel Specifications) with numeric input and quick-suggestion badges.
-3. `components/VehicleManagement.tsx`: Render fuel tank capacity in vehicle detail view and vehicle table chips.
-4. `components/FuelLogForm.tsx` & `components/FuelAnalyticsDashboard.tsx`: Add tank capacity sanity checks and warning indicators when entered liters exceed vehicle capacity.
-5. `components/FuelAnalyticsDashboard.tsx` & `components/Reports.tsx`:
-   - Upgrade the Fuel Analytics Dashboard with the comprehensive suite:
-     - Real-time vehicle fuel tank fullness meters.
-     - Projected remaining range calculations based on current odometer and fuel delta.
-     - Refuel volume sanity checks (detecting overfill anomalies).
-     - Vehicle efficiency leaderboards (best/worst km/L).
-     - Interactive Trip Fuel Cost & Autonomy Estimator.
+## 2. Penyelesaian Masalah Edit Odometer (Other / Self-Drive Driver)
+
+### Isu Semasa
+Apabila log dimasukkan menerusi portal `?action=odometer` oleh pemandu *self-drive* atau staf luar (bukan pemandu berdaftar sistem), nilainya disimpan sebagai `staff-nama` atau `staffName`. Apabila pengguna cuba mengedit log tersebut dalam `OdometerLogEditForm`:
+- Borang menganggap pemandu tersebut tidak sah atau memaksa memilih pemandu berdaftar (`users.role === 'driver'`).
+- Jika pengguna cuba simpan, ralat timbul atau butang simpan tidak membenarkan pengubahsuaian tanpa memilih pemandu berdaftar.
+
+### Penyelesaian Praktikal
+1. **Pengecaman Automatik Nama Pemandu Luar:**
+   - Apabila modal dibuka, jika `logToEdit.driverId` bukan ID pemandu berdaftar (atau ada `staffName`), dropdown akan memilih pilihan `__other__` (atau senarai staf self-drive) dan memaparkan nama pemandu tersebut secara automatik dalam kotak teks nama pemandu.
+2. **Pilihan Staf & Pemandu Lengkap:**
+   - Menyediakan kumpulan pilihan yang jelas:
+     - **Pemandu Berdaftar & Pentadbir** (akaun sistem).
+     - **Staf Self-Drive** (senarai sah dari sistem self-drive).
+     - **Pemandu Luar / Pemandu Ganti (Custom Name)**.
+3. **Validasi Fleksibel & Selamat:**
+   - Membenarkan simpanan terus dengan nama teks biasa bagi pemandu luar tanpa sebarang halangan atau keperluan membuka akaun pemandu rasmi.
+
+---
+
+## 3. Komponen & Pelaksanaan Teknikal
+
+### A. Kemas Kini `components/Reports.tsx`
+- Buang tab `reports` daripada `activeSubTab` (`'odometer' | 'fuel'`).
+- Di bawah tab **Odometer & Trip Logs**:
+  - Satukan `TripAnalyticsDashboard` bersama jadual log odometer dengan kawalan sub-tab / toggle kemas (Overview Analitik vs Log Perjalanan).
+- Di bawah tab **Fuel Logs**:
+  - Satukan `FuelAnalyticsDashboard` bersama fungsi resit dan pembelian bahan api.
+- Padamkan kod berulang dan permudahkan bilah penapis utama.
+
+### B. Kemas Kini `components/OdometerLogEditForm.tsx`
+- Pastikan sokongan penuh kepada medan pemandu luar:
+  - Paparan input nama pemandu yang diisi secara automatik mengikut data sedia ada (`logToEdit.staffName || logToEdit.driverId`).
+  - Benarkan penjimatan rekod tanpa memerlukan pemandu berdaftar.
+  - Sediakan senarai pilihan staf *self-drive* yang aktif daripada storan jika pengguna ingin memilih staf yang sudah berdaftar di bahagian self-drive.
+
+### C. Kemas Kini Butang Navigasi Luaran & Pautan
+- Pastikan pautan pintasan dari papan pemuka utama (contohnya pautan terus ke `/reports` atau `/fuel`) memetakan secara tepat kepada tab `'odometer'` atau `'fuel'`.
+
+---
+
+## 4. Pengesahan & Ujian (Verification)
+1. **Ujian Aliran Tab:**
+   - Navigasi ke halaman Logs dan sahkan hanya ada 2 tab utama yang kemas.
+   - Uji penukaran antara paparan Analitik dan paparan Log terperinci bagi kedua-dua tab.
+2. **Ujian Edit Log Pemandu Self-Drive:**
+   - Buka log perjalanan yang didaftarkan daripada portal awam atau pemandu tidak berdaftar.
+   - Klik butang edit (ikon pensel) dan pastikan nama pemandu muncul dengan betul.
+   - Ubah sebarang data (contohnya bacaan odometer atau tujuan) dan klik **Update Odometer Log**.
+   - Sahkan rekod berjaya dikemas kini tanpa sebarang ralat validasi.
+3. **Ujian Eksport & Semakan Kompilasi:**
+   - Pastikan butang eksport PDF dan CSV berfungsi lancar dalam kedua-dua paparan.
+   - Jalankan `compile_applet` untuk memastikan tiada sebarang ralat sintaks atau TypeScript.

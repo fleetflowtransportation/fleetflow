@@ -37,7 +37,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
   defaultBookingId,
   defaultBookingIds
 }) => {
-  const { updateOdometerLog, addOdometerLog, vehicles, users, currentUser, odometerLogs, bookings } = useAppContext();
+  const { updateOdometerLog, addOdometerLog, vehicles, users, currentUser, odometerLogs, bookings, selfDriveStaff } = useAppContext();
   useBodyScrollLock(isOpen);
   const [formData, setFormData] = useState<FormData>(emptyFormData);
   const [driverSelection, setDriverSelection] = useState<string>('');
@@ -73,7 +73,12 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
     if (justOpened || logChanged) {
       setError('');
       if (logToEdit) {
-        const isRegistered = drivers.some(d => d.id === logToEdit.driverId);
+        const isRegistered = drivers.find(d => d.id === logToEdit.driverId);
+        const matchedStaff = (selfDriveStaff || []).find(s => 
+          s.id === logToEdit.driverId || 
+          (logToEdit.driverId && logToEdit.driverId.replace(/^staff-/, '') === s.id) ||
+          (logToEdit.staffName && s.name.trim().toLowerCase() === logToEdit.staffName.trim().toLowerCase())
+        );
         
         let initialCustomName = '';
         if (logToEdit.staffName && logToEdit.staffName.trim()) {
@@ -90,12 +95,20 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
           initialCustomName = logToEdit.driverId;
         }
 
-        setDriverSelection(isRegistered ? logToEdit.driverId : '__other__');
-        setCustomDriverName(initialCustomName);
+        if (isRegistered) {
+          setDriverSelection(isRegistered.id);
+          setCustomDriverName('');
+        } else if (matchedStaff) {
+          setDriverSelection(`staff-${matchedStaff.id}`);
+          setCustomDriverName(matchedStaff.name);
+        } else {
+          setDriverSelection('__other__');
+          setCustomDriverName(initialCustomName || 'Other Driver');
+        }
 
         setFormData({
           vehicleId: logToEdit.vehicleId || '',
-          driverId: isRegistered ? logToEdit.driverId : '__other__',
+          driverId: isRegistered ? isRegistered.id : (matchedStaff ? `staff-${matchedStaff.id}` : '__other__'),
           date: logToEdit.date ? new Date(logToEdit.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
           fromLocation: logToEdit.fromLocation || '',
           toLocation: logToEdit.toLocation || '',
@@ -192,7 +205,17 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
     let finalDriverId = driverSelection;
     let finalStaffName: string | undefined = undefined;
 
-    if (driverSelection === '__other__') {
+    if (driverSelection.startsWith('staff-')) {
+      const staffMemberId = driverSelection.replace(/^staff-/, '');
+      const staff = (selfDriveStaff || []).find(s => s.id === staffMemberId);
+      if (staff) {
+        finalStaffName = staff.name;
+        finalDriverId = `staff-${staff.id}`;
+      } else {
+        finalDriverId = driverSelection;
+        finalStaffName = customDriverName.trim() || driverSelection.replace(/^staff-/, '').replace(/-/g, ' ');
+      }
+    } else if (driverSelection === '__other__') {
       const trimmedName = customDriverName.trim();
       if (!trimmedName) {
         setError('Please enter the name of the other driver / self-drive staff.');
@@ -208,6 +231,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
     } else {
       const regUser = users.find(u => u.id === driverSelection);
       finalStaffName = regUser ? regUser.name : undefined;
+      finalDriverId = driverSelection;
     }
 
     const start = formData.startOdometer !== '' ? Number(formData.startOdometer) : undefined;
@@ -316,7 +340,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
                 required 
                 className="w-full text-xs border border-slate-300 rounded-xl p-2.5 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-medium cursor-pointer"
               >
-                <option value="">-- Select Driver --</option>
+                <option value="">-- Select Driver / Staff --</option>
                 <optgroup label="Registered Fleet Drivers & Admins">
                   {drivers.map(d => (
                     <option key={d.id} value={d.id}>
@@ -324,8 +348,19 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
                     </option>
                   ))}
                 </optgroup>
-                <optgroup label="Self-Drive & Non-Registered Staff">
-                  <option value="__other__">🚗 Other Driver / Self-Drive Staff</option>
+                {selfDriveStaff && selfDriveStaff.filter(s => s.status === 'active').length > 0 && (
+                  <optgroup label="Authorized Self-Drive Staff">
+                    {selfDriveStaff
+                      .filter(s => s.status === 'active')
+                      .map(s => (
+                        <option key={s.id} value={`staff-${s.id}`}>
+                          {s.name} ({s.department || 'Self-Drive'})
+                        </option>
+                      ))}
+                  </optgroup>
+                )}
+                <optgroup label="Other Driver / Custom Name">
+                  <option value="__other__">🚗 Other Driver / Custom Staff Name</option>
                 </optgroup>
               </select>
 

@@ -39,7 +39,11 @@ const dateFilters = [
   { key: 'custom', label: 'Custom Date Range...' },
 ];
 
-const Reports: React.FC = () => {
+interface ReportsProps {
+  initialSubTab?: 'odometer' | 'fuel';
+}
+
+const Reports: React.FC<ReportsProps> = ({ initialSubTab = 'odometer' }) => {
   const { 
     fuelLogs, 
     users, 
@@ -50,8 +54,17 @@ const Reports: React.FC = () => {
     deleteOdometerLog 
   } = useAppContext();
 
-  // Active Sub-Tab: 'odometer' | 'fuel' | 'reports'
-  const [activeSubTab, setActiveSubTab] = useState<'odometer' | 'fuel' | 'reports'>('odometer');
+  // Active Sub-Tab: 'odometer' | 'fuel' (defaults to 'fuel' if navigating directly to /fuel)
+  const [activeSubTab, setActiveSubTab] = useState<'odometer' | 'fuel'>(() => {
+    if (typeof window !== 'undefined' && window.location.pathname.toLowerCase().includes('fuel')) {
+      return 'fuel';
+    }
+    return initialSubTab;
+  });
+
+  // Sub-view switchers within each primary tab
+  const [odoViewMode, setOdoViewMode] = useState<'analytics' | 'logs'>('analytics');
+  const [fuelSubView, setFuelSubView] = useState<'analytics' | 'logs'>('analytics');
 
   // --- Odometer Logs State ---
   const [editingOdoLog, setEditingOdoLog] = useState<OdometerLog | null>(null);
@@ -80,9 +93,6 @@ const Reports: React.FC = () => {
     startDate: '',
     endDate: ''
   });
-
-  // --- General Trip Filters for Reports Tab ---
-  const [reportsView, setReportsView] = useState<'fuel_analytics' | 'trip_reports'>('fuel_analytics');
 
   const drivers = useMemo(() => users.filter(u => u.role === 'driver' || u.role === 'admin'), [users]);
 
@@ -493,7 +503,7 @@ const Reports: React.FC = () => {
           </div>
         </div>
 
-        {/* SUB-TABS NAVIGATION */}
+        {/* SUB-TABS NAVIGATION (2 MINIMALIST TABS) */}
         <div className="mt-6 flex border-b border-slate-200 space-x-4 sm:space-x-8">
           <button
             onClick={() => setActiveSubTab('odometer')}
@@ -504,7 +514,7 @@ const Reports: React.FC = () => {
             }`}
           >
             <GaugeIcon className="h-4 w-4 mr-2" />
-            Odometer Logs
+            Odometer & Trip Logs
             <span className={`ml-2 px-2 py-0.5 text-xs rounded-full font-bold ${
               activeSubTab === 'odometer' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-600'
             }`}>
@@ -528,26 +538,64 @@ const Reports: React.FC = () => {
               {fuelLogs.length}
             </span>
           </button>
-
-          <button
-            onClick={() => setActiveSubTab('reports')}
-            className={`pb-3 text-sm font-bold flex items-center border-b-2 transition ${
-              activeSubTab === 'reports'
-                ? 'border-slate-800 text-slate-800'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <DocumentReportIcon className="h-4 w-4 mr-2" />
-            Reports & Export
-          </button>
         </div>
       </div>
 
       {/* ========================================================================= */}
-      {/* TAB 1: ODOMETER LOGS (FULL CRUD)                                          */}
+      {/* TAB 1: ODOMETER & TRIP LOGS                                               */}
       {/* ========================================================================= */}
       {activeSubTab === 'odometer' && (
         <div className="space-y-6">
+          {/* Sub-view switcher inside Odometer & Trips */}
+          <div className="flex items-center justify-between flex-wrap gap-3 bg-white p-2.5 rounded-2xl border border-slate-200 shadow-xs">
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setOdoViewMode('analytics')}
+                className={`px-3.5 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-2 cursor-pointer ${
+                  odoViewMode === 'analytics'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <RouteIcon className="h-4 w-4" />
+                <span>Trip Analytics & Reports</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setOdoViewMode('logs')}
+                className={`px-3.5 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-2 cursor-pointer ${
+                  odoViewMode === 'logs'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <GaugeIcon className="h-4 w-4" />
+                <span>Odometer Log Entries</span>
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  odoViewMode === 'logs' ? 'bg-indigo-700/80 text-white' : 'bg-slate-200 text-slate-700'
+                }`}>
+                  {odometerLogs.length}
+                </span>
+              </button>
+            </div>
+
+            <span className="text-xs text-slate-500 font-medium hidden sm:inline">
+              {odoViewMode === 'analytics' 
+                ? 'Fleet mileage trends, trip telematics, and mileage export' 
+                : 'Raw odometer reading submissions and log management'}
+            </span>
+          </div>
+
+          {odoViewMode === 'analytics' ? (
+            <TripAnalyticsDashboard
+              onOpenOdoModal={(log) => {
+                setEditingOdoLog(log || null);
+                setIsOdoModalOpen(true);
+              }}
+            />
+          ) : (
+            <>
           {/* STATS OVERVIEW */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
@@ -854,14 +902,66 @@ const Reports: React.FC = () => {
               })}
             </div>
           </div>
+            </>
+          )}
         </div>
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 2: FUEL LOGS (SEGMENTED BY VEHICLE & BULK ACTIONS)                   */}
+      {/* TAB 2: FUEL PURCHASE LOGS & ANALYTICS                                     */}
       {/* ========================================================================= */}
       {activeSubTab === 'fuel' && (
         <div className="space-y-6">
+          {/* Sub-view switcher inside Fuel Logs */}
+          <div className="flex items-center justify-between flex-wrap gap-3 bg-white p-2.5 rounded-2xl border border-slate-200 shadow-xs">
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setFuelSubView('analytics')}
+                className={`px-3.5 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-2 cursor-pointer ${
+                  fuelSubView === 'analytics'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <FuelIcon className="h-4 w-4" />
+                <span>Fuel Telematics & Analytics</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFuelSubView('logs')}
+                className={`px-3.5 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-2 cursor-pointer ${
+                  fuelSubView === 'logs'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <DocumentReportIcon className="h-4 w-4" />
+                <span>Purchase Entries & Receipts</span>
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  fuelSubView === 'logs' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-700'
+                }`}>
+                  {fuelLogs.length}
+                </span>
+              </button>
+            </div>
+
+            <span className="text-xs text-slate-500 font-medium hidden sm:inline">
+              {fuelSubView === 'analytics' 
+                ? 'Chronological fuel telematics, anomalies, km/L efficiency, and cost estimator' 
+                : 'Fuel purchase records, receipt previews, and bulk export'}
+            </span>
+          </div>
+
+          {fuelSubView === 'analytics' ? (
+            <FuelAnalyticsDashboard
+              onOpenFuelModal={(log) => {
+                setEditingFuelLog(log || null);
+                setIsFuelModalOpen(true);
+              }}
+            />
+          ) : (
+            <>
           {/* VEHICLE QUICK SELECTOR PILLS */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
             <div className="flex items-center justify-between mb-3">
@@ -1582,72 +1682,10 @@ const Reports: React.FC = () => {
               </div>
             </div>
           )}
+            </>
+          )}
         </div>
       )}
-
-      {/* ========================================================================= */}
-      {/* TAB 3: REPORTS & ANALYTICS (SUMMARY & EXPORTS)                             */}
-      {/* ========================================================================= */}
-      {activeSubTab === 'reports' && (
-        <div className="space-y-6">
-          {/* Sub-view switcher inside Reports & Export */}
-          <div className="flex items-center justify-between flex-wrap gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
-            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl">
-              <button
-                type="button"
-                onClick={() => setReportsView('fuel_analytics')}
-                className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-2 cursor-pointer ${
-                  reportsView === 'fuel_analytics'
-                    ? 'bg-amber-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <FuelIcon className="h-4 w-4" />
-                <span>Fuel Analytics Dashboard</span>
-                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
-                  reportsView === 'fuel_analytics' ? 'bg-amber-700/80 text-white' : 'bg-amber-100 text-amber-800'
-                }`}>
-                  Live
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setReportsView('trip_reports')}
-                className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-2 cursor-pointer ${
-                  reportsView === 'trip_reports'
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <RouteIcon className="h-4 w-4" />
-                <span>Fleet Trip Reports & Export</span>
-              </button>
-            </div>
-
-            <span className="text-xs text-slate-500 font-medium hidden sm:inline">
-              {reportsView === 'fuel_analytics' 
-                ? 'Chronological fuel telematics, anomalies, and consumption modeling' 
-                : 'Historical completed trip logs and monthly mileage exports'}
-            </span>
-          </div>
-
-          {reportsView === 'fuel_analytics' ? (
-            <FuelAnalyticsDashboard
-              onOpenFuelModal={(log) => {
-                setEditingFuelLog(log || null);
-                setIsFuelModalOpen(true);
-              }}
-            />
-          ) : (
-            <TripAnalyticsDashboard
-              onOpenOdoModal={(log) => {
-                setEditingOdoLog(log || null);
-                setIsOdoModalOpen(true);
-              }}
-            />
-          )}
-    </div>
-  )}
 
       {/* ODOMETER MODAL (CREATE / EDIT) */}
       <OdometerLogEditForm

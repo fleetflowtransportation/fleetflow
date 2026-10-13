@@ -1,6 +1,6 @@
 {
-  "summary":  "Implementation plan for vehicle fuel tank capacity configuration and comprehensive fleet fuel analytics suite inside Reports.",
-  "updatedAt":  "2026-10-12T06:03:09.955069582Z",
-  "requestFeedback":  true,
-  "userFacing":  true
+  "summary": "Implementation plan to consolidate Logs tabs from 3 tabs into 2 minimalist tabs (Odometer & Trip Logs, and Fuel Logs), eliminating the redundant Reports & Exports tab while integrating analytics into each log view, and fixing the driver selection constraint in the Odometer edit modal to seamlessly support other and self-drive drivers.",
+  "updatedAt": "2026-10-13T08:16:14.791887561Z",
+  "requestFeedback": true,
+  "userFacing": true
 }
