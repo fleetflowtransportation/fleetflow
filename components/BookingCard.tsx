@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import type { Booking, User, Vehicle, PassengerCategory } from '../types';
 import { CalendarIcon, ClockIcon, LocationMarkerIcon, UserGroupIcon, CheckCircleIcon, XCircleIcon, TruckIcon, EditIcon, ArrowUpCircleIcon, PaperClipIcon, RewindIcon, TrashIcon, InformationCircleIcon, UserCircleIcon, RepeatIcon, RouteIcon } from './icons/Icons';
 import { useAppContext } from '../context/AppContext';
-import { parseAsLocal, getPickupLocationDisplay } from '../utils';
+import { parseAsLocal, getPickupLocationDisplay, getStops, getRouteLabel } from '../utils';
 
 interface BookingCardProps {
   booking: Booking;
@@ -107,7 +107,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
             className="h-5 w-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer"
             checked={isSelected}
             onChange={handleSelect}
-            aria-label={`Select booking for ${booking.destination}`}
+            aria-label={`Select booking for ${getRouteLabel(booking)}`}
           />
         </div>
       )}
@@ -115,7 +115,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
       <div className={`p-5 ${isSelectable ? 'pl-12' : ''}`}>
         <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-4">
           <div>
-            <h3 className="text-xl font-bold text-gray-800">{booking.destination}</h3>
+            <h3 className="text-xl font-bold text-gray-800">{getRouteLabel(booking)}</h3>
             <p className="text-md text-gray-600">{booking.purpose}</p>
           </div>
           <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${style.bg} ${style.text} ring-1 ring-inset ${style.ring}`}>
@@ -140,7 +140,30 @@ const BookingCard: React.FC<BookingCardProps> = ({
           </div>
           <div className="flex items-start space-x-2">
             <LocationMarkerIcon className="h-5 w-5 text-gray-400 flex-shrink-0 mt-0.5" />
-            <span className="flex-1"><b>Drop-off:</b> {booking.destination}</span>
+            <span className="flex-1">
+              {(() => {
+                const stops = getStops(booking);
+                if (stops.length <= 1) {
+                  return <><b>Drop-off:</b> {stops[0]?.address || booking.destination || '—'}</>;
+                }
+                return (
+                  <>
+                    <b>Route ({stops.length} stops):</b>
+                    <ol className="mt-1 space-y-0.5 list-none">
+                      {stops.map((s) => (
+                        <li key={s.id} className="flex gap-1.5 text-sm">
+                          <span className="font-bold text-indigo-600 shrink-0">{s.sequence}.</span>
+                          <span>
+                            {s.address}
+                            {s.notes ? <span className="text-gray-400 text-xs"> — {s.notes}</span> : null}
+                          </span>
+                        </li>
+                      ))}
+                    </ol>
+                  </>
+                );
+              })()}
+            </span>
           </div>
           <div className="flex items-center space-x-2">
             <UserGroupIcon className="h-5 w-5 text-gray-400" />

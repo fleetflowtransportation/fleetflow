@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { parseAsLocal, getPickupLocationDisplay, isOtherPickup } from '../utils';
 import type { Booking } from '../types';
+import { parseAsLocal, getPickupLocationDisplay, isOtherPickup, getRouteLabel, getStops } from '../utils';
 import BookingForm from './BookingForm';
 import { 
   SearchIcon, 
@@ -338,7 +338,7 @@ export const BookingManagementList: React.FC = () => {
         escapeCSV(b.department || ''),
         escapeCSV(getPickupLocationDisplay(b.pickupPoint, b.address)),
         escapeCSV(b.address || ''),
-        escapeCSV(b.destination),
+        escapeCSV(getRouteLabel(b)),
         escapeCSV(b.purpose),
         escapeCSV(totalPax),
         escapeCSV(driver?.name || 'Unassigned'),
@@ -854,8 +854,8 @@ export const BookingManagementList: React.FC = () => {
                           <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-100">
                             To
                           </span>
-                          <span className="font-bold text-gray-900 line-clamp-1" title={b.destination}>
-                            {b.destination}
+                          <span className="font-bold text-gray-900 line-clamp-1" title={getRouteLabel(b)}>
+                            {getRouteLabel(b)}
                           </span>
                         </div>
                         {b.purpose && (
@@ -994,7 +994,7 @@ export const BookingManagementList: React.FC = () => {
                         <strong className="text-emerald-700 font-bold">Pickup:</strong> {pickupDisplay}
                       </p>
                       <p className="text-gray-800 font-bold">
-                        <strong className="text-blue-700 font-bold">Destination:</strong> {b.destination}
+                        <strong className="text-blue-700 font-bold">Destination:</strong> {getRouteLabel(b)}
                       </p>
                       {b.purpose && (
                         <p className="text-gray-400 italic text-[11px]">Purpose: {b.purpose}</p>
@@ -1238,7 +1238,7 @@ export const BookingManagementList: React.FC = () => {
                 </div>
                 <div className="pt-2 border-t border-indigo-100/60">
                   <span className="text-blue-700 font-bold uppercase text-[10px] block">Destination</span>
-                  <p className="font-extrabold text-gray-900 text-sm mt-0.5">{detailsBooking.destination}</p>
+                  <p className="font-extrabold text-gray-900 text-sm mt-0.5">{getRouteLabel(detailsBooking)}</p>
                   {detailsBooking.purpose && (
                     <p className="text-gray-600 mt-1">Purpose: {detailsBooking.purpose}</p>
                   )}

@@ -11,7 +11,7 @@ import {
   XIcon, 
   TruckIcon 
 } from './icons/Icons';
-import { parseAsLocal, getPickupLocationDisplay } from '../utils';
+import { parseAsLocal, getPickupLocationDisplay, getStops, getRouteLabel } from '../utils';
 import { getDriverCalendarColor } from '../services/bookingEngine';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
@@ -107,8 +107,8 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
       
       const deptStr = booking.department ? ` (${booking.department})` : '';
       const updatedTitle = driverLabel
-        ? `(${driverLabel}) ${booking.requesterName}${deptStr} → ${booking.destination}`
-        : `${booking.requesterName}${deptStr} → ${booking.destination}`;
+        ? `(${driverLabel}) ${booking.requesterName}${deptStr} → ${getRouteLabel(booking)}`
+        : `${booking.requesterName}${deptStr} → ${getRouteLabel(booking)}`;
       
       const newColor = isSelfDrive ? 'grey' : (chosenDriver ? getDriverCalendarColor(chosenDriver.name) : 'grey');
 
@@ -150,7 +150,7 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (onDelete && window.confirm(`Are you sure you want to delete booking "${booking.requesterName} → ${booking.destination}"?`)) {
+    if (onDelete && window.confirm(`Are you sure you want to delete booking "${booking.requesterName} → ${getRouteLabel(booking)}"?`)) {
       onDelete(booking.id);
       onClose();
     }
@@ -188,7 +188,7 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
               </span>
             </div>
             <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-snug break-words">
-              {booking.calendarEventTitle || `${booking.requesterName} → ${booking.destination}`}
+              {booking.calendarEventTitle || `${booking.requesterName} → ${getRouteLabel(booking)}`}
             </h3>
             <p className="text-xs text-slate-500 mt-1 flex items-center gap-1 font-medium">
               <ClockIcon className="h-3.5 w-3.5 shrink-0 text-slate-400 inline" />
@@ -369,13 +369,33 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
             )}
           </div>
 
-          {/* Destination & Pickup Card */}
+          {/* Route & Pickup Card */}
           <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
             <div className="flex items-start gap-2.5">
               <LocationMarkerIcon className="h-4 w-4 text-rose-500 mt-0.5 shrink-0" />
-              <div className="flex-1">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Destination</span>
-                <p className="font-bold text-slate-900 text-sm sm:text-base">{booking.destination}</p>
+              <div className="flex-1 min-w-0">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  {getStops(booking).length > 1 ? `Route (${getStops(booking).length} stops)` : 'Destination'}
+                </span>
+                {getStops(booking).length > 1 ? (
+                  <ol className="mt-1.5 space-y-1.5 list-none">
+                    {getStops(booking).map((s) => (
+                      <li key={s.id} className="flex gap-2">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-rose-500 text-[10px] font-black text-white">
+                          {s.sequence}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-900 text-sm leading-snug">{s.address}</p>
+                          {s.notes ? (
+                            <p className="text-xs text-slate-500 mt-0.5">{s.notes}</p>
+                          ) : null}
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p className="font-bold text-slate-900 text-sm sm:text-base">{getRouteLabel(booking)}</p>
+                )}
               </div>
             </div>
 
@@ -483,7 +503,7 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
           ) : (
             <div className="w-full flex flex-col gap-2">
               {/* Driver actions based on booking status */}
-              {booking.status === 'Assigned' && onAcceptJob && (
+              {(booking.status === 'Assigned' || booking.status === 'Pending') && onAcceptJob && (
                 <button
                   type="button"
                   onClick={(e) => {
@@ -498,7 +518,7 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
                 </button>
               )}
 
-              {(booking.status === 'Confirmed' || booking.status === 'Assigned') && (onDirectComplete || onLogMeter) && (
+              {(booking.status === 'Confirmed' || booking.status === 'Assigned' || booking.status === 'Pending') && (onDirectComplete || onLogMeter) && (
                 <div className="flex items-center gap-2">
                   {onLogMeter && booking.status === 'Confirmed' && (
                     <button
@@ -514,7 +534,7 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
                       Log Meter
                     </button>
                   )}
-                  {onDirectComplete && (booking.status === 'Confirmed' || booking.status === 'Assigned') && booking.status !== 'Completed' && (
+                  {onDirectComplete && (booking.status === 'Confirmed' || booking.status === 'Assigned' || booking.status === 'Pending') && booking.status !== 'Completed' && (
                     <button
                       type="button"
                       onClick={(e) => {

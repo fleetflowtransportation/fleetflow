@@ -127,14 +127,27 @@ export const DEPARTMENTS = ['Management', 'Program', 'ALPD', 'Care Provider', 'S
 
 export const PICKUP_POINTS = ['YCK', 'PJBA', 'Other Location (Please Specify)'];
 
+/** One stop in a multi-stop booking route (Phase 1). */
+export interface BookingStop {
+  id: string;           // stable key for React lists
+  sequence: number;     // 1-based order
+  address: string;      // required
+  notes?: string;       // optional (gate, contact, etc.)
+}
+
+export const MAX_BOOKING_STOPS = 5;
+
 export interface Booking {
   id:string;
+  /** Derived from stops for backward compatibility: single address or "A → B → C". Always kept in sync on save. */
   destination: string;
   purpose: string;
   dateTime: string;
   finishDateTime?: string;
   pickupPoint: string;
   address: string;
+  /** Structured multi-stop route. Optional for legacy bookings — use getStops() helper. */
+  stops?: BookingStop[];
   passengers: PassengerCount[];
   escort?: string;
   shouldWait: boolean;

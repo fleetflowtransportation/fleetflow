@@ -205,6 +205,7 @@ const toDbBooking = (b: Partial<Booking>) => {
   return {
     ...(b.id && { id: b.id }),
     ...(b.destination !== undefined && { destination: b.destination }),
+    ...(b.stops !== undefined && { stops: b.stops }),
     ...(b.purpose !== undefined && { purpose: b.purpose }),
     ...(b.dateTime !== undefined && { date_time: b.dateTime }),
     ...(b.finishDateTime !== undefined && { finish_date_time: b.finishDateTime }),
@@ -250,6 +251,7 @@ const toDbBooking = (b: Partial<Booking>) => {
 const fromDbBooking = (row: any): Booking => ({
   id: row.id,
   destination: row.destination,
+  stops: row.stops || undefined,
   purpose: row.purpose,
   dateTime: row.date_time,
   finishDateTime: row.finish_date_time || undefined,

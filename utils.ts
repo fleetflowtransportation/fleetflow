@@ -1,6 +1,9 @@
 /**
  * Parsers and helpers for handling dates and times consistently.
+ * Multi-stop route helpers (Phase 1) included at the bottom.
  */
+
+import type { Booking, BookingStop } from './types';
 
 export const parseAsLocal = (dateStr: string | Date | undefined | null): Date => {
   if (!dateStr) return new Date();
@@ -91,4 +94,74 @@ export const getPickupLocationDisplay = (
   }
 
   return cleanPickup || 'Not Specified';
+};
+
+// ─── Multi-stop route helpers (Phase 1) ───────────────────────────────────────
+
+/** Build a short unique id for a stop row (client-side). */
+export const createStopId = (): string =>
+  `stop_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+
+/**
+ * Normalize stops from a booking. Legacy bookings without `stops` fall back
+ * to a single stop from `destination`.
+ */
+export const getStops = (booking: Pick<Booking, 'destination' | 'stops'> | null | undefined): BookingStop[] => {
+  if (!booking) return [];
+  if (booking.stops && booking.stops.length > 0) {
+    return [...booking.stops]
+      .filter(s => s && (s.address || '').trim())
+      .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
+      .map((s, i) => ({
+        id: s.id || createStopId(),
+        sequence: i + 1,
+        address: (s.address || '').trim(),
+        notes: s.notes?.trim() || undefined,
+      }));
+  }
+  const dest = (booking.destination || '').trim();
+  if (dest) {
+    return [{ id: 'legacy', sequence: 1, address: dest }];
+  }
+  return [];
+};
+
+/** Human-readable route label: "A" or "A → B → C". */
+export const getRouteLabel = (booking: Pick<Booking, 'destination' | 'stops'> | null | undefined): string => {
+  const stops = getStops(booking);
+  if (stops.length === 0) return (booking?.destination || '').trim() || '—';
+  if (stops.length === 1) return stops[0].address;
+  return stops.map(s => s.address).join(' → ');
+};
+
+/** Derive the legacy `destination` string from structured stops. */
+export const deriveDestination = (stops: BookingStop[] | undefined | null, fallback = ''): string => {
+  if (!stops || stops.length === 0) return fallback;
+  const cleaned = stops
+    .map(s => (s.address || '').trim())
+    .filter(Boolean);
+  if (cleaned.length === 0) return fallback;
+  if (cleaned.length === 1) return cleaned[0];
+  return cleaned.join(' → ');
+};
+
+/**
+ * Prepare stops for persistence: trim, renumber sequence, drop empty addresses.
+ */
+export const normalizeStopsForSave = (
+  stops: Array<{ id?: string; address: string; notes?: string }>
+): BookingStop[] => {
+  return stops
+    .map(s => ({
+      id: s.id || createStopId(),
+      address: (s.address || '').trim(),
+      notes: (s.notes || '').trim() || undefined,
+    }))
+    .filter(s => s.address)
+    .map((s, i) => ({
+      id: s.id,
+      sequence: i + 1,
+      address: s.address,
+      notes: s.notes,
+    }));
 };

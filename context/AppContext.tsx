@@ -884,11 +884,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const restoreBooking = useCallback((bookingId: string) => {
     let restoredBooking: Booking | undefined;
+    let targetStatus: Booking['status'] = 'Pending';
     setBookings(prev => {
       setUndoableAction(bookingId, prev);
       return prev.map(b => {
         if (b.id === bookingId) {
-          restoredBooking = { ...b, status: 'Pending' as Booking['status'] };
+          // If a driver was already assigned to this booking, auto-reassign to 'Assigned' so it appears directly on the Driver UI
+          targetStatus = (b.driverId && b.serviceType !== 'Self-Drive') ? 'Assigned' : 'Pending';
+          restoredBooking = { ...b, status: targetStatus };
           return restoredBooking;
         }
         return b;
@@ -899,7 +902,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       googleCalendarService.updateEvent(activeTenant, restoredBooking).catch(() => {});
     }
 
-    storageService.updateBooking({ id: bookingId, status: 'Pending' }).catch(err => {
+    storageService.updateBooking({ id: bookingId, status: targetStatus }).catch(err => {
       alert('Failed to restore booking: ' + err.message);
     });
   }, [setUndoableAction, activeTenant]);

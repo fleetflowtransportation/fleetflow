@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
-import type { Booking, PassengerCount } from '../types';
-import { DEPARTMENTS, PICKUP_POINTS } from '../types';
+import type { Booking, PassengerCount, BookingStop } from '../types';
+import { DEPARTMENTS, PICKUP_POINTS, MAX_BOOKING_STOPS } from '../types';
 import { 
   XIcon, 
   PaperClipIcon, 
@@ -13,11 +13,12 @@ import {
   UserGroupIcon, 
   LocationMarkerIcon, 
   XCircleIcon,
-  TrashIcon
+  TrashIcon,
+  PlusIcon
 } from './icons/Icons';
 import { BookingResultModal } from './BookingResultModal';
 import { evaluateBookingAssignment, normalizeDate, normalizeTime, type AutoAssignResult } from '../services/bookingEngine';
-import { isOtherPickup } from '../utils';
+import { isOtherPickup, createStopId, getStops, deriveDestination, normalizeStopsForSave, getRouteLabel } from '../utils';
 
 export interface BookingFormProps {
   isOpen?: boolean;
@@ -37,7 +38,7 @@ const emptyFormData = {
   bookingDate: '',
   startTime: '',
   endTime: '',
-  destination: '',
+  // destination removed — use stops state instead
   pickupPoint: '',
   address: '',
   staffCount: '1',
@@ -50,6 +51,10 @@ const emptyFormData = {
   icNumber: '',
   remarks: '',
 };
+
+type StopFormRow = { id: string; address: string; notes: string };
+
+const emptyStopRow = (): StopFormRow => ({ id: createStopId(), address: '', notes: '' });
 
 type FormData = typeof emptyFormData;
 
@@ -91,6 +96,8 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
   } = useAppContext();
   
   const [formData, setFormData] = useState<FormData>(emptyFormData);
+
+  const [stops, setStops] = useState<StopFormRow[]>([emptyStopRow()]);
   const [isRecurring, setIsRecurring] = useState(false);
   const [submissionResult, setSubmissionResult] = useState<AutoAssignResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -123,6 +130,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
 
   const resetForm = useCallback(() => {
     setFormData(emptyFormData);
+    setStops([emptyStopRow()]);
     setIsRecurring(false);
     setRecurrence({ frequency: 'weekly', endDate: '' });
   }, []);
@@ -158,7 +166,6 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
           bookingDate: date,
           startTime,
           endTime,
-          destination: bookingToEdit.destination || '',
           pickupPoint: isOtherPickup(bookingToEdit.pickupPoint) ? OTHER_PICKUP : (bookingToEdit.pickupPoint || ''),
           address: (isOtherPickup(bookingToEdit.pickupPoint) || (bookingToEdit.address && bookingToEdit.address !== bookingToEdit.destination)) ? (bookingToEdit.address || '') : '',
           staffCount: String(staffCount),
@@ -171,6 +178,13 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
           icNumber: bookingToEdit.icNumber || '',
           remarks: bookingToEdit.remarks || '',
         });
+        // Hydrate multi-stop from structured stops or legacy destination
+        const hydrated = getStops(bookingToEdit).map(s => ({
+          id: s.id || createStopId(),
+          address: s.address,
+          notes: s.notes || '',
+        }));
+        setStops(hydrated.length > 0 ? hydrated : [emptyStopRow()]);
         setIsRecurring(false);
       } else {
         resetForm();
@@ -186,6 +200,31 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
       setFormData(prev => ({ ...prev, [name]: value }));
     }
   };
+
+  const handleStopChange = (id: string, field: 'address' | 'notes', value: string) => {
+    setStops(prev => prev.map(s => (s.id === id ? { ...s, [field]: value } : s)));
+  };
+
+  const addStop = () => {
+    setStops(prev => {
+      if (prev.length >= MAX_BOOKING_STOPS) return prev;
+      return [...prev, emptyStopRow()];
+    });
+  };
+
+  const removeStop = (id: string) => {
+    setStops(prev => {
+      if (prev.length <= 1) return prev;
+      return prev.filter(s => s.id !== id);
+    });
+  };
+
+  const routePreview = (() => {
+    const filled = stops.map(s => s.address.trim()).filter(Boolean);
+    if (filled.length === 0) return '';
+    if (filled.length === 1) return filled[0];
+    return filled.join(' → ');
+  })();
 
   const totalPassengers = useMemo(() => {
     return (Number(formData.staffCount) || 0) + (Number(formData.parentsCount) || 0) + (Number(formData.kidsCount) || 0) + (Number(formData.teenagersCount) || 0);
@@ -215,6 +254,12 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
       return;
     }
 
+    const filledStops = stops.filter(s => s.address.trim());
+    if (filledStops.length === 0) {
+      alert('Please enter at least one destination / stop address.');
+      return;
+    }
+
     if (formData.serviceType === 'Self-Drive' && !formData.icNumber.trim()) {
       alert('Please provide an IC/ID number for driving license verification.');
       return;
@@ -233,6 +278,9 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
     const dateTime = `${formData.bookingDate}T${formData.startTime}:00`;
     const finishDateTime = `${formData.bookingDate}T${calculatedEndTime}:00`;
 
+    const normalizedStops = normalizeStopsForSave(stops);
+    const destinationDerived = deriveDestination(normalizedStops);
+
     const processedData: Partial<Booking> = {
       requesterName: formData.requesterName.trim(),
       requesterEmail: formData.requesterEmail.trim(),
@@ -240,7 +288,8 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
       purpose: formData.purpose.trim(),
       dateTime,
       finishDateTime,
-      destination: formData.destination.trim(),
+      destination: destinationDerived,
+      stops: normalizedStops,
       pickupPoint: formData.pickupPoint,
       address: isOtherPickup(formData.pickupPoint) ? formData.address.trim() : '',
       passengers,
@@ -265,7 +314,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
       startTime: formData.startTime,
       endTime: formData.endTime,
       purpose: formData.purpose.trim(),
-      destination: formData.destination.trim(),
+      destination: destinationDerived,
       pickupPoint: formData.pickupPoint,
       address: isOtherPickup(formData.pickupPoint) ? formData.address.trim() : '',
       staffCount: Number(formData.staffCount) || 0,
@@ -523,20 +572,69 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
                   />
                 </div>
 
-                {/* Destination */}
+                {/* Multi-stop Route (Phase 1) */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Destination Address <span className="text-rose-500">*</span>
-                  </label>
-                  <textarea
-                    name="destination"
-                    value={formData.destination}
-                    onChange={handleChange}
-                    required
-                    rows={2}
-                    placeholder="Full address, hospital, school, or venue name"
-                    className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition bg-white"
-                  />
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Route / Stops <span className="text-rose-500">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={addStop}
+                      disabled={stops.length >= MAX_BOOKING_STOPS}
+                      className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <PlusIcon className="w-3.5 h-3.5" />
+                      Add Stop
+                      <span className="text-slate-400 font-medium">({stops.length}/{MAX_BOOKING_STOPS})</span>
+                    </button>
+                  </div>
+                  <div className="space-y-2.5">
+                    {stops.map((stop, index) => (
+                      <div
+                        key={stop.id}
+                        className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 space-y-2"
+                      >
+                        <div className="flex items-start gap-2">
+                          <span className="mt-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-[11px] font-black text-white">
+                            {index + 1}
+                          </span>
+                          <div className="min-w-0 flex-1 space-y-1.5">
+                            <input
+                              type="text"
+                              value={stop.address}
+                              onChange={(e) => handleStopChange(stop.id, 'address', e.target.value)}
+                              required={index === 0}
+                              placeholder={index === 0 ? 'Stop 1 — full address, hospital, school, or venue' : `Stop ${index + 1} — address`}
+                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition bg-white"
+                            />
+                            <input
+                              type="text"
+                              value={stop.notes}
+                              onChange={(e) => handleStopChange(stop.id, 'notes', e.target.value)}
+                              placeholder="Notes (optional) — gate, contact person, etc."
+                              className="w-full px-3 py-1.5 border border-slate-100 rounded-lg text-xs text-slate-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition bg-white"
+                            />
+                          </div>
+                          {stops.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeStop(stop.id)}
+                              className="mt-2 p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                              aria-label={`Remove stop ${index + 1}`}
+                            >
+                              <TrashIcon className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {routePreview && (
+                    <p className="mt-2 text-xs text-slate-500">
+                      <span className="font-bold text-slate-600">Preview:</span> {routePreview}
+                    </p>
+                  )}
                 </div>
 
                 {/* Pickup Point & Custom Address */}

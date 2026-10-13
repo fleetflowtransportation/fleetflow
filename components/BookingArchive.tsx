@@ -848,12 +848,12 @@ export const BookingArchive: React.FC = () => {
               </div>
               <div className="flex-1">
                 <h3 className="text-base font-bold text-slate-900">
-                  {confirmAction.type === 'delete' ? 'Confirm Permanent Deletion' : 'Restore Booking to Pending'}
+                  {confirmAction.type === 'delete' ? 'Confirm Permanent Deletion' : 'Restore Booking'}
                 </h3>
                 <p className="text-xs text-slate-600 mt-1 leading-relaxed">
                   {confirmAction.type === 'delete'
                     ? `Are you sure you want to permanently delete the archived booking for ${confirmAction.name}? This action cannot be reversed.`
-                    : `Restore booking for ${confirmAction.name} back to 'Pending' status so it can be re-scheduled or assigned?`}
+                    : `Restore booking for ${confirmAction.name} back to active schedule? If a driver is already assigned, it will automatically be re-assigned and appear in the Driver UI.`}
                 </p>
               </div>
             </div>

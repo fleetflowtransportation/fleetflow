@@ -29,7 +29,7 @@ import DriverSpeedDial from './DriverSpeedDial';
 import { FeedbackModal } from './FeedbackModal';
 import { BookingDetailModal } from './BookingDetailModal';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
-import { parseAsLocal, getPickupLocationDisplay, isOtherPickup } from '../utils';
+import { parseAsLocal, getPickupLocationDisplay, isOtherPickup, getRouteLabel, getStops } from '../utils';
 
 interface DriverDashboardProps {
   driver: CurrentUser;
@@ -127,6 +127,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
     return (
       (b.requesterName && b.requesterName.toLowerCase().includes(q)) ||
       (b.destination && b.destination.toLowerCase().includes(q)) ||
+      (b.stops && b.stops.some(s => (s.address || '').toLowerCase().includes(q) || (s.notes || '').toLowerCase().includes(q))) ||
       (b.purpose && b.purpose.toLowerCase().includes(q)) ||
       (b.department && b.department.toLowerCase().includes(q)) ||
       (b.address && b.address.toLowerCase().includes(q)) ||
@@ -140,10 +141,10 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
     );
   };
 
-  // 1. Current / Upcoming bookings (Today or Future, status Assigned or Confirmed)
+  // 1. Current / Upcoming bookings (Today or Future, status Assigned, Confirmed, or Pending if assigned to driver)
   const currentBookings = useMemo(() => {
     return bookings
-      .filter(b => b.driverId === driver.id && (b.status === 'Assigned' || b.status === 'Confirmed') && !isPastTrip(b.dateTime))
+      .filter(b => b.driverId === driver.id && (b.status === 'Assigned' || b.status === 'Confirmed' || b.status === 'Pending') && !isPastTrip(b.dateTime))
       .filter(b => matchesSearch(b, driverSearchQuery))
       .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
   }, [bookings, driver.id, driverSearchQuery]);
@@ -151,7 +152,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
   // 2. Pending Odometer bookings from past days (Past date, but not completed yet)
   const pendingOdometerBookings = useMemo(() => {
     return bookings
-      .filter(b => b.driverId === driver.id && (b.status === 'Assigned' || b.status === 'Confirmed') && isPastTrip(b.dateTime))
+      .filter(b => b.driverId === driver.id && (b.status === 'Assigned' || b.status === 'Confirmed' || b.status === 'Pending') && isPastTrip(b.dateTime))
       .filter(b => matchesSearch(b, driverSearchQuery))
       .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime()); // Most recent first
   }, [bookings, driver.id, driverSearchQuery]);
@@ -190,7 +191,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
   const selectedAssignedCount = useMemo(() => {
     return selectedBookingIds.filter(id => {
       const b = bookings.find(x => x.id === id);
-      return b?.status === 'Assigned';
+      return b?.status === 'Assigned' || b?.status === 'Pending';
     }).length;
   }, [selectedBookingIds, bookings]);
 
@@ -215,7 +216,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
   const handleBulkAcceptJobs = () => {
     const assignedIds = selectedBookingIds.filter(id => {
       const b = bookings.find(x => x.id === id);
-      return b?.status === 'Assigned';
+      return b?.status === 'Assigned' || b?.status === 'Pending';
     });
     if (assignedIds.length === 0) return;
     assignedIds.forEach(id => updateBookingStatus(id, 'Confirmed'));
@@ -285,7 +286,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
   };
 
   const renderBookingCard = (booking: Booking, isPastPending = false) => {
-    const isAssigned = booking.status === 'Assigned';
+    const isAssigned = booking.status === 'Assigned' || booking.status === 'Pending';
     const isConfirmed = booking.status === 'Confirmed';
     const isChecked = selectedBookingIds.includes(booking.id);
     const vehicleInfo = getVehicleInfo(booking.vehicleId, booking.serviceType);
@@ -382,8 +383,10 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
             <div className="flex items-start gap-2.5">
               <div className="mt-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-rose-100 shrink-0" />
               <div className="min-w-0 flex-1">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Destination</span>
-                <p className="text-sm font-extrabold text-slate-900 leading-snug line-clamp-2">{booking.destination}</p>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  {getStops(booking).length > 1 ? `Route (${getStops(booking).length})` : 'Destination'}
+                </span>
+                <p className="text-sm font-extrabold text-slate-900 leading-snug line-clamp-2">{getRouteLabel(booking)}</p>
               </div>
             </div>
           </div>
@@ -781,7 +784,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
                         <div className="flex items-center gap-1.5 font-bold text-slate-900">
                           <span>{getPickupLocationDisplay(booking.pickupPoint, booking.address)}</span>
                           <span className="text-slate-400">➡️</span>
-                          <span className="text-indigo-900">{booking.destination}</span>
+                          <span className="text-indigo-900">{getRouteLabel(booking)}</span>
                         </div>
                         <p className="text-[11px] text-slate-600">
                           <strong className="text-slate-700">Purpose:</strong> {booking.purpose}
