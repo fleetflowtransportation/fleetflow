@@ -40,6 +40,8 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
   const { updateOdometerLog, addOdometerLog, vehicles, users, currentUser, odometerLogs, bookings } = useAppContext();
   useBodyScrollLock(isOpen);
   const [formData, setFormData] = useState<FormData>(emptyFormData);
+  const [driverSelection, setDriverSelection] = useState<string>('');
+  const [customDriverName, setCustomDriverName] = useState<string>('');
   const [error, setError] = useState('');
 
   const drivers = useMemo(() => {
@@ -71,9 +73,29 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
     if (justOpened || logChanged) {
       setError('');
       if (logToEdit) {
+        const isRegistered = drivers.some(d => d.id === logToEdit.driverId);
+        
+        let initialCustomName = '';
+        if (logToEdit.staffName && logToEdit.staffName.trim()) {
+          initialCustomName = logToEdit.staffName.trim();
+        } else if (logToEdit.remarks && logToEdit.remarks.includes('Logged by:')) {
+          const match = logToEdit.remarks.match(/Logged by:\s*([^)]+)/i);
+          if (match && match[1]) initialCustomName = match[1].trim();
+        } else if (logToEdit.driverId && logToEdit.driverId.startsWith('staff-')) {
+          initialCustomName = logToEdit.driverId
+            .replace(/^staff-/, '')
+            .replace(/-/g, ' ')
+            .replace(/\b\w/g, c => c.toUpperCase());
+        } else if (!isRegistered && logToEdit.driverId) {
+          initialCustomName = logToEdit.driverId;
+        }
+
+        setDriverSelection(isRegistered ? logToEdit.driverId : '__other__');
+        setCustomDriverName(initialCustomName);
+
         setFormData({
           vehicleId: logToEdit.vehicleId || '',
-          driverId: logToEdit.driverId || '',
+          driverId: isRegistered ? logToEdit.driverId : '__other__',
           date: logToEdit.date ? new Date(logToEdit.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
           fromLocation: logToEdit.fromLocation || '',
           toLocation: logToEdit.toLocation || '',
@@ -104,11 +126,15 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
         }
 
         const defaultDId = initialDriverId || (currentUser?.role === 'driver' ? currentUser.id : (drivers[0]?.id || ''));
+        const isRegistered = drivers.some(d => d.id === defaultDId);
         const latestOdo = chosenVId ? getLatestOdoForVehicle(chosenVId) : 0;
+
+        setDriverSelection(isRegistered ? defaultDId : (defaultDId ? '__other__' : (drivers[0]?.id || '__other__')));
+        setCustomDriverName(isRegistered ? '' : (defaultDId || ''));
 
         setFormData({
           vehicleId: chosenVId,
-          driverId: defaultDId,
+          driverId: isRegistered ? defaultDId : '__other__',
           date: new Date().toISOString().split('T')[0],
           fromLocation: fromLoc,
           toLocation: toLoc,
@@ -158,9 +184,30 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
       setError('Please select a vehicle.');
       return;
     }
-    if (!formData.driverId) {
-      setError('Please select a driver.');
+    if (!driverSelection) {
+      setError('Please select a driver or specify Other / Self-Drive Staff.');
       return;
+    }
+
+    let finalDriverId = driverSelection;
+    let finalStaffName: string | undefined = undefined;
+
+    if (driverSelection === '__other__') {
+      const trimmedName = customDriverName.trim();
+      if (!trimmedName) {
+        setError('Please enter the name of the other driver / self-drive staff.');
+        return;
+      }
+      finalStaffName = trimmedName;
+      // If editing an existing custom driver log, preserve its driverId if not in registered drivers
+      if (logToEdit && logToEdit.driverId && !drivers.some(d => d.id === logToEdit.driverId)) {
+        finalDriverId = logToEdit.driverId;
+      } else {
+        finalDriverId = `staff-${trimmedName.replace(/\s+/g, '-').toLowerCase()}`;
+      }
+    } else {
+      const regUser = users.find(u => u.id === driverSelection);
+      finalStaffName = regUser ? regUser.name : undefined;
     }
 
     const start = formData.startOdometer !== '' ? Number(formData.startOdometer) : undefined;
@@ -177,7 +224,8 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
 
     const logPayload = {
       vehicleId: formData.vehicleId,
-      driverId: formData.driverId,
+      driverId: finalDriverId,
+      staffName: finalStaffName,
       date: new Date(formData.date).toISOString(),
       odometer: end,
       startOdometer: start,
@@ -193,7 +241,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
     if (logToEdit) {
       updateOdometerLog(logToEdit.id, logPayload);
     } else {
-      addOdometerLog(logPayload);
+      addOdometerLog(logPayload as any);
     }
 
     onClose();
@@ -257,19 +305,56 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Driver *</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Driver / Staff *</label>
               <select 
-                name="driverId" 
-                value={formData.driverId} 
-                onChange={handleChange} 
+                value={driverSelection} 
+                onChange={(e) => {
+                  setDriverSelection(e.target.value);
+                  setFormData(prev => ({ ...prev, driverId: e.target.value }));
+                  setError('');
+                }} 
                 required 
-                className="w-full text-xs border border-slate-300 rounded-xl p-2.5 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-medium"
+                className="w-full text-xs border border-slate-300 rounded-xl p-2.5 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-medium cursor-pointer"
               >
                 <option value="">-- Select Driver --</option>
-                {drivers.map(d => (
-                  <option key={d.id} value={d.id}>{d.name} {d.role === 'admin' ? '(Admin)' : ''}</option>
-                ))}
+                <optgroup label="Registered Fleet Drivers & Admins">
+                  {drivers.map(d => (
+                    <option key={d.id} value={d.id}>
+                      {d.name} {d.role === 'admin' ? '(Admin)' : ''}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Self-Drive & Non-Registered Staff">
+                  <option value="__other__">🚗 Other Driver / Self-Drive Staff</option>
+                </optgroup>
               </select>
+
+              {driverSelection === '__other__' && (
+                <div className="mt-2 p-2.5 bg-amber-50/80 border border-amber-200 rounded-xl space-y-1 animate-in fade-in duration-150">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[10px] font-bold text-amber-900 uppercase tracking-wide">
+                      Other Driver / Staff Name *
+                    </label>
+                    <span className="text-[10px] text-amber-800 font-semibold bg-amber-100 px-1.5 py-0.5 rounded">
+                      Self-Drive
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    value={customDriverName}
+                    onChange={(e) => {
+                      setCustomDriverName(e.target.value);
+                      setError('');
+                    }}
+                    placeholder="Enter staff name (e.g. Encik Roslan)"
+                    required
+                    className="w-full text-xs border border-amber-300 bg-white rounded-lg p-2 focus:ring-2 focus:ring-amber-500 outline-none font-medium text-slate-800"
+                  />
+                  <p className="text-[10px] text-amber-800">
+                    Sesuai untuk pemandu luar atau staf self-drive tanpa perlu daftar akaun sistem.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 

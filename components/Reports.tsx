@@ -87,11 +87,16 @@ const Reports: React.FC = () => {
   const drivers = useMemo(() => users.filter(u => u.role === 'driver' || u.role === 'admin'), [users]);
 
   const getDriverName = useCallback((driverId: string | null | undefined, staffName?: string | null) => {
+    if (staffName && staffName.trim()) return staffName.trim();
     if (driverId) {
       const user = users.find(d => d.id === driverId);
       if (user) return user.name;
+      if (driverId.startsWith('staff-')) {
+        const clean = driverId.replace(/^staff-/, '').replace(/-/g, ' ');
+        return clean.replace(/\b\w/g, c => c.toUpperCase());
+      }
+      return driverId;
     }
-    if (staffName) return staffName;
     return 'Unknown';
   }, [users]);
 
@@ -1635,8 +1640,8 @@ const Reports: React.FC = () => {
             />
           ) : (
             <TripAnalyticsDashboard
-              onOpenOdoModal={() => {
-                setEditingOdoLog(null);
+              onOpenOdoModal={(log) => {
+                setEditingOdoLog(log || null);
                 setIsOdoModalOpen(true);
               }}
             />

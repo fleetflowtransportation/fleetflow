@@ -11,6 +11,7 @@ import {
   GaugeIcon,
   LocationMarkerIcon,
   PlusIcon,
+  PencilIcon,
   PrinterIcon,
   RouteIcon,
   SearchIcon,
@@ -60,7 +61,7 @@ type DatePreset = 'all' | '30d' | '90d' | 'year' | 'custom';
 type ServiceFilter = 'all' | 'driver' | 'self-drive';
 
 interface TripAnalyticsDashboardProps {
-  onOpenOdoModal?: () => void;
+  onOpenOdoModal?: (log?: OdometerLog | null) => void;
 }
 
 const passengerTotal = (booking?: Booking | null): number => {
@@ -116,11 +117,16 @@ export const TripAnalyticsDashboard: React.FC<TripAnalyticsDashboardProps> = ({ 
 
   const getDriverName = useCallback(
     (driverId?: string | null, staffName?: string | null) => {
+      if (staffName && staffName.trim()) return staffName.trim();
       if (driverId) {
         const user = users.find(u => u.id === driverId);
         if (user) return user.name;
+        if (driverId.startsWith('staff-')) {
+          const clean = driverId.replace(/^staff-/, '').replace(/-/g, ' ');
+          return clean.replace(/\b\w/g, c => c.toUpperCase());
+        }
+        return driverId;
       }
-      if (staffName) return staffName;
       return 'Unassigned';
     },
     [users]
@@ -1085,13 +1091,28 @@ export const TripAnalyticsDashboard: React.FC<TripAnalyticsDashboardProps> = ({ 
                         {formatKm(trip.distance, 0)}
                       </span>
                     )}
-                    <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
-                      trip.serviceType === 'Self-Drive'
-                        ? 'bg-slate-200 text-slate-700'
-                        : 'bg-indigo-50 text-indigo-800'
-                    }`}>
-                      {trip.serviceType === 'Self-Drive' ? 'Self-Drive' : trip.serviceType === 'Perlu Driver' ? 'With Driver' : 'Unknown'}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+                        trip.serviceType === 'Self-Drive'
+                          ? 'bg-slate-200 text-slate-700'
+                          : 'bg-indigo-50 text-indigo-800'
+                      }`}>
+                        {trip.serviceType === 'Self-Drive' ? 'Self-Drive' : trip.serviceType === 'Perlu Driver' ? 'With Driver' : 'Unknown'}
+                      </span>
+                      {onOpenOdoModal && trip.source === 'odometer' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const found = odometerLogs.find(l => l.id === trip.id);
+                            if (found) onOpenOdoModal(found);
+                          }}
+                          className="p-1 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+                          title="Edit Odometer Log"
+                        >
+                          <PencilIcon className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -1153,6 +1174,9 @@ export const TripAnalyticsDashboard: React.FC<TripAnalyticsDashboardProps> = ({ 
                 <th onClick={() => handleSort('passengerCount')} className="px-3.5 py-3 text-right font-bold text-slate-700 cursor-pointer hover:bg-slate-100 select-none whitespace-nowrap">
                   Pax {sortField === 'passengerCount' && (sortAsc ? '↑' : '↓')}
                 </th>
+                <th className="px-3.5 py-3 text-center font-bold text-slate-700 whitespace-nowrap">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
@@ -1210,11 +1234,28 @@ export const TripAnalyticsDashboard: React.FC<TripAnalyticsDashboardProps> = ({ 
                         </span>
                       ) : '—'}
                     </td>
+                    <td className="px-3.5 py-2.5 text-center whitespace-nowrap">
+                      {onOpenOdoModal && trip.source === 'odometer' ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const found = odometerLogs.find(l => l.id === trip.id);
+                            if (found) onOpenOdoModal(found);
+                          }}
+                          className="p-1 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-slate-100 transition cursor-pointer inline-flex items-center justify-center"
+                          title="Edit Odometer Log"
+                        >
+                          <PencilIcon className="h-3.5 w-3.5" />
+                        </button>
+                      ) : (
+                        <span className="text-slate-300 text-xs">—</span>
+                      )}
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={8} className="text-center py-10 text-slate-400 font-medium">
+                  <td colSpan={9} className="text-center py-10 text-slate-400 font-medium">
                     <div className="flex flex-col items-center gap-2 py-4">
                       <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl">
                         <RouteIcon className="h-6 w-6" />

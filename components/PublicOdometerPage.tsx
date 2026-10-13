@@ -231,6 +231,7 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
       const newOdoLog: OdometerLog = {
         id: logId,
         driverId: `staff-${effectiveStaffName.replace(/\s+/g, '-').toLowerCase()}`,
+        staffName: effectiveStaffName,
         vehicleId: selectedVehicleId,
         date: date,
         startOdometer: startNum,
