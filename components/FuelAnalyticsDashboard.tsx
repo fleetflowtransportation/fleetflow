@@ -60,11 +60,11 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
   const [sortField, setSortField] = useState<keyof DerivedFuelMetric>('date');
   const [sortAsc, setSortAsc] = useState<boolean>(false);
 
-  // Outlier Filtering State
+  // Outlier / Anomaly / Flagged Filtering State
   const [filterOutliers, setFilterOutliers] = useState<boolean>(true);
   const [maxEfficiencyThreshold, setMaxEfficiencyThreshold] = useState<number>(30); // Max 30 km/L default cap
   const [minEfficiencyThreshold, setMinEfficiencyThreshold] = useState<number>(2.5); // Min 2.5 km/L default cap
-  const [tableOutlierFilter, setTableOutlierFilter] = useState<'all' | 'valid_only' | 'outliers_only'>('all');
+  const [tableOutlierFilter, setTableOutlierFilter] = useState<'all' | 'flagged' | 'anomalies_only' | 'outliers_only' | 'valid_only'>('all');
 
   // Quick CRUD Form State (inline modal)
   const [isQuickFormOpen, setIsQuickFormOpen] = useState(false);
@@ -271,7 +271,74 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
   }, [fuelLogs, maxEfficiencyThreshold, minEfficiencyThreshold, getVehicle, getDriver]);
 
   // ---------------------------------------------------------------------------
-  // FILTERING LOGS
+  // 2. HEALTH ALERT TELEMATICS (Engine / Maintenance Early Warnings)
+  // ---------------------------------------------------------------------------
+  const healthAlerts = useMemo(() => {
+    const alerts: {
+      vehicleId: string;
+      vehicleName: string;
+      plateNumber: string;
+      consecutiveDrops: number;
+      values: number[];
+      dropPercentage: number;
+      logIds: string[];
+    }[] = [];
+
+    // Group all historical logs by vehicle
+    const byVeh = new Map<string, DerivedFuelMetric[]>();
+    allDerivedMetrics.forEach(m => {
+      if (m.efficiencyKmL !== null && m.efficiencyKmL > 0) {
+        if (!byVeh.has(m.vehicleId)) byVeh.set(m.vehicleId, []);
+        byVeh.get(m.vehicleId)!.push(m);
+      }
+    });
+
+    byVeh.forEach((vMetrics, vId) => {
+      // Sort chronologically ascending
+      const sorted = [...vMetrics].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      if (sorted.length < 3) return;
+
+      // Look at the latest 3 fillups
+      const last3 = sorted.slice(-3);
+      const e0 = last3[0].efficiencyKmL!;
+      const e1 = last3[1].efficiencyKmL!;
+      const e2 = last3[2].efficiencyKmL!;
+
+      // Check if strictly decreasing: e0 > e1 > e2
+      if (e0 > e1 && e1 > e2) {
+        const overallDrop = ((e0 - e2) / e0) * 100;
+        if (overallDrop >= 10) {
+          const v = getVehicle(vId);
+          alerts.push({
+            vehicleId: vId,
+            vehicleName: v.name,
+            plateNumber: v.plateNumber,
+            consecutiveDrops: 3,
+            values: [Number(e0.toFixed(1)), Number(e1.toFixed(1)), Number(e2.toFixed(1))],
+            dropPercentage: Math.round(overallDrop),
+            logIds: last3.map(m => m.id),
+          });
+        }
+      }
+    });
+
+    return alerts;
+  }, [allDerivedMetrics, getVehicle]);
+
+  const degradedLogIds = useMemo(() => {
+    const ids = new Set<string>();
+    healthAlerts.forEach(a => {
+      a.logIds.forEach(id => ids.add(id));
+    });
+    return ids;
+  }, [healthAlerts]);
+
+  const healthAlertVehicleIds = useMemo(() => {
+    return new Set(healthAlerts.map(a => a.vehicleId));
+  }, [healthAlerts]);
+
+  // ---------------------------------------------------------------------------
+  // FILTERING LOGS (Vehicle Scope & Date Range)
   // ---------------------------------------------------------------------------
   const filteredMetrics = useMemo(() => {
     return allDerivedMetrics.filter(item => {
@@ -301,23 +368,24 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
         }
       }
 
-      // Outlier Table Filter
-      if (tableOutlierFilter === 'valid_only' && item.isOutlier) return false;
-      if (tableOutlierFilter === 'outliers_only' && !item.isOutlier) return false;
-
-      // Search query (plate, vehicle, driver)
-      if (tableSearchQuery.trim()) {
-        const q = tableSearchQuery.toLowerCase();
-        const matchPlate = item.plateNumber.toLowerCase().includes(q);
-        const matchVeh = item.vehicleName.toLowerCase().includes(q);
-        const matchDriver = item.driverName.toLowerCase().includes(q);
-        const matchOdo = String(item.odometer).includes(q);
-        if (!matchPlate && !matchVeh && !matchDriver && !matchOdo) return false;
-      }
-
       return true;
     });
-  }, [allDerivedMetrics, selectedVehicleId, dateRangePreset, customStartDate, customEndDate, tableOutlierFilter, tableSearchQuery]);
+  }, [allDerivedMetrics, selectedVehicleId, dateRangePreset, customStartDate, customEndDate]);
+
+  // Counts for table filters within current vehicle & date scope
+  const tableFilterCounts = useMemo(() => {
+    const anomalies = filteredMetrics.filter(m => m.isAnomaly).length;
+    const outliers = filteredMetrics.filter(m => m.isOutlier).length;
+    const degraded = filteredMetrics.filter(m => degradedLogIds.has(m.id)).length;
+    const flagged = filteredMetrics.filter(m => m.isAnomaly || m.isOutlier || degradedLogIds.has(m.id) || healthAlertVehicleIds.has(m.vehicleId)).length;
+    return {
+      total: filteredMetrics.length,
+      anomalies,
+      outliers,
+      degraded,
+      flagged
+    };
+  }, [filteredMetrics, degradedLogIds, healthAlertVehicleIds]);
 
   // ---------------------------------------------------------------------------
   // 3. TOP KPI CARDS (Summary Calculations with Outlier Protection)
@@ -524,59 +592,6 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
   }, [filteredMetrics]);
 
   // ---------------------------------------------------------------------------
-  // 7. HEALTH ALERT WIDGET (Engine / Maintenance Early Warnings)
-  // ---------------------------------------------------------------------------
-  const healthAlerts = useMemo(() => {
-    const alerts: {
-      vehicleId: string;
-      vehicleName: string;
-      plateNumber: string;
-      consecutiveDrops: number;
-      values: number[];
-      dropPercentage: number;
-    }[] = [];
-
-    // Group all historical logs by vehicle
-    const byVeh = new Map<string, DerivedFuelMetric[]>();
-    allDerivedMetrics.forEach(m => {
-      if (m.efficiencyKmL !== null && m.efficiencyKmL > 0) {
-        if (!byVeh.has(m.vehicleId)) byVeh.set(m.vehicleId, []);
-        byVeh.get(m.vehicleId)!.push(m);
-      }
-    });
-
-    byVeh.forEach((vMetrics, vId) => {
-      // Sort chronologically ascending
-      const sorted = [...vMetrics].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      if (sorted.length < 3) return;
-
-      // Look at the latest 3 fillups
-      const last3 = sorted.slice(-3);
-      const e0 = last3[0].efficiencyKmL!;
-      const e1 = last3[1].efficiencyKmL!;
-      const e2 = last3[2].efficiencyKmL!;
-
-      // Check if strictly decreasing: e0 > e1 > e2
-      if (e0 > e1 && e1 > e2) {
-        const overallDrop = ((e0 - e2) / e0) * 100;
-        if (overallDrop >= 10) {
-          const v = getVehicle(vId);
-          alerts.push({
-            vehicleId: vId,
-            vehicleName: v.name,
-            plateNumber: v.plateNumber,
-            consecutiveDrops: 3,
-            values: [Number(e0.toFixed(1)), Number(e1.toFixed(1)), Number(e2.toFixed(1))],
-            dropPercentage: Math.round(overallDrop)
-          });
-        }
-      }
-    });
-
-    return alerts;
-  }, [allDerivedMetrics, getVehicle]);
-
-  // ---------------------------------------------------------------------------
   // 8. TRIP COST ESTIMATOR
   // ---------------------------------------------------------------------------
   const tripEstimate = useMemo(() => {
@@ -600,10 +615,38 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
   }, [calcDistance, calcVehicleId, calcCustomFuelPrice, summaryKPIs.avgEfficiencyKmL, vehicleBaselines]);
 
   // ---------------------------------------------------------------------------
-  // 9. SORTED TABLE DATA
+  // 9. TABLE DATA & SORTING (Flagged, Anomalies, Outliers & Search)
   // ---------------------------------------------------------------------------
+  const tableData = useMemo(() => {
+    return filteredMetrics.filter(item => {
+      // Outlier / Anomaly / Degradation status filter
+      if (tableOutlierFilter === 'valid_only') {
+        if (item.isOutlier || item.isAnomaly) return false;
+      } else if (tableOutlierFilter === 'flagged') {
+        const isFlagged = item.isAnomaly || item.isOutlier || degradedLogIds.has(item.id) || healthAlertVehicleIds.has(item.vehicleId);
+        if (!isFlagged) return false;
+      } else if (tableOutlierFilter === 'anomalies_only') {
+        if (!item.isAnomaly) return false;
+      } else if (tableOutlierFilter === 'outliers_only') {
+        if (!item.isOutlier) return false;
+      }
+
+      // Search query (plate, vehicle, driver, odo)
+      if (tableSearchQuery.trim()) {
+        const q = tableSearchQuery.toLowerCase();
+        const matchPlate = item.plateNumber.toLowerCase().includes(q);
+        const matchVeh = item.vehicleName.toLowerCase().includes(q);
+        const matchDriver = item.driverName.toLowerCase().includes(q);
+        const matchOdo = String(item.odometer).includes(q);
+        if (!matchPlate && !matchVeh && !matchDriver && !matchOdo) return false;
+      }
+
+      return true;
+    });
+  }, [filteredMetrics, tableOutlierFilter, tableSearchQuery, degradedLogIds, healthAlertVehicleIds]);
+
   const sortedTableData = useMemo(() => {
-    return [...filteredMetrics].sort((a, b) => {
+    return [...tableData].sort((a, b) => {
       let aVal = a[sortField];
       let bVal = b[sortField];
 
@@ -615,7 +658,24 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
       }
       return sortAsc ? Number(aVal) - Number(bVal) : Number(bVal) - Number(aVal);
     });
-  }, [filteredMetrics, sortField, sortAsc]);
+  }, [tableData, sortField, sortAsc]);
+
+  const handleReviewFlaggedRecords = (specificVehicleId?: string) => {
+    if (specificVehicleId) {
+      setSelectedVehicleId(specificVehicleId);
+      setTableOutlierFilter('flagged');
+    } else if (healthAlerts.length === 1) {
+      setSelectedVehicleId(healthAlerts[0].vehicleId);
+      setTableOutlierFilter('flagged');
+    } else {
+      setSelectedVehicleId('all');
+      setTableOutlierFilter('flagged');
+    }
+    setDateRangePreset('all');
+    setTableSearchQuery('');
+    setActiveTab('logs');
+    setCurrentPage(1);
+  };
 
   const handleSort = (field: keyof DerivedFuelMetric) => {
     if (sortField === field) {
@@ -1035,16 +1095,18 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
               <p className="text-xs text-amber-800 leading-relaxed">
                 The telematics engine detected 3 consecutive refueling intervals with declining fuel efficiency (km/L). This pattern is a primary indicator of mechanical drag, clogged air filters, fouled spark plugs, or suboptimal tire pressure.
               </p>
-              <button
-                type="button"
-                onClick={() => { setTableOutlierFilter('outliers_only'); setActiveTab('logs'); setCurrentPage(1); }}
-                className="mt-2 inline-flex items-center px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-[11px] font-bold cursor-pointer"
-              >
-                Review flagged records →
-              </button>
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleReviewFlaggedRecords()}
+                  className="inline-flex items-center px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-[11px] font-bold cursor-pointer transition shadow-xs"
+                >
+                  Review flagged records ({tableFilterCounts.flagged}) →
+                </button>
+              </div>
               <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                 {healthAlerts.map(a => (
-                  <div key={a.vehicleId} className="bg-white/90 border border-amber-200 rounded-xl p-2.5 text-xs space-y-1">
+                  <div key={a.vehicleId} className="bg-white/90 border border-amber-200 rounded-xl p-2.5 text-xs space-y-1.5 shadow-xs">
                     <div className="flex justify-between items-center">
                       <span className="font-bold text-slate-900">{a.vehicleName}</span>
                       <span className="font-mono font-bold text-slate-600">{a.plateNumber}</span>
@@ -1058,6 +1120,30 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
                     <div className="flex items-center justify-between text-[11px] text-rose-600 font-bold">
                       <span>Total Drop:</span>
                       <span>-{a.dropPercentage}% degradation</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 pt-1.5 border-t border-slate-100">
+                      <button
+                        type="button"
+                        onClick={() => handleReviewFlaggedRecords(a.vehicleId)}
+                        className="flex-1 py-1 px-2 text-center text-[10px] font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 rounded-lg transition cursor-pointer"
+                      >
+                        Flagged fills →
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedVehicleId(a.vehicleId);
+                          setTableOutlierFilter('all');
+                          setDateRangePreset('all');
+                          setTableSearchQuery('');
+                          setActiveTab('logs');
+                          setCurrentPage(1);
+                        }}
+                        className="py-1 px-2 text-center text-[10px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition cursor-pointer"
+                        title="View all logs for this vehicle"
+                      >
+                        All logs
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -1852,15 +1938,44 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
 
             <select
               value={tableOutlierFilter}
-              onChange={e => setTableOutlierFilter(e.target.value as any)}
+              onChange={e => {
+                setTableOutlierFilter(e.target.value as any);
+                setCurrentPage(1);
+              }}
               className="border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs bg-slate-50 font-bold text-slate-700 focus:ring-2 focus:ring-amber-500 outline-none cursor-pointer"
             >
-              <option value="all">All Records</option>
-              <option value="valid_only">Valid Entries Only</option>
-              <option value="outliers_only">⚠️ Outliers / Spikes ({summaryKPIs.outlierCount})</option>
+              <option value="all">All Records ({filteredMetrics.length})</option>
+              <option value="flagged">⚠️ All Flagged ({tableFilterCounts.flagged})</option>
+              <option value="anomalies_only">📉 Efficiency Drops ({tableFilterCounts.anomalies})</option>
+              <option value="outliers_only">⚡ Outliers & Spikes ({tableFilterCounts.outliers})</option>
+              <option value="valid_only">✅ Valid Entries Only</option>
             </select>
           </div>
         </div>
+
+        {/* Active Filter Pill */}
+        {(tableOutlierFilter !== 'all' || tableSearchQuery) && (
+          <div className="flex items-center gap-2 text-xs bg-amber-50 border border-amber-200 text-amber-900 px-3.5 py-2 rounded-xl">
+            <span className="font-bold">Active filter:</span>
+            <span>
+              {tableOutlierFilter === 'flagged' && `⚠️ Flagged Records (${tableFilterCounts.flagged} found)`}
+              {tableOutlierFilter === 'anomalies_only' && `📉 Efficiency Drops (${tableFilterCounts.anomalies} found)`}
+              {tableOutlierFilter === 'outliers_only' && `⚡ Outliers & Spikes (${tableFilterCounts.outliers} found)`}
+              {tableOutlierFilter === 'valid_only' && '✅ Valid Entries Only'}
+              {tableSearchQuery && ` · Search: "${tableSearchQuery}"`}
+            </span>
+            <button
+              onClick={() => {
+                setTableOutlierFilter('all');
+                setTableSearchQuery('');
+                setCurrentPage(1);
+              }}
+              className="ml-auto text-[11px] font-bold text-amber-700 hover:text-amber-900 underline cursor-pointer"
+            >
+              Clear filter
+            </button>
+          </div>
+        )}
 
         {/* Responsive Table */}
         <div className="overflow-x-auto border border-slate-200 rounded-xl">
@@ -1933,7 +2048,18 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
               {paginatedTableData.length > 0 ? (
                 paginatedTableData.map(log => {
                   return (
-                    <tr key={log.id} className="hover:bg-slate-50 transition-colors">
+                    <tr 
+                      key={log.id} 
+                      className={`transition-colors ${
+                        log.isOutlier
+                          ? 'bg-amber-50/70 hover:bg-amber-100/70'
+                          : log.isAnomaly
+                          ? 'bg-rose-50/70 hover:bg-rose-100/70'
+                          : degradedLogIds.has(log.id)
+                          ? 'bg-amber-50/40 hover:bg-amber-100/50'
+                          : 'hover:bg-slate-50'
+                      }`}
+                    >
                       <td className="px-3.5 py-2.5 whitespace-nowrap font-medium text-slate-700">
                         {new Date(log.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
                       </td>
@@ -1988,6 +2114,14 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
                             <ExclamationIcon className="h-3 w-3" />
                             Anomaly
                           </span>
+                        ) : degradedLogIds.has(log.id) ? (
+                          <span 
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300"
+                            title="Part of 3 consecutive refueling drops in telematics health analysis"
+                          >
+                            <ExclamationIcon className="h-3 w-3 text-amber-700" />
+                            Degradation Flag
+                          </span>
                         ) : log.efficiencyStatus === 'above' ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                             Optimal
@@ -2031,15 +2165,32 @@ export const FuelAnalyticsDashboard: React.FC<FuelAnalyticsDashboardProps> = ({ 
                         <FuelIcon className="h-6 w-6" />
                       </div>
                       <p className="text-sm font-bold text-slate-700">No fuel records match these filters</p>
-                      <p className="text-xs text-slate-500 max-w-xs">Try widening the date range, switching vehicle, or clearing the search.</p>
-                      <button
-                        type="button"
-                        onClick={() => handleOpenAddForm(selectedVehicleId !== 'all' ? selectedVehicleId : undefined)}
-                        className="mt-2 inline-flex items-center px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold cursor-pointer"
-                      >
-                        <PlusIcon className="h-4 w-4 mr-1.5" />
-                        Record first fill
-                      </button>
+                      <p className="text-xs text-slate-500 max-w-xs">
+                        Try clearing active filters, resetting the date range, or switching vehicle scope.
+                      </p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTableOutlierFilter('all');
+                            setSelectedVehicleId('all');
+                            setDateRangePreset('all');
+                            setTableSearchQuery('');
+                            setCurrentPage(1);
+                          }}
+                          className="inline-flex items-center px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer transition"
+                        >
+                          Reset all filters
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenAddForm(selectedVehicleId !== 'all' ? selectedVehicleId : undefined)}
+                          className="inline-flex items-center px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold cursor-pointer transition"
+                        >
+                          <PlusIcon className="h-4 w-4 mr-1.5" />
+                          Record fuel purchase
+                        </button>
+                      </div>
                     </div>
                   </td>
                 </tr>
