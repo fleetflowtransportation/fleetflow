@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { storageService } from '../services/storage';
 import { googleCalendarService } from '../services/googleCalendar';
-import { DEPARTMENTS, PICKUP_POINTS, Tenant, Booking, PassengerCount } from '../types';
+import { DEPARTMENTS, PICKUP_POINTS, MAX_BOOKING_STOPS, Tenant, Booking, PassengerCount } from '../types';
 import { evaluateBookingAssignment, normalizeDate, normalizeTime, type AutoAssignResult } from '../services/bookingEngine';
-import { isOtherPickup, getPickupLocationDisplay } from '../utils';
+import { isOtherPickup, getPickupLocationDisplay, createStopId, deriveDestination, normalizeStopsForSave } from '../utils';
 import { 
   ClockIcon, 
   PaperClipIcon, 
@@ -16,7 +16,9 @@ import {
   ArrowUpCircleIcon,
   UserGroupIcon,
   BuildingOfficeIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  PlusIcon,
+  TrashIcon
 } from './icons/Icons';
 import CalendarView from './CalendarView';
 
@@ -45,7 +47,7 @@ const emptyFormData = {
   bookingDate: '',
   startTime: '',
   endTime: '',
-  destination: '',
+  // destination removed — use stops state (multi-stop Phase 1)
   pickupPoint: '',
   address: '',
   staffCount: 1,
@@ -59,6 +61,9 @@ const emptyFormData = {
   remarks: '',
 };
 
+type StopFormRow = { id: string; address: string; notes: string };
+const emptyStopRow = (): StopFormRow => ({ id: createStopId(), address: '', notes: '' });
+
 export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, initialTab = 'form' }) => {
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [vehicles, setVehicles] = useState<any[]>([]);
@@ -68,6 +73,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
   
   const [activeTab, setActiveTab] = useState<'form' | 'calendar'>(initialTab);
   const [formData, setFormData] = useState(emptyFormData);
+  const [stops, setStops] = useState<StopFormRow[]>([emptyStopRow()]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState<AutoAssignResult | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -102,6 +108,25 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
+
+  const handleStopChange = (id: string, field: 'address' | 'notes', value: string) => {
+    setStops(prev => prev.map(s => (s.id === id ? { ...s, [field]: value } : s)));
+  };
+
+  const addStop = () => {
+    setStops(prev => (prev.length >= MAX_BOOKING_STOPS ? prev : [...prev, emptyStopRow()]));
+  };
+
+  const removeStop = (id: string) => {
+    setStops(prev => (prev.length <= 1 ? prev : prev.filter(s => s.id !== id)));
+  };
+
+  const routePreview = (() => {
+    const filled = stops.map(s => s.address.trim()).filter(Boolean);
+    if (filled.length === 0) return '';
+    if (filled.length === 1) return filled[0];
+    return filled.join(' → ');
+  })();
 
   const updatePassengerCount = (field: 'staffCount' | 'parentsCount' | 'kidsCount' | 'teenagersCount', delta: number) => {
     setFormData(prev => {
@@ -163,6 +188,12 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
       return;
     }
 
+    const filledStops = stops.filter(s => s.address.trim());
+    if (filledStops.length === 0) {
+      alert('Please enter at least one destination / stop address.');
+      return;
+    }
+
     if (formData.serviceType === 'Self-Drive' && !formData.icNumber.trim()) {
       alert('Please enter IC / Driving License ID Number for self-drive authorization.');
       return;
@@ -202,6 +233,9 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
       console.warn('[PublicBookingPage] Real-time fetch warning:', e);
     }
 
+    const normalizedStops = normalizeStopsForSave(stops);
+    const destinationDerived = deriveDestination(normalizedStops);
+
     const baseInput = {
       requesterName: formData.requesterName.trim(),
       requesterEmail: formData.requesterEmail.trim(),
@@ -210,7 +244,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
       startTime: formData.startTime,
       endTime: formData.endTime,
       purpose: formData.purpose.trim(),
-      destination: formData.destination.trim(),
+      destination: destinationDerived,
       pickupPoint: formData.pickupPoint,
       address: isOtherPickup(formData.pickupPoint) ? formData.address.trim() : '',
       staffCount: Number(formData.staffCount) || 0,
@@ -256,7 +290,8 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
       purpose: formData.purpose.trim(),
       dateTime,
       finishDateTime,
-      destination: formData.destination.trim(),
+      destination: destinationDerived,
+      stops: normalizedStops,
       pickupPoint: formData.pickupPoint,
       address: isOtherPickup(formData.pickupPoint) ? formData.address.trim() : '',
       passengers,
@@ -582,8 +617,8 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                     <p className="font-bold text-slate-900">{getPickupLocationDisplay(formData.pickupPoint, formData.address)}</p>
                   </div>
                   <div>
-                    <span className="text-slate-400 font-medium block">Destination:</span>
-                    <p className="font-bold text-slate-900">{formData.destination}</p>
+                    <span className="text-slate-400 font-medium block">Route:</span>
+                    <p className="font-bold text-slate-900">{routePreview || '—'}</p>
                   </div>
                   <div>
                     <span className="text-slate-400 font-medium block">Passengers:</span>
@@ -631,6 +666,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                   type="button"
                   onClick={() => {
                     setFormData(emptyFormData);
+                    setStops([emptyStopRow()]);
                     setIsSuccess(false);
                     setSubmitResult(null);
                   }}
@@ -825,7 +861,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                       Destination & Route
                     </h2>
                     <p className="text-xs text-slate-500">
-                      Specify pickup point and target destination
+                      Specify pickup point and one or more stops (max 5)
                     </p>
                   </div>
                 </div>
@@ -887,19 +923,69 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                   )}
                 </div>
 
+                {/* Multi-stop Route (Phase 1) */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Destination / Full Address <span className="text-rose-500">*</span>
-                  </label>
-                  <textarea
-                    name="destination"
-                    value={formData.destination}
-                    onChange={handleChange}
-                    required
-                    rows={2}
-                    placeholder="e.g. Community Center, Kuala Lumpur / Multipurpose Hall"
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition resize-y"
-                  ></textarea>
+                  <div className="flex items-center justify-between mb-1.5 gap-2">
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Route / Stops <span className="text-rose-500">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={addStop}
+                      disabled={stops.length >= MAX_BOOKING_STOPS}
+                      className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                    >
+                      <PlusIcon className="w-3.5 h-3.5" />
+                      Add Stop
+                      <span className="text-slate-400 font-medium">({stops.length}/{MAX_BOOKING_STOPS})</span>
+                    </button>
+                  </div>
+                  <div className="space-y-2.5">
+                    {stops.map((stop, index) => (
+                      <div
+                        key={stop.id}
+                        className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 space-y-2"
+                      >
+                        <div className="flex items-start gap-2">
+                          <span className="mt-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-[11px] font-black text-white">
+                            {index + 1}
+                          </span>
+                          <div className="min-w-0 flex-1 space-y-1.5">
+                            <input
+                              type="text"
+                              value={stop.address}
+                              onChange={(e) => handleStopChange(stop.id, 'address', e.target.value)}
+                              required={index === 0}
+                              placeholder={index === 0 ? 'Stop 1 — full address, hospital, school, or venue' : `Stop ${index + 1} — address`}
+                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition bg-white"
+                            />
+                            <input
+                              type="text"
+                              value={stop.notes}
+                              onChange={(e) => handleStopChange(stop.id, 'notes', e.target.value)}
+                              placeholder="Notes (optional) — gate, contact person, etc."
+                              className="w-full px-3 py-1.5 border border-slate-100 rounded-lg text-xs text-slate-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition bg-white"
+                            />
+                          </div>
+                          {stops.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeStop(stop.id)}
+                              className="mt-2 p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                              aria-label={`Remove stop ${index + 1}`}
+                            >
+                              <TrashIcon className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {routePreview ? (
+                    <p className="mt-2 text-xs text-slate-500">
+                      <span className="font-bold text-slate-600">Preview:</span> {routePreview}
+                    </p>
+                  ) : null}
                 </div>
               </div>
 
