@@ -23,6 +23,10 @@ export interface BookingDetailModalProps {
   isAdmin?: boolean;
   users?: User[];
   vehicles?: Vehicle[];
+  /** Driver portal actions (shown when not admin) */
+  onAcceptJob?: (booking: Booking) => void;
+  onDirectComplete?: (booking: Booking) => void;
+  onLogMeter?: (booking: Booking) => void;
 }
 
 export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({ 
@@ -32,7 +36,10 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
   onDelete, 
   isAdmin = false,
   users: propUsers,
-  vehicles: propVehicles 
+  vehicles: propVehicles,
+  onAcceptJob,
+  onDirectComplete,
+  onLogMeter,
 }) => {
   // Lock body scroll on mobile whenever modal is open
   useBodyScrollLock(Boolean(booking));
@@ -474,11 +481,62 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
               </div>
             </>
           ) : (
-            <div className="w-full flex justify-end">
+            <div className="w-full flex flex-col gap-2">
+              {/* Driver actions based on booking status */}
+              {booking.status === 'Assigned' && onAcceptJob && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onAcceptJob(booking);
+                    onClose();
+                  }}
+                  className="w-full flex items-center justify-center gap-1.5 py-3 px-4 text-sm font-extrabold text-white bg-amber-500 hover:bg-amber-600 rounded-xl shadow-sm transition active:scale-[0.98] cursor-pointer uppercase tracking-wide"
+                >
+                  Accept This Job
+                </button>
+              )}
+
+              {(booking.status === 'Confirmed' || booking.status === 'Assigned') && (onDirectComplete || onLogMeter) && (
+                <div className="flex items-center gap-2">
+                  {onLogMeter && booking.status === 'Confirmed' && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onLogMeter(booking);
+                        onClose();
+                      }}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-3 px-3 text-xs font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm transition active:scale-[0.98] cursor-pointer"
+                    >
+                      Log Meter
+                    </button>
+                  )}
+                  {onDirectComplete && (booking.status === 'Confirmed' || booking.status === 'Assigned') && booking.status !== 'Completed' && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (window.confirm('Mark this trip completed without an odometer log?')) {
+                          onDirectComplete(booking);
+                          onClose();
+                        }
+                      }}
+                      className={`${onLogMeter && booking.status === 'Confirmed' ? 'flex-1' : 'w-full'} flex items-center justify-center gap-1.5 py-3 px-3 text-xs font-extrabold text-slate-800 bg-white hover:bg-slate-100 border border-slate-300 rounded-xl transition active:scale-[0.98] cursor-pointer`}
+                    >
+                      Direct Complete
+                    </button>
+                  )}
+                </div>
+              )}
+
               <button
                 type="button"
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
-                className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition cursor-pointer"
+                className="w-full py-2.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition cursor-pointer"
               >
                 Close
               </button>

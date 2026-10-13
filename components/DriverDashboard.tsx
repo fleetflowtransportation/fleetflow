@@ -285,61 +285,49 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
   };
 
   const renderBookingCard = (booking: Booking, isPastPending = false) => {
-    const totalPassengers = booking.passengers.reduce((sum, p) => sum + p.count, 0);
-    const passengerBreakdown = booking.passengers
-      .filter(p => p.count > 0)
-      .map(p => `${p.count} ${p.category}`)
-      .join(', ');
-
     const isAssigned = booking.status === 'Assigned';
     const isConfirmed = booking.status === 'Confirmed';
     const isChecked = selectedBookingIds.includes(booking.id);
     const vehicleInfo = getVehicleInfo(booking.vehicleId, booking.serviceType);
     const dateTimeInfo = formatTripDateTime(booking.dateTime, booking.finishDateTime);
+    const pickup = getPickupLocationDisplay(booking.pickupPoint, booking.address);
+
+    const openDetails = () => setViewingBooking(booking);
 
     return (
-      <div 
+      <div
         key={booking.id}
-        className={`rounded-2xl border transition-all duration-200 bg-white overflow-hidden ${
-          isChecked 
-            ? 'border-indigo-600 ring-2 ring-indigo-500/20 shadow-md' 
+        role="button"
+        tabIndex={0}
+        onClick={openDetails}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            openDetails();
+          }
+        }}
+        className={`rounded-2xl border bg-white overflow-hidden transition-all duration-150 active:scale-[0.99] cursor-pointer select-none ${
+          isChecked
+            ? 'border-indigo-500 ring-2 ring-indigo-500/20 shadow-md'
             : isPastPending
-              ? 'border-amber-400 hover:border-amber-500 shadow-sm'
-              : isAssigned 
-                ? 'border-amber-300 hover:border-amber-400 shadow-sm' 
-                : 'border-emerald-300 hover:border-emerald-400 shadow-sm'
+              ? 'border-amber-400 shadow-sm'
+              : isAssigned
+                ? 'border-amber-300 shadow-sm'
+                : 'border-emerald-300 shadow-sm'
         }`}
       >
-        {/* PAST TRIP NOTICE BANNER (ONLY FOR PENDING PAST TRIPS) */}
-        {isPastPending && (
-          <div className="bg-amber-100/90 border-b border-amber-200 px-3.5 py-1.5 flex items-center justify-between text-[11px] text-amber-950 font-bold">
-            <div className="flex items-center gap-1.5">
-              <span>⚠️</span>
-              <span>Past Date Trip: {dateTimeInfo.date}</span>
-            </div>
-            <span className="text-[10px] text-amber-900 font-extrabold bg-amber-200/80 px-2 py-0.5 rounded">
-              Awaiting Odometer
-            </span>
-          </div>
-        )}
-
-        {/* CARD HEADER BAR */}
-        <div 
-          onClick={() => {
-            handleToggleSelectBooking(booking.id);
-          }}
-          className={`px-3.5 py-2.5 border-b flex items-center justify-between text-xs transition-colors cursor-pointer select-none ${
-            isChecked 
-              ? 'bg-indigo-50/90 border-indigo-200 text-indigo-950'
-              : isPastPending
-                ? 'bg-amber-50/90 border-amber-200 text-amber-950'
-                : isAssigned 
-                  ? 'bg-amber-50/80 border-amber-100 text-amber-950' 
-                  : 'bg-emerald-50/80 border-emerald-100 text-emerald-950'
+        {/* Status strip */}
+        <div
+          className={`px-3.5 py-2 flex items-center justify-between gap-2 text-[11px] font-extrabold uppercase tracking-wide ${
+            isPastPending
+              ? 'bg-amber-50 text-amber-900 border-b border-amber-200'
+              : isAssigned
+                ? 'bg-amber-50 text-amber-900 border-b border-amber-100'
+                : 'bg-emerald-50 text-emerald-900 border-b border-emerald-100'
           }`}
         >
-          <div className="flex items-center gap-2">
-            <input 
+          <div className="flex items-center gap-2 min-w-0">
+            <input
               type="checkbox"
               checked={isChecked}
               onChange={(e) => {
@@ -347,221 +335,85 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
                 handleToggleSelectBooking(booking.id);
               }}
               onClick={(e) => e.stopPropagation()}
-              className="h-4 w-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer"
+              className="h-4 w-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer shrink-0"
               title="Select for batch actions"
+              aria-label="Select trip"
             />
-            <div className="flex items-center gap-1.5">
-              <span className={`inline-block w-2 h-2 rounded-full ${
-                isPastPending ? 'bg-amber-600 animate-pulse' : isAssigned ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'
-              }`}></span>
-              <span className="font-extrabold uppercase tracking-wide text-[11px]">
-                {isPastPending ? 'Overdue Trip (Pending Odometer)' : isAssigned ? 'New Assignment Offered' : 'In Progress (Confirmed)'}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-mono font-bold bg-white/80 px-2 py-0.5 rounded border border-slate-200/60 text-slate-700">
-              #{booking.id.split('-')[1] || booking.id.slice(0, 5)}
+            <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${
+              isPastPending ? 'bg-amber-600 animate-pulse' : isAssigned ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'
+            }`} />
+            <span className="truncate">
+              {isPastPending ? 'Pending meter' : isAssigned ? 'New job' : 'In progress'}
             </span>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setViewingBooking(booking);
-              }}
-              className="px-2 py-0.5 text-[10px] font-bold text-indigo-700 bg-white hover:bg-indigo-50 rounded border border-indigo-200 transition cursor-pointer shadow-2xs"
-              title="View full booking info"
-            >
-              Info
-            </button>
           </div>
+          {booking.shouldWait ? (
+            <span className="shrink-0 px-2 py-0.5 rounded-full bg-amber-200/80 text-amber-950 text-[10px] font-black">
+              Standby
+            </span>
+          ) : (
+            <span className="shrink-0 px-2 py-0.5 rounded-full bg-white/80 text-slate-600 text-[10px] font-bold border border-slate-200/80">
+              Drop-off
+            </span>
+          )}
         </div>
 
-        {/* CARD BODY CONTENT */}
-        <div className="p-4 space-y-3.5">
-          
-          {/* DATE & TIME BANNER */}
-          <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-slate-200/70 px-3 py-2 rounded-xl text-xs">
-            <div className="flex items-center gap-1.5 text-slate-800 font-bold">
-              <ClockIcon className="w-3.5 h-3.5 text-indigo-600 flex-shrink-0" />
+        {/* Compact body — date, pickup, destination, requester, vehicle */}
+        <div className="p-3.5 space-y-3">
+          {/* Date & time */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 text-slate-800 font-bold text-sm">
+              <ClockIcon className="w-4 h-4 text-indigo-600 shrink-0" />
               <span>{dateTimeInfo.date}</span>
             </div>
-            <div className="font-extrabold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 text-[11px]">
+            <span className="text-[11px] font-extrabold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-lg border border-indigo-100 whitespace-nowrap">
               {dateTimeInfo.time}
+            </span>
+          </div>
+
+          {/* Route */}
+          <div className="space-y-2">
+            <div className="flex items-start gap-2.5">
+              <div className="mt-1.5 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-100 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pickup</span>
+                <p className="text-sm font-bold text-slate-900 leading-snug line-clamp-2">{pickup}</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2.5">
+              <div className="mt-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-rose-100 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Destination</span>
+                <p className="text-sm font-extrabold text-slate-900 leading-snug line-clamp-2">{booking.destination}</p>
+              </div>
             </div>
           </div>
 
-          {/* ROUTE SECTION */}
-          <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-3">
-            <div className="flex flex-col space-y-3">
-              
-              {/* PICKUP */}
-              <div className="flex items-start gap-2.5">
-                <div className="mt-1 flex flex-col items-center">
-                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-100"></div>
-                  <div className="w-0.5 h-6 border-l border-dashed border-slate-300 mt-1"></div>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Pickup Location</span>
-                  <p className="text-xs sm:text-sm font-bold text-slate-900 leading-tight">{getPickupLocationDisplay(booking.pickupPoint, booking.address)}</p>
-                </div>
-              </div>
-
-              {/* DROP-OFF */}
-              <div className="flex items-start gap-2.5">
-                <div className="mt-1 flex flex-col items-center">
-                  <div className="w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-rose-100"></div>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Drop-off Location (Destination)</span>
-                  <p className="text-xs sm:text-sm font-extrabold text-slate-900 leading-tight">{booking.destination}</p>
-                  {booking.address && !isOtherPickup(booking.pickupPoint) && booking.address !== booking.destination && (
-                    <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{booking.address}</p>
-                  )}
-                  
-                  {/* QUICK NAVIGATION BUTTON FOR DRIVER */}
-                  <div className="mt-1.5">
-                    <a
-                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(booking.destination)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-indigo-50 text-indigo-700 hover:text-indigo-800 rounded-lg text-[11px] font-bold border border-slate-200 shadow-2xs transition cursor-pointer"
-                    >
-                      <LocationMarkerIcon className="w-3 h-3 text-indigo-600" />
-                      <span>Open Google Maps</span>
-                      <ExternalLinkIcon className="w-2.5 h-2.5 text-slate-400 ml-0.5" />
-                    </a>
-                  </div>
-                </div>
-              </div>
-
+          {/* Requester · Vehicle · Standby row */}
+          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Requester</span>
+              <p className="text-xs font-bold text-slate-800 truncate">{booking.requesterName || '—'}</p>
             </div>
-          </div>
-
-          {/* PURPOSE SECTION */}
-          <div className="p-3 bg-indigo-50/40 border border-indigo-100/70 rounded-xl text-xs">
-            <span className="text-[9px] font-bold uppercase tracking-wider text-indigo-900/60 block mb-0.5">Trip Purpose</span>
-            <p className="font-bold text-slate-900 leading-snug">{booking.purpose}</p>
-          </div>
-
-          {/* COMPREHENSIVE DETAILS GRID (4 CLEAN TILES) */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-            
-            {/* VEHICLE INFO */}
-            <div className={`p-2.5 rounded-xl border ${!booking.vehicleId ? 'bg-amber-50/70 border-amber-200/80' : 'bg-slate-50 border-slate-100'}`}>
-              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Vehicle</span>
-              <p className={`font-extrabold mt-0.5 truncate ${!booking.vehicleId ? 'text-amber-800' : 'text-slate-800'}`}>
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Vehicle</span>
+              <p className={`text-xs font-bold truncate ${!booking.vehicleId ? 'text-amber-800' : 'text-slate-800'}`}>
                 {vehicleInfo.name}
               </p>
-              <span className={`inline-block mt-0.5 text-[10px] font-mono font-bold px-1.5 py-0.2 rounded ${
-                !booking.vehicleId ? 'bg-amber-200/90 text-amber-900' : 'bg-slate-200/80 text-slate-700'
-              }`}>
-                {vehicleInfo.plate}
-              </span>
+              <p className="text-[10px] font-mono font-semibold text-slate-500 truncate">{vehicleInfo.plate}</p>
             </div>
-
-            {/* REQUESTER & DEPT */}
-            <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
-              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Requester & Dept</span>
-              <p className="font-bold text-slate-800 mt-0.5 truncate">{booking.requesterName}</p>
-              <p className="text-[10px] text-slate-500 truncate">{booking.department || 'General'}</p>
-            </div>
-
-            {/* PASSENGERS */}
-            <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
-              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Passengers</span>
-              <p className="font-bold text-slate-800 mt-0.5">
-                {totalPassengers} Persons
-              </p>
-              <p className="text-[10px] text-slate-500 truncate" title={passengerBreakdown || 'No breakdown'}>
-                {passengerBreakdown || 'No breakdown'}
-              </p>
-            </div>
-
-            {/* SHOULD WAIT SPEC */}
-            <div className={`p-2.5 rounded-xl border ${booking.shouldWait ? 'bg-amber-50/70 border-amber-200/80' : 'bg-slate-50 border-slate-100'}`}>
-              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Standby Required?</span>
-              <p className={`font-bold mt-0.5 text-[11px] ${booking.shouldWait ? 'text-amber-800' : 'text-slate-700'}`}>
-                {booking.shouldWait ? '⏳ Driver Standby' : '🚀 Drop-off Only'}
-              </p>
-              <span className="text-[10px] text-slate-400">
-                {booking.shouldWait ? 'Wait at destination' : 'No standby required'}
-              </span>
-            </div>
-
           </div>
 
-          {/* OPTIONAL REMARKS / ADMIN NOTES */}
-          {booking.remarks && (
-            <div className="p-2.5 bg-amber-50/70 border border-amber-200/60 rounded-xl text-xs text-amber-900">
-              <span className="font-extrabold text-[10px] uppercase tracking-wide block text-amber-800 mb-0.5">Requester Remarks:</span>
-              <p className="leading-snug">{booking.remarks}</p>
-            </div>
-          )}
-
-          {booking.adminNotes && (
-            <div className="p-2.5 bg-blue-50/70 border border-blue-200/60 rounded-xl text-xs text-blue-900">
-              <span className="font-extrabold text-[10px] uppercase tracking-wide block text-blue-800 mb-0.5">Admin Instructions:</span>
-              <p className="leading-snug">{booking.adminNotes}</p>
-            </div>
-          )}
-
-          {/* VIEW FULL DETAILS LINK */}
-          <div className="pt-0.5 flex justify-end">
-            <button
-              type="button"
-              onClick={() => setViewingBooking(booking)}
-              className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer py-1 px-2 rounded-lg hover:bg-indigo-50/60 transition"
-            >
-              <ClipboardListIcon className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Full Trip Details & Info</span>
-            </button>
-          </div>
-
-          {/* ACTION BUTTONS */}
-          <div className="pt-1.5 border-t border-slate-100">
-            {isAssigned && (
-              <button
-                onClick={() => handleAcceptJob(booking.id)}
-                className="w-full flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white font-extrabold py-3 px-4 rounded-xl shadow-sm transition active:scale-98 text-xs sm:text-sm uppercase tracking-wider cursor-pointer"
-              >
-                <CheckCircleIcon className="h-4 w-4" />
-                <span>Accept This Job</span>
-              </button>
-            )}
-
-            {isConfirmed && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleSingleOdometerOpen(booking.id)}
-                  className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-2.5 px-3 rounded-xl shadow-sm transition active:scale-98 text-xs uppercase tracking-wide cursor-pointer"
-                >
-                  <GaugeIcon className="h-4 w-4" />
-                  <span>Log Meter & Complete</span>
-                </button>
-                <button
-                  onClick={() => {
-                    if (window.confirm("Mark this trip completed directly without an odometer log?")) {
-                      updateBookingStatus(booking.id, 'Completed');
-                    }
-                  }}
-                  className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition font-bold text-xs uppercase tracking-wider cursor-pointer"
-                  title="Complete immediately without recording odometer"
-                >
-                  Direct Complete
-                </button>
-              </div>
-            )}
-          </div>
-
+          <p className="text-[11px] font-semibold text-indigo-600 text-center pt-0.5">
+            Tap for details →
+          </p>
         </div>
       </div>
     );
   };
 
+
   return (
-    <div className="max-w-md md:max-w-3xl mx-auto space-y-5 pb-28 relative">
+    <div className="max-w-md md:max-w-3xl mx-auto space-y-4 px-1 sm:px-0 pb-28 relative safe-area-pb">
       
       {/* DRIVER COCKPIT PROFILE */}
       <div className="bg-slate-900 text-white p-5 rounded-2xl shadow-md border border-slate-800">
@@ -1170,6 +1022,9 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
         isAdmin={false}
         users={users}
         vehicles={vehicles}
+        onAcceptJob={(b) => handleAcceptJob(b.id)}
+        onDirectComplete={(b) => updateBookingStatus(b.id, 'Completed')}
+        onLogMeter={(b) => handleSingleOdometerOpen(b.id)}
       />
 
     </div>
