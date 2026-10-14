@@ -90,17 +90,13 @@ export function createDirectSupabaseClient(url: string = DEFAULT_SUPABASE_URL, a
 
   return createClient(cleanUrl, cleanKey, {
     auth: {
-      persistSession: false,
-      autoRefreshToken: false,
+      persistSession: true,          // <-- penting: simpan session
+      autoRefreshToken: true,        // <-- penting: auto refresh token
       detectSessionInUrl: false,
-      storageKey: 'fleetflow_direct_auth'
-    },
-    global: {
-      headers: {
-        'apikey': cleanKey,
-        'Authorization': `Bearer ${cleanKey}`
-      }
+      storageKey: 'fleetflow_auth'
     }
+    // Buang global.headers yang paksa Authorization = anon key
+    // Supabase client akan automatik guna session token bila user sudah login
   });
 }
 

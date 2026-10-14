@@ -315,81 +315,106 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [users, currentUser, isLoading]);
 
-  const login = useCallback(async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
-    try {
-      const cleanEmail = email.trim().toLowerCase();
-      const cleanPassword = password.trim();
+const login = useCallback(async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password.trim();
 
-      let user = null;
-      let authSuccessful = false;
+    const supabase = getSupabase();
 
-      // 1. Attempt standard Supabase Auth Sign In first
-      try {
-        const supabase = getSupabase();
-        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-          email: cleanEmail,
-          password: cleanPassword
-        });
+    // 1. Login guna Supabase Auth sahaja
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
+      password: cleanPassword
+    });
 
-        if (!authError && authData.user) {
-          // If auth succeeds, retrieve their profile from fleet_users using their Auth UUID
-          user = await storageService.getUsers().then(allUsers => 
-            allUsers.find(u => u.id === authData.user.id || (u.email || '').trim().toLowerCase() === cleanEmail)
-          );
-          authSuccessful = !!user;
-        } else if (authError) {
-          console.log('[Supabase Auth] Attempt failed, trying local fallback:', authError.message);
-        }
-      } catch (authExc: any) {
-        console.warn('[Supabase Auth] Exception during signInWithPassword:', authExc.message);
-      }
-
-      // 2. Legacy / Seeding fallback: Check direct table database profile
-      if (!authSuccessful) {
-        const foundUser = await storageService.getUserByEmailGlobal(cleanEmail);
-        if (foundUser) {
-          const storedPassword = String(foundUser.password || '').trim();
-          if (storedPassword === cleanPassword) {
-            user = foundUser;
-          } else {
-            return { success: false, error: 'Incorrect password. Please verify and try again.' };
-          }
-        }
-      }
-
-      if (!user) {
-        console.warn('[Auth] No user account found or credentials invalid for:', cleanEmail);
-        return { success: false, error: 'No account found with this email and password. Please check your credentials.' };
-      }
-
-      const isActive = String(user.status || 'active').trim().toLowerCase() !== 'inactive';
-      if (!isActive) {
-        console.warn('[Auth] Inactive user account for:', cleanEmail);
-        return { success: false, error: 'This user account has been deactivated. Please contact your administrator.' };
-      }
-
-      const tenantId = user.tenantId || '';
-      const isOwner = !!user.isOwner;
-      storageService.setTenantId(tenantId);
-      localStorage.setItem('fleetflow_tenant_id', tenantId);
-      localStorage.setItem('fleetflow_user_data', JSON.stringify({ id: user.id, name: user.name, role: user.role, tenantId, isOwner }));
-      
-      setCurrentUser({ id: user.id, name: user.name, role: user.role, tenantId, isOwner });
-      reload();
-      return { success: true };
-    } catch (err: any) {
-      console.error('Login error:', err);
-      return { success: false, error: err.message || 'Login failed due to a connection error.' };
+    if (authError || !authData.user) {
+      console.warn('[Auth] Login failed:', authError?.message);
+      return { 
+        success: false, 
+        error: authError?.message?.includes('Invalid login credentials') 
+          ? 'Email atau password salah. Sila cuba lagi.' 
+          : (authError?.message || 'Login gagal. Sila cuba lagi.')
+      };
     }
-  }, [reload]);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('fleetflow_tenant_id');
-    localStorage.removeItem('fleetflow_user_data');
-    storageService.setTenantId('');
-    setCurrentUser(null);
+    // 2. Ambil profile dari fleet_users menggunakan auth_user_id atau email
+    const { data: profileRows, error: profileError } = await supabase
+      .from('fleet_users')
+      .select('*')
+      .or(`auth_user_id.eq.${authData.user.id},email.ilike.${cleanEmail}`)
+      .limit(5);
+
+    if (profileError || !profileRows || profileRows.length === 0) {
+      console.warn('[Auth] Profile not found after successful auth:', cleanEmail);
+      await supabase.auth.signOut();
+      return { success: false, error: 'Akaun dijumpai tetapi profil tidak lengkap. Sila hubungi admin.' };
+    }
+
+    // Pilih yang paling exact
+    const profile = profileRows.find((u: any) => 
+      u.auth_user_id === authData.user.id || 
+      (u.email || '').trim().toLowerCase() === cleanEmail
+    ) || profileRows[0];
+
+    const user = {
+      id: profile.id,
+      name: profile.name,
+      email: profile.email,
+      role: profile.role as 'admin' | 'driver',
+      status: profile.status || 'active',
+      tenantId: profile.tenant_id || '',
+      isOwner: !!profile.is_owner || (typeof profile.comments === 'string' && profile.comments.includes('[OWNER]')),
+    };
+
+    // 3. Check status aktif
+    if (String(user.status).toLowerCase() === 'inactive') {
+      await supabase.auth.signOut();
+      return { success: false, error: 'Akaun ini telah dinyahaktifkan. Sila hubungi administrator.' };
+    }
+
+    // 4. Set session state
+    const tenantId = user.tenantId || '';
+    storageService.setTenantId(tenantId);
+    localStorage.setItem('fleetflow_tenant_id', tenantId);
+    localStorage.setItem('fleetflow_user_data', JSON.stringify({
+      id: user.id,
+      name: user.name,
+      role: user.role,
+      tenantId,
+      isOwner: user.isOwner
+    }));
+
+    setCurrentUser({
+      id: user.id,
+      name: user.name,
+      role: user.role,
+      tenantId,
+      isOwner: user.isOwner
+    });
+
     reload();
-  }, [reload]);
+    return { success: true };
+  } catch (err: any) {
+    console.error('Login error:', err);
+    return { success: false, error: err.message || 'Login gagal kerana masalah sambungan.' };
+  }
+}, [reload]);
+
+const logout = useCallback(async () => {
+  try {
+    const supabase = getSupabase();
+    await supabase.auth.signOut();
+  } catch (err) {
+    console.warn('Sign out error:', err);
+  }
+
+  localStorage.removeItem('fleetflow_tenant_id');
+  localStorage.removeItem('fleetflow_user_data');
+  storageService.setTenantId('');
+  setCurrentUser(null);
+  reload();
+}, [reload]);
 
   const updateGoogleCalendarId = useCallback(async (calendarId: string): Promise<boolean> => {
     const currentTenantId = currentUser?.tenantId || storageService.getTenantId();
