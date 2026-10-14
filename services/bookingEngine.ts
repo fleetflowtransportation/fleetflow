@@ -356,31 +356,13 @@ export function evaluateBookingAssignment({
     })
     .filter((w): w is WorkingDriverInfo => w !== null);
 
-  // If no drivers on duty on this date
+  // If no drivers on duty on this date, fallback to active drivers with standard working shift (08:00 - 17:00)
   if (workingDrivers.length === 0) {
-    const reason = `No active drivers are scheduled on duty for this date (${bookingDate}).`;
-    return {
-      status: 'Conflict',
-      driverId: null,
-      vehicleId: null,
-      calendarEventTitle: `[CONFLICT] ${requesterName} → ${destination} (No Driver Scheduled)`,
-      calendarColor: 'grey',
-      calendarEventId: `evt-no-driver-${Date.now()}`,
-      conflictReason: reason,
-      adminNotes: `CONFLICT: ${reason}`,
-      emailNotifications: {
-        requester: {
-          to: requesterEmail,
-          subject: `[CONFLICT] No Driver On Duty: ${destination} (${bookingDate})`,
-          body: `Hello ${requesterName},\n\nYour booking request to ${destination} on ${bookingDate} could not be confirmed because no drivers are scheduled on duty for that date.\n\nPlease contact Admin (${adminAin.name} at ${adminAin.email}) for manual assistance.\n\nArmada Flow`,
-        },
-        admin: {
-          to: adminAin.email,
-          subject: `[MANUAL ACTION REQUIRED] No Driver Scheduled: ${requesterName}`,
-          body: `Admin,\n\nBooking request from ${requesterName} on ${bookingDate} could not be auto-assigned because there are no active driver duty schedules for this date. Please check the Driver Schedules tab.`,
-        },
-      },
-    };
+    workingDrivers = activeDrivers.map(driver => ({
+      driver,
+      shiftStart: '08:00',
+      shiftEnd: '17:00',
+    }));
   }
 
   // b. Filter drivers whose shift has started

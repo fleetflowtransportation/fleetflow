@@ -2,20 +2,19 @@ import type { Booking, FuelLog, OdometerLog, User, Vehicle, IssueLog, DriverSche
 import { USERS, VEHICLES, INITIAL_BOOKINGS, INITIAL_DRIVER_SCHEDULES, INITIAL_MAINTENANCE_INTERVALS, INITIAL_MAINTENANCE_LOGS } from '../constants';
 import { supabase, DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_ANON_KEY, createDirectSupabaseClient, getActiveSupabaseUrl, getActiveSupabaseAnonKey } from './supabaseClient';
 
-let currentTenantId = 'yck';
+let currentTenantId = localStorage.getItem('fleetflow_tenant_id') || 'yayasan-chow-kit-demo';
 
 export const getTenantId = () => {
-  if (!currentTenantId || currentTenantId === 'yayasan-chow-kit-demo' || currentTenantId === 'yayasan-chow-kit') {
-    currentTenantId = 'yck';
+  if (!currentTenantId) {
+    currentTenantId = localStorage.getItem('fleetflow_tenant_id') || 'yayasan-chow-kit-demo';
   }
   return currentTenantId;
 };
 
 export const setTenantId = (id: string) => {
-  if (!id || id === 'yayasan-chow-kit-demo' || id === 'yayasan-chow-kit') {
-    currentTenantId = 'yck';
-  } else {
+  if (id) {
     currentTenantId = id;
+    localStorage.setItem('fleetflow_tenant_id', id);
   }
 };
 

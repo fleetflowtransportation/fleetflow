@@ -122,22 +122,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // ---- Load session and active tenant on startup ----
   useEffect(() => {
-    let savedTenantId = localStorage.getItem('fleetflow_tenant_id') || '';
-    if (savedTenantId === 'yayasan-chow-kit-demo' || savedTenantId === 'yayasan-chow-kit') {
-      savedTenantId = 'yck';
-      localStorage.setItem('fleetflow_tenant_id', 'yck');
-    }
-    const targetTenantId = savedTenantId || 'yck';
+    let savedTenantId = localStorage.getItem('fleetflow_tenant_id') || 'yayasan-chow-kit-demo';
+    const targetTenantId = savedTenantId;
     storageService.setTenantId(targetTenantId);
     
     const savedUserData = localStorage.getItem('fleetflow_user_data');
     if (savedUserData) {
       try {
         const parsed = JSON.parse(savedUserData);
-        if (parsed.tenantId === 'yayasan-chow-kit-demo' || parsed.tenantId === 'yayasan-chow-kit') {
-          parsed.tenantId = 'yck';
-          localStorage.setItem('fleetflow_user_data', JSON.stringify(parsed));
-        }
         setCurrentUser(parsed);
       } catch {
         // ignore
@@ -283,14 +275,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!currentUser || isLoading || !hasLoadedOnceRef.current) return;
     if (users.length === 0) return;
 
+    // If storage tenant ID doesn't match currentUser tenant ID yet, wait for data sync
+    const currentStorageTenant = storageService.getTenantId();
+    if (currentUser.tenantId && currentStorageTenant && currentUser.tenantId !== currentStorageTenant) {
+      return;
+    }
+
     const loggedInUserRecord = users.find(u => u.id === currentUser.id);
     if (!loggedInUserRecord) {
-      console.warn('[Session Terminated] User account was deleted. Terminating active session.');
-      localStorage.removeItem('fleetflow_tenant_id');
-      localStorage.removeItem('fleetflow_user_data');
-      storageService.setTenantId('');
-      setCurrentUser(null);
-      alert('Your account has been deleted by an administrator. You have been logged out.');
+      // Double check via storageService to prevent false positives during login/refetch transitions
+      storageService.getUsers().then(latestUsers => {
+        const found = latestUsers.find(u => u.id === currentUser?.id);
+        if (!found && currentUser) {
+          console.warn('[Session Terminated] User account was deleted. Terminating active session.');
+          localStorage.removeItem('fleetflow_tenant_id');
+          localStorage.removeItem('fleetflow_user_data');
+          storageService.setTenantId('');
+          setCurrentUser(null);
+          alert('Your account has been deleted by an administrator. You have been logged out.');
+        }
+      }).catch(() => {});
       return;
     }
 
