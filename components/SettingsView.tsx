@@ -6,6 +6,7 @@ import VehicleManagement from './VehicleManagement';
 import BookingArchive from './BookingArchive';
 import SelfDriveStaffManagement from './SelfDriveStaffManagement';
 import type { Tenant } from '../types';
+import { storageService } from '../services/storage';
 import { googleCalendarService } from '../services/googleCalendar';
 import { isBase64Attachment, uploadBase64StringToGoogleDrive, formatFuelReceiptFileName } from '../services/googleDrive';
 import { 
@@ -571,8 +572,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialSubTab = 'pro
 
   // -------------------------------------------------------------
   // TAB 2: Public Portals & Links
-  // -------------------------------------------------------------
-  const tenantIdParam = activeTenant?.id || '';
+  const rawTenantId = activeTenant?.id || storageService.getTenantId();
+  const tenantIdParam = (!rawTenantId || rawTenantId === 'yayasan-chow-kit-demo' || rawTenantId === 'yayasan-chow-kit') ? 'yck' : rawTenantId;
   const origin = window.location.origin;
   const bookingPortalUrl = `${origin}/?action=book&tenant_id=${tenantIdParam}`;
   const odometerPortalUrl = `${origin}/?action=odometer&tenant_id=${tenantIdParam}`;

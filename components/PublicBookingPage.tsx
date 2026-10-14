@@ -83,10 +83,11 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
   // Initialize and load tenant data
   useEffect(() => {
     setLoading(true);
-    storageService.setTenantId(tenantId);
+    const resolvedTenantId = (!tenantId || tenantId === 'yayasan-chow-kit-demo' || tenantId === 'yayasan-chow-kit') ? 'yck' : tenantId;
+    storageService.setTenantId(resolvedTenantId);
     
     Promise.all([
-      storageService.getTenant(tenantId),
+      storageService.getTenant(resolvedTenantId),
       storageService.getVehicles(),
       storageService.getUsers(),
       storageService.getBookings(),

@@ -62,7 +62,10 @@ const App: React.FC = () => {
   // Check public action URLs (booking form or self-drive odometer portal)
   const urlParams = new URLSearchParams(window.location.search);
   const action = urlParams.get('action');
-  const publicTenantId = urlParams.get('tenant_id') || localStorage.getItem('fleetflow_tenant_id') || 'yayasan-chow-kit-demo';
+  const rawParamTenant = urlParams.get('tenant_id') || localStorage.getItem('fleetflow_tenant_id') || '';
+  const publicTenantId = (!rawParamTenant || rawParamTenant === 'yayasan-chow-kit-demo' || rawParamTenant === 'yayasan-chow-kit')
+    ? 'yck'
+    : rawParamTenant;
 
   if (action === 'book') {
     return <PublicBookingPage tenantId={publicTenantId} initialTab="form" />;

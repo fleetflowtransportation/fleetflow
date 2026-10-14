@@ -15,7 +15,7 @@ import {
 import BookingForm from './BookingForm';
 
 const AdminDashboard: React.FC = () => {
-  const { bookings, users, vehicles, fuelLogs, odometerLogs } = useAppContext();
+  const { bookings, users, vehicles, fuelLogs, odometerLogs, activeTenant } = useAppContext();
   const [isFormOpen, setIsFormOpen] = useState(false);
 
   // Filter out drivers
@@ -93,7 +93,8 @@ const AdminDashboard: React.FC = () => {
   }, [fuelLogs]);
 
   const handleCreateBooking = () => {
-    window.open('https://armadaflow.vercel.app/?action=book&tenant_id=yck', '_blank');
+    const tid = activeTenant?.id || 'yck';
+    window.open(`${window.location.origin}/?action=book&tenant_id=${encodeURIComponent(tid)}`, '_blank');
   };
 
   return (

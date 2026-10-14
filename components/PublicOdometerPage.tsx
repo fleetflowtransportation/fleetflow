@@ -49,7 +49,10 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
 
   // Load tenant, fleet vehicles, bookings, odometer logs & authorized self-drive staff
   useEffect(() => {
-    const effectiveTenantId = tenantId || localStorage.getItem('fleetflow_tenant_id') || storageService.getTenantId() || 'yayasan-chow-kit-demo';
+    const rawTenant = tenantId || localStorage.getItem('fleetflow_tenant_id') || storageService.getTenantId();
+    const effectiveTenantId = (!rawTenant || rawTenant === 'yayasan-chow-kit-demo' || rawTenant === 'yayasan-chow-kit')
+      ? 'yck'
+      : rawTenant;
     storageService.setTenantId(effectiveTenantId);
 
     Promise.all([

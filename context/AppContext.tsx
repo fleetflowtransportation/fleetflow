@@ -122,30 +122,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // ---- Load session and active tenant on startup ----
   useEffect(() => {
-    const savedTenantId = localStorage.getItem('fleetflow_tenant_id') || '';
-    const savedUserData = localStorage.getItem('fleetflow_user_data');
-    
-    if (savedTenantId) {
-      storageService.setTenantId(savedTenantId);
+    let savedTenantId = localStorage.getItem('fleetflow_tenant_id') || '';
+    if (savedTenantId === 'yayasan-chow-kit-demo' || savedTenantId === 'yayasan-chow-kit') {
+      savedTenantId = 'yck';
+      localStorage.setItem('fleetflow_tenant_id', 'yck');
     }
+    const targetTenantId = savedTenantId || 'yck';
+    storageService.setTenantId(targetTenantId);
     
+    const savedUserData = localStorage.getItem('fleetflow_user_data');
     if (savedUserData) {
       try {
         const parsed = JSON.parse(savedUserData);
+        if (parsed.tenantId === 'yayasan-chow-kit-demo' || parsed.tenantId === 'yayasan-chow-kit') {
+          parsed.tenantId = 'yck';
+          localStorage.setItem('fleetflow_user_data', JSON.stringify(parsed));
+        }
         setCurrentUser(parsed);
       } catch {
         // ignore
       }
     }
     
-    if (savedTenantId) {
-      storageService.getTenant(savedTenantId).then(tenant => {
-        setActiveTenant(tenant);
-        setTenantInitialized(true);
-      });
-    } else {
+    storageService.getTenant(targetTenantId).then(tenant => {
+      setActiveTenant(tenant);
       setTenantInitialized(true);
-    }
+    }).catch(() => {
+      setTenantInitialized(true);
+    });
   }, []);
 
   // Sync activeTenant when currentUser changes or reloadTick occurs

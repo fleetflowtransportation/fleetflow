@@ -980,7 +980,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   }, []);
 
   const handleCreateNewBooking = () => {
-    window.open('https://armadaflow.vercel.app/?action=book&tenant_id=yck', '_blank');
+    const tid = context?.activeTenant?.id || storageService.getTenantId() || 'yck';
+    window.open(`${window.location.origin}/?action=book&tenant_id=${encodeURIComponent(tid)}`, '_blank');
   };
 
   const handleEditBooking = (b: Booking) => {

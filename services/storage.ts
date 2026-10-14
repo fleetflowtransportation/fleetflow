@@ -2,11 +2,21 @@ import type { Booking, FuelLog, OdometerLog, User, Vehicle, IssueLog, DriverSche
 import { USERS, VEHICLES, INITIAL_BOOKINGS, INITIAL_DRIVER_SCHEDULES, INITIAL_MAINTENANCE_INTERVALS, INITIAL_MAINTENANCE_LOGS } from '../constants';
 import { supabase, DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_ANON_KEY, createDirectSupabaseClient, getActiveSupabaseUrl, getActiveSupabaseAnonKey } from './supabaseClient';
 
-let currentTenantId = 'yayasan-chow-kit-demo';
+let currentTenantId = 'yck';
 
-export const getTenantId = () => currentTenantId;
+export const getTenantId = () => {
+  if (!currentTenantId || currentTenantId === 'yayasan-chow-kit-demo' || currentTenantId === 'yayasan-chow-kit') {
+    currentTenantId = 'yck';
+  }
+  return currentTenantId;
+};
+
 export const setTenantId = (id: string) => {
-  currentTenantId = id;
+  if (!id || id === 'yayasan-chow-kit-demo' || id === 'yayasan-chow-kit') {
+    currentTenantId = 'yck';
+  } else {
+    currentTenantId = id;
+  }
 };
 
 // Helper: Convert User TS to DB
@@ -42,7 +52,7 @@ const toDbUser = (u: Partial<User>) => {
 // Helper: Convert DB User to TS
 const fromDbUser = (row: any): User => {
   const isOwnerFromComment = typeof row.comments === 'string' && row.comments.includes('[OWNER]');
-  const isDefaultOwner = ((row.tenant_id === 'yayasan-chow-kit-demo' || row.tenant_id === 'yayasan-chow-kit') && (row.email === 'aziz@yck.org.my' || row.id === 'admin-ain')) ||
+  const isDefaultOwner = ((row.tenant_id === 'yck' || row.tenant_id === 'yayasan-chow-kit-demo' || row.tenant_id === 'yayasan-chow-kit') && (row.email === 'aziz@yck.org.my' || row.id === 'admin-ain')) ||
     (row.tenant_id === 'bukujalananchowkit' && (row.email === 'aziznurmin@gmail.com' || row.email?.includes('aziznurmin'))) ||
     isOwnerFromComment;
 
@@ -489,7 +499,7 @@ const INITIAL_SELF_DRIVE_STAFF: SelfDriveStaff[] = [
     status: 'active',
     notes: 'Authorized self-drive staff for community outreach and errand trips.',
     createdAt: '2026-01-10T08:00:00.000Z',
-    tenantId: 'yayasan-chow-kit-demo'
+    tenantId: 'yck'
   },
   {
     id: 'staff-sds-02',
@@ -502,7 +512,7 @@ const INITIAL_SELF_DRIVE_STAFF: SelfDriveStaff[] = [
     status: 'active',
     notes: 'Approved for Alza usage during official youth development activities.',
     createdAt: '2026-02-15T09:30:00.000Z',
-    tenantId: 'yayasan-chow-kit-demo'
+    tenantId: 'yck'
   }
 ];
 
@@ -669,21 +679,27 @@ export const storageService = {
 
       if (error) {
         console.warn('[Supabase] getUsers error:', error.message);
-        return [];
       }
-      if (!data || data.length === 0) {
-        return [];
+      if (data && data.length > 0) {
+        const users = data.map(fromDbUser);
+        // Ensure the tenant has an identified owner
+        const hasOwner = users.some(u => u.isOwner);
+        if (!hasOwner && users.length > 0) {
+          const primaryAdmin = users.find(u => u.role === 'admin') || users[0];
+          if (primaryAdmin) primaryAdmin.isOwner = true;
+        }
+        return users;
       }
-      const users = data.map(fromDbUser);
-      // Ensure the tenant has an identified owner
-      const hasOwner = users.some(u => u.isOwner);
-      if (!hasOwner && users.length > 0) {
-        const primaryAdmin = users.find(u => u.role === 'admin') || users[0];
-        if (primaryAdmin) primaryAdmin.isOwner = true;
+      if (tid === 'yck' || tid === 'yayasan-chow-kit' || tid === 'yayasan-chow-kit-demo') {
+        return USERS;
       }
-      return users;
+      return [];
     } catch (err: any) {
       console.warn('[Supabase] getUsers network exception:', err.message);
+      const tid = getTenantId();
+      if (tid === 'yck' || tid === 'yayasan-chow-kit' || tid === 'yayasan-chow-kit-demo') {
+        return USERS;
+      }
       return [];
     }
   },
@@ -699,16 +715,23 @@ export const storageService = {
 
       if (error) {
         console.warn('[Supabase] getVehicles query error:', error.message);
-        return [];
       }
 
-      if (!data || data.length === 0) {
-        return [];
+      if (data && data.length > 0) {
+        return data.map(fromDbVehicle);
       }
 
-      return data.map(fromDbVehicle);
+      if (tid === 'yck' || tid === 'yayasan-chow-kit' || tid === 'yayasan-chow-kit-demo') {
+        return VEHICLES;
+      }
+
+      return [];
     } catch (err: any) {
       console.warn('[Supabase] getVehicles network exception:', err.message);
+      const tid = getTenantId();
+      if (tid === 'yck' || tid === 'yayasan-chow-kit' || tid === 'yayasan-chow-kit-demo') {
+        return VEHICLES;
+      }
       return [];
     }
   },
@@ -724,14 +747,20 @@ export const storageService = {
 
       if (error) {
         console.warn('[Supabase] getBookings error:', error.message);
-        return [];
       }
-      if (!data || data.length === 0) {
-        return [];
+      if (data && data.length > 0) {
+        return data.map(fromDbBooking);
       }
-      return data.map(fromDbBooking);
+      if (tid === 'yck' || tid === 'yayasan-chow-kit' || tid === 'yayasan-chow-kit-demo') {
+        return INITIAL_BOOKINGS;
+      }
+      return [];
     } catch (err: any) {
       console.warn('[Supabase] getBookings network exception:', err.message);
+      const tid = getTenantId();
+      if (tid === 'yck' || tid === 'yayasan-chow-kit' || tid === 'yayasan-chow-kit-demo') {
+        return INITIAL_BOOKINGS;
+      }
       return [];
     }
   },
@@ -780,14 +809,24 @@ export const storageService = {
 
   getDriverSchedules: async (): Promise<DriverSchedule[]> => {
     try {
-      const { data, error } = await supabase.from('driver_schedules').select('*').eq('tenant_id', getTenantId()).order('date', { ascending: true });
+      const tid = getTenantId();
+      const { data, error } = await supabase.from('driver_schedules').select('*').eq('tenant_id', tid).order('date', { ascending: true });
       if (error) {
         console.warn('[Supabase] getDriverSchedules query error:', error.message);
-        return [];
       }
-      return (data || []).map(fromDbDriverSchedule);
+      if (data && data.length > 0) {
+        return data.map(fromDbDriverSchedule);
+      }
+      if (tid === 'yck' || tid === 'yayasan-chow-kit' || tid === 'yayasan-chow-kit-demo') {
+        return INITIAL_DRIVER_SCHEDULES;
+      }
+      return [];
     } catch (err: any) {
       console.warn('[Supabase] getDriverSchedules exception:', err.message);
+      const tid = getTenantId();
+      if (tid === 'yck' || tid === 'yayasan-chow-kit' || tid === 'yayasan-chow-kit-demo') {
+        return INITIAL_DRIVER_SCHEDULES;
+      }
       return [];
     }
   },
@@ -800,7 +839,7 @@ export const storageService = {
       const raw = localStorage.getItem(`fleetflow_self_drive_staff_${tenantId}`);
       if (raw) {
         localList = JSON.parse(raw);
-      } else if (tenantId === 'yayasan-chow-kit') {
+      } else if (tenantId === 'yck' || tenantId === 'yayasan-chow-kit' || tenantId === 'yayasan-chow-kit-demo') {
         localList = INITIAL_SELF_DRIVE_STAFF;
         localStorage.setItem(`fleetflow_self_drive_staff_${tenantId}`, JSON.stringify(localList));
       }
@@ -1646,9 +1685,11 @@ export const storageService = {
   // ---- TENANTS & MULTITENANCY ----
   getTenant: async (id: string): Promise<Tenant | null> => {
     try {
+      const lookupId = (!id || id === 'yayasan-chow-kit-demo' || id === 'yayasan-chow-kit') ? 'yck' : id;
+
       let localProfile: Partial<Tenant> = {};
       try {
-        const rawLocal = localStorage.getItem(`fleetflow_tenant_config_${id}`);
+        const rawLocal = localStorage.getItem(`fleetflow_tenant_config_${lookupId}`);
         if (rawLocal) {
           localProfile = JSON.parse(rawLocal);
         }
@@ -1656,17 +1697,17 @@ export const storageService = {
         // ignore
       }
 
-      const { data, error } = await supabase.from('tenants').select('*').eq('id', id).maybeSingle();
+      const { data, error } = await supabase.from('tenants').select('*').eq('id', lookupId).maybeSingle();
       
       if (error) {
         console.warn('[Supabase] getTenant warning:', error.message);
       }
 
-      if (!data && id !== 'yayasan-chow-kit-demo' && id !== 'yayasan-chow-kit') {
+      if (!data && lookupId !== 'yck') {
         return null;
       }
 
-      const isYCK = id === 'yayasan-chow-kit-demo' || id === 'yayasan-chow-kit';
+      const isYCK = lookupId === 'yck';
       let scriptUrl = data?.google_apps_script_url !== undefined && data.google_apps_script_url !== null
         ? data.google_apps_script_url
         : (localProfile.googleAppsScriptUrl !== undefined ? localProfile.googleAppsScriptUrl : (isYCK ? (import.meta.env.VITE_GOOGLE_SCRIPT_UPLOAD_URL || '') : ''));
@@ -1690,26 +1731,26 @@ export const storageService = {
       }
 
       const merged: Tenant = {
-        id,
-        name: data?.company_name || data?.name || localProfile.companyName || localProfile.name || (isYCK ? 'Yayasan Chow Kit - Demo' : id),
+        id: lookupId,
+        name: data?.company_name || data?.name || localProfile.companyName || localProfile.name || (isYCK ? 'Yayasan Chow Kit' : lookupId),
         status: data?.status || 'active',
         googleAppsScriptUrl: scriptUrl,
         googleCalendarId: calendarId,
         googleDriveId: driveId.trim(),
-        companyName: data?.company_name || data?.name || localProfile.companyName || (isYCK ? 'Yayasan Chow Kit - Demo' : id),
+        companyName: data?.company_name || data?.name || localProfile.companyName || (isYCK ? 'Yayasan Chow Kit' : lookupId),
         registrationNumber: data?.registration_number || data?.reg_number || localProfile.registrationNumber || localProfile.regNumber || (isYCK ? 'PPM-012-14-11012011' : ''),
         regNumber: data?.registration_number || data?.reg_number || localProfile.registrationNumber || localProfile.regNumber || (isYCK ? 'PPM-012-14-11012011' : ''),
-        phone: data?.phone || localProfile.phone || (isYCK ? '+603-4045 5550' : ''),
-        whatsapp: data?.whatsapp || localProfile.whatsapp || (isYCK ? '+6012-3456789' : ''),
-        email: data?.email || localProfile.email || (isYCK ? 'info@yck.org.my' : ''),
-        address: data?.address || localProfile.address || (isYCK ? 'No. 22B, Jalan Chow Kit, 50350 Kuala Lumpur' : ''),
+        phone: data?.phone || localProfile.phone || (isYCK ? '0326020842' : ''),
+        whatsapp: data?.whatsapp || localProfile.whatsapp || '',
+        email: data?.email || localProfile.email || (isYCK ? 'aziz@yck.org.my' : ''),
+        address: data?.address || localProfile.address || (isYCK ? '19, Jalan Belia, Chow Kit' : ''),
         postcode: data?.postcode || localProfile.postcode || (isYCK ? '50350' : ''),
         city: data?.city || localProfile.city || (isYCK ? 'Kuala Lumpur' : ''),
         state: data?.state || localProfile.state || (isYCK ? 'Wilayah Persekutuan Kuala Lumpur' : ''),
         website: data?.website || localProfile.website || (isYCK ? 'https://www.yck.org.my' : ''),
-        picName: data?.pic_name || localProfile.picName || (isYCK ? 'En. Syafiq (Pengurus Pengangkutan)' : ''),
-        picPhone: data?.pic_phone || localProfile.picPhone || (isYCK ? '+6012-3456789' : ''),
-        description: data?.description || localProfile.description || (isYCK ? 'Pusat Perlindungan Kanak-kanak & Pengurusan Pengangkutan Kebajikan Chow Kit' : ''),
+        picName: data?.pic_name || localProfile.picName || '',
+        picPhone: data?.pic_phone || localProfile.picPhone || '',
+        description: data?.description || localProfile.description || '',
         operatingHours: data?.operating_hours || localProfile.operatingHours || '08:00 - 17:00 (Mon - Fri)',
         timezone: data?.timezone || localProfile.timezone || 'Asia/Kuala_Lumpur',
         logoUrl: data?.logo_url || localProfile.logoUrl || '',
@@ -1724,6 +1765,8 @@ export const storageService = {
 
   updateTenant: async (id: string, updatedData: Partial<Omit<Tenant, 'id'>>): Promise<boolean> => {
     try {
+      const targetId = (!id || id === 'yayasan-chow-kit-demo' || id === 'yayasan-chow-kit') ? 'yck' : id;
+
       // Clear global legacy key
       try {
         localStorage.removeItem('fleetflow_google_script_url');
@@ -1734,7 +1777,7 @@ export const storageService = {
       // 1. Retrieve current cached local profile to merge cleanly
       let existingLocal: Partial<Tenant> = {};
       try {
-        const rawLocal = localStorage.getItem(`fleetflow_tenant_config_${id}`);
+        const rawLocal = localStorage.getItem(`fleetflow_tenant_config_${targetId}`);
         if (rawLocal) existingLocal = JSON.parse(rawLocal);
       } catch {
         // ignore
@@ -1761,17 +1804,17 @@ export const storageService = {
 
       // 2. Save to localStorage immediately for instant local retrieval
       try {
-        localStorage.setItem(`fleetflow_tenant_config_${id}`, JSON.stringify(mergedProfile));
+        localStorage.setItem(`fleetflow_tenant_config_${targetId}`, JSON.stringify(mergedProfile));
       } catch {
         // ignore
       }
 
       // 3. Upsert to Supabase with each field in its own dedicated column
-      const isYCK = id === 'yayasan-chow-kit-demo' || id === 'yayasan-chow-kit';
-      const companyTitle = mergedProfile.companyName || mergedProfile.name || (isYCK ? 'Yayasan Chow Kit - Demo' : id);
+      const isYCK = targetId === 'yck';
+      const companyTitle = mergedProfile.companyName || mergedProfile.name || (isYCK ? 'Yayasan Chow Kit' : targetId);
 
       const fullDbRow: any = {
-        id,
+        id: targetId,
         name: companyTitle,
         company_name: companyTitle,
         status: mergedProfile.status || 'active',
@@ -1805,7 +1848,7 @@ export const storageService = {
           await supabase
             .from('tenants')
             .upsert({
-              id,
+              id: targetId,
               name: companyTitle,
               status: mergedProfile.status || 'active',
               google_drive_id: cleanDriveId || null,

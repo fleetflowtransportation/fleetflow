@@ -414,7 +414,10 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
                 </span>
                 <button
                   type="button"
-                  onClick={() => window.open('https://armadaflow.vercel.app/?action=book&tenant_id=yck', '_blank')}
+                  onClick={() => {
+                    const tid = activeTenant?.id || 'yck';
+                    window.open(`${window.location.origin}/?action=book&tenant_id=${encodeURIComponent(tid)}`, '_blank');
+                  }}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1 rounded-lg transition shadow-xs cursor-pointer"
                 >
                   Open Public Link ↗

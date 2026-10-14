@@ -61,7 +61,8 @@ export const SelfDriveStaffManagement: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const tenantId = activeTenant?.id || storageService.getTenantId() || 'yayasan-chow-kit-demo';
+  const rawTenantId = activeTenant?.id || storageService.getTenantId();
+  const tenantId = (!rawTenantId || rawTenantId === 'yayasan-chow-kit-demo' || rawTenantId === 'yayasan-chow-kit') ? 'yck' : rawTenantId;
   const publicOdometerUrl = `${window.location.origin}/?action=odometer&tenant_id=${encodeURIComponent(tenantId)}`;
   const qrCodeApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(publicOdometerUrl)}`;
 
