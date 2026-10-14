@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { storageService } from '../services/storage';
-import { Tenant, Vehicle, Booking, OdometerLog, FuelLog, SelfDriveStaff } from '../types';
+import { Tenant, Vehicle, Booking, OdometerLog, SelfDriveStaff } from '../types';
+import { VEHICLES } from '../constants';
 import { 
   GaugeIcon, 
   CheckCircleIcon, 
@@ -9,7 +10,8 @@ import {
   TruckIcon, 
   UserCircleIcon,
   InformationCircleIcon, 
-  SearchIcon 
+  SearchIcon,
+  ChevronDownIcon
 } from './icons/Icons';
 
 interface PublicOdometerPageProps {
@@ -38,10 +40,6 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
   const [purpose, setPurpose] = useState<string>('');
   const [remarks, setRemarks] = useState<string>('');
 
-  // Fuel top-up (Clean, direct inputs without tick box)
-  const [fuelLiters, setFuelLiters] = useState('');
-  const [fuelCost, setFuelCost] = useState('');
-
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [submittedSummary, setSubmittedSummary] = useState<any | null>(null);
@@ -51,9 +49,11 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
 
   // Load tenant, fleet vehicles, bookings, odometer logs & authorized self-drive staff
   useEffect(() => {
-    storageService.setTenantId(tenantId);
+    const effectiveTenantId = tenantId || localStorage.getItem('fleetflow_tenant_id') || storageService.getTenantId() || 'yayasan-chow-kit-demo';
+    storageService.setTenantId(effectiveTenantId);
+
     Promise.all([
-      storageService.getTenant(tenantId),
+      storageService.getTenant(effectiveTenantId),
       storageService.getVehicles(),
       storageService.getBookings(),
       storageService.getOdometerLogs(),
@@ -61,22 +61,23 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
     ])
       .then(([t, v, b, o, s]) => {
         setTenant(t);
-        setVehicles(v);
-        setBookings(b);
-        setOdometerLogs(o);
-        setSelfDriveStaff(s.filter(staff => staff.status === 'active'));
+        const resolvedVehicles = (v && v.length > 0) ? v : VEHICLES;
+        setVehicles(resolvedVehicles);
+        setBookings(b || []);
+        setOdometerLogs(o || []);
+        setSelfDriveStaff((s || []).filter(staff => staff.status === 'active'));
 
-        if (v.length > 0) {
+        if (resolvedVehicles.length > 0) {
           // Default to Alza if available
-          const alza = v.find(veh => 
+          const alza = resolvedVehicles.find(veh => 
             (veh.name && veh.name.toLowerCase().includes('alza')) || 
             (veh.specifications && veh.specifications.toLowerCase().includes('alza'))
           );
-          const chosenVehicle = alza || v[0];
+          const chosenVehicle = alza || resolvedVehicles[0];
           setSelectedVehicleId(chosenVehicle.id);
 
           // Find latest known odometer reading for chosen vehicle
-          const latestLog = o
+          const latestLog = (o || [])
             .filter(l => l.vehicleId === chosenVehicle.id)
             .sort((x, y) => new Date(y.date).getTime() - new Date(x.date).getTime())[0];
           if (latestLog && latestLog.odometer) {
@@ -86,6 +87,10 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
       })
       .catch((err) => {
         console.error('Error loading data for public odometer portal:', err);
+        setVehicles(VEHICLES);
+        if (VEHICLES.length > 0) {
+          setSelectedVehicleId(VEHICLES[0].id);
+        }
       })
       .finally(() => {
         setLoading(false);
@@ -261,27 +266,7 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
         }
       }
 
-      // 3. Optional Fuel Log (no tickbox required, saved if values are provided)
-      if (fuelLiters.trim() && fuelCost.trim()) {
-        const litersNum = parseFloat(fuelLiters);
-        const costNum = parseFloat(fuelCost);
-        if (!isNaN(litersNum) && !isNaN(costNum) && litersNum > 0 && costNum > 0) {
-          const fuelLog: FuelLog = {
-            id: `fuel-pub-${Date.now()}`,
-            vehicleId: selectedVehicleId,
-            driverId: `staff-${effectiveStaffName.replace(/\s+/g, '-').toLowerCase()}`,
-            date: date,
-            odometer: endNum,
-            liters: litersNum,
-            cost: costNum,
-            pricePerLiter: Math.round((costNum / litersNum) * 100) / 100,
-            tenantId,
-          };
-          await storageService.createFuelLog(fuelLog);
-        }
-      }
-
-      // 4. Save summary for confirmation view
+      // 3. Save summary for confirmation view
       setSubmittedSummary({
         vehicleName: vehicle ? `${vehicle.name} (${vehicle.plateNumber})` : 'Vehicle',
         staffName: effectiveStaffName,
@@ -291,8 +276,6 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
         date,
         destination,
         purpose,
-        fuelLiters: fuelLiters ? parseFloat(fuelLiters) : null,
-        fuelCost: fuelCost ? parseFloat(fuelCost) : null,
       });
 
     } catch (err: any) {
@@ -306,8 +289,6 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
     setSubmittedSummary(null);
     setEndOdometer('');
     setRemarks('');
-    setFuelLiters('');
-    setFuelCost('');
     setSelectedBookingId('manual');
     // Pre-populate new start with previous end
     if (submittedSummary && submittedSummary.endReading) {
@@ -411,14 +392,6 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
                   +{submittedSummary.distance} km
                 </span>
               </div>
-              {submittedSummary.fuelLiters && (
-                <div className="flex justify-between items-center pt-2 border-t border-slate-200 text-amber-900">
-                  <span>Fuel Refueled:</span>
-                  <span className="font-medium">
-                    {submittedSummary.fuelLiters} L (RM {submittedSummary.fuelCost?.toFixed(2)})
-                  </span>
-                </div>
-              )}
             </div>
 
             <button
@@ -513,47 +486,91 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
 
               {/* Vehicle Selection */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                   Vehicle <span className="text-rose-500">*</span>
                 </label>
-                <select
-                  value={selectedVehicleId}
-                  onChange={(e) => handleVehicleChange(e.target.value)}
-                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white font-medium text-xs sm:text-sm"
-                  required
-                >
-                  {vehicles.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name} - {v.plateNumber}
-                    </option>
-                  ))}
-                </select>
+                
+                {/* Mobile-Friendly Native Dropdown with High-contrast Chevron */}
+                <div className="relative">
+                  <select
+                    value={selectedVehicleId}
+                    onChange={(e) => handleVehicleChange(e.target.value)}
+                    className="w-full px-4 py-3.5 pr-11 border-2 border-slate-300 rounded-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 outline-none bg-white font-semibold text-sm sm:text-base text-slate-900 cursor-pointer appearance-none -webkit-appearance-none shadow-xs transition"
+                    required
+                  >
+                    {vehicles.length === 0 && (
+                      <option value="" disabled>Loading vehicles...</option>
+                    )}
+                    {vehicles.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name} ({v.plateNumber})
+                      </option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-slate-500">
+                    <ChevronDownIcon className="w-5 h-5 text-indigo-600" />
+                  </div>
+                </div>
+
+                {/* Quick 1-Tap Vehicle Selection Chips for Mobile Phones */}
+                {vehicles.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2.5">
+                    {vehicles.map((v) => {
+                      const isSelected = v.id === selectedVehicleId;
+                      return (
+                        <button
+                          key={v.id}
+                          type="button"
+                          onClick={() => handleVehicleChange(v.id)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 border cursor-pointer active:scale-95 ${
+                            isSelected
+                              ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs'
+                              : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'
+                          }`}
+                        >
+                          <span>🚗</span>
+                          <span>{v.name}</span>
+                          <span className={`text-[10px] font-mono ${isSelected ? 'text-indigo-200' : 'text-slate-500'}`}>
+                            {v.plateNumber}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {latestVehicleOdometer !== null && (
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    Last recorded odometer: <strong>{latestVehicleOdometer.toLocaleString()} km</strong>
+                  <p className="text-[11px] text-slate-500 mt-2 flex items-center gap-1.5">
+                    <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
+                    <span>Last recorded odometer: <strong>{latestVehicleOdometer.toLocaleString()} km</strong></span>
                   </p>
                 )}
               </div>
 
               {/* Staff Name Dropdown */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                   Staff Member (Driver) <span className="text-rose-500">*</span>
                 </label>
-                <select
-                  value={selectedStaffId}
-                  onChange={(e) => setSelectedStaffId(e.target.value)}
-                  required
-                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white font-medium text-xs sm:text-sm"
-                >
-                  <option value="">-- Select Staff Member --</option>
-                  {selfDriveStaff.map((staff) => (
-                    <option key={staff.id} value={staff.id}>
-                      {staff.name} {staff.department ? `(${staff.department})` : ''}
-                    </option>
-                  ))}
-                  <option value="other">✍️ Other Staff Member (Type Name)</option>
-                </select>
+                <div className="relative">
+                  <select
+                    value={selectedStaffId}
+                    onChange={(e) => setSelectedStaffId(e.target.value)}
+                    required
+                    className="w-full px-4 py-3.5 pr-11 border-2 border-slate-300 rounded-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 outline-none bg-white font-medium text-sm sm:text-base text-slate-900 cursor-pointer appearance-none -webkit-appearance-none shadow-xs transition"
+                  >
+                    <option value="">-- Select Staff Member --</option>
+                    {selfDriveStaff.map((staff) => (
+                      <option key={staff.id} value={staff.id}>
+                        {staff.name} {staff.department ? `(${staff.department})` : ''}
+                      </option>
+                    ))}
+                    <option value="other">✍️ Other Staff Member (Type Name)</option>
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-slate-500">
+                    <ChevronDownIcon className="w-5 h-5 text-indigo-600" />
+                  </div>
+                </div>
 
                 {/* Custom Name input if "other" or empty list */}
                 {selectedStaffId === 'other' && (
@@ -564,7 +581,7 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
                       value={customStaffName}
                       onChange={(e) => setCustomStaffName(e.target.value)}
                       placeholder="Enter your full name"
-                      className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-xs sm:text-sm bg-slate-50"
+                      className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-slate-50"
                     />
                   </div>
                 )}
@@ -660,47 +677,6 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
                   placeholder="e.g. Outreach program, client visit, logistics"
                   className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-xs sm:text-sm bg-white"
                 />
-              </div>
-
-              {/* Fuel Entry (Direct & Optional - Tick box removed) */}
-              <div className="pt-2 border-t border-slate-100 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                    Fuel Top-Up (Optional)
-                  </span>
-                  <span className="text-[11px] text-slate-400">
-                    Fill only if you refueled
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 p-3 bg-amber-50/70 rounded-xl border border-amber-200">
-                  <div>
-                    <label className="block text-[11px] font-bold text-amber-900 uppercase mb-1">
-                      Fuel Liters (L)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={fuelLiters}
-                      onChange={(e) => setFuelLiters(e.target.value)}
-                      placeholder="e.g. 35.5"
-                      className="w-full px-3 py-2 border border-amber-300 rounded-lg text-xs bg-white focus:ring-2 focus:ring-amber-500 outline-none font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-amber-900 uppercase mb-1">
-                      Total Cost (RM)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={fuelCost}
-                      onChange={(e) => setFuelCost(e.target.value)}
-                      placeholder="e.g. 72.80"
-                      className="w-full px-3 py-2 border border-amber-300 rounded-lg text-xs bg-white focus:ring-2 focus:ring-amber-500 outline-none font-mono"
-                    />
-                  </div>
-                </div>
               </div>
 
               {/* Submit Button */}

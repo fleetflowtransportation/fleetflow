@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
+import { storageService } from '../services/storage';
 import { SelfDriveStaff, DEPARTMENTS } from '../types';
 import { 
   UsersIcon, 
@@ -60,8 +61,8 @@ export const SelfDriveStaffManagement: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const tenantId = activeTenant?.id || '';
-  const publicOdometerUrl = `${window.location.origin}/?action=odometer${tenantId ? `&tenant_id=${tenantId}` : ''}`;
+  const tenantId = activeTenant?.id || storageService.getTenantId() || 'yayasan-chow-kit-demo';
+  const publicOdometerUrl = `${window.location.origin}/?action=odometer&tenant_id=${encodeURIComponent(tenantId)}`;
   const qrCodeApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(publicOdometerUrl)}`;
 
   const filteredStaff = useMemo(() => {
