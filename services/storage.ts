@@ -999,16 +999,20 @@ export const storageService = {
   },
 
   // ---- WRITE (ODOMETER LOGS) ----
-  createOdometerLog: async (data: OdometerLog): Promise<OdometerLog> => {
-    try {
-      const dbRow = toDbOdometerLog(data);
-      const { error } = await supabase.from('odometer_logs').insert([dbRow]);
-      if (error) console.error('[Supabase] createOdometerLog error:', error.message);
-    } catch (err: any) {
-      console.error('[Supabase] createOdometerLog exception:', err.message);
+createOdometerLog: async (data: OdometerLog): Promise<OdometerLog> => {
+  try {
+    const dbRow = toDbOdometerLog(data);
+    const { error } = await supabase.from('odometer_logs').insert([dbRow]);
+    if (error) {
+      console.error('[Supabase] createOdometerLog error:', error.message);
+      throw new Error(error.message); // <-- penting: biar form tahu gagal
     }
-    return data;
-  },
+  } catch (err: any) {
+    console.error('[Supabase] createOdometerLog exception:', err.message);
+    throw err; // <-- jangan swallow error
+  }
+  return data;
+},
 
   updateOdometerLog: async (data: Partial<OdometerLog> & { id: string }): Promise<any> => {
     try {

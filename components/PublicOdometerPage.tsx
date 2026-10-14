@@ -498,7 +498,7 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
                   <select
                     value={selectedVehicleId}
                     onChange={(e) => handleVehicleChange(e.target.value)}
-                    className="w-full px-4 py-3.5 pr-11 border-2 border-slate-300 rounded-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 outline-none bg-white font-semibold text-sm sm:text-base text-slate-900 cursor-pointer appearance-none -webkit-appearance-none shadow-xs transition"
+                    className="w-full px-4 py-3.5 pr-11 border-2 border-slate-300 rounded-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 outline-none bg-white font-semibold text-sm sm:text-base text-slate-900 cursor-pointer shadow-xs transition"
                     required
                   >
                     {vehicles.length === 0 && (
@@ -560,7 +560,7 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
                     value={selectedStaffId}
                     onChange={(e) => setSelectedStaffId(e.target.value)}
                     required
-                    className="w-full px-4 py-3.5 pr-11 border-2 border-slate-300 rounded-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 outline-none bg-white font-medium text-sm sm:text-base text-slate-900 cursor-pointer appearance-none -webkit-appearance-none shadow-xs transition"
+                    className="w-full px-4 py-3.5 pr-11 border-2 border-slate-300 rounded-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 outline-none bg-white font-medium text-sm sm:text-base text-slate-900 cursor-pointer shadow-xs transition"
                   >
                     <option value="">-- Select Staff Member --</option>
                     {selfDriveStaff.map((staff) => (
