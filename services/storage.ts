@@ -487,34 +487,6 @@ const fromDbRenewal = (row: any): VehicleRenewal => ({
   tenantId: row.tenant_id || getTenantId(),
 });
 
-const INITIAL_SELF_DRIVE_STAFF: SelfDriveStaff[] = [
-  {
-    id: 'staff-sds-01',
-    name: 'Siti Nurhaliza binti Ahmad',
-    phone: '+6013-4567890',
-    department: 'Program',
-    icNumber: '920815-10-5432',
-    icAttachmentName: 'ic_siti_nurhaliza.pdf',
-    licenseAttachmentName: 'driving_license_siti.pdf',
-    status: 'active',
-    notes: 'Authorized self-drive staff for community outreach and errand trips.',
-    createdAt: '2026-01-10T08:00:00.000Z',
-    tenantId: 'yck'
-  },
-  {
-    id: 'staff-sds-02',
-    name: 'Mohd Farhan bin Razali',
-    phone: '+6017-8899001',
-    department: 'ALPD',
-    icNumber: '880324-14-6789',
-    icAttachmentName: 'ic_farhan_razali.jpg',
-    licenseAttachmentName: 'driving_license_farhan.jpg',
-    status: 'active',
-    notes: 'Approved for Alza usage during official youth development activities.',
-    createdAt: '2026-02-15T09:30:00.000Z',
-    tenantId: 'yck'
-  }
-];
 
 // Helper: Convert MaintenanceInterval TS to DB
 const toDbMaintenanceInterval = (m: Partial<MaintenanceInterval>) => ({
@@ -831,44 +803,33 @@ export const storageService = {
     }
   },
 
-  getSelfDriveStaff: async (): Promise<SelfDriveStaff[]> => {
-    const tenantId = getTenantId();
-    // 1. Check local storage cache
-    let localList: SelfDriveStaff[] = [];
-    try {
-      const raw = localStorage.getItem(`fleetflow_self_drive_staff_${tenantId}`);
-      if (raw) {
-        localList = JSON.parse(raw);
-      } else if (tenantId === 'yck' || tenantId === 'yayasan-chow-kit' || tenantId === 'yayasan-chow-kit-demo') {
-        localList = INITIAL_SELF_DRIVE_STAFF;
-        localStorage.setItem(`fleetflow_self_drive_staff_${tenantId}`, JSON.stringify(localList));
-      }
-    } catch {
-      // ignore
-    }
+getSelfDriveStaff: async (): Promise<SelfDriveStaff[]> => {
+  const tenantId = getTenantId();
 
-    try {
-      const { data, error } = await supabase
-        .from('self_drive_staff')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .order('created_at', { ascending: false });
-      
-      if (!error && data && data.length > 0) {
-        const dbItems = data.map(fromDbSelfDriveStaff);
-        try {
-          localStorage.setItem(`fleetflow_self_drive_staff_${tenantId}`, JSON.stringify(dbItems));
-        } catch {
-          // ignore
-        }
-        return dbItems;
+  try {
+    const { data, error } = await supabase
+      .from('self_drive_staff')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .order('created_at', { ascending: false });
+    
+    if (!error && data) {
+      const dbItems = data.map(fromDbSelfDriveStaff);
+      // Update local cache supaya konsisten
+      try {
+        localStorage.setItem(`fleetflow_self_drive_staff_${tenantId}`, JSON.stringify(dbItems));
+      } catch {
+        // ignore
       }
-    } catch (err: any) {
-      // ignore supabase table missing or network error
+      return dbItems;
     }
+  } catch (err: any) {
+    console.warn('[Supabase] getSelfDriveStaff error:', err.message);
+  }
 
-    return localList;
-  },
+  // Tiada fallback sample data — return kosong sahaja
+  return [];
+},
 
   // ---- WRITE (BOOKINGS) ----
   createBooking: async (data: Booking): Promise<Booking> => {
