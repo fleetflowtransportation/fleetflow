@@ -268,7 +268,7 @@ const fromDbBooking = (row: any): Booking => ({
   address: row.address,
   passengers: row.passengers || [],
   escort: row.escort || undefined,
-  shouldWait: Boolean(row.should_wait),
+  shouldWait: row.should_wait === true || row.should_wait === 'true' || row.should_wait === 1 || row.should_wait === '1' || row.should_wait === 'yes' || row.should_wait === 'on',
   returnTrip: row.return_trip !== undefined ? Boolean(row.return_trip) : undefined,
   status: row.status as Booking['status'],
   driverId: row.driver_id || null,

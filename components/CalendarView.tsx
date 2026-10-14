@@ -326,10 +326,10 @@ const TimelineEventCard: React.FC<TimelineEventCardProps> = ({
             </p>
           </div>
 
-          {isTall && (
+          {booking.serviceType !== 'Self-Drive' && (
             <div className="pt-1 mt-1 border-t border-slate-200/70 flex items-center justify-between text-[10px] text-slate-600">
               <span className="truncate">{booking.purpose || 'Official Transport'}</span>
-              <span className="font-semibold shrink-0 ml-1">
+              <span className={`font-bold shrink-0 ml-1 px-1.5 py-0.2 rounded text-[9px] ${booking.shouldWait ? 'bg-amber-100 text-amber-900 border border-amber-200' : 'bg-slate-100 text-slate-700 border border-slate-200'}`}>
                 {booking.shouldWait ? '⏳ Standby' : '🚗 Drop-off'}
               </span>
             </div>
@@ -697,7 +697,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           pickupPoint: row.pickup_point || '',
           address: '',
           passengers: [],
-          shouldWait: row.should_wait === true || row.should_wait === 'true' || row.should_wait === 1 || row.should_wait === '1',
+          shouldWait: row.should_wait === true || row.should_wait === 'true' || row.should_wait === 1 || row.should_wait === '1' || row.should_wait === 'yes' || row.should_wait === 'on',
           status: (row.status || 'Pending') as Booking['status'],
           driverId: row.driver_id || null,
           vehicleId: row.vehicle_id || null,
@@ -800,7 +800,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           address: data.address || '',
           passengers: data.passengers || [],
           escort: data.escort || undefined,
-          shouldWait: data.should_wait === true || data.should_wait === 'true' || data.should_wait === 1 || data.should_wait === '1',
+          shouldWait: data.should_wait === true || data.should_wait === 'true' || data.should_wait === 1 || data.should_wait === '1' || data.should_wait === 'yes' || data.should_wait === 'on',
           returnTrip: data.return_trip !== undefined ? Boolean(data.return_trip) : undefined,
           status: (data.status || 'Pending') as Booking['status'],
           driverId: data.driver_id || null,
