@@ -324,6 +324,7 @@ export interface SelfDriveStaff {
   icAttachmentUrl?: string;
   licenseAttachmentName?: string;
   licenseAttachmentUrl?: string;
+  licenseExpiry?: string; // YYYY-MM-DD
   notes?: string;
   status: 'active' | 'inactive';
   createdAt: string;

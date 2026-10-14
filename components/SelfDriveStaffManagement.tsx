@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { storageService } from '../services/storage';
 import { SelfDriveStaff, DEPARTMENTS } from '../types';
+import { uploadToGoogleDrive } from '../services/googleDrive';
 import { 
   UsersIcon, 
   PlusIcon, 
@@ -15,18 +16,6 @@ import {
   QrCodeIcon,
   DocumentTextIcon
 } from './icons/Icons';
-
-const fileToBase64 = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64String = (reader.result as string).split(',')[1];
-      resolve(base64String);
-    };
-    reader.onerror = (error) => reject(error);
-    reader.readAsDataURL(file);
-  });
-};
 
 export const SelfDriveStaffManagement: React.FC = () => {
   const { selfDriveStaff, addSelfDriveStaff, updateSelfDriveStaff, deleteSelfDriveStaff, activeTenant } = useAppContext();
@@ -45,6 +34,7 @@ export const SelfDriveStaffManagement: React.FC = () => {
   const [phone, setPhone] = useState('');
   const [department, setDepartment] = useState(DEPARTMENTS[0] || 'Program');
   const [icNumber, setIcNumber] = useState('');
+  const [licenseExpiry, setLicenseExpiry] = useState('');
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState<'active' | 'inactive'>('active');
   
@@ -62,22 +52,44 @@ export const SelfDriveStaffManagement: React.FC = () => {
   const [formError, setFormError] = useState<string | null>(null);
 
   const rawTenantId = activeTenant?.id || storageService.getTenantId();
-  const tenantId = (!rawTenantId || rawTenantId === 'yayasan-chow-kit-demo' || rawTenantId === 'yayasan-chow-kit') ? 'yck' : rawTenantId;
+  const tenantId = (!rawTenantId || rawTenantId === 'yayasan-chow-kit-demo' || rawTenantId === 'yayasan-chow-kit')
+    ? 'yck'
+    : rawTenantId;
   const publicOdometerUrl = `${window.location.origin}/?action=odometer&tenant_id=${encodeURIComponent(tenantId)}`;
   const qrCodeApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(publicOdometerUrl)}`;
 
-  const filteredStaff = useMemo(() => {
-    return selfDriveStaff.filter(staff => {
-      const matchesSearch = 
+  const staffList = useMemo(() => {
+    return (selfDriveStaff || []).filter(staff => {
+      const matchesSearch =
         staff.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         staff.phone.toLowerCase().includes(searchQuery.toLowerCase()) ||
         staff.icNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        staff.department.toLowerCase().includes(searchQuery.toLowerCase());
-      
+        (staff.department || '').toLowerCase().includes(searchQuery.toLowerCase());
       const matchesDept = filterDept === 'ALL' || staff.department === filterDept;
       return matchesSearch && matchesDept;
     });
   }, [selfDriveStaff, searchQuery, filterDept]);
+
+  // License expiry alerts
+  const { expiredLicenses, expiringSoonLicenses } = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const in30 = new Date(today);
+    in30.setDate(in30.getDate() + 30);
+
+    const expired: SelfDriveStaff[] = [];
+    const soon: SelfDriveStaff[] = [];
+
+    (selfDriveStaff || []).forEach((s) => {
+      if (!s.licenseExpiry || s.status !== 'active') return;
+      const exp = new Date(s.licenseExpiry);
+      if (Number.isNaN(exp.getTime())) return;
+      if (exp < today) expired.push(s);
+      else if (exp <= in30) soon.push(s);
+    });
+
+    return { expiredLicenses: expired, expiringSoonLicenses: soon };
+  }, [selfDriveStaff]);
 
   const handleOpenAddModal = () => {
     setEditingStaff(null);
@@ -85,6 +97,7 @@ export const SelfDriveStaffManagement: React.FC = () => {
     setPhone('');
     setDepartment(DEPARTMENTS[0] || 'Program');
     setIcNumber('');
+    setLicenseExpiry('');
     setNotes('');
     setStatus('active');
     setIcFile(null);
@@ -101,8 +114,9 @@ export const SelfDriveStaffManagement: React.FC = () => {
     setEditingStaff(staff);
     setName(staff.name);
     setPhone(staff.phone);
-    setDepartment(staff.department);
+    setDepartment(staff.department || DEPARTMENTS[0] || 'Program');
     setIcNumber(staff.icNumber);
+    setLicenseExpiry(staff.licenseExpiry || '');
     setNotes(staff.notes || '');
     setStatus(staff.status);
     setIcFile(null);
@@ -121,7 +135,6 @@ export const SelfDriveStaffManagement: React.FC = () => {
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 3000);
     } catch {
-      // fallback
       const el = document.createElement('textarea');
       el.value = publicOdometerUrl;
       document.body.appendChild(el);
@@ -133,41 +146,34 @@ export const SelfDriveStaffManagement: React.FC = () => {
     }
   };
 
-  // Helper to upload single file to Google Drive or fallback to Base64
-  const processUpload = async (file: File): Promise<{ url: string; name: string }> => {
-    const driveUrl = activeTenant?.googleAppsScriptUrl || (import.meta as any).env?.VITE_GOOGLE_SCRIPT_UPLOAD_URL;
-    if (driveUrl) {
-      try {
-        const base64Str = await fileToBase64(file);
-        const response = await fetch(driveUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({
-            base64: base64Str,
-            fileName: file.name,
-            mimeType: file.type
-          })
-        });
-        const resText = await response.text();
-        const resJson = JSON.parse(resText);
-        if (resJson && resJson.success && resJson.url) {
-          return { url: resJson.url, name: file.name };
-        }
-      } catch (err) {
-        console.warn('Google Drive direct upload fallback to local storage:', err);
-      }
+  // Upload IC / License to Google Drive (Supabase stores URL only)
+  const processUpload = async (
+    file: File,
+    kind: 'ic' | 'license',
+    staffName: string
+  ): Promise<{ url: string; name: string }> => {
+    const safeName = (staffName || 'staff').replace(/[^\w\-]+/g, '_').slice(0, 40);
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const customFileName = `${dateStr}_${safeName}_${kind}_${file.name}`;
+
+    const res = await uploadToGoogleDrive(file, {
+      folderName: 'self_drive_staff',
+      folderPath: ['Self-Drive Staff', safeName],
+      fileName: customFileName,
+      tenant: activeTenant,
+    });
+
+    if (!res.success || !res.url) {
+      throw new Error(
+        res.error ||
+          `Gagal upload ${kind === 'ic' ? 'IC' : 'Driving License'} ke Google Drive. Semak Settings > Integrations (Google Apps Script URL & Drive Folder).`
+      );
     }
-    
-    // Fallback storage
-    if (file.size < 800 * 1024) {
-      try {
-        const base64Str = await fileToBase64(file);
-        return { url: `data:${file.type};base64,${base64Str}`, name: file.name };
-      } catch {
-        return { url: URL.createObjectURL(file), name: file.name };
-      }
-    }
-    return { url: URL.createObjectURL(file), name: file.name };
+
+    return {
+      url: res.webViewLink || res.url,
+      name: res.name || customFileName,
+    };
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -186,7 +192,7 @@ export const SelfDriveStaffManagement: React.FC = () => {
       let finalIcUrl = existingIcUrl;
       let finalIcName = existingIcName;
       if (icFile) {
-        const res = await processUpload(icFile);
+        const res = await processUpload(icFile, 'ic', name.trim());
         finalIcUrl = res.url;
         finalIcName = res.name;
       }
@@ -194,37 +200,29 @@ export const SelfDriveStaffManagement: React.FC = () => {
       let finalLicenseUrl = existingLicenseUrl;
       let finalLicenseName = existingLicenseName;
       if (licenseFile) {
-        const res = await processUpload(licenseFile);
+        const res = await processUpload(licenseFile, 'license', name.trim());
         finalLicenseUrl = res.url;
         finalLicenseName = res.name;
       }
 
+      const payload = {
+        name: name.trim(),
+        phone: phone.trim(),
+        department: department.trim(),
+        icNumber: icNumber.trim(),
+        licenseExpiry: licenseExpiry || undefined,
+        notes: notes.trim() || undefined,
+        status,
+        icAttachmentName: finalIcName,
+        icAttachmentUrl: finalIcUrl,
+        licenseAttachmentName: finalLicenseName,
+        licenseAttachmentUrl: finalLicenseUrl,
+      };
+
       if (editingStaff) {
-        await updateSelfDriveStaff(editingStaff.id, {
-          name: name.trim(),
-          phone: phone.trim(),
-          department: department.trim(),
-          icNumber: icNumber.trim(),
-          notes: notes.trim() || undefined,
-          status,
-          icAttachmentName: finalIcName,
-          icAttachmentUrl: finalIcUrl,
-          licenseAttachmentName: finalLicenseName,
-          licenseAttachmentUrl: finalLicenseUrl,
-        });
+        await updateSelfDriveStaff(editingStaff.id, payload);
       } else {
-        await addSelfDriveStaff({
-          name: name.trim(),
-          phone: phone.trim(),
-          department: department.trim(),
-          icNumber: icNumber.trim(),
-          notes: notes.trim() || undefined,
-          status,
-          icAttachmentName: finalIcName,
-          icAttachmentUrl: finalIcUrl,
-          licenseAttachmentName: finalLicenseName,
-          licenseAttachmentUrl: finalLicenseUrl,
-        });
+        await addSelfDriveStaff(payload);
       }
 
       setIsModalOpen(false);
@@ -242,6 +240,23 @@ export const SelfDriveStaffManagement: React.FC = () => {
     }
   };
 
+  const formatExpiryBadge = (expiry?: string) => {
+    if (!expiry) return <span className="text-xs text-slate-400">No expiry set</span>;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const exp = new Date(expiry);
+    if (Number.isNaN(exp.getTime())) return <span className="text-xs text-slate-400">{expiry}</span>;
+    if (exp < today) {
+      return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">Expired {expiry}</span>;
+    }
+    const in30 = new Date(today);
+    in30.setDate(in30.getDate() + 30);
+    if (exp <= in30) {
+      return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">Expiring {expiry}</span>;
+    }
+    return <span className="text-xs text-slate-600 font-medium">{expiry}</span>;
+  };
+
   return (
     <div className="space-y-6">
       {/* Top Banner: Public Odometer Link & QR Code Access */}
@@ -256,7 +271,7 @@ export const SelfDriveStaffManagement: React.FC = () => {
               Authorized Self-Drive Documentation & QR Odometer
             </h2>
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              Maintain official staff documentation (IC and driving license records) without registering staff as regular drivers. Staff can easily record trip odometers by scanning the vehicle's QR code.
+              Maintain official staff documentation (IC and driving license records) without registering staff as regular drivers. Staff can easily record trip odometers by scanning the vehicle&apos;s QR code.
             </p>
           </div>
 
@@ -289,16 +304,47 @@ export const SelfDriveStaffManagement: React.FC = () => {
         </div>
       </div>
 
+      {/* License Expiry Alerts */}
+      {(expiredLicenses.length > 0 || expiringSoonLicenses.length > 0) && (
+        <div className="space-y-2">
+          {expiredLicenses.length > 0 && (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+              <div className="font-bold mb-1">⚠️ Driving License Expired — Request New License</div>
+              <ul className="list-disc pl-5 space-y-0.5 text-xs">
+                {expiredLicenses.map((s) => (
+                  <li key={s.id}>
+                    <strong>{s.name}</strong>
+                    {s.department ? ` (${s.department})` : ''} — expired on <strong>{s.licenseExpiry}</strong>. Please request an updated driving license.
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {expiringSoonLicenses.length > 0 && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <div className="font-bold mb-1">⏰ Driving License Expiring Within 30 Days</div>
+              <ul className="list-disc pl-5 space-y-0.5 text-xs">
+                {expiringSoonLicenses.map((s) => (
+                  <li key={s.id}>
+                    <strong>{s.name}</strong>
+                    {s.department ? ` (${s.department})` : ''} — expires on <strong>{s.licenseExpiry}</strong>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Main Content Card: Staff Table & Controls */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 sm:p-6 space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h3 className="text-lg font-bold text-gray-900">Authorized Self-Drive Staff</h3>
             <p className="text-xs text-gray-500 mt-0.5">
-              {selfDriveStaff.length} staff member{selfDriveStaff.length === 1 ? '' : 's'} registered with valid driving documentation
+              {selfDriveStaff.length} staff registered · Documents stored on Google Drive
             </p>
           </div>
-
           <button
             onClick={handleOpenAddModal}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition active:scale-95 cursor-pointer self-start sm:self-auto"
@@ -308,100 +354,85 @@ export const SelfDriveStaffManagement: React.FC = () => {
           </button>
         </div>
 
-        {/* Filters & Search */}
-        <div className="flex flex-col sm:flex-row items-center gap-3">
-          <div className="relative flex-1 w-full">
-            <SearchIcon className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+        {/* Filters */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <SearchIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search staff name, phone, IC, or department..."
-              className="w-full pl-9 pr-4 py-2.5 text-xs sm:text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+              placeholder="Search name, phone, IC, department..."
+              className="w-full pl-9 pr-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
             />
           </div>
-
-          <div className="w-full sm:w-auto">
-            <select
-              value={filterDept}
-              onChange={(e) => setFilterDept(e.target.value)}
-              className="w-full sm:w-48 px-3 py-2.5 text-xs sm:text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none bg-white font-medium"
-            >
-              <option value="ALL">All Departments</option>
-              {DEPARTMENTS.map(dept => (
-                <option key={dept} value={dept}>{dept}</option>
-              ))}
-            </select>
-          </div>
+          <select
+            value={filterDept}
+            onChange={(e) => setFilterDept(e.target.value)}
+            className="px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+          >
+            <option value="ALL">All Departments</option>
+            {DEPARTMENTS.map((d) => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
         </div>
 
         {/* Table */}
         <div className="overflow-x-auto rounded-xl border border-gray-200">
-          <table className="w-full text-left text-xs sm:text-sm text-gray-700">
-            <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 text-[11px] font-bold uppercase tracking-wider">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
               <tr>
-                <th className="px-4 py-3">Staff Name & Contact</th>
+                <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Department</th>
-                <th className="px-4 py-3">IC Number</th>
-                <th className="px-4 py-3">Documentation</th>
+                <th className="px-4 py-3">IC / Phone</th>
+                <th className="px-4 py-3">Documents</th>
+                <th className="px-4 py-3">License Expiry</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredStaff.length > 0 ? (
-                filteredStaff.map((staff) => (
+              {staffList.length > 0 ? (
+                staffList.map((staff) => (
                   <tr key={staff.id} className="hover:bg-gray-50/80 transition">
-                    <td className="px-4 py-3.5">
-                      <div className="font-bold text-gray-900">{staff.name}</div>
-                      <div className="text-gray-500 text-xs mt-0.5">{staff.phone}</div>
-                      {staff.notes && (
-                        <div className="text-[11px] text-gray-400 mt-1 italic line-clamp-1">{staff.notes}</div>
-                      )}
+                    <td className="px-4 py-3.5 font-semibold text-gray-900">{staff.name}</td>
+                    <td className="px-4 py-3.5 text-gray-600">{staff.department || '—'}</td>
+                    <td className="px-4 py-3.5 text-gray-600">
+                      <div className="text-xs font-mono">{staff.icNumber}</div>
+                      <div className="text-xs text-gray-500">{staff.phone}</div>
                     </td>
                     <td className="px-4 py-3.5">
-                      <span className="inline-block px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-800">
-                        {staff.department}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3.5 font-mono text-xs font-semibold text-gray-800">
-                      {staff.icNumber}
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <div className="flex flex-col gap-1.5">
-                        {/* IC Attachment */}
+                      <div className="flex flex-col gap-1">
                         {staff.icAttachmentUrl ? (
                           <a
                             href={staff.icAttachmentUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-800 font-semibold"
-                            title={staff.icAttachmentName || 'View IC Attachment'}
+                            className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:underline"
                           >
-                            <PaperClipIcon className="w-3.5 h-3.5 text-indigo-500" />
-                            <span className="truncate max-w-[130px]">IC: {staff.icAttachmentName || 'View File'}</span>
+                            <PaperClipIcon className="w-3.5 h-3.5" />
+                            IC
                           </a>
                         ) : (
-                          <span className="text-[11px] text-gray-400">IC: Not uploaded</span>
+                          <span className="text-xs text-gray-400">No IC file</span>
                         )}
-
-                        {/* License Attachment */}
                         {staff.licenseAttachmentUrl ? (
                           <a
                             href={staff.licenseAttachmentUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 text-xs text-emerald-600 hover:text-emerald-800 font-semibold"
-                            title={staff.licenseAttachmentName || 'View Driving License Attachment'}
+                            className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:underline"
                           >
-                            <DocumentTextIcon className="w-3.5 h-3.5 text-emerald-500" />
-                            <span className="truncate max-w-[130px]">License: {staff.licenseAttachmentName || 'View File'}</span>
+                            <DocumentTextIcon className="w-3.5 h-3.5" />
+                            License
                           </a>
                         ) : (
-                          <span className="text-[11px] text-amber-500 font-medium">License: Pending</span>
+                          <span className="text-xs text-gray-400">No license file</span>
                         )}
                       </div>
                     </td>
+                    <td className="px-4 py-3.5">{formatExpiryBadge(staff.licenseExpiry)}</td>
                     <td className="px-4 py-3.5">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                         staff.status === 'active' 
@@ -431,10 +462,10 @@ export const SelfDriveStaffManagement: React.FC = () => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="text-center py-10 text-gray-400">
+                  <td colSpan={7} className="text-center py-10 text-gray-400">
                     <UsersIcon className="w-8 h-8 mx-auto mb-2 text-gray-300" />
                     <p className="font-semibold text-gray-600">No Authorized Staff Found</p>
-                    <p className="text-xs text-gray-400 mt-0.5">Click "Add Authorized Staff" above to register new self-drive documentation.</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Click &quot;Add Authorized Staff&quot; above to register new self-drive documentation.</p>
                   </td>
                 </tr>
               )}
@@ -446,8 +477,8 @@ export const SelfDriveStaffManagement: React.FC = () => {
       {/* MODAL: ADD / EDIT STAFF */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-lg rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-xl border border-gray-200 overflow-hidden max-h-[92vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50 sticky top-0 z-10">
               <h3 className="font-bold text-gray-900 text-base">
                 {editingStaff ? 'Edit Authorized Staff' : 'Add Authorized Self-Drive Staff'}
               </h3>
@@ -475,7 +506,7 @@ export const SelfDriveStaffManagement: React.FC = () => {
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Siti Nurhaliza binti Ahmad"
+                  placeholder="e.g. Ahmad bin Ali"
                   className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
                 />
               </div>
@@ -502,9 +533,10 @@ export const SelfDriveStaffManagement: React.FC = () => {
                   <select
                     value={department}
                     onChange={(e) => setDepartment(e.target.value)}
-                    className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white font-medium"
+                    required
+                    className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
                   >
-                    {DEPARTMENTS.map(d => (
+                    {DEPARTMENTS.map((d) => (
                       <option key={d} value={d}>{d}</option>
                     ))}
                   </select>
@@ -514,89 +546,90 @@ export const SelfDriveStaffManagement: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                    IC Number (No. IC) <span className="text-rose-500">*</span>
+                    IC Number <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
                     required
                     value={icNumber}
                     onChange={(e) => setIcNumber(e.target.value)}
-                    placeholder="e.g. 920815-10-5432"
-                    className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-mono"
+                    placeholder="e.g. 900101-14-5678"
+                    className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                    Authorization Status
+                    Driving License Expiry Date
                   </label>
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value as 'active' | 'inactive')}
-                    className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white font-medium"
-                  >
-                    <option value="active">Active (Authorized)</option>
-                    <option value="inactive">Inactive (Suspended)</option>
-                  </select>
+                  <input
+                    type="date"
+                    value={licenseExpiry}
+                    onChange={(e) => setLicenseExpiry(e.target.value)}
+                    className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
+                  />
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Admin akan dapat alert bila lesen hampir / sudah tamat tempoh.
+                  </p>
                 </div>
               </div>
 
-              {/* IC Attachment */}
-              <div className="border-t border-gray-100 pt-3">
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                  Attachment IC (Copy / Photo of NRIC)
-                </label>
-                {existingIcName && !icFile && (
-                  <div className="flex items-center justify-between p-2 mb-2 bg-indigo-50 rounded-lg text-xs text-indigo-900 border border-indigo-100">
-                    <span className="truncate">Current: <strong>{existingIcName}</strong></span>
-                    <button
-                      type="button"
-                      onClick={() => { setExistingIcName(undefined); setExistingIcUrl(undefined); }}
-                      className="text-indigo-600 hover:text-indigo-900 text-xs font-bold ml-2"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                )}
-                <input
-                  type="file"
-                  accept="image/*,application/pdf"
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files[0]) {
-                      setIcFile(e.target.files[0]);
-                    }
-                  }}
-                  className="block w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
-                />
-              </div>
-
-              {/* Driving License Attachment */}
               <div>
                 <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                  Attachment Driving License (Lesen Memandu)
+                  Status
                 </label>
-                {existingLicenseName && !licenseFile && (
-                  <div className="flex items-center justify-between p-2 mb-2 bg-emerald-50 rounded-lg text-xs text-emerald-900 border border-emerald-100">
-                    <span className="truncate">Current: <strong>{existingLicenseName}</strong></span>
-                    <button
-                      type="button"
-                      onClick={() => { setExistingLicenseName(undefined); setExistingLicenseUrl(undefined); }}
-                      className="text-emerald-600 hover:text-emerald-900 text-xs font-bold ml-2"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                )}
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as 'active' | 'inactive')}
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+                >
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+
+              {/* IC Attachment */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                  Attachment IC
+                </label>
                 <input
                   type="file"
-                  accept="image/*,application/pdf"
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files[0]) {
-                      setLicenseFile(e.target.files[0]);
-                    }
-                  }}
-                  className="block w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer"
+                  accept="image/*,.pdf"
+                  onChange={(e) => setIcFile(e.target.files?.[0] || null)}
+                  className="w-full text-xs text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700 file:font-semibold file:cursor-pointer"
                 />
+                {(icFile || existingIcName) && (
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    {icFile ? `Selected: ${icFile.name}` : `Current: ${existingIcName}`}
+                    {existingIcUrl && !icFile && (
+                      <> · <a href={existingIcUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">View on Drive</a></>
+                    )}
+                  </p>
+                )}
+                <p className="mt-1 text-[11px] text-slate-400">File akan dimuat naik ke Google Drive. Supabase simpan URL sahaja.</p>
+              </div>
+
+              {/* License Attachment */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                  Attachment Driving License
+                </label>
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={(e) => setLicenseFile(e.target.files?.[0] || null)}
+                  className="w-full text-xs text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700 file:font-semibold file:cursor-pointer"
+                />
+                {(licenseFile || existingLicenseName) && (
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    {licenseFile ? `Selected: ${licenseFile.name}` : `Current: ${existingLicenseName}`}
+                    {existingLicenseUrl && !licenseFile && (
+                      <> · <a href={existingLicenseUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">View on Drive</a></>
+                    )}
+                  </p>
+                )}
+                <p className="mt-1 text-[11px] text-slate-400">File akan dimuat naik ke Google Drive. Supabase simpan URL sahaja.</p>
               </div>
 
               {/* Notes */}
@@ -626,7 +659,7 @@ export const SelfDriveStaffManagement: React.FC = () => {
                   disabled={isSaving || isUploading}
                   className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-sm transition disabled:bg-indigo-300 cursor-pointer flex items-center gap-2"
                 >
-                  {isSaving ? 'Saving & Uploading...' : (editingStaff ? 'Save Changes' : 'Register Staff')}
+                  {isSaving ? 'Saving & Uploading to Drive...' : (editingStaff ? 'Save Changes' : 'Register Staff')}
                 </button>
               </div>
             </form>
