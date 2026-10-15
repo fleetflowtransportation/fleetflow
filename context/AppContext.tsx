@@ -1291,38 +1291,42 @@ const logout = useCallback(async () => {
 
   // ---- Driver Schedules ----
   const addDriverSchedule = useCallback((schedData: Omit<DriverSchedule, 'id'>) => {
-    const newSched: DriverSchedule = { ...schedData, id: tempId('sched') };
+    const tenantId = schedData.tenantId || activeTenant?.id || storageService.getTenantId();
+    const newSched: DriverSchedule = { ...schedData, id: tempId('sched'), tenantId };
     setDriverSchedules(prev => [...prev, newSched]);
     storageService.createDriverSchedule(newSched)
       .then(saved => {
         setDriverSchedules(prev => prev.map(s => (s.id === newSched.id ? saved : s)));
       })
       .catch(err => {
-        alert('Failed to save driver schedule: ' + err.message);
-        setDriverSchedules(prev => prev.filter(s => s.id !== newSched.id));
+        alert('Failed to save driver schedule: ' + (err.message || 'Supabase error'));
+        reload();
       });
-  }, []);
+  }, [activeTenant, reload]);
 
   const updateDriverSchedule = useCallback((schedId: string, updatedData: Partial<Omit<DriverSchedule, 'id'>>) => {
     setDriverSchedules(prev => prev.map(s => (s.id === schedId ? { ...s, ...updatedData } : s)));
     storageService.updateDriverSchedule({ id: schedId, ...updatedData }).catch(err => {
-      alert('Failed to update driver schedule: ' + err.message);
+      alert('Failed to update driver schedule: ' + (err.message || 'Supabase error'));
+      reload();
     });
-  }, []);
+  }, [reload]);
 
   const deleteDriverSchedule = useCallback((schedId: string) => {
     setDriverSchedules(prev => prev.filter(s => s.id !== schedId));
     storageService.deleteDriverSchedule(schedId).catch(err => {
-      alert('Failed to delete driver schedule: ' + err.message);
+      alert('Failed to delete driver schedule: ' + (err.message || 'Supabase error'));
+      reload();
     });
-  }, []);
+  }, [reload]);
 
   const deleteDriverSchedulesBulk = useCallback((schedIds: string[]) => {
     setDriverSchedules(prev => prev.filter(s => !schedIds.includes(s.id)));
     storageService.deleteDriverSchedulesBulk(schedIds).catch(err => {
-      alert('Failed to bulk delete driver schedules: ' + err.message);
+      alert('Failed to bulk delete driver schedules: ' + (err.message || 'Supabase error'));
+      reload();
     });
-  }, []);
+  }, [reload]);
 
   // ---- Users ----
   const addUser = useCallback((userData: Omit<User, 'id'>) => {

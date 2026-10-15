@@ -403,10 +403,12 @@ const fromDbIssueLog = (row: any): IssueLog => ({
 // Helper: Convert DriverSchedule TS to DB
 const toDbDriverSchedule = (s: Partial<DriverSchedule>) => ({
   ...(s.id && { id: s.id }),
-  ...(s.Date !== undefined && { date: s.Date }),
+  ...(s.Date !== undefined && { date: s.Date, shift_date: s.Date }),
   ...(s.DriverId !== undefined && { driver_id: s.DriverId }),
-  ...(s.Mula !== undefined && { mula: s.Mula }),
-  ...(s.Tamat !== undefined && { tamat: s.Tamat }),
+  ...(s.Mula !== undefined && { mula: s.Mula, start_time: s.Mula }),
+  ...(s.Tamat !== undefined && { tamat: s.Tamat, end_time: s.Tamat }),
+  shift_type: 'Custom',
+  status: 'Available',
   tenant_id: s.tenantId || getTenantId(),
 });
 
@@ -414,8 +416,8 @@ const fromDbDriverSchedule = (row: any): DriverSchedule => ({
   id: row.id,
   Date: row.date || row.shift_date,
   DriverId: row.driver_id || row.driverId,
-  Mula: row.mula || row.shift_start || '09:00',
-  Tamat: row.tamat || row.shift_end || '17:00',
+  Mula: row.mula || row.start_time || '09:00',
+  Tamat: row.tamat || row.end_time || '17:00',
   tenantId: row.tenant_id || getTenantId(),
 });
 
@@ -1236,13 +1238,14 @@ createOdometerLog: async (data: OdometerLog): Promise<OdometerLog> => {
   createDriverSchedule: async (data: DriverSchedule): Promise<DriverSchedule> => {
     const tid = data.tenantId || getTenantId();
     const isYck = tid === 'yck' || tid === 'yayasan-chow-kit' || tid === 'yayasan-chow-kit-demo';
+    const normalizedData = { ...data, tenantId: tid };
 
     // 1. Immediately update localStorage cache
     try {
       const cacheKey = `fleetflow_driver_schedules_${tid}`;
       const raw = localStorage.getItem(cacheKey);
       const list: DriverSchedule[] = raw ? JSON.parse(raw) : [];
-      const updated = [...list.filter(s => s.id !== data.id), data];
+      const updated = [...list.filter(s => s.id !== normalizedData.id), normalizedData];
       localStorage.setItem(cacheKey, JSON.stringify(updated));
       if (isYck) localStorage.setItem('fleetflow_driver_schedules_yck', JSON.stringify(updated));
     } catch {
@@ -1251,15 +1254,17 @@ createOdometerLog: async (data: OdometerLog): Promise<OdometerLog> => {
 
     // 2. Persist to Supabase
     try {
-      const dbRow = toDbDriverSchedule(data);
+      const dbRow = toDbDriverSchedule(normalizedData);
       const { error } = await supabase.from('driver_schedules').insert([dbRow]);
       if (error) {
         console.error('[Supabase] createDriverSchedule error:', error.message);
+        throw new Error(error.message);
       }
     } catch (err: any) {
       console.error('[Supabase] createDriverSchedule exception:', err.message);
+      throw err;
     }
-    return data;
+    return normalizedData;
   },
 
   updateDriverSchedule: async (data: Partial<DriverSchedule> & { id: string }): Promise<any> => {
@@ -1284,9 +1289,13 @@ createOdometerLog: async (data: OdometerLog): Promise<OdometerLog> => {
     try {
       const dbRow = toDbDriverSchedule(data);
       const { error } = await supabase.from('driver_schedules').update(dbRow).eq('id', data.id);
-      if (error) console.error('[Supabase] updateDriverSchedule error:', error.message);
+      if (error) {
+        console.error('[Supabase] updateDriverSchedule error:', error.message);
+        throw new Error(error.message);
+      }
     } catch (err: any) {
       console.error('[Supabase] updateDriverSchedule exception:', err.message);
+      throw err;
     }
     return data;
   },
@@ -1312,9 +1321,13 @@ createOdometerLog: async (data: OdometerLog): Promise<OdometerLog> => {
     // 2. Delete from Supabase
     try {
       const { error } = await supabase.from('driver_schedules').delete().eq('id', id);
-      if (error) console.error('[Supabase] deleteDriverSchedule error:', error.message);
+      if (error) {
+        console.error('[Supabase] deleteDriverSchedule error:', error.message);
+        throw new Error(error.message);
+      }
     } catch (err: any) {
       console.error('[Supabase] deleteDriverSchedule exception:', err.message);
+      throw err;
     }
     return { id };
   },
@@ -1341,9 +1354,13 @@ createOdometerLog: async (data: OdometerLog): Promise<OdometerLog> => {
     // 2. Delete from Supabase
     try {
       const { error } = await supabase.from('driver_schedules').delete().in('id', ids);
-      if (error) console.error('[Supabase] deleteDriverSchedulesBulk error:', error.message);
+      if (error) {
+        console.error('[Supabase] deleteDriverSchedulesBulk error:', error.message);
+        throw new Error(error.message);
+      }
     } catch (err: any) {
       console.error('[Supabase] deleteDriverSchedulesBulk exception:', err.message);
+      throw err;
     }
   },
 
