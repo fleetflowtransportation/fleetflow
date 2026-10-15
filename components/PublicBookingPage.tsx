@@ -3,7 +3,7 @@ import { storageService } from '../services/storage';
 import { googleCalendarService } from '../services/googleCalendar';
 import { DEPARTMENTS, PICKUP_POINTS, MAX_BOOKING_STOPS, Tenant, Booking, PassengerCount } from '../types';
 import { evaluateBookingAssignment, normalizeDate, normalizeTime, type AutoAssignResult } from '../services/bookingEngine';
-import { isOtherPickup, getPickupLocationDisplay, createStopId, deriveDestination, normalizeStopsForSave } from '../utils';
+import { isOtherPickup, getPickupLocationDisplay, createStopId, deriveDestination, normalizeStopsForSave, resolveDriver, resolveVehicle, getDriverDisplayName } from '../utils';
 import { 
   ClockIcon, 
   PaperClipIcon, 
@@ -283,6 +283,11 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
     const dateTime = `${formData.bookingDate}T${formData.startTime}:00`;
     const finishDateTime = `${formData.bookingDate}T${calculatedEndTime}:00`;
 
+    const resolvedDriver = resolveDriver(freshUsers, result.driverId, result.calendarEventTitle);
+    const resolvedVehicle = resolveVehicle(freshVehicles, result.vehicleId, formData.vehiclePreference);
+    const finalDriverId = resolvedDriver?.id || result.driverId;
+    const finalVehicleId = resolvedVehicle?.id || result.vehicleId;
+
     const newBooking: Booking = {
       id: `booking-${Date.now()}`,
       requesterName: formData.requesterName.trim(),
@@ -302,8 +307,8 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
       shouldWait: formData.shouldWait,
       remarks: formData.remarks.trim() ? formData.remarks.trim() : undefined,
       status: result.status,
-      driverId: result.driverId,
-      vehicleId: result.vehicleId,
+      driverId: finalDriverId,
+      vehicleId: finalVehicleId,
       calendarEventTitle: result.calendarEventTitle,
       calendarColor: result.calendarColor,
       calendarEventId: result.calendarEventId,
@@ -317,7 +322,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
     // Google Calendar Sync
     if (tenant) {
       try {
-        const calEventId = await googleCalendarService.createEvent(tenant, newBooking, vehicles, users);
+        const calEventId = await googleCalendarService.createEvent(tenant, newBooking, freshVehicles, freshUsers);
         if (calEventId) {
           newBooking.calendarEventId = calEventId;
         }

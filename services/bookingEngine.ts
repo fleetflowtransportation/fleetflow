@@ -1,5 +1,6 @@
 import type { Booking, DriverSchedule, User, Vehicle } from '../types';
-import { getPickupLocationDisplay } from '../utils';
+import { USERS } from '../constants';
+import { getPickupLocationDisplay, resolveDriver, resolveVehicle } from '../utils';
 
 export interface AutoAssignResult {
   status: 'Confirmed' | 'Conflict';
@@ -64,6 +65,13 @@ export const normalizeDate = (raw: string | Date | undefined): string => {
     return `${raw.getFullYear()}-${pad2(raw.getMonth() + 1)}-${pad2(raw.getDate())}`;
   }
   const rawStr = String(raw).trim();
+  // Check if string contains timezone indicators (Z, +08:00, etc.)
+  if (rawStr.includes('Z') || rawStr.includes('+') || (rawStr.includes('-') && rawStr.length > 10 && rawStr.lastIndexOf('-') > 10)) {
+    const d = new Date(rawStr);
+    if (!isNaN(d.getTime())) {
+      return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+    }
+  }
   // Check if it's yyyy-mm-dd
   if (/^\d{4}-\d{2}-\d{2}/.test(rawStr)) {
     return rawStr.slice(0, 10);
@@ -85,13 +93,21 @@ export const normalizeTime = (raw: string | Date | undefined): string => {
   if (raw instanceof Date) {
     return `${pad2(raw.getHours())}:${pad2(raw.getMinutes())}`;
   }
-  if (/^\d{1,2}:\d{2}$/.test(raw)) {
-    const [h, m] = raw.split(':');
+  const rawStr = String(raw).trim();
+  if (/^\d{1,2}:\d{2}$/.test(rawStr)) {
+    const [h, m] = rawStr.split(':');
     return `${pad2(Number(h))}:${m}`;
   }
-  const match = String(raw).match(/T(\d{2}):(\d{2})/);
+  // If string contains timezone indicators (Z, +08:00, etc.), evaluate in local time
+  if (rawStr.includes('Z') || rawStr.includes('+') || (rawStr.includes('-') && rawStr.length > 10 && rawStr.lastIndexOf('-') > 10)) {
+    const d = new Date(rawStr);
+    if (!isNaN(d.getTime())) {
+      return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+    }
+  }
+  const match = rawStr.match(/T(\d{2}):(\d{2})/);
   if (match) return `${match[1]}:${match[2]}`;
-  const d = new Date(raw);
+  const d = new Date(rawStr);
   if (!isNaN(d.getTime())) {
     return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
   }
@@ -183,7 +199,7 @@ export function evaluateBookingAssignment({
     requesterName,
     requesterEmail,
     department,
-    bookingDate,
+    bookingDate: rawBookingDate,
     startTime: rawStartTime,
     endTime: rawEndTime,
     purpose,
@@ -199,6 +215,7 @@ export function evaluateBookingAssignment({
     remarks,
   } = booking;
 
+  const bookingDate = normalizeDate(rawBookingDate);
   const startTime = normalizeTime(rawStartTime);
   let endTime = normalizeTime(rawEndTime);
   if (endTime <= startTime) {
@@ -332,32 +349,76 @@ export function evaluateBookingAssignment({
   // ==========================================
   // STEP 5: IF DRIVER NEEDED — AUTO-ASSIGN LOGIC
   // ==========================================
-  const activeDrivers = users.filter(u => u.role === 'driver' && u.status === 'active');
+  const effectiveUsers = (users && users.length > 0) ? users : USERS;
 
-  // Pull driver schedules for date
-  const schedulesOnDate = driverSchedules.filter(s => normalizeDate(s.Date) === bookingDate);
+  const activeDrivers = effectiveUsers.filter(u => {
+    const r = (u.role || '').toLowerCase();
+    const status = (u.status || 'active').toLowerCase();
+    const isDriverRole = r === 'driver' || r === 'pemandu' || (u as any).isDriver || u.id === 'driver-aziz' || (u.name || '').toLowerCase().includes('syafiq') || (u.name || '').toLowerCase().includes('saiful');
+    return isDriverRole && status === 'active';
+  });
 
-  // Match active drivers with schedules
+  // Pull driver schedules for date (matching Date, date, shift_date, shiftDate)
+  const schedulesOnDate = driverSchedules.filter(s => {
+    const rawDate = s.Date || (s as any).date || (s as any).shift_date || (s as any).shiftDate;
+    return normalizeDate(rawDate) === bookingDate;
+  });
+
+  // Match on-duty drivers with schedules using robust resolveDriver
   interface WorkingDriverInfo {
     driver: User;
     shiftStart: string;
     shiftEnd: string;
   }
 
-  let workingDrivers: WorkingDriverInfo[] = activeDrivers
-    .map(driver => {
-      const sched = schedulesOnDate.find(s => s.DriverId === driver.id);
-      if (!sched) return null;
-      return {
-        driver,
-        shiftStart: normalizeTime(sched.Mula),
-        shiftEnd: normalizeTime(sched.Tamat),
-      };
-    })
-    .filter((w): w is WorkingDriverInfo => w !== null);
+  let workingDrivers: WorkingDriverInfo[] = [];
+  const processedDriverIds = new Set<string>();
 
-  // If no drivers on duty on this date, fallback to active drivers with standard working shift (08:00 - 17:00)
-  if (workingDrivers.length === 0) {
+  for (const sched of schedulesOnDate) {
+    const rawDriverId = sched.DriverId || (sched as any).driverId || (sched as any).driver_id;
+    if (!rawDriverId) continue;
+
+    // Resolve user object using resolveDriver (handles UUID, legacy ID, email, name, clean name)
+    const resolvedDriver = resolveDriver(effectiveUsers, rawDriverId);
+    if (!resolvedDriver) continue;
+
+    const status = (resolvedDriver.status || 'active').toLowerCase();
+    if (status === 'inactive') continue;
+
+    if (!processedDriverIds.has(resolvedDriver.id)) {
+      processedDriverIds.add(resolvedDriver.id);
+      workingDrivers.push({
+        driver: resolvedDriver,
+        shiftStart: normalizeTime(sched.Mula || (sched as any).mula || (sched as any).shift_start || '09:00'),
+        shiftEnd: normalizeTime(sched.Tamat || (sched as any).tamat || (sched as any).shift_end || '17:00'),
+      });
+    }
+  }
+
+  // Secondary fallback: if schedules exist on this date but resolveDriver didn't catch an unusual ID format,
+  // search across activeDrivers for any name containment in sched.DriverId
+  if (workingDrivers.length === 0 && schedulesOnDate.length > 0) {
+    for (const sched of schedulesOnDate) {
+      const rawDriverId = String(sched.DriverId || (sched as any).driverId || (sched as any).driver_id || '').toLowerCase().trim();
+      const matched = activeDrivers.find(d => {
+        const dName = (d.name || '').toLowerCase();
+        return rawDriverId.includes(dName) || dName.includes(rawDriverId);
+      });
+      if (matched && !processedDriverIds.has(matched.id)) {
+        processedDriverIds.add(matched.id);
+        workingDrivers.push({
+          driver: matched,
+          shiftStart: normalizeTime(sched.Mula || (sched as any).mula || (sched as any).shift_start || '09:00'),
+          shiftEnd: normalizeTime(sched.Tamat || (sched as any).tamat || (sched as any).shift_end || '17:00'),
+        });
+      }
+    }
+  }
+
+  // ONLY IF there are ABSOLUTELY NO SCHEDULES on this date for anyone (schedulesOnDate is completely empty),
+  // fallback to all active drivers with standard working shift (08:00 - 17:00).
+  // CRITICAL: If schedulesOnDate has entries, NEVER fallback to all drivers, because the roster specifically defines who is on duty!
+  if (workingDrivers.length === 0 && schedulesOnDate.length === 0) {
     workingDrivers = activeDrivers.map(driver => ({
       driver,
       shiftStart: '08:00',
@@ -365,13 +426,42 @@ export function evaluateBookingAssignment({
     }));
   }
 
+  // If still no working drivers available on duty for this date, trigger Conflict
+  if (workingDrivers.length === 0) {
+    const reason = schedulesOnDate.length > 0
+      ? `Scheduled driver(s) in roster for ${bookingDate} could not be resolved or are marked inactive.`
+      : `No driver roster or active drivers found for ${bookingDate}.`;
+    return {
+      status: 'Conflict',
+      driverId: null,
+      vehicleId: null,
+      calendarEventTitle: `[CONFLICT] ${requesterName} → ${destination} (No Driver Rostered)`,
+      calendarColor: 'grey',
+      calendarEventId: `evt-no-driver-${Date.now()}`,
+      conflictReason: reason,
+      adminNotes: `CONFLICT: ${reason}`,
+      emailNotifications: {
+        requester: {
+          to: requesterEmail,
+          subject: `[CONFLICT] Driver Unavailable: ${destination} (${bookingDate})`,
+          body: `Hello ${requesterName},\n\nNo driver is on duty or rostered for ${bookingDate} at ${startTime12} - ${endTime12}.\n\nPlease contact the Admin team (${adminAin.name} at ${adminAin.email}) for assistance.\n\nArmada Flow`,
+        },
+        admin: {
+          to: adminAin.email,
+          subject: `[ACTION REQUIRED] No Driver Rostered: ${requesterName} - ${destination}`,
+          body: `Attention Admin,\n\nBooking request from ${requesterName} on ${bookingDate} (${startTime12} - ${endTime12}) cannot be auto-assigned because no active drivers are on duty in the driver roster.\n\nPlease check the Driver Shift & Duty Roster.`,
+        },
+      },
+    };
+  }
+
   // b. Filter drivers whose shift has started
   let eligible = workingDrivers.filter(w => w.shiftStart <= startTime && w.shiftEnd > startTime);
   let isPreWorkingHour = false;
 
-  if (eligible.length === 0) {
+  if (eligible.length === 0 && workingDrivers.length > 0) {
     const sortedByEarliestShift = [...workingDrivers].sort((a, b) => a.shiftStart.localeCompare(b.shiftStart));
-    const earliestShiftTime = sortedByEarliestShift[0].shiftStart;
+    const earliestShiftTime = sortedByEarliestShift[0]?.shiftStart || '09:00';
 
     if (startTime < earliestShiftTime) {
       isPreWorkingHour = true;
@@ -381,12 +471,29 @@ export function evaluateBookingAssignment({
   }
 
   // c. Check calendar for available drivers without clash
+  // Uses robust resolveDriver helper to match drivers by ID, email, name, or calendar event title
   const availableDrivers = eligible.filter(w => {
+    const wDriverName = (w.driver.name || '').trim().toLowerCase();
+
     const driverActiveBookings = existingBookings.filter(b => {
       if (b.status === 'Cancelled') return false;
-      if (b.driverId !== w.driver.id) return false;
       if (normalizeDate(b.dateTime) !== bookingDate) return false;
-      return true;
+
+      // Identify whether this existing booking was assigned to this driver
+      const matched = resolveDriver(effectiveUsers, b.driverId, b.calendarEventTitle);
+      if (matched) {
+        return matched.id === w.driver.id || matched.name.trim().toLowerCase() === wDriverName;
+      }
+
+      // Direct fallback matching
+      const bDriverLower = (b.driverId || '').trim().toLowerCase();
+      const calTitleLower = (b.calendarEventTitle || '').trim().toLowerCase();
+      return (
+        bDriverLower === w.driver.id.toLowerCase() ||
+        (wDriverName && (bDriverLower === wDriverName || bDriverLower.includes(wDriverName) || wDriverName.includes(bDriverLower))) ||
+        (wDriverName && calTitleLower.includes(`(${wDriverName})`)) ||
+        (wDriverName && calTitleLower.includes(wDriverName))
+      );
     });
 
     const hasClash = driverActiveBookings.some(b => {
@@ -432,22 +539,24 @@ export function evaluateBookingAssignment({
   // 1. Resolve fallback lastDriverAssignedId from existing bookings if null
   const effectiveLastDriverId = lastDriverAssignedId || (
     [...existingBookings]
-      .filter(b => b.status !== 'Cancelled' && b.driverId)
+      .filter(b => b.status !== 'Cancelled' && (b.driverId || b.calendarEventTitle))
       .sort((a, b) => (b.dateTime || '').localeCompare(a.dateTime || ''))[0]?.driverId
   ) || null;
 
   // 2. Identify all active/confirmed bookings on this specific bookingDate
   const bookingsOnDate = existingBookings.filter(b => {
     if (b.status === 'Cancelled') return false;
-    if (!b.driverId) return false;
-    return normalizeDate(b.dateTime) === bookingDate;
+    if (normalizeDate(b.dateTime) !== bookingDate) return false;
+    return Boolean(b.driverId || (b.calendarEventTitle && b.calendarEventTitle.startsWith('(')));
   });
 
   // Identify the driver assigned to the most recent booking on this date (chronologically by time)
   const sortedDayBookings = [...bookingsOnDate].sort((a, b) => {
     return normalizeTime(b.dateTime).localeCompare(normalizeTime(a.dateTime));
   });
-  const latestDriverIdOnDate = sortedDayBookings[0]?.driverId || null;
+  const latestBooking = sortedDayBookings[0];
+  const latestDriverMatched = latestBooking ? resolveDriver(effectiveUsers, latestBooking.driverId, latestBooking.calendarEventTitle) : null;
+  const latestDriverIdOnDate = latestDriverMatched?.id || latestBooking?.driverId || null;
 
   // 3. Compute workload metrics for each available driver on this date
   interface DriverDailyWorkload {
@@ -459,17 +568,33 @@ export function evaluateBookingAssignment({
   }
 
   const driverWorkloads: DriverDailyWorkload[] = availableDrivers.map(w => {
-    const driverDayTrips = bookingsOnDate.filter(b => b.driverId === w.driver.id);
+    const wName = (w.driver.name || '').trim().toLowerCase();
+
+    const driverDayTrips = bookingsOnDate.filter(b => {
+      const matched = resolveDriver(effectiveUsers, b.driverId, b.calendarEventTitle);
+      if (matched) {
+        return matched.id === w.driver.id || matched.name.trim().toLowerCase() === wName;
+      }
+      const bDriverLower = (b.driverId || '').trim().toLowerCase();
+      const calTitleLower = (b.calendarEventTitle || '').trim().toLowerCase();
+      return (
+        bDriverLower === w.driver.id.toLowerCase() ||
+        (wName && (bDriverLower === wName || bDriverLower.includes(wName) || wName.includes(bDriverLower))) ||
+        (wName && calTitleLower.includes(`(${wName})`)) ||
+        (wName && calTitleLower.includes(wName))
+      );
+    });
+
     const dayBookingsCount = driverDayTrips.length;
     const totalMinutesToday = driverDayTrips.reduce((sum, b) => sum + getBookingDurationMinutes(b), 0);
-    const isLatestDriverOnDate = w.driver.id === latestDriverIdOnDate;
+    const isLatestDriverOnDate = w.driver.id === latestDriverIdOnDate || (latestDriverMatched && latestDriverMatched.name.toLowerCase() === wName);
     const isLastAssignedDriver = w.driver.id === effectiveLastDriverId;
 
     return {
       driverInfo: w,
       dayBookingsCount,
       totalMinutesToday,
-      isLatestDriverOnDate,
+      isLatestDriverOnDate: Boolean(isLatestDriverOnDate),
       isLastAssignedDriver,
     };
   });
@@ -516,14 +641,16 @@ export function evaluateBookingAssignment({
 
   // Vehicle Allocation
   let allocatedVehicle: Vehicle | null = null;
-  const isFreeChoice = !vehiclePreference || vehiclePreference === 'Bebas' || vehiclePreference === 'Any / No Preference';
+  const isFreeChoice = !vehiclePreference || vehiclePreference === 'Bebas' || vehiclePreference === 'Any / Free Choice' || vehiclePreference === 'Any / No Preference';
 
   if (!isFreeChoice) {
-    const preferred = vehicles.find(v => v.name === vehiclePreference);
+    const preferred = resolveVehicle(vehicles, null, vehiclePreference);
     if (preferred) {
       const clash = existingBookings.find(b => {
         if (b.status === 'Cancelled') return false;
-        if (b.vehicleId !== preferred.id) return false;
+        const bVehicle = resolveVehicle(vehicles, b.vehicleId, b.vehiclePreference);
+        const isSameVehicle = b.vehicleId === preferred.id || bVehicle?.id === preferred.id;
+        if (!isSameVehicle) return false;
         if (normalizeDate(b.dateTime) !== bookingDate) return false;
         return isTimeOverlap(startTime, endTime, normalizeTime(b.dateTime), normalizeTime(b.finishDateTime || b.dateTime));
       });

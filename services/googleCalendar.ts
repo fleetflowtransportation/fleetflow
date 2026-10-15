@@ -1,5 +1,5 @@
 import { Tenant, Booking, Vehicle, User } from '../types';
-import { parseAsLocal, getPickupLocationDisplay } from '../utils';
+import { parseAsLocal, getPickupLocationDisplay, resolveDriver, resolveVehicle, getDriverDisplayName } from '../utils';
 import { normalizeDate, normalizeTime } from './bookingEngine';
 
 let cachedToken: string | null = null;
@@ -83,15 +83,14 @@ export const buildEmailHtml = (
   const timeStr = normalizeTime(booking.dateTime);
   const finishTimeStr = booking.finishDateTime ? normalizeTime(booking.finishDateTime) : '';
   const totalPassengers = (booking.passengers || []).reduce((sum, p) => sum + (p.count || 0), 0);
-  const matchedV = vehicles?.find(v => v.id === booking.vehicleId) ||
-    vehicles?.find(v => v.name.toLowerCase() === (booking.vehiclePreference || '').toLowerCase());
+  const matchedV = resolveVehicle(vehicles, booking.vehicleId, booking.vehiclePreference);
   const vehicleText = matchedV ? `${matchedV.name} (${matchedV.plateNumber})` : (booking.serviceType === 'Self-Drive' ? 'Perodua Alza (Self-Drive)' : (booking.vehiclePreference || 'Any available'));
   const pickupText = getPickupLocationDisplay(booking.pickupPoint, booking.address);
 
-  const matchedDriver = users?.find(u => u.id === booking.driverId);
+  const matchedDriver = resolveDriver(users, booking.driverId, booking.calendarEventTitle);
   const driverDisplay = booking.serviceType === 'Self-Drive'
     ? 'Self-Drive (Staff)'
-    : (matchedDriver ? `${matchedDriver.name}${matchedDriver.phone ? ' (' + matchedDriver.phone + ')' : ''}` : (booking.driverId || 'Scheduled'));
+    : (matchedDriver ? `${matchedDriver.name}${matchedDriver.phone ? ' (' + matchedDriver.phone + ')' : ''}` : getDriverDisplayName(users, booking.driverId, booking.calendarEventTitle, booking.serviceType));
 
   let typeBadge = '<span style="background-color: #10b981; color: #ffffff; padding: 4px 12px; border-radius: 9999px; font-weight: bold; font-size: 12px;">CONFIRMED</span>';
   let subjectPrefix = '✅ Booking Confirmed';
@@ -600,7 +599,7 @@ export const googleCalendarService = {
     const emailData = buildEmailHtml(booking, 'CONFIRMATION', vehicles, users);
 
     // Resolve assigned driver info
-    const assignedDriver = users?.find(u => u.id === booking.driverId);
+    const assignedDriver = resolveDriver(users, booking.driverId, booking.calendarEventTitle);
     const driverEmail = assignedDriver?.email;
     const driverName = assignedDriver?.name;
     const driverEmailData = assignedDriver ? buildDriverEmailHtml(booking, assignedDriver, vehicles) : null;
@@ -807,7 +806,7 @@ export const googleCalendarService = {
     const emailData = buildEmailHtml(booking, 'UPDATED', vehicles, users);
 
     // Resolve assigned driver info
-    const assignedDriver = users?.find(u => u.id === booking.driverId);
+    const assignedDriver = resolveDriver(users, booking.driverId, booking.calendarEventTitle);
     const driverEmail = assignedDriver?.email;
     const driverName = assignedDriver?.name;
     const driverEmailData = assignedDriver ? buildDriverEmailHtml(booking, assignedDriver, vehicles) : null;

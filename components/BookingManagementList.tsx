@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import type { Booking } from '../types';
-import { parseAsLocal, getPickupLocationDisplay, isOtherPickup, getRouteLabel, getStops } from '../utils';
+import { parseAsLocal, getPickupLocationDisplay, isOtherPickup, getRouteLabel, getStops, resolveDriver, getDriverDisplayName, resolveVehicle } from '../utils';
 import BookingForm from './BookingForm';
 import { 
   SearchIcon, 
@@ -105,10 +105,9 @@ export const BookingManagementList: React.FC = () => {
     return bookings.filter(booking => {
       // 1. Search Query
       if (query) {
-        const driver = users.find(u => u.id === booking.driverId);
-        const vehicle = vehicles.find(v => v.id === booking.vehicleId);
-        const driverName = driver?.name || '';
-        const vehicleName = vehicle ? `${vehicle.name} ${vehicle.plateNumber}` : '';
+        const driverName = getDriverDisplayName(users, booking.driverId, booking.calendarEventTitle, booking.serviceType);
+        const vehicle = resolveVehicle(vehicles, booking.vehicleId, booking.vehiclePreference);
+        const vehicleName = vehicle ? `${vehicle.name} ${vehicle.plateNumber}` : (booking.vehiclePreference || '');
         const pickupDisp = getPickupLocationDisplay(booking.pickupPoint, booking.address);
 
         const match = 
@@ -135,18 +134,22 @@ export const BookingManagementList: React.FC = () => {
 
       // 3. Driver Filter
       if (driverFilter !== 'all') {
+        const resolved = resolveDriver(users, booking.driverId, booking.calendarEventTitle);
+        const dName = getDriverDisplayName(users, booking.driverId, booking.calendarEventTitle, booking.serviceType);
         if (driverFilter === 'unassigned') {
-          if (booking.driverId) return false;
-        } else if (booking.driverId !== driverFilter) {
-          return false;
+          if (dName !== 'Unassigned') return false;
+        } else {
+          const matches = booking.driverId === driverFilter || resolved?.id === driverFilter;
+          if (!matches) return false;
         }
       }
 
       // 4. Vehicle Filter
       if (vehicleFilter !== 'all') {
+        const v = resolveVehicle(vehicles, booking.vehicleId, booking.vehiclePreference);
         if (vehicleFilter === 'unassigned') {
-          if (booking.vehicleId) return false;
-        } else if (booking.vehicleId !== vehicleFilter) {
+          if (v) return false;
+        } else if (booking.vehicleId !== vehicleFilter && v?.id !== vehicleFilter) {
           return false;
         }
       }
@@ -323,8 +326,8 @@ export const BookingManagementList: React.FC = () => {
       const timeStr = dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
       const finishTimeStr = finishDt ? finishDt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : '';
 
-      const driver = users.find(u => u.id === b.driverId);
-      const vehicle = vehicles.find(v => v.id === b.vehicleId);
+      const driverName = getDriverDisplayName(users, b.driverId, b.calendarEventTitle, b.serviceType);
+      const vehicle = resolveVehicle(vehicles, b.vehicleId, b.vehiclePreference);
       const totalPax = b.passengers.reduce((sum, p) => sum + p.count, 0);
 
       return [
@@ -341,8 +344,8 @@ export const BookingManagementList: React.FC = () => {
         escapeCSV(getRouteLabel(b)),
         escapeCSV(b.purpose),
         escapeCSV(totalPax),
-        escapeCSV(driver?.name || 'Unassigned'),
-        escapeCSV(vehicle?.name || ''),
+        escapeCSV(driverName),
+        escapeCSV(vehicle?.name || b.vehiclePreference || ''),
         escapeCSV(vehicle?.plateNumber || ''),
         escapeCSV(b.serviceType || 'Chauffeur'),
         escapeCSV(b.status),
@@ -794,8 +797,8 @@ export const BookingManagementList: React.FC = () => {
                   const startTime = dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
                   const endTime = finishDt ? finishDt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : null;
 
-                  const driver = users.find(u => u.id === b.driverId);
-                  const vehicle = vehicles.find(v => v.id === b.vehicleId);
+                  const driverName = getDriverDisplayName(users, b.driverId, b.calendarEventTitle, b.serviceType);
+                  const vehicle = resolveVehicle(vehicles, b.vehicleId, b.vehiclePreference);
                   const totalPax = b.passengers.reduce((sum, p) => sum + p.count, 0);
                   const isOther = isOtherPickup(b.pickupPoint);
                   const pickupDisplay = getPickupLocationDisplay(b.pickupPoint, b.address);
@@ -875,10 +878,10 @@ export const BookingManagementList: React.FC = () => {
 
                       {/* DRIVER & VEHICLE */}
                       <td className="py-3.5 px-3 whitespace-nowrap">
-                        {driver ? (
+                        {driverName !== 'Unassigned' ? (
                           <div className="flex items-center gap-1.5 font-bold text-gray-800">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                            <span>{driver.name}</span>
+                            <span className={`w-2 h-2 rounded-full ${b.serviceType === 'Self-Drive' ? 'bg-gray-400' : 'bg-emerald-500'}`}></span>
+                            <span>{driverName}</span>
                           </div>
                         ) : (
                           <span className="text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200 text-[11px]">
@@ -889,7 +892,7 @@ export const BookingManagementList: React.FC = () => {
                           {vehicle ? (
                             <span>{vehicle.name} <strong className="font-mono text-gray-700">({vehicle.plateNumber})</strong></span>
                           ) : (
-                            <span className="text-gray-400">No vehicle</span>
+                            <span className="text-gray-400">{b.vehiclePreference || 'No vehicle'}</span>
                           )}
                         </div>
                       </td>
@@ -942,8 +945,8 @@ export const BookingManagementList: React.FC = () => {
             const isChecked = selectedIds.includes(b.id);
             const dt = parseAsLocal(b.dateTime);
             const finishDt = b.finishDateTime ? parseAsLocal(b.finishDateTime) : null;
-            const driver = users.find(u => u.id === b.driverId);
-            const vehicle = vehicles.find(v => v.id === b.vehicleId);
+            const driverName = getDriverDisplayName(users, b.driverId, b.calendarEventTitle, b.serviceType);
+            const vehicle = resolveVehicle(vehicles, b.vehicleId, b.vehiclePreference);
             const totalPax = b.passengers.reduce((sum, p) => sum + p.count, 0);
             const pickupDisplay = getPickupLocationDisplay(b.pickupPoint, b.address);
 
@@ -1004,7 +1007,7 @@ export const BookingManagementList: React.FC = () => {
                     <div className="flex items-center justify-between text-[11px] pt-1">
                       <span className="text-gray-500 font-semibold">{totalPax} Passengers</span>
                       <span className="font-bold text-gray-700">
-                        {driver ? `Driver: ${driver.name}` : '⚠️ Unassigned'}
+                        {driverName !== 'Unassigned' ? `Driver: ${driverName}` : '⚠️ Unassigned'}
                       </span>
                     </div>
                   </div>

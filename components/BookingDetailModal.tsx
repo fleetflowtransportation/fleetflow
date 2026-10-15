@@ -11,7 +11,7 @@ import {
   XIcon, 
   TruckIcon 
 } from './icons/Icons';
-import { parseAsLocal, getPickupLocationDisplay, getStops, getRouteLabel } from '../utils';
+import { parseAsLocal, getPickupLocationDisplay, getStops, getRouteLabel, resolveDriver, getDriverDisplayName, resolveVehicle } from '../utils';
 import { getDriverCalendarColor } from '../services/bookingEngine';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
@@ -72,11 +72,10 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
 
   if (!booking) return null;
 
-  const currentDriver = users.find((d: User) => d.id === (booking.driverId || ''));
-  const driverName = currentDriver?.name || (booking.serviceType === 'Self-Drive' ? 'Self-Drive' : 'Unassigned');
+  const currentDriver = resolveDriver(users, booking.driverId, booking.calendarEventTitle);
+  const driverName = getDriverDisplayName(users, booking.driverId, booking.calendarEventTitle, booking.serviceType);
   
-  const currentVehicle = vehicles.find((v: Vehicle) => v.id === booking.vehicleId) ||
-    vehicles.find((v: Vehicle) => v.name.toLowerCase() === (booking.vehiclePreference || '').toLowerCase());
+  const currentVehicle = resolveVehicle(vehicles, booking.vehicleId, booking.vehiclePreference);
   
   const vehicleDisplayName = currentVehicle 
     ? `${currentVehicle.name} (${currentVehicle.plateNumber})` 

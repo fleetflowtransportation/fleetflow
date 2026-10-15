@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { parseAsLocal, getPickupLocationDisplay } from '../utils';
+import { parseAsLocal, getPickupLocationDisplay, resolveDriver, getDriverDisplayName, resolveVehicle } from '../utils';
 import type { Booking, User, Vehicle } from '../types';
 import { getDriverCalendarColor, normalizeDate, normalizeTime } from '../services/bookingEngine';
 import { supabase, resetSupabaseConfig } from '../services/supabaseClient';
@@ -881,9 +881,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     });
   }, [users]);
 
-  const getDriverName = useCallback((driverId?: string | null) => {
-    if (!driverId) return 'Unassigned';
-    return users.find(u => u.id === driverId)?.name || 'Driver';
+  const getDriverName = useCallback((driverId?: string | null, calendarTitle?: string | null, serviceType?: string) => {
+    return getDriverDisplayName(users, driverId, calendarTitle, serviceType);
   }, [users]);
 
   // Filtered Bookings
@@ -893,13 +892,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       if (driverFilter === 'self-drive' && b.serviceType !== 'Self-Drive') return false;
       if (driverFilter === 'conflict' && b.status !== 'Conflict') return false;
       if (driverFilter !== 'all' && driverFilter !== 'self-drive' && driverFilter !== 'conflict') {
-        if (b.driverId !== driverFilter) return false;
+        const resolved = resolveDriver(users, b.driverId, b.calendarEventTitle);
+        if (b.driverId !== driverFilter && resolved?.id !== driverFilter) return false;
       }
 
       // Search Query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
-        const dName = getDriverName(b.driverId).toLowerCase();
+        const dName = getDriverName(b.driverId, b.calendarEventTitle, b.serviceType).toLowerCase();
         const matches = (
           (b.requesterName && b.requesterName.toLowerCase().includes(q)) ||
           (b.destination && b.destination.toLowerCase().includes(q)) ||
@@ -913,7 +913,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
       return true;
     });
-  }, [bookings, driverFilter, searchQuery, getDriverName]);
+  }, [bookings, driverFilter, searchQuery, getDriverName, users]);
 
   // Bookings grouped by date string (YYYY-MM-DD)
   const bookingsByDay = useMemo(() => {
@@ -1434,7 +1434,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
                         {positionedEvents.map(item => {
                           const { booking, topPercent, heightPercent, colIndex, totalCols } = item;
-                          const dName = getDriverName(booking.driverId);
+                          const dName = getDriverName(booking.driverId, booking.calendarEventTitle, booking.serviceType);
                           const colWidthPercent = 100 / totalCols;
                           const leftPercent = colIndex * colWidthPercent;
 
@@ -1580,7 +1580,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
                               {positioned.map(item => {
                                 const { booking, topPercent, heightPercent, colIndex, totalCols } = item;
-                                const dName = getDriverName(booking.driverId);
+                                const dName = getDriverName(booking.driverId, booking.calendarEventTitle, booking.serviceType);
                                 const colWidthPercent = 100 / totalCols;
                                 const leftPercent = colIndex * colWidthPercent;
 
@@ -1729,7 +1729,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
                               {positioned.map(item => {
                                 const { booking, topPercent, heightPercent, colIndex, totalCols } = item;
-                                const dName = getDriverName(booking.driverId);
+                                const dName = getDriverName(booking.driverId, booking.calendarEventTitle, booking.serviceType);
                                 const colWidthPercent = 100 / totalCols;
                                 const leftPercent = colIndex * colWidthPercent;
 
@@ -1847,7 +1847,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         {/* Clean Event Badges */}
                         <div className="space-y-1">
                           {dayBookings.slice(0, 3).map(b => {
-                            const dName = getDriverName(b.driverId);
+                            const dName = getDriverName(b.driverId, b.calendarEventTitle, b.serviceType);
                             const style = getEventCardStyle(b, dName);
 
                             return (
@@ -1913,7 +1913,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                       {list.map(b => {
-                        const dName = getDriverName(b.driverId);
+                        const dName = getDriverName(b.driverId, b.calendarEventTitle, b.serviceType);
                         const style = getEventCardStyle(b, dName);
                         const startDt = parseAsLocal(b.dateTime);
 

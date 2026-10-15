@@ -2,7 +2,7 @@ import React, { createContext, useState, useContext, ReactNode, useCallback, use
 import type { Booking, FuelLog, OdometerLog, User, Vehicle, BookingHistory, CurrentUser, IssueLog, DriverSchedule, Tenant, SelfDriveStaff, MaintenanceInterval, MaintenanceLog, VehicleRenewal } from '../types';
 import { storageService } from '../services/storage';
 import { postVehicleRenew } from '../services/renewalApi';
-import { parseAsLocal } from '../utils';
+import { parseAsLocal, resolveDriver, getDriverDisplayName, resolveVehicle } from '../utils';
 import { evaluateBookingAssignment, normalizeDate, normalizeTime, getDriverCalendarColor, type AutoAssignResult } from '../services/bookingEngine';
 import { googleCalendarService } from '../services/googleCalendar';
 import { syncWithGoogleServices } from '../services/googleSyncService';
@@ -748,12 +748,17 @@ const logout = useCallback(async () => {
         }
       }
 
+      const resolvedDriver = resolveDriver(users, result.driverId, result.calendarEventTitle);
+      const resolvedVehicle = resolveVehicle(vehicles, result.vehicleId, bookingData.vehiclePreference);
+      const finalDriverId = resolvedDriver?.id || result.driverId;
+      const finalVehicleId = resolvedVehicle?.id || result.vehicleId;
+
       const newBooking: Booking = {
         ...bookingData,
         id: tempId('booking'),
         status: result.status,
-        driverId: result.driverId,
-        vehicleId: result.vehicleId,
+        driverId: finalDriverId,
+        vehicleId: finalVehicleId,
         calendarEventTitle: result.calendarEventTitle,
         calendarColor: result.calendarColor,
         calendarEventId: result.calendarEventId,
@@ -772,7 +777,7 @@ const logout = useCallback(async () => {
 
           // 2. ONLY call Google Apps Script API after Supabase responds with success
           try {
-            const matchedDriver = users.find(u => u.id === newBooking.driverId);
+            const matchedDriver = resolveDriver(users, newBooking.driverId, newBooking.calendarEventTitle);
             const totalPassengers = (newBooking.passengers || []).reduce((sum, p) => sum + (p.count || 0), 0);
 
             const gasRes = await syncWithGoogleServices({
@@ -941,10 +946,12 @@ const logout = useCallback(async () => {
   }, [setUndoableAction, activeTenant]);
 
   const assignToBooking = useCallback((bookingId: string, driverId: string, vehicleId: string) => {
-    const driver = users.find(u => u.id === driverId);
-    const vehicle = vehicles.find(v => v.id === vehicleId);
-    const driverName = driver?.name || 'Driver';
+    const driver = resolveDriver(users, driverId);
+    const vehicle = resolveVehicle(vehicles, vehicleId);
+    const driverName = driver?.name || driverId;
     let assignedBooking: Booking | undefined;
+    const finalDriverId = driver?.id || driverId;
+    const finalVehicleId = vehicle?.id || vehicleId;
 
     setBookings(prev => {
       setUndoableAction(bookingId, prev);
@@ -955,12 +962,12 @@ const logout = useCallback(async () => {
         const calColor = getDriverCalendarColor(driverName, b.serviceType);
         assignedBooking = {
           ...b,
-          driverId,
-          vehicleId,
+          driverId: finalDriverId,
+          vehicleId: finalVehicleId,
           status: 'Confirmed' as Booking['status'],
           calendarEventTitle: calTitle,
           calendarColor: calColor,
-          adminNotes: `Manual Assignment: Confirmed by Admin. Driver: ${driverName}, Vehicle: ${vehicle?.name || vehicleId} (${vehicle?.plateNumber || ''}).`,
+          adminNotes: `Manual Assignment: Confirmed by Admin. Driver: ${driverName}, Vehicle: ${vehicle?.name || finalVehicleId} (${vehicle?.plateNumber || ''}).`,
           conflictReason: undefined,
         };
         return assignedBooking;
@@ -968,14 +975,21 @@ const logout = useCallback(async () => {
     });
 
     if (activeTenant && assignedBooking) {
-      googleCalendarService.updateEvent(activeTenant, assignedBooking, vehicles).catch(() => {});
+      googleCalendarService.updateEvent(activeTenant, assignedBooking, vehicles, users).catch(() => {});
     }
+
+    const deptStr = assignedBooking?.department ? ` (${assignedBooking.department})` : '';
+    const calTitle = assignedBooking ? `(${driverName}) ${assignedBooking.requesterName}${deptStr} → ${assignedBooking.destination}` : undefined;
+    const calColor = getDriverCalendarColor(driverName, assignedBooking?.serviceType);
 
     storageService.updateBooking({
       id: bookingId,
-      driverId,
-      vehicleId,
+      driverId: finalDriverId,
+      vehicleId: finalVehicleId,
       status: 'Confirmed',
+      calendarEventTitle: calTitle,
+      calendarColor: calColor,
+      adminNotes: `Manual Assignment: Confirmed by Admin. Driver: ${driverName}, Vehicle: ${vehicle?.name || finalVehicleId} (${vehicle?.plateNumber || ''}).`,
     }).catch(err => {
       alert('Failed to assign booking: ' + err.message);
     });

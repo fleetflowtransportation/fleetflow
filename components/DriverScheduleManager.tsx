@@ -3,6 +3,7 @@ import { useAppContext } from '../context/AppContext';
 import type { DriverSchedule } from '../types';
 import { XIcon, TrashIcon, PlusIcon, CalendarIcon, ClockIcon } from './icons/Icons';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { resolveDriver, getDriverDisplayName } from '../utils';
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTH_LABELS = [
@@ -116,14 +117,22 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
   const isEditable = !readOnly && currentUser?.role === 'admin';
 
   const drivers = useMemo(
-    () => users.filter(u => (u.role === 'driver' || u.id === 'driver-aziz') && u.status === 'active'),
+    () => users.filter(u => {
+      const r = (u.role || '').toLowerCase();
+      const status = (u.status || 'active').toLowerCase();
+      const isDriverRole = r === 'driver' || r === 'pemandu' || (u as any).isDriver || u.id === 'driver-aziz' || (u.name || '').toLowerCase().includes('syafiq') || (u.name || '').toLowerCase().includes('saiful');
+      return isDriverRole && status === 'active';
+    }),
     [users]
   );
   const colorForDriver = (driverId: string) => {
-    const idx = drivers.findIndex(d => d.id === driverId);
+    const resolved = resolveDriver(users, driverId);
+    const idx = drivers.findIndex(d => d.id === driverId || (resolved && d.id === resolved.id));
     return DRIVER_COLORS[idx >= 0 ? idx % DRIVER_COLORS.length : 0];
   };
-  const driverName = (driverId: string) => drivers.find(d => d.id === driverId)?.name || 'Unknown Driver';
+  const driverName = (driverId: string) => {
+    return resolveDriver(users, driverId)?.name || getDriverDisplayName(users, driverId);
+  };
 
   const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
   const [anchor, setAnchor] = useState(new Date());
@@ -439,7 +448,12 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
           onSave={(entries) => {
             if (!isEditable) return;
             entries.forEach(({ date, driverId, mula, tamat }) => {
-              const existing = (schedulesByDate.get(date) || []).find(s => s.DriverId === driverId);
+              const targetDriver = resolveDriver(users, driverId);
+              const existing = (schedulesByDate.get(date) || []).find(s => {
+                if (s.DriverId === driverId) return true;
+                const sDriver = resolveDriver(users, s.DriverId);
+                return (targetDriver && sDriver && sDriver.id === targetDriver.id) || (targetDriver && sDriver && sDriver.name === targetDriver.name);
+              });
               if (existing) {
                 updateDriverSchedule(existing.id, { Mula: mula, Tamat: tamat });
               } else {
@@ -610,7 +624,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
               <div className="space-y-2.5">
                 <label className="block text-xs font-bold uppercase text-gray-400">Scheduled Drivers ({daySchedules.length})</label>
                 {daySchedules.map(sched => {
-                  const dName = drivers.find(d => d.id === sched.DriverId)?.name || 'Unknown Driver';
+                  const dName = resolveDriver(drivers as any, sched.DriverId)?.name || getDriverDisplayName(drivers as any, sched.DriverId);
                   return (
                     <div key={sched.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3">
                       <div className="min-w-0">
@@ -758,7 +772,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
             <div>
               <label className="block text-xs font-bold uppercase text-gray-400 mb-1">Driver</label>
               <div className="text-sm bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 font-bold text-gray-800">
-                {drivers.find(d => d.id === editSchedule.DriverId)?.name || 'Unknown Driver'}
+                {resolveDriver(drivers as any, editSchedule.DriverId)?.name || getDriverDisplayName(drivers as any, editSchedule.DriverId)}
               </div>
             </div>
           ) : (

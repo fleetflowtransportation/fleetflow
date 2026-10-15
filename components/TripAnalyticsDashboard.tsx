@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { parseAsLocal } from '../utils';
+import { parseAsLocal, resolveDriver } from '../utils';
 import type { Booking, OdometerLog } from '../types';
 import {
   ChartBarIcon,
@@ -119,7 +119,7 @@ export const TripAnalyticsDashboard: React.FC<TripAnalyticsDashboardProps> = ({ 
     (driverId?: string | null, staffName?: string | null) => {
       if (staffName && staffName.trim()) return staffName.trim();
       if (driverId) {
-        const user = users.find(u => u.id === driverId);
+        const user = resolveDriver(users, driverId);
         if (user) return user.name;
         if (driverId.startsWith('staff-')) {
           const clean = driverId.replace(/^staff-/, '').replace(/-/g, ' ');

@@ -401,7 +401,7 @@ const fromDbIssueLog = (row: any): IssueLog => ({
 // Helper: Convert DriverSchedule TS to DB
 const toDbDriverSchedule = (s: Partial<DriverSchedule>) => ({
   ...(s.id && { id: s.id }),
-  ...(s.Date !== undefined && { date: s.Date, shift_date: s.Date, shift_type: 'Custom' }),
+  ...(s.Date !== undefined && { date: s.Date }),
   ...(s.DriverId !== undefined && { driver_id: s.DriverId }),
   ...(s.Mula !== undefined && { mula: s.Mula }),
   ...(s.Tamat !== undefined && { tamat: s.Tamat }),
@@ -410,10 +410,10 @@ const toDbDriverSchedule = (s: Partial<DriverSchedule>) => ({
 
 const fromDbDriverSchedule = (row: any): DriverSchedule => ({
   id: row.id,
-  Date: row.date,
-  DriverId: row.driver_id,
-  Mula: row.mula,
-  Tamat: row.tamat,
+  Date: row.date || row.shift_date,
+  DriverId: row.driver_id || row.driverId,
+  Mula: row.mula || row.shift_start || '09:00',
+  Tamat: row.tamat || row.shift_end || '17:00',
   tenantId: row.tenant_id || getTenantId(),
 });
 
@@ -781,23 +781,55 @@ export const storageService = {
   },
 
   getDriverSchedules: async (): Promise<DriverSchedule[]> => {
+    const tid = getTenantId();
+    const isYck = tid === 'yck' || tid === 'yayasan-chow-kit' || tid === 'yayasan-chow-kit-demo';
+
+    // Check localStorage cache first
+    let cachedList: DriverSchedule[] = [];
     try {
-      const tid = getTenantId();
-      const { data, error } = await supabase.from('driver_schedules').select('*').eq('tenant_id', tid).order('date', { ascending: true });
+      const raw = localStorage.getItem(`fleetflow_driver_schedules_${tid}`) || (isYck ? localStorage.getItem('fleetflow_driver_schedules_yck') : null);
+      if (raw) cachedList = JSON.parse(raw);
+    } catch {
+      // ignore
+    }
+
+    try {
+      let query = supabase.from('driver_schedules').select('*');
+      if (isYck) {
+        query = query.in('tenant_id', ['yck', 'yayasan-chow-kit', 'yayasan-chow-kit-demo']);
+      } else {
+        query = query.eq('tenant_id', tid);
+      }
+
+      const { data, error } = await query.order('date', { ascending: true });
       if (error) {
         console.warn('[Supabase] getDriverSchedules query error:', error.message);
       }
       if (data && data.length > 0) {
-        return data.map(fromDbDriverSchedule);
+        const dbSchedules = data.map(fromDbDriverSchedule);
+        try {
+          localStorage.setItem(`fleetflow_driver_schedules_${tid}`, JSON.stringify(dbSchedules));
+          if (isYck) localStorage.setItem('fleetflow_driver_schedules_yck', JSON.stringify(dbSchedules));
+        } catch {
+          // ignore
+        }
+        return dbSchedules;
       }
-      if (tid === 'yck' || tid === 'yayasan-chow-kit' || tid === 'yayasan-chow-kit-demo') {
+
+      if (cachedList && cachedList.length > 0) {
+        return cachedList;
+      }
+
+      if (isYck) {
         return INITIAL_DRIVER_SCHEDULES;
       }
       return [];
     } catch (err: any) {
       console.warn('[Supabase] getDriverSchedules exception:', err.message);
-      const tid = getTenantId();
-      if (tid === 'yck' || tid === 'yayasan-chow-kit' || tid === 'yayasan-chow-kit-demo') {
+      if (cachedList && cachedList.length > 0) {
+        return cachedList;
+      }
+      if (isYck) {
         return INITIAL_DRIVER_SCHEDULES;
       }
       return [];
@@ -1201,10 +1233,28 @@ createOdometerLog: async (data: OdometerLog): Promise<OdometerLog> => {
 
   // ---- WRITE (DRIVER SCHEDULES) ----
   createDriverSchedule: async (data: DriverSchedule): Promise<DriverSchedule> => {
+    const tid = data.tenantId || getTenantId();
+    const isYck = tid === 'yck' || tid === 'yayasan-chow-kit' || tid === 'yayasan-chow-kit-demo';
+
+    // 1. Immediately update localStorage cache
+    try {
+      const cacheKey = `fleetflow_driver_schedules_${tid}`;
+      const raw = localStorage.getItem(cacheKey);
+      const list: DriverSchedule[] = raw ? JSON.parse(raw) : [];
+      const updated = [...list.filter(s => s.id !== data.id), data];
+      localStorage.setItem(cacheKey, JSON.stringify(updated));
+      if (isYck) localStorage.setItem('fleetflow_driver_schedules_yck', JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+
+    // 2. Persist to Supabase
     try {
       const dbRow = toDbDriverSchedule(data);
       const { error } = await supabase.from('driver_schedules').insert([dbRow]);
-      if (error) console.error('[Supabase] createDriverSchedule error:', error.message);
+      if (error) {
+        console.error('[Supabase] createDriverSchedule error:', error.message);
+      }
     } catch (err: any) {
       console.error('[Supabase] createDriverSchedule exception:', err.message);
     }
@@ -1212,6 +1262,24 @@ createOdometerLog: async (data: OdometerLog): Promise<OdometerLog> => {
   },
 
   updateDriverSchedule: async (data: Partial<DriverSchedule> & { id: string }): Promise<any> => {
+    const tid = (data as any).tenantId || getTenantId();
+    const isYck = tid === 'yck' || tid === 'yayasan-chow-kit' || tid === 'yayasan-chow-kit-demo';
+
+    // 1. Update localStorage cache
+    try {
+      const cacheKey = `fleetflow_driver_schedules_${tid}`;
+      const raw = localStorage.getItem(cacheKey);
+      if (raw) {
+        const list: DriverSchedule[] = JSON.parse(raw);
+        const updated = list.map(s => s.id === data.id ? { ...s, ...data } : s);
+        localStorage.setItem(cacheKey, JSON.stringify(updated));
+        if (isYck) localStorage.setItem('fleetflow_driver_schedules_yck', JSON.stringify(updated));
+      }
+    } catch {
+      // ignore
+    }
+
+    // 2. Persist to Supabase
     try {
       const dbRow = toDbDriverSchedule(data);
       const { error } = await supabase.from('driver_schedules').update(dbRow).eq('id', data.id);
@@ -1223,6 +1291,24 @@ createOdometerLog: async (data: OdometerLog): Promise<OdometerLog> => {
   },
 
   deleteDriverSchedule: async (id: string): Promise<{ id: string }> => {
+    const tid = getTenantId();
+    const isYck = tid === 'yck' || tid === 'yayasan-chow-kit' || tid === 'yayasan-chow-kit-demo';
+
+    // 1. Update localStorage cache
+    try {
+      const cacheKey = `fleetflow_driver_schedules_${tid}`;
+      const raw = localStorage.getItem(cacheKey);
+      if (raw) {
+        const list: DriverSchedule[] = JSON.parse(raw);
+        const updated = list.filter(s => s.id !== id);
+        localStorage.setItem(cacheKey, JSON.stringify(updated));
+        if (isYck) localStorage.setItem('fleetflow_driver_schedules_yck', JSON.stringify(updated));
+      }
+    } catch {
+      // ignore
+    }
+
+    // 2. Delete from Supabase
     try {
       const { error } = await supabase.from('driver_schedules').delete().eq('id', id);
       if (error) console.error('[Supabase] deleteDriverSchedule error:', error.message);
@@ -1233,6 +1319,25 @@ createOdometerLog: async (data: OdometerLog): Promise<OdometerLog> => {
   },
 
   deleteDriverSchedulesBulk: async (ids: string[]): Promise<void> => {
+    if (!ids || ids.length === 0) return;
+    const tid = getTenantId();
+    const isYck = tid === 'yck' || tid === 'yayasan-chow-kit' || tid === 'yayasan-chow-kit-demo';
+
+    // 1. Update localStorage cache
+    try {
+      const cacheKey = `fleetflow_driver_schedules_${tid}`;
+      const raw = localStorage.getItem(cacheKey);
+      if (raw) {
+        const list: DriverSchedule[] = JSON.parse(raw);
+        const updated = list.filter(s => !ids.includes(s.id));
+        localStorage.setItem(cacheKey, JSON.stringify(updated));
+        if (isYck) localStorage.setItem('fleetflow_driver_schedules_yck', JSON.stringify(updated));
+      }
+    } catch {
+      // ignore
+    }
+
+    // 2. Delete from Supabase
     try {
       const { error } = await supabase.from('driver_schedules').delete().in('id', ids);
       if (error) console.error('[Supabase] deleteDriverSchedulesBulk error:', error.message);

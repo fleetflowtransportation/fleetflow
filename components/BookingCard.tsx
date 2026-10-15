@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import type { Booking, User, Vehicle, PassengerCategory } from '../types';
 import { CalendarIcon, ClockIcon, LocationMarkerIcon, UserGroupIcon, CheckCircleIcon, XCircleIcon, TruckIcon, EditIcon, ArrowUpCircleIcon, PaperClipIcon, RewindIcon, TrashIcon, InformationCircleIcon, UserCircleIcon, RepeatIcon, RouteIcon } from './icons/Icons';
 import { useAppContext } from '../context/AppContext';
-import { parseAsLocal, getPickupLocationDisplay, getStops, getRouteLabel } from '../utils';
+import { parseAsLocal, getPickupLocationDisplay, getStops, getRouteLabel, getDriverDisplayName, resolveVehicle, resolveDriver } from '../utils';
 
 interface BookingCardProps {
   booking: Booking;
@@ -58,13 +58,14 @@ const BookingCard: React.FC<BookingCardProps> = ({
   const [selectedVehicle, setSelectedVehicle] = useState('');
   const [isReassigning, setIsReassigning] = useState(false);
   
-  const driverName = useMemo(() => allUsers.find(d => d.id === booking.driverId)?.name || 'N/A', [booking.driverId, allUsers]);
-  const vehicle = useMemo(() => allVehles.find(v => v.id === booking.vehicleId) || allVehles.find(v => v.name.toLowerCase() === (booking.vehiclePreference || '').toLowerCase()), [booking.vehicleId, booking.vehiclePreference, allVehles]);
+  const resolvedDriver = useMemo(() => resolveDriver(allUsers, booking.driverId, booking.calendarEventTitle), [booking.driverId, booking.calendarEventTitle, allUsers]);
+  const driverName = useMemo(() => getDriverDisplayName(allUsers, booking.driverId, booking.calendarEventTitle, booking.serviceType), [booking.driverId, booking.calendarEventTitle, booking.serviceType, allUsers]);
+  const vehicle = useMemo(() => resolveVehicle(allVehles, booking.vehicleId, booking.vehiclePreference), [booking.vehicleId, booking.vehiclePreference, allVehles]);
   
   useEffect(() => {
-    setSelectedDriver(booking.driverId || '');
-    setSelectedVehicle(booking.vehicleId || '');
-  }, [booking.driverId, booking.vehicleId]);
+    setSelectedDriver(resolvedDriver?.id || booking.driverId || '');
+    setSelectedVehicle(vehicle?.id || booking.vehicleId || '');
+  }, [booking.driverId, booking.vehicleId, resolvedDriver, vehicle]);
   
   const handleAssign = () => {
     if (onAssign && selectedDriver && selectedVehicle) {

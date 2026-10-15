@@ -3,7 +3,7 @@
  * Multi-stop route helpers (Phase 1) included at the bottom.
  */
 
-import type { Booking, BookingStop } from './types';
+import type { Booking, BookingStop, User, Vehicle } from './types';
 
 export const parseAsLocal = (dateStr: string | Date | undefined | null): Date => {
   if (!dateStr) return new Date();
@@ -165,3 +165,178 @@ export const normalizeStopsForSave = (
       notes: s.notes,
     }));
 };
+
+/**
+ * Robust driver resolution helper that matches by ID, email, name, or extracted calendar event title.
+ * Resilient against user ID migrations (e.g. Supabase Auth IDs vs legacy IDs).
+ */
+export const resolveDriver = (
+  users: User[] | undefined,
+  driverId?: string | null,
+  calendarTitle?: string | null
+): User | undefined => {
+  if (!users || users.length === 0) return undefined;
+
+  if (driverId) {
+    const dStr = String(driverId).trim();
+    const dLower = dStr.toLowerCase();
+    const cleanD = dLower.replace(/^driver-/, '').replace(/^user-/, '').trim();
+
+    // 1. Exact ID match (case-insensitive)
+    const byId = users.find(u => u.id === dStr || u.id.toLowerCase() === dLower);
+    if (byId) return byId;
+
+    // 2. Email match (exact or email handle match e.g. 'syafiq' matches 'syafiq@yck.org.my')
+    const byEmail = users.find(u => {
+      if (!u.email) return false;
+      const uEmail = u.email.trim().toLowerCase();
+      const uPrefix = uEmail.split('@')[0];
+      return uEmail === dLower || uPrefix === dLower || uPrefix === cleanD;
+    });
+    if (byEmail) return byEmail;
+
+    // 3. Exact Name match (case-insensitive)
+    const byName = users.find(u => u.name && u.name.trim().toLowerCase() === dLower);
+    if (byName) return byName;
+
+    // 4. Clean name match (e.g. 'driver-syafiq' -> cleanD is 'syafiq' which matches 'Syafiq' or 'Muhammad Syafiq')
+    const byCleanName = users.find(u => {
+      if (!u.name) return false;
+      const uName = u.name.trim().toLowerCase();
+      if (uName === cleanD) return true;
+      const uWords = uName.split(/\s+/);
+      return uWords.includes(cleanD) || cleanD.includes(uName) || uName.includes(cleanD);
+    });
+    if (byCleanName) return byCleanName;
+
+    // 5. Special well-known driver matching
+    if (cleanD.includes('syafiq')) {
+      const syafiq = users.find(u => (u.name || '').toLowerCase().includes('syafiq') || (u.email || '').toLowerCase().includes('syafiq'));
+      if (syafiq) return syafiq;
+    }
+    if (cleanD.includes('saiful')) {
+      const saiful = users.find(u => (u.name || '').toLowerCase().includes('saiful') || (u.email || '').toLowerCase().includes('saiful'));
+      if (saiful) return saiful;
+    }
+    if (cleanD.includes('aziz')) {
+      const aziz = users.find(u => (u.name || '').toLowerCase().includes('aziz') || (u.email || '').toLowerCase().includes('aziz'));
+      if (aziz) return aziz;
+    }
+
+    // 6. Partial substring match on name / id
+    const byPartial = users.find(u => {
+      const uName = (u.name || '').trim().toLowerCase();
+      const uId = (u.id || '').trim().toLowerCase();
+      return (
+        (uName && (dLower.includes(uName) || uName.includes(dLower))) ||
+        (uId && (dLower.includes(uId) || uId.includes(dLower)))
+      );
+    });
+    if (byPartial) return byPartial;
+  }
+
+  // 7. Fallback: Extract driver name from Google Calendar title e.g. "(Saiful) Ain Muhd → ..."
+  if (calendarTitle) {
+    const match = calendarTitle.match(/^\(([^)]+)\)/);
+    if (match && match[1]) {
+      const titleName = match[1].trim().toLowerCase();
+      if (!titleName.includes('reject') && !titleName.includes('conflict') && !titleName.includes('alza')) {
+        const byTitle = users.find(u => {
+          const uName = (u.name || '').trim().toLowerCase();
+          return uName && (titleName.includes(uName) || uName.includes(titleName) || uName.split(/\s+/).some(w => w.length >= 3 && titleName.includes(w)));
+        });
+        if (byTitle) return byTitle;
+
+        if (titleName.includes('syafiq')) {
+          const s = users.find(u => (u.name || '').toLowerCase().includes('syafiq'));
+          if (s) return s;
+        }
+        if (titleName.includes('saiful')) {
+          const s = users.find(u => (u.name || '').toLowerCase().includes('saiful'));
+          if (s) return s;
+        }
+      }
+    }
+  }
+
+  return undefined;
+};
+
+/**
+ * Gets the human-readable display name for a driver, never falling back to blank or raw IDs.
+ */
+export const getDriverDisplayName = (
+  users: User[] | undefined,
+  driverId?: string | null,
+  calendarTitle?: string | null,
+  serviceType?: string
+): string => {
+  if (serviceType === 'Self-Drive') return 'Self-Drive (Staff)';
+
+  const resolved = resolveDriver(users, driverId, calendarTitle);
+  if (resolved) return resolved.name;
+
+  if (calendarTitle) {
+    const match = calendarTitle.match(/^\(([^)]+)\)/);
+    if (match && match[1]) {
+      const t = match[1].trim();
+      if (!t.toLowerCase().includes('reject') && !t.toLowerCase().includes('conflict') && !t.toLowerCase().includes('alza')) {
+        return t;
+      }
+    }
+  }
+
+  if (driverId) {
+    const cleanId = String(driverId).trim().toLowerCase();
+    if (cleanId.includes('syafiq')) return 'Syafiq';
+    if (cleanId.includes('saiful')) return 'Saiful';
+    if (cleanId.includes('aziz')) return 'Aziz';
+
+    const sub = cleanId.replace(/^driver-/, '').replace(/^user-/, '');
+    if (sub && !/\d{4,}/.test(sub)) {
+      return sub.charAt(0).toUpperCase() + sub.slice(1);
+    }
+    return String(driverId).trim();
+  }
+
+  return 'Unassigned';
+};
+
+/**
+ * Robust vehicle resolution helper matching by ID, vehicle preference, or fuzzy model name.
+ */
+export const resolveVehicle = (
+  vehicles: Vehicle[] | undefined,
+  vehicleId?: string | null,
+  vehiclePreference?: string | null
+): Vehicle | undefined => {
+  if (!vehicles || vehicles.length === 0) return undefined;
+
+  if (vehicleId) {
+    const byId = vehicles.find(v => v.id === vehicleId);
+    if (byId) return byId;
+  }
+
+  if (vehiclePreference && vehiclePreference !== 'Bebas' && vehiclePreference !== 'Any / Free Choice' && vehiclePreference !== 'Any / No Preference') {
+    const prefLower = vehiclePreference.toLowerCase().trim();
+    const byPref = vehicles.find(v => {
+      const vName = (v.name || '').toLowerCase().trim();
+      const vPlate = (v.plateNumber || '').toLowerCase().trim();
+      return (
+        vName === prefLower ||
+        vPlate === prefLower ||
+        vName.includes(prefLower) ||
+        prefLower.includes(vName) ||
+        (prefLower.includes('alza') && vName.includes('alza')) ||
+        (prefLower.includes('hiace') && vName.includes('hiace')) ||
+        (prefLower.includes('foton') && vName.includes('foton')) ||
+        (prefLower.includes('urvan') && vName.includes('urvan')) ||
+        (prefLower.includes('transit') && vName.includes('transit'))
+      );
+    });
+    if (byPref) return byPref;
+  }
+
+  return undefined;
+};
+
