@@ -1,0 +1,721 @@
+import type { Booking, DriverSchedule, User, Vehicle } from '../types';
+import { USERS } from '../constants';
+import { getPickupLocationDisplay, resolveDriver, resolveVehicle } from '../utils';
+
+export interface AutoAssignResult {
+  status: 'Confirmed' | 'Conflict';
+  driverId: string | null;
+  vehicleId: string | null;
+  calendarEventTitle: string;
+  calendarColor: 'blue' | 'green' | 'grey' | 'purple' | 'amber' | 'teal';
+  calendarEventId: string;
+  adminNotes: string;
+  conflictReason?: string;
+  isPreWorkingHour?: boolean;
+  warningNotes?: string;
+  assignedDriverName?: string;
+  assignedVehicleName?: string;
+  newLastDriverAssignedId?: string;
+  emailNotifications: {
+    requester: {
+      to: string;
+      subject: string;
+      body: string;
+    };
+    driver?: {
+      to: string;
+      subject: string;
+      body: string;
+    };
+    admin?: {
+      to: string;
+      subject: string;
+      body: string;
+    };
+  };
+}
+
+export interface BookingInput {
+  requesterName: string;
+  requesterEmail: string;
+  department: string;
+  bookingDate: string; // 'YYYY-MM-DD'
+  startTime: string;   // 'HH:mm'
+  endTime: string;     // 'HH:mm'
+  purpose: string;
+  destination: string;
+  pickupPoint: string;
+  address?: string;
+  staffCount?: number;
+  kidsCount?: number;
+  teenagersCount?: number;
+  serviceType: 'Perlu Driver' | 'Self-Drive';
+  vehiclePreference?: string;
+  shouldWait?: boolean;
+  remarks?: string;
+  icNumber?: string;
+}
+
+// Normalize helpers
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+export const normalizeDate = (raw: string | Date | undefined): string => {
+  if (!raw) return '';
+  if (raw instanceof Date) {
+    return `${raw.getFullYear()}-${pad2(raw.getMonth() + 1)}-${pad2(raw.getDate())}`;
+  }
+  const rawStr = String(raw).trim();
+  // Check if string contains timezone indicators (Z, +08:00, etc.)
+  if (rawStr.includes('Z') || rawStr.includes('+') || (rawStr.includes('-') && rawStr.length > 10 && rawStr.lastIndexOf('-') > 10)) {
+    const d = new Date(rawStr);
+    if (!isNaN(d.getTime())) {
+      return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+    }
+  }
+  // Check if it's yyyy-mm-dd
+  if (/^\d{4}-\d{2}-\d{2}/.test(rawStr)) {
+    return rawStr.slice(0, 10);
+  }
+  // Check if it's dd/mm/yyyy or d/m/yyyy
+  const dmyMatch = rawStr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (dmyMatch) {
+    return `${dmyMatch[3]}-${pad2(Number(dmyMatch[2]))}-${pad2(Number(dmyMatch[1]))}`;
+  }
+  const d = new Date(rawStr);
+  if (!isNaN(d.getTime())) {
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  }
+  return rawStr.slice(0, 10);
+};
+
+export const normalizeTime = (raw: string | Date | undefined): string => {
+  if (!raw) return '00:00';
+  if (raw instanceof Date) {
+    return `${pad2(raw.getHours())}:${pad2(raw.getMinutes())}`;
+  }
+  const rawStr = String(raw).trim();
+  if (/^\d{1,2}:\d{2}$/.test(rawStr)) {
+    const [h, m] = rawStr.split(':');
+    return `${pad2(Number(h))}:${m}`;
+  }
+  // If string contains timezone indicators (Z, +08:00, etc.), evaluate in local time
+  if (rawStr.includes('Z') || rawStr.includes('+') || (rawStr.includes('-') && rawStr.length > 10 && rawStr.lastIndexOf('-') > 10)) {
+    const d = new Date(rawStr);
+    if (!isNaN(d.getTime())) {
+      return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+    }
+  }
+  const match = rawStr.match(/T(\d{2}):(\d{2})/);
+  if (match) return `${match[1]}:${match[2]}`;
+  const d = new Date(rawStr);
+  if (!isNaN(d.getTime())) {
+    return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  }
+  return '00:00';
+};
+
+export const formatTime12H = (time24: string): string => {
+  if (!time24) return '';
+  const parts = time24.split(':');
+  if (parts.length >= 2) {
+    let h = Number(parts[0]);
+    const m = parts[1];
+    if (!isNaN(h)) {
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      h = h % 12;
+      if (h === 0) h = 12;
+      return `${h}:${m} ${ampm}`;
+    }
+  }
+  return time24;
+};
+
+// Check if two time intervals overlap on the same day: [startA, endA] and [startB, endB]
+export const isTimeOverlap = (startA: string, endA: string, startB: string, endB: string): boolean => {
+  const sA = normalizeTime(startA);
+  let eA = normalizeTime(endA);
+  const sB = normalizeTime(startB);
+  let eB = normalizeTime(endB);
+
+  // If start times are identical, they immediately overlap
+  if (sA === sB) return true;
+
+  // Ensure end times are valid positive intervals (default to +2 hours if end <= start or 0 duration)
+  if (eA <= sA) {
+    const [h, m] = sA.split(':').map(Number);
+    eA = `${pad2(Math.min(h + 2, 23))}:${pad2(m)}`;
+  }
+  if (eB <= sB) {
+    const [h, m] = sB.split(':').map(Number);
+    eB = `${pad2(Math.min(h + 2, 23))}:${pad2(m)}`;
+  }
+
+  // Overlap if max(sA, sB) < min(eA, eB)
+  return sA < eB && eA > sB;
+};
+
+// Calculate booking duration in minutes
+export const getBookingDurationMinutes = (b: Booking): number => {
+  const start = normalizeTime(b.dateTime);
+  const end = normalizeTime(b.finishDateTime || b.dateTime);
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  let dur = (eh * 60 + em) - (sh * 60 + sm);
+  if (dur <= 0) dur = 120; // default 2 hours if invalid or 0
+  return dur;
+};
+
+// Get Driver color based on project rules
+export const getDriverCalendarColor = (driverName: string = '', serviceType?: string): 'blue' | 'green' | 'grey' | 'purple' | 'amber' | 'teal' => {
+  if (serviceType === 'Self-Drive') return 'grey';
+  const name = driverName.toLowerCase();
+  if (name.includes('syafiq')) return 'blue';
+  if (name.includes('saiful')) return 'green';
+  if (name.includes('aziz')) return 'teal';
+  if (name.includes('john')) return 'purple';
+  if (name.includes('jane')) return 'amber';
+  return 'blue';
+};
+
+/**
+ * Full Flow Engine based on Armada Flow Project Context
+ */
+export function evaluateBookingAssignment({
+  booking,
+  existingBookings,
+  driverSchedules,
+  users,
+  vehicles,
+  lastDriverAssignedId,
+}: {
+  booking: BookingInput;
+  existingBookings: Booking[];
+  driverSchedules: DriverSchedule[];
+  users: User[];
+  vehicles: Vehicle[];
+  lastDriverAssignedId: string | null;
+}): AutoAssignResult {
+  const {
+    requesterName,
+    requesterEmail,
+    department,
+    bookingDate: rawBookingDate,
+    startTime: rawStartTime,
+    endTime: rawEndTime,
+    purpose,
+    destination,
+    pickupPoint,
+    address,
+    staffCount = 0,
+    kidsCount = 0,
+    teenagersCount = 0,
+    serviceType,
+    vehiclePreference,
+    shouldWait = false,
+    remarks,
+  } = booking;
+
+  const bookingDate = normalizeDate(rawBookingDate);
+  const startTime = normalizeTime(rawStartTime);
+  let endTime = normalizeTime(rawEndTime);
+  if (endTime <= startTime) {
+    // Default finish time +2 hours if not specified or invalid
+    const [h, m] = startTime.split(':').map(Number);
+    endTime = `${pad2(Math.min(h + 2, 23))}:${pad2(m)}`;
+  }
+
+  const startTime12 = formatTime12H(startTime);
+  const endTime12 = formatTime12H(endTime);
+
+  const dateObj = new Date(bookingDate + 'T' + startTime);
+  const dayOfWeek = isNaN(dateObj.getTime()) ? new Date().getDay() : dateObj.getDay();
+
+  // Find Admin contact (Ain)
+  const adminAin = users.find(u => u.role === 'admin' && u.name.toLowerCase().includes('ain')) ||
+    users.find(u => u.role === 'admin') ||
+    { name: 'Ain (Admin Transport)', email: 'ain@yck.org.my' };
+
+  // ==========================================
+  // STEP 3: CEK LUNCH BREAK DULU
+  // ==========================================
+  // Isnin–Khamis/Ahad: 12:00–13:00
+  // Jumaat: 12:30–14:30
+  // Exception: kalau booking start SEBELUM waktu rehat bermula, dibenarkan
+  // Kalau clash → terus REJECT, tak proceed ke assignment
+  const isFriday = dayOfWeek === 5;
+  const lunchStart = isFriday ? '12:30' : '12:00';
+  const lunchEnd = isFriday ? '14:30' : '13:00';
+
+  const startsDuringLunch = startTime >= lunchStart && startTime < lunchEnd;
+
+  if (startsDuringLunch) {
+    const reason = `Booking start time (${startTime12}) overlaps with official ${isFriday ? 'Friday ' : ''}lunch break (${formatTime12H(lunchStart)} - ${formatTime12H(lunchEnd)}).`;
+    return {
+      status: 'Conflict',
+      driverId: null,
+      vehicleId: null,
+      calendarEventTitle: `[REJECT] ${requesterName} → ${destination} (Lunch Break Clash)`,
+      calendarColor: 'grey',
+      calendarEventId: `evt-clash-lunch-${Date.now()}`,
+      conflictReason: reason,
+      adminNotes: `REJECT (Step 3): ${reason}`,
+      emailNotifications: {
+        requester: {
+          to: requesterEmail,
+          subject: `[CONFLICT] Armada Flow Vehicle Booking: ${destination} (${bookingDate})`,
+          body: `Hello ${requesterName},\n\nYour booking request to ${destination} on ${bookingDate} (${startTime12} - ${endTime12}) COULD NOT BE CONFIRMED because it overlaps with the official break time (${formatTime12H(lunchStart)} - ${formatTime12H(lunchEnd)}).\n\nPlease choose a start time before ${formatTime12H(lunchStart)} or after ${formatTime12H(lunchEnd)}, or contact the Admin team (${adminAin.name} at ${adminAin.email}) for manual assistance.\n\nThank you,\nArmada Flow System`,
+        },
+        admin: {
+          to: adminAin.email,
+          subject: `[MANUAL ACTION REQUIRED] Break Time Conflict: ${requesterName} - ${destination}`,
+          body: `Attention Admin,\n\nA new booking request from ${requesterName} (${department}) to ${destination} on ${bookingDate} (${startTime12} - ${endTime12}) has been flagged as a CONFLICT due to start time falling within lunch break hours (${formatTime12H(lunchStart)} - ${formatTime12H(lunchEnd)}).\n\nPlease review on the dashboard for manual action.`,
+        },
+      },
+    };
+  }
+
+  // ==========================================
+  // STEP 4: IF SELF-DRIVE
+  // ==========================================
+  // Check if Perodua Alza is free during this slot
+  if (serviceType === 'Self-Drive') {
+    // Find Perodua Alza vehicle
+    const alzaVehicle = vehicles.find(v => v.name.toLowerCase().includes('alza') || v.plateNumber.toLowerCase().includes('alza')) ||
+      vehicles[0] ||
+      { id: 'alza-1', name: 'Perodua Alza', plateNumber: 'VAA 8821' };
+
+    // Check existing active bookings for this vehicle on this date
+    const vehicleClash = existingBookings.find(b => {
+      if (b.status === 'Cancelled') return false;
+      const bDate = normalizeDate(b.dateTime);
+      if (bDate !== bookingDate) return false;
+      // Either assigned vehicle matches OR self-drive Alza
+      const isSameVehicle = b.vehicleId === alzaVehicle.id || (b.serviceType === 'Self-Drive');
+      if (!isSameVehicle) return false;
+
+      const bStart = normalizeTime(b.dateTime);
+      const bEnd = normalizeTime(b.finishDateTime || b.dateTime);
+      return isTimeOverlap(startTime, endTime, bStart, bEnd);
+    });
+
+    if (vehicleClash) {
+      const reason = `The Perodua Alza vehicle is already booked by another requester (${vehicleClash.requesterName}) during this time slot (${startTime12} - ${endTime12}).`;
+      return {
+        status: 'Conflict',
+        driverId: null,
+        vehicleId: null,
+        calendarEventTitle: `[CONFLICT] [ALZA] (SELF-DRIVE) ${requesterName} → ${destination}`,
+        calendarColor: 'grey',
+        calendarEventId: `evt-conflict-alza-${Date.now()}`,
+        conflictReason: reason,
+        adminNotes: `CONFLICT (Step 4): ${reason}`,
+        emailNotifications: {
+          requester: {
+            to: requesterEmail,
+            subject: `[CONFLICT] Self-Drive Booking: ${destination} (${bookingDate})`,
+            body: `Hello ${requesterName},\n\nYour Self-Drive booking request to ${destination} on ${bookingDate} (${startTime12} - ${endTime12}) COULD NOT BE CONFIRMED because the Perodua Alza is already booked during this time slot.\n\nPlease contact Admin (${adminAin.name} at ${adminAin.email}) for an alternative vehicle or to reschedule.\n\nArmada Flow`,
+          },
+          admin: {
+            to: adminAin.email,
+            subject: `[MANUAL ACTION REQUIRED] Self-Drive Conflict: ${requesterName}`,
+            body: `Admin,\n\nSelf-Drive booking request by ${requesterName} on ${bookingDate} (${startTime12} - ${endTime12}) conflicts with an existing reservation.\nPlease coordinate an alternative vehicle if available.`,
+          },
+        },
+      };
+    }
+
+    // Alza Free! Confirmed!
+    const deptStr = department ? ` (${department})` : '';
+    const calendarTitle = `[ALZA] (SELF-DRIVE) ${requesterName}${deptStr} → ${destination}`;
+    return {
+      status: 'Confirmed',
+      driverId: null,
+      vehicleId: alzaVehicle.id,
+      assignedVehicleName: `${alzaVehicle.name} (${alzaVehicle.plateNumber})`,
+      calendarEventTitle: calendarTitle,
+      calendarColor: 'grey',
+      calendarEventId: `evt-alza-${Date.now()}`,
+      adminNotes: `CONFIRMED: Self-Drive reservation confirmed. Perodua Alza (${alzaVehicle.plateNumber}) allocated. No driver required.`,
+      emailNotifications: {
+        requester: {
+          to: requesterEmail,
+          subject: `[CONFIRMED] Self-Drive Booking Confirmed: ${destination}`,
+          body: `Hello ${requesterName},\n\nYour Self-Drive reservation has been SUCCESSFULLY CONFIRMED!\n\n📅 Date: ${bookingDate}\n⏰ Time: ${startTime12} - ${endTime12}\n📍 Pickup Location: ${getPickupLocationDisplay(pickupPoint, address)}\n🎯 Destination: ${destination}\n🚗 Vehicle: ${alzaVehicle.name} (${alzaVehicle.plateNumber})\n👤 Service: Self-Drive\n\nPlease collect the vehicle keys from the administration office prior to departure.\n\nArmada Flow`,
+        },
+      },
+    };
+  }
+
+  // ==========================================
+  // STEP 5: IF DRIVER NEEDED — AUTO-ASSIGN LOGIC
+  // ==========================================
+  const effectiveUsers = (users && users.length > 0) ? users : USERS;
+
+  const activeDrivers = effectiveUsers.filter(u => {
+    const r = (u.role || '').toLowerCase();
+    const status = (u.status || 'active').toLowerCase();
+    // Role-based only. Do NOT treat name substrings as drivers — that polluted auto-assign pools.
+    const isDriverRole = r === 'driver' || r === 'pemandu' || (u as any).isDriver === true;
+    return isDriverRole && status === 'active';
+  });
+
+  // Pull driver schedules for date (matching Date, date, shift_date, shiftDate)
+  const schedulesOnDate = driverSchedules.filter(s => {
+    const rawDate = s.Date || (s as any).date || (s as any).shift_date || (s as any).shiftDate;
+    return normalizeDate(rawDate) === bookingDate;
+  });
+
+  // Match on-duty drivers with schedules using robust resolveDriver
+  interface WorkingDriverInfo {
+    driver: User;
+    shiftStart: string;
+    shiftEnd: string;
+  }
+
+  let workingDrivers: WorkingDriverInfo[] = [];
+  const processedDriverIds = new Set<string>();
+
+  for (const sched of schedulesOnDate) {
+    const rawDriverId = sched.DriverId || (sched as any).driverId || (sched as any).driver_id;
+    if (!rawDriverId) continue;
+
+    // Resolve user object using resolveDriver (handles UUID, legacy ID, email, name, clean name)
+    const resolvedDriver = resolveDriver(effectiveUsers, rawDriverId);
+    if (!resolvedDriver) continue;
+
+    const status = (resolvedDriver.status || 'active').toLowerCase();
+    if (status === 'inactive') continue;
+
+    if (!processedDriverIds.has(resolvedDriver.id)) {
+      processedDriverIds.add(resolvedDriver.id);
+      workingDrivers.push({
+        driver: resolvedDriver,
+        shiftStart: normalizeTime(sched.Mula || (sched as any).mula || (sched as any).shift_start || '09:00'),
+        shiftEnd: normalizeTime(sched.Tamat || (sched as any).tamat || (sched as any).shift_end || '17:00'),
+      });
+    }
+  }
+
+  // Secondary fallback: if schedules exist on this date but resolveDriver didn't catch an unusual ID format,
+  // search across activeDrivers for any name containment in sched.DriverId
+  if (workingDrivers.length === 0 && schedulesOnDate.length > 0) {
+    for (const sched of schedulesOnDate) {
+      const rawDriverId = String(sched.DriverId || (sched as any).driverId || (sched as any).driver_id || '').toLowerCase().trim();
+      const matched = activeDrivers.find(d => {
+        const dName = (d.name || '').toLowerCase();
+        return rawDriverId.includes(dName) || dName.includes(rawDriverId);
+      });
+      if (matched && !processedDriverIds.has(matched.id)) {
+        processedDriverIds.add(matched.id);
+        workingDrivers.push({
+          driver: matched,
+          shiftStart: normalizeTime(sched.Mula || (sched as any).mula || (sched as any).shift_start || '09:00'),
+          shiftEnd: normalizeTime(sched.Tamat || (sched as any).tamat || (sched as any).shift_end || '17:00'),
+        });
+      }
+    }
+  }
+
+  // STRICT ROSTER MODE:
+  // Never invent on-duty drivers. Only drivers present in driver_schedules for this exact date
+  // are eligible. Falling back to "all active drivers" was assigning Saiful/Syafiq from seed
+  // data even when the real roster only listed one driver.
+  if (workingDrivers.length === 0 && schedulesOnDate.length === 0) {
+    console.warn('[BookingEngine] No driver_schedules rows for', bookingDate, '- will return Conflict (strict roster). Total schedules loaded:', driverSchedules.length);
+  } else {
+    console.log('[BookingEngine] Roster for', bookingDate, ':', workingDrivers.map(w => `${w.driver.name}(${w.shiftStart}-${w.shiftEnd})`).join(', ') || '(none resolved)', '| raw schedule rows:', schedulesOnDate.length);
+  }
+
+  // If still no working drivers available on duty for this date, trigger Conflict
+  if (workingDrivers.length === 0) {
+    const reason = schedulesOnDate.length > 0
+      ? `Scheduled driver(s) in roster for ${bookingDate} could not be resolved or are marked inactive.`
+      : `No driver roster or active drivers found for ${bookingDate}.`;
+    return {
+      status: 'Conflict',
+      driverId: null,
+      vehicleId: null,
+      calendarEventTitle: `[CONFLICT] ${requesterName} → ${destination} (No Driver Rostered)`,
+      calendarColor: 'grey',
+      calendarEventId: `evt-no-driver-${Date.now()}`,
+      conflictReason: reason,
+      adminNotes: `CONFLICT: ${reason}`,
+      emailNotifications: {
+        requester: {
+          to: requesterEmail,
+          subject: `[CONFLICT] Driver Unavailable: ${destination} (${bookingDate})`,
+          body: `Hello ${requesterName},\n\nNo driver is on duty or rostered for ${bookingDate} at ${startTime12} - ${endTime12}.\n\nPlease contact the Admin team (${adminAin.name} at ${adminAin.email}) for assistance.\n\nArmada Flow`,
+        },
+        admin: {
+          to: adminAin.email,
+          subject: `[ACTION REQUIRED] No Driver Rostered: ${requesterName} - ${destination}`,
+          body: `Attention Admin,\n\nBooking request from ${requesterName} on ${bookingDate} (${startTime12} - ${endTime12}) cannot be auto-assigned because no active drivers are on duty in the driver roster.\n\nPlease check the Driver Shift & Duty Roster.`,
+        },
+      },
+    };
+  }
+
+  // b. Filter drivers whose shift has started
+  let eligible = workingDrivers.filter(w => w.shiftStart <= startTime && w.shiftEnd > startTime);
+  let isPreWorkingHour = false;
+
+  if (eligible.length === 0 && workingDrivers.length > 0) {
+    const sortedByEarliestShift = [...workingDrivers].sort((a, b) => a.shiftStart.localeCompare(b.shiftStart));
+    const earliestShiftTime = sortedByEarliestShift[0]?.shiftStart || '09:00';
+
+    if (startTime < earliestShiftTime) {
+      isPreWorkingHour = true;
+    }
+
+    eligible = sortedByEarliestShift.filter(w => w.shiftStart === earliestShiftTime);
+  }
+
+  // c. Check calendar for available drivers without clash
+  // Uses robust resolveDriver helper to match drivers by ID, email, name, or calendar event title
+  const availableDrivers = eligible.filter(w => {
+    const wDriverName = (w.driver.name || '').trim().toLowerCase();
+
+    const driverActiveBookings = existingBookings.filter(b => {
+      if (b.status === 'Cancelled') return false;
+      if (normalizeDate(b.dateTime) !== bookingDate) return false;
+
+      // Identify whether this existing booking was assigned to this driver
+      const matched = resolveDriver(effectiveUsers, b.driverId, b.calendarEventTitle);
+      if (matched) {
+        return matched.id === w.driver.id || matched.name.trim().toLowerCase() === wDriverName;
+      }
+
+      // Direct fallback matching
+      const bDriverLower = (b.driverId || '').trim().toLowerCase();
+      const calTitleLower = (b.calendarEventTitle || '').trim().toLowerCase();
+      return (
+        bDriverLower === w.driver.id.toLowerCase() ||
+        (wDriverName && (bDriverLower === wDriverName || bDriverLower.includes(wDriverName) || wDriverName.includes(bDriverLower))) ||
+        (wDriverName && calTitleLower.includes(`(${wDriverName})`)) ||
+        (wDriverName && calTitleLower.includes(wDriverName))
+      );
+    });
+
+    const hasClash = driverActiveBookings.some(b => {
+      const bStart = normalizeTime(b.dateTime);
+      const bEnd = normalizeTime(b.finishDateTime || b.dateTime);
+      return isTimeOverlap(startTime, endTime, bStart, bEnd);
+    });
+
+    return !hasClash;
+  });
+
+  // d. If no drivers available
+  if (availableDrivers.length === 0) {
+    const reason = `All on-duty drivers have conflicting bookings during this time slot (${startTime12} - ${endTime12}).`;
+    return {
+      status: 'Conflict',
+      driverId: null,
+      vehicleId: null,
+      calendarEventTitle: `[CONFLICT] ${requesterName} → ${destination} (All Drivers Busy)`,
+      calendarColor: 'grey',
+      calendarEventId: `evt-all-busy-${Date.now()}`,
+      conflictReason: reason,
+      adminNotes: `CONFLICT: ${reason}`,
+      emailNotifications: {
+        requester: {
+          to: requesterEmail,
+          subject: `[CONFLICT] All Drivers Busy: ${destination} (${bookingDate})`,
+          body: `Hello ${requesterName},\n\nAll on-duty drivers are already assigned to other trips during ${startTime12} - ${endTime12} on ${bookingDate}.\n\nYour request has been forwarded to the Admin (${adminAin.name} at ${adminAin.email}) for manual review and carpooling coordination.\n\nArmada Flow`,
+        },
+        admin: {
+          to: adminAin.email,
+          subject: `[MANUAL ACTION REQUIRED] Driver Schedule Conflict: ${requesterName}`,
+          body: `Admin,\n\nAll drivers on duty for ${bookingDate} (${startTime12} - ${endTime12}) are fully booked with existing trips. Please review the schedule for manual reassignment or carpooling opportunities.`,
+        },
+      },
+    };
+  }
+
+  // e. Choose driver with Daily Workload Balancing & Fair Rotation
+  // Rule: If Driver A already received a booking earlier on this same day,
+  // prioritize other eligible/available drivers for the subsequent booking of the day.
+
+  // 1. Resolve fallback lastDriverAssignedId from existing bookings if null
+  const effectiveLastDriverId = lastDriverAssignedId || (
+    [...existingBookings]
+      .filter(b => b.status !== 'Cancelled' && (b.driverId || b.calendarEventTitle))
+      .sort((a, b) => (b.dateTime || '').localeCompare(a.dateTime || ''))[0]?.driverId
+  ) || null;
+
+  // 2. Identify all active/confirmed bookings on this specific bookingDate
+  const bookingsOnDate = existingBookings.filter(b => {
+    if (b.status === 'Cancelled') return false;
+    if (normalizeDate(b.dateTime) !== bookingDate) return false;
+    return Boolean(b.driverId || (b.calendarEventTitle && b.calendarEventTitle.startsWith('(')));
+  });
+
+  // Identify the driver assigned to the most recent booking on this date (chronologically by time)
+  const sortedDayBookings = [...bookingsOnDate].sort((a, b) => {
+    return normalizeTime(b.dateTime).localeCompare(normalizeTime(a.dateTime));
+  });
+  const latestBooking = sortedDayBookings[0];
+  const latestDriverMatched = latestBooking ? resolveDriver(effectiveUsers, latestBooking.driverId, latestBooking.calendarEventTitle) : null;
+  const latestDriverIdOnDate = latestDriverMatched?.id || latestBooking?.driverId || null;
+
+  // 3. Compute workload metrics for each available driver on this date
+  interface DriverDailyWorkload {
+    driverInfo: WorkingDriverInfo;
+    dayBookingsCount: number;
+    totalMinutesToday: number;
+    isLatestDriverOnDate: boolean;
+    isLastAssignedDriver: boolean;
+  }
+
+  const driverWorkloads: DriverDailyWorkload[] = availableDrivers.map(w => {
+    const wName = (w.driver.name || '').trim().toLowerCase();
+
+    const driverDayTrips = bookingsOnDate.filter(b => {
+      const matched = resolveDriver(effectiveUsers, b.driverId, b.calendarEventTitle);
+      if (matched) {
+        return matched.id === w.driver.id || matched.name.trim().toLowerCase() === wName;
+      }
+      const bDriverLower = (b.driverId || '').trim().toLowerCase();
+      const calTitleLower = (b.calendarEventTitle || '').trim().toLowerCase();
+      return (
+        bDriverLower === w.driver.id.toLowerCase() ||
+        (wName && (bDriverLower === wName || bDriverLower.includes(wName) || wName.includes(bDriverLower))) ||
+        (wName && calTitleLower.includes(`(${wName})`)) ||
+        (wName && calTitleLower.includes(wName))
+      );
+    });
+
+    const dayBookingsCount = driverDayTrips.length;
+    const totalMinutesToday = driverDayTrips.reduce((sum, b) => sum + getBookingDurationMinutes(b), 0);
+    const isLatestDriverOnDate = w.driver.id === latestDriverIdOnDate || (latestDriverMatched && latestDriverMatched.name.toLowerCase() === wName);
+    const isLastAssignedDriver = w.driver.id === effectiveLastDriverId;
+
+    return {
+      driverInfo: w,
+      dayBookingsCount,
+      totalMinutesToday,
+      isLatestDriverOnDate: Boolean(isLatestDriverOnDate),
+      isLastAssignedDriver,
+    };
+  });
+
+  // 4. Sort drivers:
+  // - Priority 1: Driver with FEWEST trips on this day (e.g. if Driver A has 1 trip, Driver B has 0 trips -> Driver B chosen)
+  // - Priority 2: If trip counts are tied, avoid the driver who just took the latest trip today
+  // - Priority 3: Avoid the globally last assigned driver
+  // - Priority 4: Driver with fewer total booked minutes today
+  // - Priority 5: If pre-working hour, earlier shiftStart
+  // - Priority 6: Alphabetical tie-breaker
+  driverWorkloads.sort((a, b) => {
+    // 1. Lowest daily booking count first (Daily Load Balancing)
+    if (a.dayBookingsCount !== b.dayBookingsCount) {
+      return a.dayBookingsCount - b.dayBookingsCount;
+    }
+
+    // 2. Avoid back-to-back same driver on the same day if another driver has same trip count
+    if (a.isLatestDriverOnDate !== b.isLatestDriverOnDate) {
+      return a.isLatestDriverOnDate ? 1 : -1;
+    }
+
+    // 3. Avoid lastDriverAssignedId
+    if (a.isLastAssignedDriver !== b.isLastAssignedDriver) {
+      return a.isLastAssignedDriver ? 1 : -1;
+    }
+
+    // 4. Prefer driver with fewer total minutes worked today
+    if (a.totalMinutesToday !== b.totalMinutesToday) {
+      return a.totalMinutesToday - b.totalMinutesToday;
+    }
+
+    // 5. If pre-working hour, earlier shift start
+    if (isPreWorkingHour && a.driverInfo.shiftStart !== b.driverInfo.shiftStart) {
+      return a.driverInfo.shiftStart.localeCompare(b.driverInfo.shiftStart);
+    }
+
+    // 6. Alphabetical tie-breaker
+    return a.driverInfo.driver.name.localeCompare(b.driverInfo.driver.name);
+  });
+
+  const chosenWorkload = driverWorkloads[0];
+  const chosen = chosenWorkload.driverInfo;
+
+  // Vehicle Allocation
+  let allocatedVehicle: Vehicle | null = null;
+  const isFreeChoice = !vehiclePreference || vehiclePreference === 'Bebas' || vehiclePreference === 'Any / Free Choice' || vehiclePreference === 'Any / No Preference';
+
+  if (!isFreeChoice) {
+    const preferred = resolveVehicle(vehicles, null, vehiclePreference);
+    if (preferred) {
+      const clash = existingBookings.find(b => {
+        if (b.status === 'Cancelled') return false;
+        const bVehicle = resolveVehicle(vehicles, b.vehicleId, b.vehiclePreference);
+        const isSameVehicle = b.vehicleId === preferred.id || bVehicle?.id === preferred.id;
+        if (!isSameVehicle) return false;
+        if (normalizeDate(b.dateTime) !== bookingDate) return false;
+        return isTimeOverlap(startTime, endTime, normalizeTime(b.dateTime), normalizeTime(b.finishDateTime || b.dateTime));
+      });
+      if (!clash) {
+        allocatedVehicle = preferred;
+      }
+    }
+  }
+
+  // Google Calendar Event formatting
+  const deptStr = department ? ` (${department})` : '';
+  const calendarEventTitle = `(${chosen.driver.name}) ${requesterName}${deptStr} → ${destination}`;
+  const calendarColor = getDriverCalendarColor(chosen.driver.name);
+
+  const preWorkingWarning = isPreWorkingHour
+    ? '⚠️ ATTENTION: Booking starts before official driver working hours. Please confirm manually with the on-duty driver and Head of Transportation.'
+    : '';
+
+  const vehicleNotice = allocatedVehicle
+    ? `Vehicle: ${allocatedVehicle.name} (${allocatedVehicle.plateNumber}).`
+    : `Vehicle: Any / Unassigned (Driver will select vehicle upon odometer check-in).`;
+
+  const dailyTripsSummary = driverWorkloads
+    .map(dw => `${dw.driverInfo.driver.name}: ${dw.dayBookingsCount} trip(s)`)
+    .join(', ');
+
+  const adminNotes = isPreWorkingHour
+    ? `CONFIRMED (Pre-working-hour): Auto-assigned to ${chosen.driver.name} (Earliest shift: ${formatTime12H(chosen.shiftStart)} | Today's trips: ${chosenWorkload.dayBookingsCount}). ${preWorkingWarning}`
+    : `CONFIRMED: Auto-assigned to ${chosen.driver.name} via Daily Load Balancing (${dailyTripsSummary}). ${vehicleNotice}`;
+
+  const totalPassengers = staffCount + kidsCount + teenagersCount;
+  const passengerDetails = [
+    staffCount > 0 ? `Staff: ${staffCount}` : '',
+    kidsCount > 0 ? `Children: ${kidsCount}` : '',
+    teenagersCount > 0 ? `Teenagers: ${teenagersCount}` : '',
+  ].filter(Boolean).join(', ') || 'No breakdown';
+
+  const vehicleDisplay = allocatedVehicle
+    ? `${allocatedVehicle.name} (${allocatedVehicle.plateNumber})`
+    : `Any / Unassigned (Driver will select upon trip check-in)`;
+
+  return {
+    status: 'Confirmed',
+    driverId: chosen.driver.id,
+    vehicleId: allocatedVehicle ? allocatedVehicle.id : null,
+    assignedDriverName: chosen.driver.name,
+    assignedVehicleName: allocatedVehicle ? `${allocatedVehicle.name} (${allocatedVehicle.plateNumber})` : undefined,
+    calendarEventTitle,
+    calendarColor,
+    calendarEventId: `evt-${chosen.driver.id}-${Date.now()}`,
+    adminNotes,
+    isPreWorkingHour,
+    warningNotes: preWorkingWarning || undefined,
+    newLastDriverAssignedId: chosen.driver.id,
+    emailNotifications: {
+      requester: {
+        to: requesterEmail,
+        subject: `[CONFIRMED] Transportation Booking Confirmed: ${destination}`,
+        body: `Hello ${requesterName},\n\nYour transportation booking has been SUCCESSFULLY CONFIRMED!\n\n📅 Date: ${bookingDate}\n⏰ Time: ${startTime12} - ${endTime12}\n📍 Pickup Location: ${getPickupLocationDisplay(pickupPoint, address)}\n🎯 Destination: ${destination}\n👥 Passengers: ${totalPassengers} (${passengerDetails})\n👤 Assigned Driver: ${chosen.driver.name} (Phone: ${chosen.driver.phone})\n🚐 Vehicle: ${vehicleDisplay}\n${shouldWait ? '⏳ Driver Waiting: YES (Driver will wait at destination)\n' : ''}${remarks ? '📝 Notes: ' + remarks + '\n' : ''}${isPreWorkingHour ? '\n' + preWorkingWarning + '\n' : ''}\nThe event has been added to Google Calendar and your email is invited as a guest.\n\nArmada Flow`,
+      },
+      driver: {
+        to: chosen.driver.email,
+        subject: `[NEW ASSIGNMENT] Trip to ${destination} (${bookingDate})`,
+        body: `Hello ${chosen.driver.name},\n\nYou have been assigned to the following trip:\n\n📅 Date: ${bookingDate}\n⏰ Time: ${startTime12} - ${endTime12}\n👤 Requester: ${requesterName} (${department})\n📞 Requester Email: ${requesterEmail}\n📍 Pickup: ${getPickupLocationDisplay(pickupPoint, address)}\n🎯 Destination: ${destination}\n👥 Passengers: ${totalPassengers} (${passengerDetails})\n🚐 Vehicle: ${vehicleDisplay}\n${shouldWait ? '⏳ Driver Waiting: YES (Please wait for passengers until completion)\n' : ''}${remarks ? '📝 Notes: ' + remarks : ''}\n${isPreWorkingHour ? '\n' + preWorkingWarning : ''}\n\nPlease ensure the vehicle is inspected and ready before departure.\n\nArmada Flow`,
+      },
+    },
+  };
+}
