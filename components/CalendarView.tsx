@@ -35,23 +35,41 @@ const DAY_NAMES_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 // Clean, soothing, modern glassmorphic enterprise palette with dark/light adaptive accents
 export const EVENT_CARD_COLORS = {
+  wisteria: {
+    bg: 'bg-purple-50/90 hover:bg-purple-100/95 backdrop-blur-md shadow-[0_2px_10px_rgba(168,85,247,0.08)]',
+    border: 'border-purple-200/90 border-l-[3.5px] border-l-purple-500',
+    text: 'text-purple-950',
+    subtext: 'text-purple-700',
+    badge: 'bg-purple-100/90 text-purple-900 border border-purple-200/80 font-bold',
+    dot: 'bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.5)]',
+    monthChip: 'bg-purple-50/95 text-purple-950 border-purple-200/90 hover:bg-purple-100/95 hover:border-purple-300 shadow-2xs backdrop-blur-xs',
+  },
+  birch: {
+    bg: 'bg-stone-50/90 hover:bg-stone-100/95 backdrop-blur-md shadow-[0_2px_10px_rgba(120,113,108,0.08)]',
+    border: 'border-stone-200/90 border-l-[3.5px] border-l-stone-500',
+    text: 'text-stone-950',
+    subtext: 'text-stone-700',
+    badge: 'bg-stone-100/90 text-stone-900 border border-stone-200/80 font-bold',
+    dot: 'bg-stone-500 shadow-[0_0_8px_rgba(120,113,108,0.5)]',
+    monthChip: 'bg-stone-50/95 text-stone-950 border-stone-200/90 hover:bg-stone-100/95 hover:border-stone-300 shadow-2xs backdrop-blur-xs',
+  },
   syafiq: {
-    bg: 'bg-sky-50/90 hover:bg-sky-100/95 backdrop-blur-md shadow-[0_2px_10px_rgba(14,165,233,0.08)]',
-    border: 'border-sky-200/90 border-l-[3.5px] border-l-sky-600',
-    text: 'text-sky-950',
-    subtext: 'text-sky-700',
-    badge: 'bg-sky-100/90 text-sky-900 border border-sky-200/80 font-bold',
-    dot: 'bg-sky-600 shadow-[0_0_8px_rgba(2,132,199,0.5)]',
-    monthChip: 'bg-sky-50/95 text-sky-950 border-sky-200/90 hover:bg-sky-100/95 hover:border-sky-300 shadow-2xs backdrop-blur-xs',
+    bg: 'bg-purple-50/90 hover:bg-purple-100/95 backdrop-blur-md shadow-[0_2px_10px_rgba(168,85,247,0.08)]',
+    border: 'border-purple-200/90 border-l-[3.5px] border-l-purple-500',
+    text: 'text-purple-950',
+    subtext: 'text-purple-700',
+    badge: 'bg-purple-100/90 text-purple-900 border border-purple-200/80 font-bold',
+    dot: 'bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.5)]',
+    monthChip: 'bg-purple-50/95 text-purple-950 border-purple-200/90 hover:bg-purple-100/95 hover:border-purple-300 shadow-2xs backdrop-blur-xs',
   },
   saiful: {
-    bg: 'bg-emerald-50/90 hover:bg-emerald-100/95 backdrop-blur-md shadow-[0_2px_10px_rgba(16,185,129,0.08)]',
-    border: 'border-emerald-200/90 border-l-[3.5px] border-l-emerald-600',
-    text: 'text-emerald-950',
-    subtext: 'text-emerald-700',
-    badge: 'bg-emerald-100/90 text-emerald-900 border border-emerald-200/80 font-bold',
-    dot: 'bg-emerald-600 shadow-[0_0_8px_rgba(5,150,105,0.5)]',
-    monthChip: 'bg-emerald-50/95 text-emerald-950 border-emerald-200/90 hover:bg-emerald-100/95 hover:border-emerald-300 shadow-2xs backdrop-blur-xs',
+    bg: 'bg-stone-50/90 hover:bg-stone-100/95 backdrop-blur-md shadow-[0_2px_10px_rgba(120,113,108,0.08)]',
+    border: 'border-stone-200/90 border-l-[3.5px] border-l-stone-500',
+    text: 'text-stone-950',
+    subtext: 'text-stone-700',
+    badge: 'bg-stone-100/90 text-stone-900 border border-stone-200/80 font-bold',
+    dot: 'bg-stone-500 shadow-[0_0_8px_rgba(120,113,108,0.5)]',
+    monthChip: 'bg-stone-50/95 text-stone-950 border-stone-200/90 hover:bg-stone-100/95 hover:border-stone-300 shadow-2xs backdrop-blur-xs',
   },
   selfdrive: {
     bg: 'bg-slate-50/90 hover:bg-slate-100/95 backdrop-blur-md shadow-[0_2px_10px_rgba(100,116,139,0.08)]',
@@ -95,8 +113,9 @@ export const getEventCardStyle = (booking: Partial<Booking>, driverName?: string
   if (booking.status === 'Conflict') return EVENT_CARD_COLORS.conflict;
   if (booking.serviceType === 'Self-Drive') return EVENT_CARD_COLORS.selfdrive;
   const lower = (driverName || '').toLowerCase();
-  if (lower.includes('syafiq')) return EVENT_CARD_COLORS.syafiq;
-  if (lower.includes('saiful')) return EVENT_CARD_COLORS.saiful;
+  const col = (booking.calendarColor || '').toLowerCase();
+  if (col === 'wisteria' || lower.includes('syafiq')) return EVENT_CARD_COLORS.wisteria;
+  if (col === 'birch' || lower.includes('saiful')) return EVENT_CARD_COLORS.birch;
   if (booking.status === 'Pending') return EVENT_CARD_COLORS.pending;
   return EVENT_CARD_COLORS.default;
 };

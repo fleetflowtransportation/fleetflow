@@ -4,6 +4,14 @@ import { normalizeDate, normalizeTime } from './bookingEngine';
 
 let cachedToken: string | null = null;
 
+export const getColorId = (booking: Booking): string | undefined => {
+  const color = (booking.calendarColor || '').toLowerCase();
+  const title = (booking.calendarEventTitle || '').toLowerCase();
+  if (color === 'birch' || title.includes('saiful')) return '8'; // Birch / Graphite
+  if (color === 'wisteria' || title.includes('syafiq')) return '3'; // Wisteria / Grape
+  return undefined;
+};
+
 export const formatMalaysiaIso = (dateStr: string | Date | undefined | null): string => {
   if (!dateStr) return '';
   const datePart = normalizeDate(dateStr);
@@ -638,6 +646,7 @@ export const googleCalendarService = {
       },
       startTime: startIso,
       endTime: endIso,
+      colorId: getColorId(booking),
     };
 
     const uniqueScriptUrls = getValidGoogleScriptUrls(tenant);
@@ -899,6 +908,7 @@ export const googleCalendarService = {
           attendees: attendees,
           start: { dateTime: startIso, timeZone: 'Asia/Kuala_Lumpur' },
           end: { dateTime: endIso, timeZone: 'Asia/Kuala_Lumpur' },
+          colorId: getColorId(booking),
         };
 
         const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(tenant.googleCalendarId)}/events/${encodeURIComponent(booking.calendarEventId)}?sendUpdates=all`, {

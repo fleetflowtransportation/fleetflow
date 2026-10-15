@@ -7,7 +7,7 @@ export interface AutoAssignResult {
   driverId: string | null;
   vehicleId: string | null;
   calendarEventTitle: string;
-  calendarColor: 'blue' | 'green' | 'grey' | 'purple' | 'amber' | 'teal';
+  calendarColor: string;
   calendarEventId: string;
   adminNotes: string;
   conflictReason?: string;
@@ -166,11 +166,11 @@ export const getBookingDurationMinutes = (b: Booking): number => {
 };
 
 // Get Driver color based on project rules
-export const getDriverCalendarColor = (driverName: string = '', serviceType?: string): 'blue' | 'green' | 'grey' | 'purple' | 'amber' | 'teal' => {
+export const getDriverCalendarColor = (driverName: string = '', serviceType?: string): string => {
   if (serviceType === 'Self-Drive') return 'grey';
   const name = driverName.toLowerCase();
-  if (name.includes('syafiq')) return 'blue';
-  if (name.includes('saiful')) return 'green';
+  if (name.includes('syafiq')) return 'wisteria';
+  if (name.includes('saiful')) return 'birch';
   if (name.includes('aziz')) return 'teal';
   if (name.includes('john')) return 'purple';
   if (name.includes('jane')) return 'amber';
