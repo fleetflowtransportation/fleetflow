@@ -12,6 +12,14 @@ export const getColorId = (booking: Booking): string | undefined => {
   return undefined;
 };
 
+export const getColorName = (booking: Booking): string | undefined => {
+  const color = (booking.calendarColor || '').toLowerCase();
+  const title = (booking.calendarEventTitle || '').toLowerCase();
+  if (color === 'birch' || title.includes('saiful')) return 'gray';
+  if (color === 'wisteria' || title.includes('syafiq')) return 'purple';
+  return undefined;
+};
+
 export const formatMalaysiaIso = (dateStr: string | Date | undefined | null): string => {
   if (!dateStr) return '';
   const datePart = normalizeDate(dateStr);
@@ -647,6 +655,7 @@ export const googleCalendarService = {
       startTime: startIso,
       endTime: endIso,
       colorId: getColorId(booking),
+      color: getColorName(booking),
     };
 
     const uniqueScriptUrls = getValidGoogleScriptUrls(tenant);
@@ -692,6 +701,8 @@ export const googleCalendarService = {
           driverEmailSubject: driverEmailData?.subject || '',
           driverEmailHtml: driverEmailData?.html || '',
           driverEmailText: driverEmailData?.text || '',
+          color: getColorName(booking),
+          colorId: getColorId(booking),
           event: eventPayload,
         });
 
@@ -866,6 +877,8 @@ export const googleCalendarService = {
           endTime: endIso,
           start: { dateTime: startIso, timeZone: 'Asia/Kuala_Lumpur' },
           end: { dateTime: endIso, timeZone: 'Asia/Kuala_Lumpur' },
+          color: getColorName(booking),
+          colorId: getColorId(booking),
         };
 
         const res = await fetch(scriptUrl, {
