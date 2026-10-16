@@ -417,19 +417,11 @@ export function evaluateBookingAssignment({
   }
 
   // STRICT ROSTER MODE:
-  // Never invent on-duty drivers. Only drivers present in driver_schedules for this exact date
-  // are eligible. Falling back to "all active drivers" was assigning Saiful/Syafiq from seed
-  // data even when the real roster only listed one driver.
-  if (workingDrivers.length === 0) {
-    const fallbackDrivers = (activeDrivers.length > 0 ? activeDrivers : USERS.filter(u => u.role === 'driver' && u.status === 'active'));
-    if (fallbackDrivers.length > 0) {
-      console.warn('[BookingEngine] No explicit driver_schedules for', bookingDate, '- falling back to active drivers for booking submission.');
-      workingDrivers = fallbackDrivers.map(d => ({
-        driver: d,
-        shiftStart: '08:00',
-        shiftEnd: '18:00',
-      }));
-    }
+  // Never invent on-duty drivers. Only drivers present in driver_schedules from Supabase for this exact date are eligible.
+  if (workingDrivers.length === 0 && schedulesOnDate.length === 0) {
+    console.warn('[BookingEngine] No driver_schedules rows for', bookingDate, 'in Supabase - strict roster mode enforces Conflict.');
+  } else {
+    console.log('[BookingEngine] Roster for', bookingDate, ':', workingDrivers.map(w => `${w.driver.name}(${w.shiftStart}-${w.shiftEnd})`).join(', ') || '(none resolved)', '| raw schedule rows:', schedulesOnDate.length);
   }
 
   // If still no working drivers available on duty for this date, trigger Conflict

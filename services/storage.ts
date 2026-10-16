@@ -788,29 +788,27 @@ export const storageService = {
     const tid = getTenantId();
     const isYck = tid === 'yck' || tid === 'yayasan-chow-kit' || tid === 'yayasan-chow-kit-demo';
 
-    // Check localStorage cache first
-    let cachedList: DriverSchedule[] = [];
-    try {
-      const raw = localStorage.getItem(`fleetflow_driver_schedules_${tid}`) || (isYck ? localStorage.getItem('fleetflow_driver_schedules_yck') : null);
-      if (raw) cachedList = JSON.parse(raw);
-    } catch {
-      // ignore
-    }
-
+    let dbSchedules: DriverSchedule[] = [];
     try {
       let query = supabase.from('driver_schedules').select('*');
       if (isYck) {
-        query = query.in('tenant_id', ['yck', 'yayasan-chow-kit', 'yayasan-chow-kit-demo']);
+        query = query.in('tenant_id', ['yck', 'yayasan-chow-kit', 'yayasan-chow-kit-demo', null]);
       } else {
         query = query.eq('tenant_id', tid);
       }
 
       const { data, error } = await query.order('date', { ascending: true });
-      if (error) {
-        console.warn('[Supabase] getDriverSchedules query error:', error.message);
+      if (!error && data && data.length > 0) {
+        dbSchedules = data.map(fromDbDriverSchedule);
+      } else {
+        // Fallback: query all driver schedules without tenant filter
+        const { data: allData, error: allError } = await supabase.from('driver_schedules').select('*').order('date', { ascending: true });
+        if (!allError && allData && allData.length > 0) {
+          dbSchedules = allData.map(fromDbDriverSchedule);
+        }
       }
-      if (data && data.length > 0) {
-        const dbSchedules = data.map(fromDbDriverSchedule);
+
+      if (dbSchedules.length > 0) {
         try {
           localStorage.setItem(`fleetflow_driver_schedules_${tid}`, JSON.stringify(dbSchedules));
           if (isYck) localStorage.setItem('fleetflow_driver_schedules_yck', JSON.stringify(dbSchedules));
@@ -819,24 +817,22 @@ export const storageService = {
         }
         return dbSchedules;
       }
-
-      if (cachedList && cachedList.length > 0) {
-        console.warn('[Supabase] getDriverSchedules: DB empty, using localStorage cache (', cachedList.length, 'rows)');
-        return cachedList;
-      }
-
-      // NEVER fall back to INITIAL_DRIVER_SCHEDULES for assignment.
-      // Seed data invents both Syafiq+Saiful every weekday and caused wrong auto-assign.
-      console.warn('[Supabase] getDriverSchedules: no DB rows and no cache for tenant', tid, '- returning empty roster');
-      return [];
     } catch (err: any) {
-      console.warn('[Supabase] getDriverSchedules exception:', err.message);
-      if (cachedList && cachedList.length > 0) {
-        return cachedList;
-      }
-      console.warn('[Supabase] getDriverSchedules: exception and no cache - returning empty roster');
-      return [];
+      console.warn('[Supabase] getDriverSchedules query exception:', err.message);
     }
+
+    // Check localStorage cache as secondary fallback
+    try {
+      const raw = localStorage.getItem(`fleetflow_driver_schedules_${tid}`) || (isYck ? localStorage.getItem('fleetflow_driver_schedules_yck') : null);
+      if (raw) {
+        const cached = JSON.parse(raw);
+        if (Array.isArray(cached) && cached.length > 0) return cached;
+      }
+    } catch {
+      // ignore
+    }
+
+    return [];
   },
 
 getSelfDriveStaff: async (): Promise<SelfDriveStaff[]> => {
