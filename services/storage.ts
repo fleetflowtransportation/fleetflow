@@ -873,10 +873,38 @@ getSelfDriveStaff: async (): Promise<SelfDriveStaff[]> => {
       const dbRow = toDbBooking(data);
       const { error } = await supabase.from('bookings').insert([dbRow]);
       if (error) {
-        console.error('[Supabase] createBooking error:', error.message);
+        console.warn('[Supabase] createBooking full column error:', error.message);
+        if (error.message && (error.message.includes('column') || error.message.includes('schema'))) {
+          const coreRow = {
+            id: dbRow.id,
+            destination: dbRow.destination,
+            purpose: dbRow.purpose,
+            date_time: dbRow.date_time,
+            pickup_point: dbRow.pickup_point,
+            address: dbRow.address,
+            passengers: dbRow.passengers,
+            status: dbRow.status,
+            driver_id: dbRow.driver_id,
+            vehicle_id: dbRow.vehicle_id,
+            remarks: dbRow.remarks,
+            requester_name: dbRow.requester_name,
+            requester_email: dbRow.requester_email,
+            department: dbRow.department,
+            service_type: dbRow.service_type,
+            tenant_id: dbRow.tenant_id,
+          };
+          const { error: coreErr } = await supabase.from('bookings').insert([coreRow]);
+          if (coreErr) {
+            console.error('[Supabase] createBooking fallback error:', coreErr.message);
+            throw new Error(coreErr.message);
+          }
+        } else {
+          throw new Error(error.message);
+        }
       }
     } catch (err: any) {
       console.error('[Supabase] createBooking exception:', err.message);
+      throw err;
     }
     return data;
   },

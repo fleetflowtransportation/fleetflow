@@ -7,16 +7,18 @@ let cachedToken: string | null = null;
 export const getColorId = (booking: Booking): string | undefined => {
   const color = (booking.calendarColor || '').toLowerCase();
   const title = (booking.calendarEventTitle || '').toLowerCase();
-  if (color === 'birch' || title.includes('saiful')) return '8'; // Birch / Graphite
-  if (color === 'wisteria' || title.includes('syafiq')) return '3'; // Wisteria / Grape
+  const driverId = (booking.driverId || '').toLowerCase();
+  if (color === 'birch' || title.includes('saiful') || driverId.includes('saiful')) return '8'; // Birch / Graphite
+  if (color === 'wisteria' || title.includes('syafiq') || driverId.includes('syafiq')) return '3'; // Wisteria / Grape
   return undefined;
 };
 
 export const getColorName = (booking: Booking): string | undefined => {
   const color = (booking.calendarColor || '').toLowerCase();
   const title = (booking.calendarEventTitle || '').toLowerCase();
-  if (color === 'birch' || title.includes('saiful')) return 'gray';
-  if (color === 'wisteria' || title.includes('syafiq')) return 'purple';
+  const driverId = (booking.driverId || '').toLowerCase();
+  if (color === 'birch' || title.includes('saiful') || driverId.includes('saiful')) return 'gray';
+  if (color === 'wisteria' || title.includes('syafiq') || driverId.includes('syafiq')) return 'purple';
   return undefined;
 };
 
