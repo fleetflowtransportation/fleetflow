@@ -177,6 +177,48 @@ export const getDriverCalendarColor = (driverName: string = '', serviceType?: st
   return 'blue';
 };
 
+// Helper to determine if an existing booking is assigned to a specific driver
+export const isBookingAssignedToDriver = (
+  booking: Booking,
+  driver: User,
+  effectiveUsers?: User[]
+): boolean => {
+  if (booking.status === 'Cancelled') return false;
+  if (booking.serviceType === 'Self-Drive') return false;
+
+  const calTitle = (booking.calendarEventTitle || '').trim();
+  const calTitleLower = calTitle.toLowerCase();
+  if (calTitleLower.includes('self-drive') || calTitleLower.includes('[alza]')) {
+    return false;
+  }
+
+  const driverId = String(driver.id || '').trim().toLowerCase();
+  const driverName = (driver.name || '').trim().toLowerCase();
+
+  const matched = resolveDriver(effectiveUsers, booking.driverId, booking.calendarEventTitle);
+  if (matched) {
+    return matched.id.toLowerCase() === driverId || (matched.name || '').trim().toLowerCase() === driverName;
+  }
+
+  const bDriverId = (booking.driverId || '').trim().toLowerCase();
+  if (bDriverId) {
+    if (bDriverId === driverId || bDriverId === driverName || bDriverId === `driver-${driverName}`) {
+      return true;
+    }
+    if (driverName.length >= 3 && (bDriverId.includes(driverName) || driverName.includes(bDriverId))) {
+      return true;
+    }
+  }
+
+  if (calTitle && driverName) {
+    if (calTitleLower.startsWith(`(${driverName})`) || calTitleLower.includes(`(${driverName})`)) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 /**
  * Full Flow Engine based on Armada Flow Project Context
  */
@@ -467,29 +509,12 @@ export function evaluateBookingAssignment({
   }
 
   // c. Check calendar for available drivers without clash
-  // Uses robust resolveDriver helper to match drivers by ID, email, name, or calendar event title
+  // Uses isBookingAssignedToDriver to ensure Self-Drive bookings and unassigned slots never conflict with on-duty drivers
   const availableDrivers = eligible.filter(w => {
-    const wDriverName = (w.driver.name || '').trim().toLowerCase();
-
     const driverActiveBookings = existingBookings.filter(b => {
       if (b.status === 'Cancelled') return false;
       if (normalizeDate(b.dateTime) !== bookingDate) return false;
-
-      // Identify whether this existing booking was assigned to this driver
-      const matched = resolveDriver(effectiveUsers, b.driverId, b.calendarEventTitle);
-      if (matched) {
-        return matched.id === w.driver.id || matched.name.trim().toLowerCase() === wDriverName;
-      }
-
-      // Direct fallback matching
-      const bDriverLower = (b.driverId || '').trim().toLowerCase();
-      const calTitleLower = (b.calendarEventTitle || '').trim().toLowerCase();
-      return (
-        bDriverLower === w.driver.id.toLowerCase() ||
-        (wDriverName && (bDriverLower === wDriverName || bDriverLower.includes(wDriverName) || wDriverName.includes(bDriverLower))) ||
-        (wDriverName && calTitleLower.includes(`(${wDriverName})`)) ||
-        (wDriverName && calTitleLower.includes(wDriverName))
-      );
+      return isBookingAssignedToDriver(b, w.driver, effectiveUsers);
     });
 
     const hasClash = driverActiveBookings.some(b => {
@@ -535,13 +560,16 @@ export function evaluateBookingAssignment({
   // 1. Resolve fallback lastDriverAssignedId from existing bookings if null
   const effectiveLastDriverId = lastDriverAssignedId || (
     [...existingBookings]
-      .filter(b => b.status !== 'Cancelled' && (b.driverId || b.calendarEventTitle))
+      .filter(b => b.status !== 'Cancelled' && b.serviceType !== 'Self-Drive' && (b.driverId || b.calendarEventTitle))
       .sort((a, b) => (b.dateTime || '').localeCompare(a.dateTime || ''))[0]?.driverId
   ) || null;
 
-  // 2. Identify all active/confirmed bookings on this specific bookingDate
+  // 2. Identify all active/confirmed bookings on this specific bookingDate (excluding Self-Drive)
   const bookingsOnDate = existingBookings.filter(b => {
     if (b.status === 'Cancelled') return false;
+    if (b.serviceType === 'Self-Drive') return false;
+    const title = (b.calendarEventTitle || '').toLowerCase();
+    if (title.includes('self-drive') || title.includes('[alza]')) return false;
     if (normalizeDate(b.dateTime) !== bookingDate) return false;
     return Boolean(b.driverId || (b.calendarEventTitle && b.calendarEventTitle.startsWith('(')));
   });
@@ -567,18 +595,7 @@ export function evaluateBookingAssignment({
     const wName = (w.driver.name || '').trim().toLowerCase();
 
     const driverDayTrips = bookingsOnDate.filter(b => {
-      const matched = resolveDriver(effectiveUsers, b.driverId, b.calendarEventTitle);
-      if (matched) {
-        return matched.id === w.driver.id || matched.name.trim().toLowerCase() === wName;
-      }
-      const bDriverLower = (b.driverId || '').trim().toLowerCase();
-      const calTitleLower = (b.calendarEventTitle || '').trim().toLowerCase();
-      return (
-        bDriverLower === w.driver.id.toLowerCase() ||
-        (wName && (bDriverLower === wName || bDriverLower.includes(wName) || wName.includes(bDriverLower))) ||
-        (wName && calTitleLower.includes(`(${wName})`)) ||
-        (wName && calTitleLower.includes(wName))
-      );
+      return isBookingAssignedToDriver(b, w.driver, effectiveUsers);
     });
 
     const dayBookingsCount = driverDayTrips.length;

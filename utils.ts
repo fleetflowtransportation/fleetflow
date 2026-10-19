@@ -244,10 +244,14 @@ export const resolveDriver = (
 
   // 7. Fallback: Extract driver name from Google Calendar title e.g. "(Saiful) Ain Muhd → ..."
   if (calendarTitle) {
+    const calLower = calendarTitle.toLowerCase();
+    if (calLower.includes('self-drive') || calLower.includes('[alza]')) {
+      return undefined;
+    }
     const match = calendarTitle.match(/^\(([^)]+)\)/);
     if (match && match[1]) {
       const titleName = match[1].trim().toLowerCase();
-      if (!titleName.includes('reject') && !titleName.includes('conflict') && !titleName.includes('alza')) {
+      if (!titleName.includes('reject') && !titleName.includes('conflict') && !titleName.includes('alza') && !titleName.includes('self-drive')) {
         const byTitle = users.find(u => {
           const uName = (u.name || '').trim().toLowerCase();
           return uName && (titleName.includes(uName) || uName.includes(titleName) || uName.split(/\s+/).some(w => w.length >= 3 && titleName.includes(w)));
@@ -278,7 +282,7 @@ export const getDriverDisplayName = (
   calendarTitle?: string | null,
   serviceType?: string
 ): string => {
-  if (serviceType === 'Self-Drive') return 'Self-Drive (Staff)';
+  if (serviceType === 'Self-Drive' || (calendarTitle && calendarTitle.toLowerCase().includes('self-drive'))) return 'Self-Drive (Staff)';
 
   const resolved = resolveDriver(users, driverId, calendarTitle);
   if (resolved) return resolved.name;
@@ -287,7 +291,7 @@ export const getDriverDisplayName = (
     const match = calendarTitle.match(/^\(([^)]+)\)/);
     if (match && match[1]) {
       const t = match[1].trim();
-      if (!t.toLowerCase().includes('reject') && !t.toLowerCase().includes('conflict') && !t.toLowerCase().includes('alza')) {
+      if (!t.toLowerCase().includes('reject') && !t.toLowerCase().includes('conflict') && !t.toLowerCase().includes('alza') && !t.toLowerCase().includes('self-drive')) {
         return t;
       }
     }
