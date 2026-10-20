@@ -58,10 +58,15 @@ const AdminDashboard: React.FC = () => {
     const active = bookings.filter((b) => activeStatuses.includes(b.status)).length;
     const completed = bookings.filter((b) => b.status === 'Completed').length;
     const conflicts = bookings.filter((b) => b.status === 'Conflict').length;
+    // A booking is delayed only after its expected end time plus a 2-hour grace period.
+    // Use the recorded finish time when available; otherwise assume a 2-hour booking from its start.
     const delayed = bookings.filter((b) => {
       if (!['Assigned', 'Confirmed', 'Pending'].includes(b.status)) return false;
       const start = parseDate(b.dateTime);
-      return start && start < new Date() && b.status !== 'Completed';
+      if (!start) return false;
+      const expectedEnd = parseDate(b.finishDateTime) || new Date(start.getTime() + 2 * 60 * 60 * 1000);
+      const graceEnd = new Date(expectedEnd.getTime() + 2 * 60 * 60 * 1000);
+      return graceEnd < new Date();
     }).length;
 
     const todayFuel = fuelLogs.filter((f) => {
