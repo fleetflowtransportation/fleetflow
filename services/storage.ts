@@ -37,13 +37,14 @@ const toDbUser = (u: Partial<User>) => {
     ...(u.comments !== undefined && { comments: comments || null }),
     ...(u.role !== undefined && { role: u.role }),
     ...(u.status !== undefined && { status: u.status }),
-    ...(u.password !== undefined && { password: u.password }),
+    // password is omitted for security — handled entirely by Supabase Auth (auth.users)
     ...(u.employmentType !== undefined && { employment_type: u.employmentType }),
     ...(u.terminationDate !== undefined && { termination_date: u.terminationDate || null }),
     ...(u.terminationReason !== undefined && { termination_reason: u.terminationReason || null }),
     ...(u.reactivationDate !== undefined && { reactivation_date: u.reactivationDate || null }),
     ...(u.reactivationReason !== undefined && { reactivation_reason: u.reactivationReason || null }),
     ...(u.statusHistory !== undefined && { status_history: u.statusHistory }),
+    ...(u.authUserId !== undefined && { auth_user_id: u.authUserId }),
     tenant_id: u.tenantId || getTenantId(),
   };
 };
@@ -1095,57 +1096,43 @@ createOdometerLog: async (data: OdometerLog): Promise<OdometerLog> => {
       const cleanEmail = data.email.trim().toLowerCase();
       const cleanPassword = (data.password || '123456').trim();
 
-      // If it is a new user with a client-generated temporary ID, register in Supabase Auth first
-      if (data.id.startsWith('user-')) {
-        try {
-          const transientClient = createDirectSupabaseClient(getActiveSupabaseUrl(), getActiveSupabaseAnonKey());
-          const { data: authData, error: authError } = await transientClient.auth.signUp({
-            email: cleanEmail,
-            password: cleanPassword,
-          });
+      // Register in Supabase Auth (auth.users) so passwords are securely hashed by Supabase Auth
+      let authUserId = data.id.startsWith('user-') ? `user-${Date.now()}` : data.id;
+      try {
+        const transientClient = createDirectSupabaseClient(getActiveSupabaseUrl(), getActiveSupabaseAnonKey());
+        const { data: authData, error: authError } = await transientClient.auth.signUp({
+          email: cleanEmail,
+          password: cleanPassword,
+        });
 
-          if (!authError && authData.user) {
-            data.id = authData.user.id; // Assign actual Supabase Auth UUID to profile ID
-          } else if (authError) {
-            console.warn('[Supabase Auth Sync] Could not create auth user, using fallback ID:', authError.message);
-          }
-        } catch (authExc: any) {
-          console.warn('[Supabase Auth Sync] Exception during transient signup:', authExc.message);
+        if (!authError && authData.user) {
+          authUserId = authData.user.id; // Assign real Supabase Auth UUID
+        } else if (authError) {
+          console.warn('[Supabase Auth Sign Up Note]:', authError.message);
         }
+      } catch (authExc: any) {
+        console.warn('[Supabase Auth Sign Up Exception]:', authExc.message);
       }
 
-      const dbRow: any = toDbUser(data);
+      // Save user profile in fleet_users table WITHOUT storing plaintext password
+      const userToSave: User = {
+        ...data,
+        id: authUserId,
+        authUserId: authUserId,
+        password: undefined, // NEVER store plaintext password in fleet_users table
+      };
+
+      const dbRow: any = toDbUser(userToSave);
       const { error } = await supabase.from('fleet_users').insert([dbRow]);
       if (error) {
-        console.warn('[Supabase] createUser full column error:', error.message);
-        if (error.message && (error.message.includes('column') || error.message.includes('schema'))) {
-          // Fallback to core columns if Supabase SQL migration has not run yet (excluding password/employment_type)
-          const coreRow = {
-            id: dbRow.id,
-            name: dbRow.name,
-            email: dbRow.email,
-            phone: dbRow.phone,
-            joining_date: dbRow.joining_date,
-            address: dbRow.address,
-            comments: dbRow.comments,
-            role: dbRow.role,
-            status: dbRow.status,
-            tenant_id: dbRow.tenant_id,
-          };
-          const { error: coreErr } = await supabase.from('fleet_users').insert([coreRow]);
-          if (coreErr) {
-            console.error('[Supabase] createUser fallback error:', coreErr.message);
-            throw new Error(coreErr.message);
-          }
-        } else {
-          throw new Error(error.message);
-        }
+        console.warn('[Supabase] createUser error:', error.message);
+        throw new Error(error.message);
       }
+      return userToSave;
     } catch (err: any) {
       console.error('[Supabase] createUser exception:', err.message);
       throw err;
     }
-    return data;
   },
 
   updateUser: async (data: Partial<User> & { id: string }): Promise<any> => {

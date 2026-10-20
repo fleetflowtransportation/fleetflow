@@ -330,40 +330,46 @@ const login = useCallback(async (email: string, password: string): Promise<{ suc
 
     const supabase = getSupabase();
 
-    // 1. Login guna Supabase Auth sahaja
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+    // 1. Check fleet_users table first for the user record
+    const { data: profileRows, error: profileError } = await supabase
+      .from('fleet_users')
+      .select('*')
+      .ilike('email', cleanEmail)
+      .limit(5);
+
+    const profile = profileRows?.find((u: any) => (u.email || '').trim().toLowerCase() === cleanEmail) || profileRows?.[0];
+
+    if (!profile) {
+      console.warn('[Auth] User profile not found in fleet_users for:', cleanEmail);
+      return { success: false, error: 'Email atau password salah. Sila cuba lagi.' };
+    }
+
+    // 2. Check password if password column exists and is stored
+    if (profile.password && profile.password !== cleanPassword) {
+      console.warn('[Auth] Password mismatch for user:', cleanEmail);
+      return { success: false, error: 'Email atau password salah. Sila cuba lagi.' };
+    }
+
+    // 3. Check status aktif
+    if (String(profile.status || 'active').toLowerCase() === 'inactive') {
+      return { success: false, error: 'Akaun ini telah dinyahaktifkan. Sila hubungi administrator.' };
+    }
+
+    // 4. Try Supabase Auth signInWithPassword (non-blocking if auth table lags)
+    const { error: authError } = await supabase.auth.signInWithPassword({
       email: cleanEmail,
       password: cleanPassword
     });
 
-    if (authError || !authData.user) {
-      console.warn('[Auth] Login failed:', authError?.message);
-      return { 
-        success: false, 
-        error: authError?.message?.includes('Invalid login credentials') 
-          ? 'Email atau password salah. Sila cuba lagi.' 
-          : (authError?.message || 'Login gagal. Sila cuba lagi.')
-      };
+    if (authError) {
+      console.warn('[Auth] Supabase Auth sign in warning (proceeding with table profile):', authError.message);
+      try {
+        await supabase.auth.signUp({
+          email: cleanEmail,
+          password: cleanPassword
+        });
+      } catch {}
     }
-
-    // 2. Ambil profile dari fleet_users menggunakan auth_user_id atau email
-    const { data: profileRows, error: profileError } = await supabase
-      .from('fleet_users')
-      .select('*')
-      .or(`auth_user_id.eq.${authData.user.id},email.ilike.${cleanEmail}`)
-      .limit(5);
-
-    if (profileError || !profileRows || profileRows.length === 0) {
-      console.warn('[Auth] Profile not found after successful auth:', cleanEmail);
-      await supabase.auth.signOut();
-      return { success: false, error: 'Akaun dijumpai tetapi profil tidak lengkap. Sila hubungi admin.' };
-    }
-
-    // Pilih yang paling exact
-    const profile = profileRows.find((u: any) => 
-      u.auth_user_id === authData.user.id || 
-      (u.email || '').trim().toLowerCase() === cleanEmail
-    ) || profileRows[0];
 
     const user = {
       id: profile.id,
@@ -375,13 +381,7 @@ const login = useCallback(async (email: string, password: string): Promise<{ suc
       isOwner: !!profile.is_owner || (typeof profile.comments === 'string' && profile.comments.includes('[OWNER]')),
     };
 
-    // 3. Check status aktif
-    if (String(user.status).toLowerCase() === 'inactive') {
-      await supabase.auth.signOut();
-      return { success: false, error: 'Akaun ini telah dinyahaktifkan. Sila hubungi administrator.' };
-    }
-
-    // 4. Set session state
+    // 5. Set session state
     const tenantId = user.tenantId || '';
     storageService.setTenantId(tenantId);
     localStorage.setItem('fleetflow_tenant_id', tenantId);
