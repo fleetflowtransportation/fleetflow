@@ -51,6 +51,7 @@ export interface BookingInput {
   teenagersCount?: number;
   serviceType: 'Perlu Driver' | 'Self-Drive';
   vehiclePreference?: string;
+  vehicleId?: string;
   shouldWait?: boolean;
   remarks?: string;
   icNumber?: string;
@@ -319,20 +320,30 @@ export function evaluateBookingAssignment({
   // ==========================================
   // STEP 4: IF SELF-DRIVE
   // ==========================================
-  // Check if Perodua Alza is free during this slot
+  // Self-drive bookings must use a vehicle explicitly enabled for self-drive.
   if (serviceType === 'Self-Drive') {
-    // Find Perodua Alza vehicle
-    const alzaVehicle = vehicles.find(v => v.name.toLowerCase().includes('alza') || v.plateNumber.toLowerCase().includes('alza')) ||
-      vehicles[0] ||
-      { id: 'alza-1', name: 'Perodua Alza', plateNumber: 'VAA 8821' };
+    const requestedVehicle = vehicles.find(v => v.id === (booking.vehicleId || vehiclePreference) || v.name === vehiclePreference || v.plateNumber === vehiclePreference);
+    const alzaVehicle = requestedVehicle
+      ? (requestedVehicle.allowSelfDrive === true && (requestedVehicle.vehicleStatus || 'Active') === 'Active' ? requestedVehicle : undefined)
+      : vehicles.find(v => v.allowSelfDrive === true && (v.vehicleStatus || 'Active') === 'Active');
+    if (!alzaVehicle) {
+      const reason = 'No eligible self-drive vehicle is available. Please choose a vehicle enabled for self-drive or contact the administrator.';
+      return {
+        status: 'Conflict', driverId: null, vehicleId: null,
+        calendarEventTitle: `[CONFLICT] (SELF-DRIVE) ${requesterName} → ${destination}`,
+        calendarColor: 'grey', calendarEventId: `evt-no-self-drive-vehicle-${Date.now()}`,
+        adminNotes: reason, conflictReason: reason,
+        emailNotifications: { requester: { to: requesterEmail, subject: '[ACTION REQUIRED] Self-Drive Vehicle Unavailable', body: reason } },
+      };
+    }
 
     // Check existing active bookings for this vehicle on this date
     const vehicleClash = existingBookings.find(b => {
       if (b.status === 'Cancelled') return false;
       const bDate = normalizeDate(b.dateTime);
       if (bDate !== bookingDate) return false;
-      // Either assigned vehicle matches OR self-drive Alza
-      const isSameVehicle = b.vehicleId === alzaVehicle.id || (b.serviceType === 'Self-Drive');
+      // Compare against the selected vehicle, not every self-drive booking.
+      const isSameVehicle = b.vehicleId === alzaVehicle.id || (!b.vehicleId && b.serviceType === 'Self-Drive');
       if (!isSameVehicle) return false;
 
       const bStart = normalizeTime(b.dateTime);
@@ -341,12 +352,12 @@ export function evaluateBookingAssignment({
     });
 
     if (vehicleClash) {
-      const reason = `The Perodua Alza vehicle is already booked by another requester (${vehicleClash.requesterName}) during this time slot (${startTime12} - ${endTime12}).`;
+      const reason = `The selected self-drive vehicle (${alzaVehicle.name}) is already booked by another requester (${vehicleClash.requesterName}) during this time slot (${startTime12} - ${endTime12}).`;
       return {
         status: 'Conflict',
         driverId: null,
         vehicleId: null,
-        calendarEventTitle: `[CONFLICT] [ALZA] (SELF-DRIVE) ${requesterName} → ${destination}`,
+        calendarEventTitle: `[CONFLICT] [${alzaVehicle.name}] (SELF-DRIVE) ${requesterName} → ${destination}`, 
         calendarColor: 'grey',
         calendarEventId: `evt-conflict-alza-${Date.now()}`,
         conflictReason: reason,
@@ -368,7 +379,7 @@ export function evaluateBookingAssignment({
 
     // Alza Free! Confirmed!
     const deptStr = department ? ` (${department})` : '';
-    const calendarTitle = `[ALZA] (SELF-DRIVE) ${requesterName}${deptStr} → ${destination}`;
+    const calendarTitle = `[${alzaVehicle.name}] (SELF-DRIVE) ${requesterName}${deptStr} → ${destination}`;
     return {
       status: 'Confirmed',
       driverId: null,
