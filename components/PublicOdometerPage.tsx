@@ -68,30 +68,19 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
         setOdometerLogs(o || []);
         setSelfDriveStaff((s || []).filter(staff => staff.status === 'active'));
 
-        if (resolvedVehicles.length > 0) {
-          // Default to Alza if available
-          const alza = resolvedVehicles.find(veh => 
-            (veh.name && veh.name.toLowerCase().includes('alza')) || 
-            (veh.specifications && veh.specifications.toLowerCase().includes('alza'))
-          );
-          const chosenVehicle = alza || resolvedVehicles[0];
+        const eligibleVehicles = (v || []).filter(veh => veh.allowSelfDrive === true && (!veh.vehicleStatus || veh.vehicleStatus === 'Active'));
+        const requestedVehicleId = new URLSearchParams(window.location.search).get('vehicle_id');
+        const chosenVehicle = requestedVehicleId ? eligibleVehicles.find(veh => veh.id === requestedVehicleId) : undefined;
+        if (chosenVehicle) {
           setSelectedVehicleId(chosenVehicle.id);
-
-          // Find latest known odometer reading for chosen vehicle
-          const latestLog = (o || [])
-            .filter(l => l.vehicleId === chosenVehicle.id)
-            .sort((x, y) => new Date(y.date).getTime() - new Date(x.date).getTime())[0];
-          if (latestLog && latestLog.odometer) {
-            setStartOdometer(String(latestLog.odometer));
-          }
+          const latestLog = (o || []).filter(l => l.vehicleId === chosenVehicle.id).sort((x, y) => new Date(y.date).getTime() - new Date(x.date).getTime())[0];
+          const reading = chosenVehicle.currentOdometer && chosenVehicle.currentOdometer > 0 ? chosenVehicle.currentOdometer : latestLog?.odometer;
+          if (reading !== undefined && reading !== null) setStartOdometer(String(reading));
         }
       })
       .catch((err) => {
         console.error('Error loading data for public odometer portal:', err);
-        setVehicles(VEHICLES);
-        if (VEHICLES.length > 0) {
-          setSelectedVehicleId(VEHICLES[0].id);
-        }
+        setVehicles([]);
       })
       .finally(() => {
         setLoading(false);
