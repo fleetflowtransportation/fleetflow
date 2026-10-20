@@ -125,7 +125,7 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
   const relevantBookings = useMemo(() => {
     return bookings.filter(b => {
       const isSelfDrive = b.serviceType === 'Self-Drive';
-      const isPending = b.status !== 'Cancelled' && b.status !== 'Completed';
+      const isPending = !['Cancelled', 'Completed', 'Conflict'].includes(b.status);
       const matchesVehicle = !!selectedVehicleId && b.vehicleId === selectedVehicleId;
       const matchesSearch = 
         (b.requesterName || '').toLowerCase().includes(bookingSearch.toLowerCase()) ||
