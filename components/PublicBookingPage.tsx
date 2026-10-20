@@ -110,6 +110,12 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleServiceTypeChange = (serviceType: 'Perlu Driver' | 'Self-Drive') => {
+    setFormData(prev => ({ ...prev, serviceType, shouldWait: serviceType === 'Self-Drive' ? false : prev.shouldWait, vehiclePreference: serviceType === 'Perlu Driver' ? FREE_VEHICLE_CHOICE : '' }));
+  };
+
+  const selfDriveVehicles = vehicles.filter(v => v.allowSelfDrive === true && v.vehicleStatus !== 'Inactive' && v.vehicleStatus !== 'Sold');
+
   const handleStopChange = (id: string, field: 'address' | 'notes', value: string) => {
     setStops(prev => prev.map(s => (s.id === id ? { ...s, [field]: value } : s)));
   };
@@ -195,6 +201,11 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
       return;
     }
 
+    if (formData.serviceType === 'Self-Drive' && !formData.vehiclePreference) {
+      alert('Please select a self-drive vehicle.');
+      return;
+    }
+
     if (formData.serviceType === 'Self-Drive' && !formData.icNumber.trim()) {
       alert('Please enter IC / Driving License ID Number for self-drive authorization.');
       return;
@@ -253,7 +264,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
       teenagersCount: Number(formData.teenagersCount) || 0,
       serviceType: formData.serviceType,
       vehiclePreference: formData.vehiclePreference,
-      shouldWait: formData.shouldWait,
+      shouldWait: formData.serviceType === 'Self-Drive' ? false : formData.shouldWait,
       remarks: formData.remarks.trim(),
       icNumber: formData.icNumber.trim(),
     };
@@ -1023,7 +1034,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                     {/* Option 1: Driver Assigned */}
                     <button
                       type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, serviceType: 'Perlu Driver' }))}
+                      onClick={() => handleServiceTypeChange('Perlu Driver')}
                       className={`p-4 rounded-2xl border text-left transition cursor-pointer flex items-start gap-3.5 ${
                         formData.serviceType === 'Perlu Driver'
                           ? 'bg-indigo-50/80 border-indigo-500 ring-2 ring-indigo-500/20 shadow-xs'
@@ -1050,7 +1061,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                     {/* Option 2: Self Drive */}
                     <button
                       type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, serviceType: 'Self-Drive' }))}
+                      onClick={() => handleServiceTypeChange('Self-Drive')}
                       className={`p-4 rounded-2xl border text-left transition cursor-pointer flex items-start gap-3.5 ${
                         formData.serviceType === 'Self-Drive'
                           ? 'bg-teal-50/80 border-teal-500 ring-2 ring-teal-500/20 shadow-xs'
@@ -1101,7 +1112,16 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                     </select>
                   </div>
                 ) : (
-                  <div className="p-4 bg-teal-50/70 border border-teal-200 rounded-2xl space-y-2 animate-fadeIn">
+                  <div className="space-y-3 animate-fadeIn">
+                    <div className="rounded-xl border border-teal-200 bg-teal-50/70 p-4 space-y-2">
+                      <label className="block text-xs font-bold text-teal-950 uppercase tracking-wider">Self-Drive Vehicle <span className="text-rose-500">*</span></label>
+                      <select name="vehiclePreference" value={formData.vehiclePreference} onChange={handleChange} required className="w-full rounded-xl border border-teal-200 bg-white px-3.5 py-2.5 text-xs sm:text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-teal-500 outline-none">
+                        <option value="">Select a self-drive vehicle</option>
+                        {selfDriveVehicles.map(v => <option key={v.id} value={v.name}>{v.name} ({v.plateNumber}) · {v.seatingCapacity || 10} Seater</option>)}
+                      </select>
+                      {selfDriveVehicles.length === 0 && <p className="text-xs font-medium text-rose-700">No self-drive vehicles are currently enabled. Please contact the administrator.</p>}
+                    </div>
+                    <div className="p-4 bg-teal-50/70 border border-teal-200 rounded-2xl space-y-2">
                     <label className="block text-xs font-bold text-teal-950 uppercase tracking-wider">
                       Staff Driver IC / ID Number <span className="text-rose-500">*</span>
                     </label>
@@ -1250,8 +1270,8 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                   </div>
                 </div>
 
-                {/* Driver Standby / Waiting toggle card */}
-                <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-2xl">
+                {/* Driver Standby is only relevant when a registered driver is assigned */}
+                {formData.serviceType === 'Perlu Driver' && <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-2xl">
                   <label className="flex items-start gap-3 cursor-pointer select-none">
                     <input
                       type="checkbox"
@@ -1269,7 +1289,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                       </p>
                     </div>
                   </label>
-                </div>
+                </div>}
 
                 {/* Additional Notes / Remarks */}
                 <div>
