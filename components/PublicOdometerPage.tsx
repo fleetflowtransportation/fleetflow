@@ -236,6 +236,7 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
         await storageService.updateBooking({ id: targetBooking.id, vehicleId: selectedVehicleId, status: 'Completed' });
       }
       await storageService.updateVehicle({ id: selectedVehicleId, currentOdometer: endNum });
+      setVehicles(prev => prev.map(v => v.id === selectedVehicleId ? { ...v, currentOdometer: endNum } : v));
 
       // 3. Save summary for confirmation view
       setSubmittedSummary({
@@ -398,24 +399,6 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
                 </div>
               )}
 
-              {/* Multi-booking selection for self-drive vehicle */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Select completed self-drive booking(s)</label>
-                  {selectedBookingIds.length > 0 && <button type="button" onClick={handleClearBookingSelection} className="text-xs text-indigo-600 hover:underline font-semibold">Clear ({selectedBookingIds.length})</button>}
-                </div>
-                <p className="text-xs text-slate-500">Only incomplete self-drive bookings for the selected vehicle are listed. You can select more than one booking in this submission.</p>
-                <input value={bookingSearch} onChange={(e) => setBookingSearch(e.target.value)} placeholder="Search requester, purpose or destination" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
-                <div className="max-h-56 overflow-y-auto space-y-1.5 rounded-xl border border-slate-200 p-2 bg-slate-50/50">
-                  {relevantBookings.length === 0 ? <p className="p-3 text-xs text-slate-500">No incomplete self-drive bookings found for this vehicle.</p> : relevantBookings.map((b) => {
-                    const isSelected = selectedBookingIds.includes(b.id);
-                    return <label key={b.id} className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer ${isSelected ? 'bg-indigo-50 border-indigo-400' : 'bg-white border-slate-200'}`}>
-                      <input type="checkbox" checked={isSelected} onChange={() => handleToggleBooking(b)} className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
-                      <span className="min-w-0 flex-1"><span className="flex items-center justify-between gap-2 text-xs"><strong>{b.requesterName}</strong><span className="shrink-0 text-slate-500">{b.dateTime?.split('T')[0]}</span></span><span className="mt-1 block truncate text-[11px] text-slate-500">{b.purpose} {b.destination ? `• to ${b.destination}` : ''}</span></span>
-                    </label>;
-                  })}
-                </div>
-              </div>
 
               {/* Vehicle Selection */}
               <div>
@@ -479,6 +462,26 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
                   </p>
                 )}
               </div>
+
+              {/* Multi-booking selection for self-drive vehicle */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Select completed self-drive booking(s)</label>
+                  {selectedBookingIds.length > 0 && <button type="button" onClick={handleClearBookingSelection} className="text-xs text-indigo-600 hover:underline font-semibold">Clear ({selectedBookingIds.length})</button>}
+                </div>
+                <p className="text-xs text-slate-500">Only incomplete self-drive bookings for the selected vehicle are listed. You can select more than one booking in this submission.</p>
+                <input value={bookingSearch} onChange={(e) => setBookingSearch(e.target.value)} placeholder="Search requester, purpose or destination" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+                <div className="max-h-56 overflow-y-auto space-y-1.5 rounded-xl border border-slate-200 p-2 bg-slate-50/50">
+                  {relevantBookings.length === 0 ? <p className="p-3 text-xs text-slate-500">No incomplete self-drive bookings found for this vehicle.</p> : relevantBookings.map((b) => {
+                    const isSelected = selectedBookingIds.includes(b.id);
+                    return <label key={b.id} className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer ${isSelected ? 'bg-indigo-50 border-indigo-400' : 'bg-white border-slate-200'}`}>
+                      <input type="checkbox" checked={isSelected} onChange={() => handleToggleBooking(b)} className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                      <span className="min-w-0 flex-1"><span className="flex items-center justify-between gap-2 text-xs"><strong>{b.requesterName}</strong><span className="shrink-0 text-slate-500">{b.dateTime?.split('T')[0]}</span></span><span className="mt-1 block truncate text-[11px] text-slate-500">{b.purpose} {b.destination ? `• to ${b.destination}` : ''}</span></span>
+                    </label>;
+                  })}
+                </div>
+              </div>
+
 
               {/* Staff Name Dropdown */}
               <div>
