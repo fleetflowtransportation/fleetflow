@@ -8,7 +8,7 @@ create or replace function public.complete_self_drive_odometer(
 )
 returns jsonb
 language plpgsql
-security definer
+security invoker
 set search_path = pg_catalog, public
 as $function$
 declare
