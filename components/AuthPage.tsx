@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
+import { getSupabase } from '../services/supabaseClient';
 
 export const AuthPage: React.FC = () => {
-  const { login, registerOrganization } = useAppContext();
+  const { login, registerOrganization, forgotPassword } = useAppContext();
   const [isLoginView, setIsLoginView] = useState(true);
+  const [isForgotPasswordView, setIsForgotPasswordView] = useState(false);
   
   // Login Form States
   const [loginEmail, setLoginEmail] = useState('');
@@ -11,6 +13,20 @@ export const AuthPage: React.FC = () => {
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginLoading, setLoginLoading] = useState(false);
+
+  // Forgot Password States
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotError, setForgotError] = useState<string | null>(null);
+  const [forgotSuccess, setForgotSuccess] = useState<string | null>(null);
+  const [forgotLoading, setForgotLoading] = useState(false);
+
+  // Recovery Password States (when user clicks reset link from email)
+  const [isRecoveryView, setIsRecoveryView] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
+  const [recoverySuccess, setRecoverySuccess] = useState<string | null>(null);
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
 
   // Register Form States
   const [regTenantId, setRegTenantId] = useState('');
@@ -23,11 +39,29 @@ export const AuthPage: React.FC = () => {
   const [regSuccess, setRegSuccess] = useState<string | null>(null);
   const [regLoading, setRegLoading] = useState(false);
 
+  React.useEffect(() => {
+    const hash = window.location.hash;
+    if (hash) {
+      const params = new URLSearchParams(hash.replace(/^#/, ''));
+      const errorDescription = params.get('error_description');
+      const errorCode = params.get('error_code');
+      const type = params.get('type');
+      const accessToken = params.get('access_token');
+
+      if (errorCode || errorDescription) {
+        setLoginError(`Pautan pemulihan tidak sah atau telah tamat tempoh (${errorDescription || errorCode}). Sila mohon pautan baru.`);
+        window.history.replaceState(null, '', window.location.pathname);
+      } else if (type === 'recovery' || accessToken) {
+        setIsRecoveryView(true);
+      }
+    }
+  }, []);
+
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
     if (!loginEmail.trim() || !loginPassword.trim()) {
-      setLoginError('Please provide your email and password.');
+      setLoginError('Sila masukkan emel dan kata laluan anda.');
       return;
     }
 
@@ -39,7 +73,62 @@ export const AuthPage: React.FC = () => {
     setLoginLoading(false);
 
     if (!result.success) {
-      setLoginError(result.error || 'Invalid email or password (or account has been deactivated).');
+      setLoginError(result.error || 'Email atau password salah.');
+    }
+  };
+
+  const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError(null);
+    setForgotSuccess(null);
+    if (!forgotEmail.trim()) {
+      setForgotError('Sila masukkan alamat emel anda.');
+      return;
+    }
+
+    setForgotLoading(true);
+    const res = await forgotPassword(forgotEmail.trim().toLowerCase());
+    setForgotLoading(false);
+
+    if (res.success) {
+      setForgotSuccess('Pautan tetapan semula kata laluan telah dihantar ke emel anda. Sila semak peti masuk / spam.');
+    } else {
+      setForgotError(res.error || 'Gagal menghantar pautan pemulihan.');
+    }
+  };
+
+  const handleUpdatePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRecoveryError(null);
+    setRecoverySuccess(null);
+
+    if (!newPassword || newPassword.length < 6) {
+      setRecoveryError('Kata laluan baru mesti mengandungi sekurang-kurangnya 6 aksara.');
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setRecoveryError('Kata laluan pengesahan tidak sepadan.');
+      return;
+    }
+
+    setRecoveryLoading(true);
+    try {
+      const supabase = getSupabase();
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      setRecoveryLoading(false);
+      if (error) {
+        setRecoveryError(error.message);
+      } else {
+        setRecoverySuccess('Kata laluan anda telah berjaya dikemas kini! Anda boleh log masuk sekarang.');
+        setTimeout(() => {
+          setIsRecoveryView(false);
+          setIsLoginView(true);
+          window.history.replaceState(null, '', window.location.pathname);
+        }, 3000);
+      }
+    } catch (err: any) {
+      setRecoveryLoading(false);
+      setRecoveryError(err.message || 'Gagal mengemas kini kata laluan.');
     }
   };
 
@@ -55,7 +144,7 @@ export const AuthPage: React.FC = () => {
     }
 
     if (!regTenantId.trim() || !regTenantName.trim() || !regAdminName.trim() || !regAdminEmail.trim() || !regAdminPassword.trim()) {
-      setRegError('Please complete all required fields.');
+      setRegError('Sila lengkapkan semua ruangan yang wajib.');
       return;
     }
 
@@ -70,7 +159,7 @@ export const AuthPage: React.FC = () => {
       );
 
       if (result.success) {
-        setRegSuccess(`Organization "${regTenantName}" registered successfully! Please log in using the administrator email "${regAdminEmail}".`);
+        setRegSuccess(`Organisasi "${regTenantName}" berjaya didaftarkan! Sila log masuk menggunakan emel pentadbir "${regAdminEmail}".`);
         setRegTenantId('');
         setRegTenantName('');
         setRegAdminName('');
@@ -80,10 +169,10 @@ export const AuthPage: React.FC = () => {
           setIsLoginView(true);
         }, 4000);
       } else {
-        setRegError(result.error || 'Registration failed. Please check your credentials and try again.');
+        setRegError(result.error || 'Pendaftaran gagal. Sila cuba lagi.');
       }
     } catch (err: any) {
-      setRegError(err.message || 'Registration failed due to an unexpected error.');
+      setRegError(err.message || 'Pendaftaran gagal.');
     } finally {
       setRegLoading(false);
     }
@@ -93,20 +182,134 @@ export const AuthPage: React.FC = () => {
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-150 p-8">
         
-        {/* Simple & Minimalist Header */}
+        {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-2xl font-black tracking-tight text-slate-900 uppercase">
             Fleet Management
           </h1>
           <p className="text-sm text-slate-500 mt-1.5">
-            {isLoginView 
-              ? 'Sign in to manage fleet operations' 
-              : 'Register a new organization to get started'}
+            {isRecoveryView
+              ? 'Tetapkan kata laluan baru anda'
+              : isForgotPasswordView
+                ? 'Pulihkan kata laluan akaun anda'
+                : isLoginView 
+                  ? 'Log masuk untuk menguruskan operasi armada' 
+                  : 'Daftar organisasi baru untuk bermula'}
           </p>
         </div>
 
-        {/* Login View */}
-        {isLoginView ? (
+        {/* Recovery Password View */}
+        {isRecoveryView ? (
+          <div>
+            {recoveryError && (
+              <div className="mb-4 p-3.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 font-semibold leading-relaxed">
+                ⚠️ {recoveryError}
+              </div>
+            )}
+
+            {recoverySuccess && (
+              <div className="mb-4 p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-semibold leading-relaxed">
+                ✅ {recoverySuccess}
+              </div>
+            )}
+
+            <form onSubmit={handleUpdatePasswordSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Kata Laluan Baru
+                </label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                  className="block w-full border border-slate-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-3 text-sm outline-none transition"
+                  placeholder="••••••••"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Sahkan Kata Laluan Baru
+                </label>
+                <input
+                  type="password"
+                  value={confirmNewPassword}
+                  onChange={(e) => setConfirmNewPassword(e.target.value)}
+                  required
+                  className="block w-full border border-slate-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-3 text-sm outline-none transition"
+                  placeholder="••••••••"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={recoveryLoading}
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold py-3 rounded-xl shadow-sm transition disabled:bg-slate-400 flex items-center justify-center space-x-2 text-sm mt-6 cursor-pointer"
+              >
+                {recoveryLoading ? (
+                  <span>Menyimpan...</span>
+                ) : (
+                  <span>Simpan Kata Laluan Baru</span>
+                )}
+              </button>
+            </form>
+          </div>
+        ) : isForgotPasswordView ? (
+          /* Forgot Password View */
+          <div>
+            {forgotError && (
+              <div className="mb-4 p-3.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 font-semibold leading-relaxed">
+                ⚠️ {forgotError}
+              </div>
+            )}
+
+            {forgotSuccess && (
+              <div className="mb-4 p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-semibold leading-relaxed">
+                ✅ {forgotSuccess}
+              </div>
+            )}
+
+            <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  required
+                  className="block w-full border border-slate-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-3 text-sm outline-none transition"
+                  placeholder="e.g. admin@organization.com"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={forgotLoading}
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold py-3 rounded-xl shadow-sm transition disabled:bg-slate-400 flex items-center justify-center space-x-2 text-sm mt-6 cursor-pointer"
+              >
+                {forgotLoading ? (
+                  <span>Menghantar pautan...</span>
+                ) : (
+                  <span>Hantar Pautan Pemulihan</span>
+                )}
+              </button>
+            </form>
+
+            <div className="mt-6 text-center border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                onClick={() => { setIsForgotPasswordView(false); setForgotError(null); setForgotSuccess(null); }}
+                className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition cursor-pointer"
+              >
+                Kembali ke Log Masuk
+              </button>
+            </div>
+          </div>
+        ) : isLoginView ? (
+          /* Login View */
           <div>
             {loginError && (
               <div className="mb-4 p-3.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 font-semibold leading-relaxed">
@@ -130,9 +333,18 @@ export const AuthPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Password
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => { setIsForgotPasswordView(true); setForgotEmail(loginEmail); setLoginError(null); }}
+                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition cursor-pointer"
+                  >
+                    Lupa kata laluan?
+                  </button>
+                </div>
                 <div className="relative">
                   <input
                     type={showLoginPassword ? 'text' : 'password'}
@@ -185,7 +397,7 @@ export const AuthPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => { setIsLoginView(false); setRegError(null); setRegSuccess(null); }}
-                className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition"
+                className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition cursor-pointer"
               >
                 Register New Organization
               </button>
@@ -313,7 +525,7 @@ export const AuthPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => { setIsLoginView(true); setRegError(null); setRegSuccess(null); }}
-                className="text-xs font-semibold text-slate-600 hover:text-slate-800 transition"
+                className="text-xs font-semibold text-slate-600 hover:text-slate-800 transition cursor-pointer"
               >
                 Already Have an Account? Sign In
               </button>

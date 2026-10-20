@@ -6,8 +6,9 @@ import { parseAsLocal, resolveDriver, getDriverDisplayName, resolveVehicle } fro
 import { evaluateBookingAssignment, normalizeDate, normalizeTime, getDriverCalendarColor, type AutoAssignResult } from '../services/bookingEngine';
 import { googleCalendarService } from '../services/googleCalendar';
 import { syncWithGoogleServices } from '../services/googleSyncService';
-import { updateSupabaseConfig, resetSupabaseConfig, getSupabase } from '../services/supabaseClient';
+import { updateSupabaseConfig, resetSupabaseConfig, getSupabase, createDirectSupabaseClient, getActiveSupabaseUrl, getActiveSupabaseAnonKey } from '../services/supabaseClient';
 import { deleteFromGoogleDrive } from '../services/googleDrive';
+import { USERS } from '../constants';
 
 interface AppContextType {
   users: User[];
@@ -24,6 +25,7 @@ interface AppContextType {
   lastDriverAssignedId: string | null;
   reload: () => void;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  forgotPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   addBooking: (booking: Omit<Booking, 'id'>) => AutoAssignResult;
   updateBooking: (bookingId: string, updatedData: Partial<Omit<Booking, 'id'>>) => void;
@@ -330,75 +332,101 @@ const login = useCallback(async (email: string, password: string): Promise<{ suc
 
     const supabase = getSupabase();
 
-    // 1. Check fleet_users table first for the user record
-    const { data: profileRows, error: profileError } = await supabase
-      .from('fleet_users')
-      .select('*')
-      .ilike('email', cleanEmail)
-      .limit(5);
-
-    const profile = profileRows?.find((u: any) => (u.email || '').trim().toLowerCase() === cleanEmail) || profileRows?.[0];
-
-    if (!profile) {
-      console.warn('[Auth] User profile not found in fleet_users for:', cleanEmail);
-      return { success: false, error: 'Email atau password salah. Sila cuba lagi.' };
-    }
-
-    // 2. Check password if password column exists and is stored
-    if (profile.password && profile.password !== cleanPassword) {
-      console.warn('[Auth] Password mismatch for user:', cleanEmail);
-      return { success: false, error: 'Email atau password salah. Sila cuba lagi.' };
-    }
-
-    // 3. Check status aktif
-    if (String(profile.status || 'active').toLowerCase() === 'inactive') {
-      return { success: false, error: 'Akaun ini telah dinyahaktifkan. Sila hubungi administrator.' };
-    }
-
-    // 4. Try Supabase Auth signInWithPassword (non-blocking if auth table lags)
-    const { error: authError } = await supabase.auth.signInWithPassword({
+    // 1. Authenticate strictly via Supabase Auth (secure hashed password check)
+    let { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email: cleanEmail,
       password: cleanPassword
     });
 
-    if (authError) {
-      console.warn('[Auth] Supabase Auth sign in warning (proceeding with table profile):', authError.message);
-      try {
-        await supabase.auth.signUp({
-          email: cleanEmail,
-          password: cleanPassword
-        });
-      } catch {}
+    // If auth fails, check if it's a seed user whose auth record hasn't been created yet and password matches seed
+    if (authError || !authData.user) {
+      const seedMatch = USERS.find(u => u.email.trim().toLowerCase() === cleanEmail && u.password === cleanPassword);
+      if (seedMatch) {
+        try {
+          const transientClient = createDirectSupabaseClient(getActiveSupabaseUrl(), getActiveSupabaseAnonKey());
+          const { error: signUpErr } = await transientClient.auth.signUp({
+            email: cleanEmail,
+            password: cleanPassword,
+          });
+          if (!signUpErr) {
+            const retryRes = await supabase.auth.signInWithPassword({
+              email: cleanEmail,
+              password: cleanPassword
+            });
+            authData = retryRes.data;
+            authError = retryRes.error;
+          }
+        } catch {}
+      }
     }
 
-    const user = {
-      id: profile.id,
-      name: profile.name,
-      email: profile.email,
-      role: profile.role as 'admin' | 'driver',
-      status: profile.status || 'active',
-      tenantId: profile.tenant_id || '',
-      isOwner: !!profile.is_owner || (typeof profile.comments === 'string' && profile.comments.includes('[OWNER]')),
-    };
+    if (authError || !authData.user) {
+      console.warn('[Auth] Login failed due to invalid credentials:', authError?.message);
+      return { success: false, error: 'Email atau password salah. Sila cuba lagi.' };
+    }
 
-    // 5. Set session state
-    const tenantId = user.tenantId || '';
+    // 2. Fetch profile from fleet_users using auth_user_id or email
+    const { data: profileRows, error: profileError } = await supabase
+      .from('fleet_users')
+      .select('*')
+      .or(`auth_user_id.eq.${authData.user.id},email.ilike.${cleanEmail}`)
+      .limit(5);
+
+    let profile = profileRows?.find((u: any) => 
+      u.auth_user_id === authData.user.id || 
+      (u.email || '').trim().toLowerCase() === cleanEmail
+    ) || profileRows?.[0];
+
+    if (!profile) {
+      const seedMatch = USERS.find(u => u.email.trim().toLowerCase() === cleanEmail);
+      if (seedMatch) {
+        const newProfileRow = {
+          id: authData.user.id,
+          auth_user_id: authData.user.id,
+          name: seedMatch.name,
+          email: seedMatch.email,
+          phone: seedMatch.phone || '',
+          joining_date: seedMatch.joiningDate || '2023-01-01',
+          address: seedMatch.address || '',
+          comments: seedMatch.isOwner ? '[OWNER]' : (seedMatch.comments || null),
+          role: seedMatch.role,
+          status: seedMatch.status || 'active',
+          tenant_id: seedMatch.tenantId || storageService.getTenantId(),
+        };
+        await supabase.from('fleet_users').insert([newProfileRow]);
+        profile = newProfileRow;
+      }
+    }
+
+    if (!profile) {
+      await supabase.auth.signOut();
+      return { success: false, error: 'Akaun dijumpai tetapi profil tidak lengkap. Sila hubungi admin.' };
+    }
+
+    // 3. Check status aktif
+    if (String(profile.status || 'active').toLowerCase() === 'inactive') {
+      await supabase.auth.signOut();
+      return { success: false, error: 'Akaun ini telah dinyahaktifkan. Sila hubungi administrator.' };
+    }
+
+    // 4. Set session state
+    const tenantId = profile.tenant_id || '';
     storageService.setTenantId(tenantId);
     localStorage.setItem('fleetflow_tenant_id', tenantId);
     localStorage.setItem('fleetflow_user_data', JSON.stringify({
-      id: user.id,
-      name: user.name,
-      role: user.role,
+      id: profile.id,
+      name: profile.name,
+      role: profile.role,
       tenantId,
-      isOwner: user.isOwner
+      isOwner: !!profile.is_owner || (typeof profile.comments === 'string' && profile.comments.includes('[OWNER]'))
     }));
 
     setCurrentUser({
-      id: user.id,
-      name: user.name,
-      role: user.role,
+      id: profile.id,
+      name: profile.name,
+      role: profile.role,
       tenantId,
-      isOwner: user.isOwner
+      isOwner: !!profile.is_owner || (typeof profile.comments === 'string' && profile.comments.includes('[OWNER]'))
     });
 
     reload();
@@ -423,6 +451,25 @@ const logout = useCallback(async () => {
   setCurrentUser(null);
   reload();
 }, [reload]);
+
+const forgotPassword = useCallback(async (email: string): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) {
+      return { success: false, error: 'Sila masukkan alamat emel anda.' };
+    }
+    const supabase = getSupabase();
+    const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+      redirectTo: window.location.origin,
+    });
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Gagal menghantar pautan pemulihan kata laluan.' };
+  }
+}, []);
 
   const updateGoogleCalendarId = useCallback(async (calendarId: string): Promise<boolean> => {
     const currentTenantId = currentUser?.tenantId || storageService.getTenantId();
@@ -1654,6 +1701,7 @@ const logout = useCallback(async () => {
       lastDriverAssignedId,
       reload,
       login,
+      forgotPassword,
       logout,
       addBooking,
       updateBooking,
