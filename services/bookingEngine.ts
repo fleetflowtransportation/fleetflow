@@ -378,7 +378,7 @@ export function evaluateBookingAssignment({
       };
     }
 
-    // Alza Free! Confirmed!
+    // Selected self-drive vehicle is available and confirmed.
     const deptStr = department ? ` (${department})` : '';
     const calendarTitle = `[${alzaVehicle.name}] (SELF-DRIVE) ${requesterName}${deptStr} → ${destination}`;
     return {
