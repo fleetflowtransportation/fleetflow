@@ -325,6 +325,7 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
             <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-xs">
               <CheckCircleIcon className="w-10 h-10" />
             </div>
+            {submittedSummary.completedBookings > 0 && <p className="text-sm font-bold text-emerald-800">{submittedSummary.completedBookings} booking(s) marked Completed.</p>}
 
             <div className="space-y-1">
               <h2 className="text-2xl font-black text-slate-900">
