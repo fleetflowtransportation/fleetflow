@@ -31,7 +31,7 @@ begin
     raise exception 'Odometer log ID is required';
   end if;
 
-  if cardinality(v_booking_ids) <> (select count(distinct x) from unnest(v_booking_ids) as x) then
+  if cardinality(v_booking_ids) <> (select count(distinct booking_id) from unnest(v_booking_ids) as u(booking_id)) then
     raise exception 'Duplicate booking IDs are not allowed';
   end if;
 
