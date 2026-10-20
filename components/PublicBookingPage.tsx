@@ -1136,6 +1136,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                     <p className="text-[11px] text-teal-800 font-medium">
                       ⚠️ Required for driving license verification and vehicle key handover.
                     </p>
+                    </div>
                   </div>
                 )}
 
