@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { storageService } from '../services/storage';
 import { Tenant, Vehicle, Booking, OdometerLog, SelfDriveStaff } from '../types';
-import { VEHICLES } from '../constants';
 import { 
   GaugeIcon, 
   CheckCircleIcon, 
@@ -106,24 +105,19 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
 
   const latestVehicleOdometer = useMemo(() => {
     if (!selectedVehicleId) return null;
-    const logs = odometerLogs
-      .filter(l => l.vehicleId === selectedVehicleId)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const vehicle = vehicles.find(v => v.id === selectedVehicleId);
+    if (vehicle?.currentOdometer !== undefined && vehicle.currentOdometer > 0) return vehicle.currentOdometer;
+    const logs = odometerLogs.filter(l => l.vehicleId === selectedVehicleId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     return logs.length > 0 && logs[0].odometer ? logs[0].odometer : null;
-  }, [odometerLogs, selectedVehicleId]);
+  }, [odometerLogs, selectedVehicleId, vehicles]);
 
   // Whenever vehicle changes, update start odometer default if empty
   const handleVehicleChange = (newVehId: string) => {
     setSelectedVehicleId(newVehId);
-    const logs = odometerLogs
-      .filter(l => l.vehicleId === newVehId)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    if (logs.length > 0 && logs[0].odometer) {
-      setStartOdometer(String(logs[0].odometer));
-    } else {
-      const vehicle = vehicles.find(v => v.id === newVehId);
-      if (vehicle?.currentOdometer !== undefined) setStartOdometer(String(vehicle.currentOdometer));
-    }
+    const vehicle = vehicles.find(v => v.id === newVehId);
+    const logs = odometerLogs.filter(l => l.vehicleId === newVehId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const latestReading = vehicle?.currentOdometer && vehicle.currentOdometer > 0 ? vehicle.currentOdometer : logs[0]?.odometer;
+    if (latestReading !== undefined && latestReading !== null) setStartOdometer(String(latestReading));
     setSelectedBookingIds([]);
   };
 
@@ -145,18 +139,6 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
   const handleToggleBooking = (b: Booking) => {
     setSelectedBookingIds(prev => prev.includes(b.id) ? prev.filter(id => id !== b.id) : [...prev, b.id]);
     
-    // Check if requester matches an authorized staff
-    const matchingStaff = selfDriveStaff.find(
-      s => s.name.trim().toLowerCase() === (b.requesterName || '').trim().toLowerCase()
-    );
-    if (matchingStaff) {
-      setSelectedStaffId(matchingStaff.id);
-      setCustomStaffName('');
-    } else {
-      setSelectedStaffId('other');
-      setCustomStaffName(b.requesterName || '');
-    }
-
     setPurpose(prev => prev || b.purpose || '');
     setDestination(prev => prev || b.destination || '');
     if (b.startOdometer && !startOdometer) setStartOdometer(String(b.startOdometer));
@@ -253,6 +235,7 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
         // The odometer delta belongs to the shared submission, not to each individual booking.
         await storageService.updateBooking({ id: targetBooking.id, vehicleId: selectedVehicleId, status: 'Completed' });
       }
+      await storageService.updateVehicle({ id: selectedVehicleId, currentOdometer: endNum });
 
       // 3. Save summary for confirmation view
       setSubmittedSummary({
