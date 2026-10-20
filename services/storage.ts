@@ -1023,6 +1023,30 @@ getSelfDriveStaff: async (): Promise<SelfDriveStaff[]> => {
   },
 
   // ---- WRITE (ODOMETER LOGS) ----
+completeSelfDriveOdometer: async (input: {
+  tenantId?: string;
+  vehicleId: string;
+  bookingIds: string[];
+  startOdometer: number;
+  endOdometer: number;
+  log: OdometerLog;
+}): Promise<any> => {
+  const tenantId = input.tenantId || input.log.tenantId || getTenantId();
+  const { data, error } = await supabase.rpc('complete_self_drive_odometer', {
+    p_tenant_id: tenantId,
+    p_vehicle_id: input.vehicleId,
+    p_booking_ids: input.bookingIds,
+    p_start_odometer: input.startOdometer,
+    p_end_odometer: input.endOdometer,
+    p_log: toDbOdometerLog({ ...input.log, tenantId }),
+  });
+  if (error) {
+    console.error('[Supabase] completeSelfDriveOdometer error:', error.message);
+    throw new Error(error.message);
+  }
+  return data;
+},
+
 createOdometerLog: async (data: OdometerLog): Promise<OdometerLog> => {
   try {
     const dbRow = toDbOdometerLog(data);
