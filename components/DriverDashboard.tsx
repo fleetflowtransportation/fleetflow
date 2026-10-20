@@ -64,6 +64,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
   // Multiple booking selection states
   const [selectedBookingIds, setSelectedBookingIds] = useState<string[]>([]);
   const [driverSearchQuery, setDriverSearchQuery] = useState('');
+  const [isBulkCompleteConfirmOpen, setIsBulkCompleteConfirmOpen] = useState(false);
   
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [scheduleModalTab, setScheduleModalTab] = useState<'calendar' | 'schedule'>('calendar');
@@ -75,6 +76,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
     isOdometerLogOpen || 
     isIssueLogOpen || 
     isFeedbackOpen || 
+    isBulkCompleteConfirmOpen ||
     Boolean(viewingBooking);
 
   // Lock body scroll whenever any modal is active
@@ -224,10 +226,13 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
 
   const handleBulkCompleteJobs = () => {
     if (selectedBookingIds.length === 0) return;
-    if (confirm(`Mark ${selectedBookingIds.length} selected trips as 'Completed'?`)) {
-      selectedBookingIds.forEach(id => updateBookingStatus(id, 'Completed'));
-      setSelectedBookingIds([]);
-    }
+    setIsBulkCompleteConfirmOpen(true);
+  };
+
+  const handleConfirmBulkComplete = () => {
+    selectedBookingIds.forEach(id => updateBookingStatus(id, 'Completed'));
+    setSelectedBookingIds([]);
+    setIsBulkCompleteConfirmOpen(false);
   };
 
   const handleToggleSelectBooking = (id: string) => {
@@ -1029,6 +1034,38 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
         onDirectComplete={(b) => updateBookingStatus(b.id, 'Completed')}
         onLogMeter={(b) => handleSingleOdometerOpen(b.id)}
       />
+
+      {/* BULK COMPLETE IN-SYSTEM CONFIRMATION MODAL */}
+      {isBulkCompleteConfirmOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 text-center animate-in fade-in zoom-in-95 duration-150 border border-slate-100">
+            <div className="w-14 h-14 rounded-2xl bg-purple-50 text-purple-600 border border-purple-100 flex items-center justify-center mx-auto mb-4">
+              <CheckCircleIcon className="h-7 w-7" />
+            </div>
+            <h3 className="text-lg font-black text-slate-900">Mark Trips as Completed?</h3>
+            <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+              Are you sure you want to mark <strong>{selectedBookingIds.length}</strong> selected trip(s) as Completed?
+            </p>
+            <div className="mt-5 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIsBulkCompleteConfirmOpen(false)}
+                className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl font-bold text-slate-600 hover:bg-slate-50 text-xs transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmBulkComplete}
+                className="flex-1 px-4 py-2.5 rounded-xl font-bold text-xs text-white bg-purple-600 hover:bg-purple-700 shadow-md shadow-purple-200 transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <CheckCircleIcon className="h-4 w-4" />
+                <span>Yes, Complete</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

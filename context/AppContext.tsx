@@ -362,7 +362,7 @@ const login = useCallback(async (email: string, password: string): Promise<{ suc
 
     if (authError || !authData.user) {
       console.warn('[Auth] Login failed due to invalid credentials:', authError?.message);
-      return { success: false, error: 'Email atau password salah. Sila cuba lagi.' };
+      return { success: false, error: 'Incorrect email or password. Please try again.' };
     }
 
     // 2. Fetch profile from fleet_users using auth_user_id or email
@@ -400,13 +400,13 @@ const login = useCallback(async (email: string, password: string): Promise<{ suc
 
     if (!profile) {
       await supabase.auth.signOut();
-      return { success: false, error: 'Akaun dijumpai tetapi profil tidak lengkap. Sila hubungi admin.' };
+      return { success: false, error: 'Account found but profile is incomplete. Please contact your administrator.' };
     }
 
     // 3. Check status aktif
     if (String(profile.status || 'active').toLowerCase() === 'inactive') {
       await supabase.auth.signOut();
-      return { success: false, error: 'Akaun ini telah dinyahaktifkan. Sila hubungi administrator.' };
+      return { success: false, error: 'This account has been deactivated. Please contact your administrator.' };
     }
 
     // 4. Set session state
@@ -433,7 +433,7 @@ const login = useCallback(async (email: string, password: string): Promise<{ suc
     return { success: true };
   } catch (err: any) {
     console.error('Login error:', err);
-    return { success: false, error: err.message || 'Login gagal kerana masalah sambungan.' };
+    return { success: false, error: err.message || 'Sign in failed due to a network connection issue.' };
   }
 }, [reload]);
 
@@ -456,7 +456,7 @@ const forgotPassword = useCallback(async (email: string): Promise<{ success: boo
   try {
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail) {
-      return { success: false, error: 'Sila masukkan alamat emel anda.' };
+      return { success: false, error: 'Please enter your email address.' };
     }
     const supabase = getSupabase();
     const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
@@ -467,7 +467,7 @@ const forgotPassword = useCallback(async (email: string): Promise<{ success: boo
     }
     return { success: true };
   } catch (err: any) {
-    return { success: false, error: err.message || 'Gagal menghantar pautan pemulihan kata laluan.' };
+    return { success: false, error: err.message || 'Failed to send password recovery link.' };
   }
 }, []);
 

@@ -65,6 +65,17 @@ export const BookingManagementList: React.FC = () => {
     bookingId?: string;
   }>({ isOpen: false, isBulk: false });
 
+  // Status Change Confirm Modal State (In-system modal, replaces window.confirm)
+  const [statusConfirmState, setStatusConfirmState] = useState<{
+    isOpen: boolean;
+    status: Booking['status'];
+    ids: string[];
+    isSubmitting: boolean;
+  }>({ isOpen: false, status: 'Completed', ids: [], isSubmitting: false });
+
+  // Bulk Assign Error State (In-system alert)
+  const [bulkAssignError, setBulkAssignError] = useState<string | null>(null);
+
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -248,21 +259,37 @@ export const BookingManagementList: React.FC = () => {
     setSelectedIds([]);
   };
 
-  // Bulk Actions
-  const handleBulkStatusChange = async (status: Booking['status']) => {
+  // Bulk Actions - Trigger in-system modal confirmation
+  const handleBulkStatusChange = (status: Booking['status']) => {
     if (selectedIds.length === 0) return;
-    if (confirm(`Change status of ${selectedIds.length} selected booking(s) to '${status}'?`)) {
-      await updateBookingsStatusBulk(selectedIds, status);
+    setStatusConfirmState({
+      isOpen: true,
+      status,
+      ids: [...selectedIds],
+      isSubmitting: false,
+    });
+  };
+
+  const handleConfirmStatusChange = async () => {
+    if (statusConfirmState.ids.length === 0) return;
+    setStatusConfirmState(prev => ({ ...prev, isSubmitting: true }));
+    try {
+      await updateBookingsStatusBulk(statusConfirmState.ids, statusConfirmState.status);
       handleClearSelection();
+      setStatusConfirmState({ isOpen: false, status: 'Completed', ids: [], isSubmitting: false });
+    } catch (err) {
+      console.error('Failed to update booking status:', err);
+      setStatusConfirmState(prev => ({ ...prev, isSubmitting: false }));
     }
   };
 
   const handleBulkAssignSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bulkAssignDriverId || !bulkAssignVehicleId) {
-      alert('Please select both a Driver and a Vehicle.');
+      setBulkAssignError('Please select both a Driver and a Vehicle.');
       return;
     }
+    setBulkAssignError(null);
     await assignBookingsBulk(selectedIds, bulkAssignDriverId, bulkAssignVehicleId);
     setIsBulkAssignOpen(false);
     setBulkAssignDriverId('');
@@ -1102,6 +1129,12 @@ export const BookingManagementList: React.FC = () => {
             </div>
 
             <form onSubmit={handleBulkAssignSubmit} className="p-5 space-y-4 text-xs">
+              {bulkAssignError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 font-semibold text-xs flex items-center gap-2">
+                  <span>⚠️</span>
+                  <span>{bulkAssignError}</span>
+                </div>
+              )}
               <p className="text-gray-600">
                 You are assigning <strong>{selectedIds.length}</strong> selected booking(s) to the chosen driver and vehicle.
               </p>
@@ -1110,7 +1143,10 @@ export const BookingManagementList: React.FC = () => {
                 <label className="block font-bold text-gray-700 mb-1.5">Select Driver</label>
                 <select
                   value={bulkAssignDriverId}
-                  onChange={(e) => setBulkAssignDriverId(e.target.value)}
+                  onChange={(e) => {
+                    setBulkAssignDriverId(e.target.value);
+                    if (bulkAssignError) setBulkAssignError(null);
+                  }}
                   required
                   className="w-full py-2.5 px-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 font-medium text-sm"
                 >
@@ -1125,7 +1161,10 @@ export const BookingManagementList: React.FC = () => {
                 <label className="block font-bold text-gray-700 mb-1.5">Select Vehicle</label>
                 <select
                   value={bulkAssignVehicleId}
-                  onChange={(e) => setBulkAssignVehicleId(e.target.value)}
+                  onChange={(e) => {
+                    setBulkAssignVehicleId(e.target.value);
+                    if (bulkAssignError) setBulkAssignError(null);
+                  }}
                   required
                   className="w-full py-2.5 px-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 font-medium text-sm"
                 >
@@ -1139,7 +1178,10 @@ export const BookingManagementList: React.FC = () => {
               <div className="pt-4 border-t border-gray-100 flex items-center justify-end gap-2.5">
                 <button
                   type="button"
-                  onClick={() => setIsBulkAssignOpen(false)}
+                  onClick={() => {
+                    setIsBulkAssignOpen(false);
+                    setBulkAssignError(null);
+                  }}
                   className="px-4 py-2 border border-gray-300 rounded-xl font-bold text-gray-700 hover:bg-gray-50"
                 >
                   Cancel
@@ -1152,6 +1194,105 @@ export const BookingManagementList: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* STATUS CHANGE CONFIRMATION MODAL (IN-SYSTEM MODAL) */}
+      {statusConfirmState.isOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 text-center animate-in fade-in zoom-in-95 duration-150 border border-slate-100">
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 ${
+              statusConfirmState.status === 'Completed'
+                ? 'bg-purple-50 text-purple-600 border border-purple-100'
+                : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+            }`}>
+              <CheckCircleIcon className="h-7 w-7" />
+            </div>
+
+            <h3 className="text-lg font-black text-slate-900">
+              {statusConfirmState.status === 'Completed'
+                ? 'Mark Trip as Completed?'
+                : 'Mark Trip as Confirmed?'}
+            </h3>
+
+            <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+              {statusConfirmState.status === 'Completed'
+                ? `Are you sure you want to mark ${statusConfirmState.ids.length} selected booking(s) as Completed? This will conclude the trips and finalize the records.`
+                : `Are you sure you want to mark ${statusConfirmState.ids.length} selected booking(s) as Confirmed? This will lock in the schedule and confirm the reservation.`}
+            </p>
+
+            {/* Selected Bookings Preview List */}
+            <div className="my-4 max-h-48 overflow-y-auto space-y-2 text-left bg-slate-50 border border-slate-200/80 rounded-2xl p-3">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block px-1">
+                Selected Booking{statusConfirmState.ids.length > 1 ? 's' : ''} ({statusConfirmState.ids.length})
+              </span>
+              {statusConfirmState.ids.slice(0, 4).map(id => {
+                const b = bookings.find(item => item.id === id);
+                if (!b) return null;
+                const dt = parseAsLocal(b.dateTime);
+                return (
+                  <div key={b.id} className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-xs flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-[10px] font-bold text-slate-400">#{b.id.slice(-5).toUpperCase()}</span>
+                        <span className="font-extrabold text-slate-800 text-xs truncate">{b.requesterName}</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 truncate mt-0.5">{getRouteLabel(b)}</p>
+                      <p className="text-[10px] text-slate-400">{dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</p>
+                    </div>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 ${
+                      b.status === 'Confirmed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                      b.status === 'Completed' ? 'bg-purple-50 text-purple-700 border border-purple-100' :
+                      'bg-slate-100 text-slate-600'
+                    }`}>
+                      {b.status}
+                    </span>
+                  </div>
+                );
+              })}
+              {statusConfirmState.ids.length > 4 && (
+                <p className="text-[11px] font-bold text-slate-500 text-center py-1">
+                  + {statusConfirmState.ids.length - 4} more booking(s) selected
+                </p>
+              )}
+            </div>
+
+            <div className="mt-5 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                disabled={statusConfirmState.isSubmitting}
+                onClick={() => setStatusConfirmState({ isOpen: false, status: 'Completed', ids: [], isSubmitting: false })}
+                className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl font-bold text-slate-600 hover:bg-slate-50 text-xs transition cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={statusConfirmState.isSubmitting}
+                onClick={handleConfirmStatusChange}
+                className={`flex-1 px-4 py-2.5 rounded-xl font-bold text-xs text-white shadow-md transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 ${
+                  statusConfirmState.status === 'Completed'
+                    ? 'bg-purple-600 hover:bg-purple-700 shadow-purple-200'
+                    : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200'
+                }`}
+              >
+                {statusConfirmState.isSubmitting ? (
+                  <>
+                    <svg className="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                    <span>Updating...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircleIcon className="h-4 w-4" />
+                    <span>{statusConfirmState.status === 'Completed' ? 'Yes, Mark Completed' : 'Yes, Mark Confirmed'}</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

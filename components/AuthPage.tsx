@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { getSupabase } from '../services/supabaseClient';
 
@@ -29,11 +29,6 @@ export const AuthPage: React.FC = () => {
   const [recoverySuccess, setRecoverySuccess] = useState<string | null>(null);
   const [recoveryLoading, setRecoveryLoading] = useState(false);
 
-  // Paste Recovery Link States (for cases where localhost was opened from email)
-  const [pasteLinkInput, setPasteLinkInput] = useState('');
-  const [pasteLinkError, setPasteLinkError] = useState<string | null>(null);
-  const [pasteLinkLoading, setPasteLinkLoading] = useState(false);
-
   // Register Form States
   const [regTenantId, setRegTenantId] = useState('');
   const [regTenantName, setRegTenantName] = useState('');
@@ -45,7 +40,7 @@ export const AuthPage: React.FC = () => {
   const [regSuccess, setRegSuccess] = useState<string | null>(null);
   const [regLoading, setRegLoading] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const handleAuthRedirect = async () => {
       const supabase = getSupabase();
 
@@ -55,12 +50,11 @@ export const AuthPage: React.FC = () => {
         const params = new URLSearchParams(hash.replace(/^#/, ''));
         const errorDescription = params.get('error_description');
         const errorCode = params.get('error_code');
-        const type = params.get('type');
         const accessToken = params.get('access_token');
         const refreshToken = params.get('refresh_token') || '';
 
         if (errorCode || errorDescription) {
-          setLoginError(`Pautan pemulihan tidak sah atau telah tamat tempoh (${decodeURIComponent(errorDescription || errorCode || '')}). Sila mohon pautan baru.`);
+          setLoginError(`Invalid or expired password reset link (${decodeURIComponent(errorDescription || errorCode || '')}). Please request a new link.`);
           window.history.replaceState(null, '', window.location.pathname);
           return;
         }
@@ -72,12 +66,12 @@ export const AuthPage: React.FC = () => {
               refresh_token: refreshToken,
             });
             if (error) {
-              setRecoveryError(`Ralat mengaktifkan sesi pemulihan: ${error.message}`);
+              setRecoveryError(`Failed to activate recovery session: ${error.message}`);
             } else {
               setIsRecoveryView(true);
             }
           } catch (e: any) {
-            setRecoveryError(e.message || 'Gagal memulakan sesi pemulihan kata laluan.');
+            setRecoveryError(e.message || 'Failed to initialize password recovery session.');
           }
           return;
         }
@@ -90,12 +84,12 @@ export const AuthPage: React.FC = () => {
         try {
           const { error } = await supabase.auth.exchangeCodeForSession(code);
           if (error) {
-            setRecoveryError(`Ralat pertukaran kod pemulihan: ${error.message}`);
+            setRecoveryError(`Recovery code exchange failed: ${error.message}`);
           } else {
             setIsRecoveryView(true);
           }
         } catch (e: any) {
-          setRecoveryError(e.message || 'Gagal mengesahkan kod pemulihan.');
+          setRecoveryError(e.message || 'Failed to verify recovery code.');
         }
       }
     };
@@ -107,7 +101,7 @@ export const AuthPage: React.FC = () => {
     e.preventDefault();
     setLoginError(null);
     if (!loginEmail.trim() || !loginPassword.trim()) {
-      setLoginError('Sila masukkan emel dan kata laluan anda.');
+      setLoginError('Please enter your email and password.');
       return;
     }
 
@@ -119,7 +113,7 @@ export const AuthPage: React.FC = () => {
     setLoginLoading(false);
 
     if (!result.success) {
-      setLoginError(result.error || 'Email atau password salah.');
+      setLoginError(result.error || 'Incorrect email or password.');
     }
   };
 
@@ -128,7 +122,7 @@ export const AuthPage: React.FC = () => {
     setForgotError(null);
     setForgotSuccess(null);
     if (!forgotEmail.trim()) {
-      setForgotError('Sila masukkan alamat emel anda.');
+      setForgotError('Please enter your email address.');
       return;
     }
 
@@ -137,9 +131,9 @@ export const AuthPage: React.FC = () => {
     setForgotLoading(false);
 
     if (res.success) {
-      setForgotSuccess('Pautan tetapan semula kata laluan telah dihantar ke emel anda. Sila semak peti masuk / spam.');
+      setForgotSuccess('A password reset link has been sent to your email. Please check your inbox and spam folder.');
     } else {
-      setForgotError(res.error || 'Gagal menghantar pautan pemulihan.');
+      setForgotError(res.error || 'Failed to send password recovery link.');
     }
   };
 
@@ -149,11 +143,11 @@ export const AuthPage: React.FC = () => {
     setRecoverySuccess(null);
 
     if (!newPassword || newPassword.length < 6) {
-      setRecoveryError('Kata laluan baru mesti mengandungi sekurang-kurangnya 6 aksara.');
+      setRecoveryError('New password must be at least 6 characters long.');
       return;
     }
     if (newPassword !== confirmNewPassword) {
-      setRecoveryError('Kata laluan pengesahan tidak sepadan.');
+      setRecoveryError('Password confirmation does not match.');
       return;
     }
 
@@ -165,76 +159,16 @@ export const AuthPage: React.FC = () => {
       if (error) {
         setRecoveryError(error.message);
       } else {
-        setRecoverySuccess('Kata laluan anda telah berjaya dikemas kini! Anda boleh log masuk sekarang.');
+        setRecoverySuccess('Your password has been successfully updated! You can now sign in.');
         setTimeout(() => {
           setIsRecoveryView(false);
           setIsLoginView(true);
           window.history.replaceState(null, '', window.location.pathname);
-        }, 3000);
+        }, 2500);
       }
     } catch (err: any) {
       setRecoveryLoading(false);
-      setRecoveryError(err.message || 'Gagal mengemas kini kata laluan.');
-    }
-  };
-
-  const handleProcessPastedLink = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    setPasteLinkError(null);
-    const raw = pasteLinkInput.trim();
-    if (!raw) {
-      setPasteLinkError('Sila tampal pautan dari emel atau address bar anda.');
-      return;
-    }
-
-    setPasteLinkLoading(true);
-    try {
-      let accessToken = '';
-      let refreshToken = '';
-
-      // Support 1: Full URL with hash e.g. http://localhost:3000/#access_token=...&refresh_token=...
-      if (raw.includes('#')) {
-        const hashPart = raw.split('#')[1];
-        const params = new URLSearchParams(hashPart);
-        accessToken = params.get('access_token') || '';
-        refreshToken = params.get('refresh_token') || '';
-      }
-      // Support 2: URL params string e.g. access_token=...&refresh_token=...
-      else if (raw.includes('access_token=')) {
-        const clean = raw.replace(/^[?#]/, '');
-        const params = new URLSearchParams(clean);
-        accessToken = params.get('access_token') || '';
-        refreshToken = params.get('refresh_token') || '';
-      }
-      // Support 3: Raw JWT access token
-      else if (raw.startsWith('ey') && raw.length > 50) {
-        accessToken = raw;
-      }
-
-      if (!accessToken) {
-        setPasteLinkError('Pautan yang ditampal tidak mengandungi access_token. Sila pastikan anda menyalin keseluruhan pautan dari address bar tab error atau emel.');
-        setPasteLinkLoading(false);
-        return;
-      }
-
-      const supabase = getSupabase();
-      const { error } = await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken || '',
-      });
-
-      setPasteLinkLoading(false);
-      if (error) {
-        setPasteLinkError(`Pautan tidak sah atau tamat tempoh: ${error.message}`);
-      } else {
-        setIsRecoveryView(true);
-        setIsForgotPasswordView(false);
-        setPasteLinkInput('');
-        setPasteLinkError(null);
-      }
-    } catch (err: any) {
-      setPasteLinkLoading(false);
-      setPasteLinkError(err.message || 'Gagal mengesahkan pautan pemulihan.');
+      setRecoveryError(err.message || 'Failed to update password.');
     }
   };
 
@@ -250,7 +184,7 @@ export const AuthPage: React.FC = () => {
     }
 
     if (!regTenantId.trim() || !regTenantName.trim() || !regAdminName.trim() || !regAdminEmail.trim() || !regAdminPassword.trim()) {
-      setRegError('Sila lengkapkan semua ruangan yang wajib.');
+      setRegError('Please fill in all required fields.');
       return;
     }
 
@@ -265,7 +199,7 @@ export const AuthPage: React.FC = () => {
       );
 
       if (result.success) {
-        setRegSuccess(`Organisasi "${regTenantName}" berjaya didaftarkan! Sila log masuk menggunakan emel pentadbir "${regAdminEmail}".`);
+        setRegSuccess(`Organization "${regTenantName}" registered successfully! Please sign in using the administrator email "${regAdminEmail}".`);
         setRegTenantId('');
         setRegTenantName('');
         setRegAdminName('');
@@ -273,12 +207,12 @@ export const AuthPage: React.FC = () => {
         setRegAdminPassword('');
         setTimeout(() => {
           setIsLoginView(true);
-        }, 4000);
+        }, 3500);
       } else {
-        setRegError(result.error || 'Pendaftaran gagal. Sila cuba lagi.');
+        setRegError(result.error || 'Registration failed. Please try again.');
       }
     } catch (err: any) {
-      setRegError(err.message || 'Pendaftaran gagal.');
+      setRegError(err.message || 'Registration failed.');
     } finally {
       setRegLoading(false);
     }
@@ -295,12 +229,12 @@ export const AuthPage: React.FC = () => {
           </h1>
           <p className="text-sm text-slate-500 mt-1.5">
             {isRecoveryView
-              ? 'Tetapkan kata laluan baru anda'
+              ? 'Set your new password'
               : isForgotPasswordView
-                ? 'Pulihkan kata laluan akaun anda'
+                ? 'Recover your account password'
                 : isLoginView 
-                  ? 'Log masuk untuk menguruskan operasi armada' 
-                  : 'Daftar organisasi baru untuk bermula'}
+                  ? 'Sign in to manage fleet operations' 
+                  : 'Register a new organization to get started'}
           </p>
         </div>
 
@@ -322,7 +256,7 @@ export const AuthPage: React.FC = () => {
             <form onSubmit={handleUpdatePasswordSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Kata Laluan Baru
+                  New Password
                 </label>
                 <input
                   type={showRecoveryPassword ? 'text' : 'password'}
@@ -330,14 +264,14 @@ export const AuthPage: React.FC = () => {
                   onChange={(e) => setNewPassword(e.target.value)}
                   required
                   minLength={6}
-                  className="block w-full border border-slate-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-3 text-sm outline-none transition font-mono"
-                  placeholder="Sekurang-kurangnya 6 aksara"
+                  className="block w-full border border-slate-300 rounded-xl shadow-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-3 text-sm outline-none transition font-mono"
+                  placeholder="At least 6 characters"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Sahkan Kata Laluan Baru
+                  Confirm New Password
                 </label>
                 <input
                   type={showRecoveryPassword ? 'text' : 'password'}
@@ -345,8 +279,8 @@ export const AuthPage: React.FC = () => {
                   onChange={(e) => setConfirmNewPassword(e.target.value)}
                   required
                   minLength={6}
-                  className="block w-full border border-slate-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-3 text-sm outline-none transition font-mono"
-                  placeholder="Ulang kata laluan baru"
+                  className="block w-full border border-slate-300 rounded-xl shadow-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-3 text-sm outline-none transition font-mono"
+                  placeholder="Re-enter new password"
                 />
               </div>
 
@@ -359,19 +293,19 @@ export const AuthPage: React.FC = () => {
                   className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
                 />
                 <label htmlFor="showRecoveryPassword" className="ml-2 text-xs text-slate-600 cursor-pointer select-none">
-                  Papar kata laluan
+                  Show password
                 </label>
               </div>
 
               <button
                 type="submit"
                 disabled={recoveryLoading}
-                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold py-3 rounded-xl shadow-sm transition disabled:bg-slate-400 flex items-center justify-center space-x-2 text-sm mt-6 cursor-pointer"
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold py-3 rounded-xl shadow-xs transition disabled:bg-slate-400 flex items-center justify-center space-x-2 text-sm mt-6 cursor-pointer"
               >
                 {recoveryLoading ? (
-                  <span>Menyimpan kata laluan...</span>
+                  <span>Saving password...</span>
                 ) : (
-                  <span>Simpan Kata Laluan Baru</span>
+                  <span>Save New Password</span>
                 )}
               </button>
             </form>
@@ -388,7 +322,7 @@ export const AuthPage: React.FC = () => {
                 }}
                 className="text-xs font-semibold text-slate-500 hover:text-slate-800 transition cursor-pointer"
               >
-                Batal & Kembali ke Log Masuk
+                Cancel & Return to Sign In
               </button>
             </div>
           </div>
@@ -417,7 +351,7 @@ export const AuthPage: React.FC = () => {
                   value={forgotEmail}
                   onChange={(e) => setForgotEmail(e.target.value)}
                   required
-                  className="block w-full border border-slate-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-3 text-sm outline-none transition"
+                  className="block w-full border border-slate-300 rounded-xl shadow-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-3 text-sm outline-none transition"
                   placeholder="e.g. admin@organization.com"
                 />
               </div>
@@ -425,60 +359,27 @@ export const AuthPage: React.FC = () => {
               <button
                 type="submit"
                 disabled={forgotLoading}
-                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold py-3 rounded-xl shadow-sm transition disabled:bg-slate-400 flex items-center justify-center space-x-2 text-sm mt-6 cursor-pointer"
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold py-3 rounded-xl shadow-xs transition disabled:bg-slate-400 flex items-center justify-center space-x-2 text-sm mt-6 cursor-pointer"
               >
                 {forgotLoading ? (
-                  <span>Menghantar pautan...</span>
+                  <span>Sending link...</span>
                 ) : (
-                  <span>Hantar Pautan Pemulihan</span>
+                  <span>Send Recovery Link</span>
                 )}
               </button>
             </form>
 
-            {/* Quick Helper for localhost error */}
-            <div className="mt-6 pt-5 border-t border-slate-200">
-              <div className="bg-amber-50 border border-amber-200/90 rounded-xl p-3.5 text-xs text-amber-900 mb-3">
-                <div className="flex items-start gap-2.5">
-                  <span className="text-base leading-none">💡</span>
-                  <div className="space-y-1">
-                    <p className="font-bold text-amber-950">
-                      Link dari emel keluar error <code className="bg-amber-100 px-1 py-0.5 rounded text-[11px]">localhost:3000</code>?
-                    </p>
-                    <p className="text-[11px] text-amber-800 leading-relaxed">
-                      Sebab default Supabase menghantar ke localhost. Salin keseluruhan URL dari address bar tab tersebut dan tampal di bawah:
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <form onSubmit={handleProcessPastedLink} className="space-y-2">
-                <input
-                  type="text"
-                  value={pasteLinkInput}
-                  onChange={(e) => setPasteLinkInput(e.target.value)}
-                  placeholder="Tampal URL (http://localhost:3000/#access_token=...)"
-                  className="block w-full border border-slate-300 rounded-xl shadow-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-2.5 text-xs outline-none font-mono"
-                />
-                {pasteLinkError && (
-                  <p className="text-xs text-red-600 font-semibold">⚠️ {pasteLinkError}</p>
-                )}
-                <button
-                  type="submit"
-                  disabled={pasteLinkLoading || !pasteLinkInput.trim()}
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-xs shadow-xs transition disabled:bg-slate-300 flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  {pasteLinkLoading ? 'Mengesahkan Pautan...' : '🔓 Sahkan Pautan & Buka Borang Reset'}
-                </button>
-              </form>
-            </div>
-
             <div className="mt-6 text-center border-t border-slate-100 pt-4">
               <button
                 type="button"
-                onClick={() => { setIsForgotPasswordView(false); setForgotError(null); setForgotSuccess(null); }}
+                onClick={() => {
+                  setIsForgotPasswordView(false);
+                  setForgotError(null);
+                  setForgotSuccess(null);
+                }}
                 className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition cursor-pointer"
               >
-                Kembali ke Log Masuk
+                Back to Sign In
               </button>
             </div>
           </div>
@@ -501,7 +402,7 @@ export const AuthPage: React.FC = () => {
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
                   required
-                  className="block w-full border border-slate-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-3 text-sm outline-none transition"
+                  className="block w-full border border-slate-300 rounded-xl shadow-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-3 text-sm outline-none transition"
                   placeholder="e.g. admin@organization.com"
                 />
               </div>
@@ -513,10 +414,14 @@ export const AuthPage: React.FC = () => {
                   </label>
                   <button
                     type="button"
-                    onClick={() => { setIsForgotPasswordView(true); setForgotEmail(loginEmail); setLoginError(null); }}
+                    onClick={() => {
+                      setIsForgotPasswordView(true);
+                      setForgotEmail(loginEmail);
+                      setLoginError(null);
+                    }}
                     className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition cursor-pointer"
                   >
-                    Lupa kata laluan?
+                    Forgot password?
                   </button>
                 </div>
                 <div className="relative">
@@ -525,13 +430,13 @@ export const AuthPage: React.FC = () => {
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
                     required
-                    className="block w-full border border-slate-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-3 pr-10 text-sm outline-none transition"
+                    className="block w-full border border-slate-300 rounded-xl shadow-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-3 pr-10 text-sm outline-none transition"
                     placeholder="••••••••"
                   />
                   <button
                     type="button"
                     onClick={() => setShowLoginPassword(!showLoginPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
                     aria-label={showLoginPassword ? 'Hide password' : 'Show password'}
                   >
                     {showLoginPassword ? (
@@ -551,7 +456,7 @@ export const AuthPage: React.FC = () => {
               <button
                 type="submit"
                 disabled={loginLoading}
-                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold py-3 rounded-xl shadow-sm transition disabled:bg-slate-400 flex items-center justify-center space-x-2 text-sm mt-6 cursor-pointer"
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold py-3 rounded-xl shadow-xs transition disabled:bg-slate-400 flex items-center justify-center space-x-2 text-sm mt-6 cursor-pointer"
               >
                 {loginLoading ? (
                   <>
@@ -602,7 +507,7 @@ export const AuthPage: React.FC = () => {
                   value={regTenantId}
                   onChange={(e) => setRegTenantId(e.target.value.toLowerCase())}
                   required
-                  className="block w-full border border-slate-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-3 text-sm outline-none transition"
+                  className="block w-full border border-slate-300 rounded-xl shadow-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-3 text-sm outline-none transition"
                   placeholder="e.g. acme-foundation"
                 />
               </div>
@@ -616,7 +521,7 @@ export const AuthPage: React.FC = () => {
                   value={regTenantName}
                   onChange={(e) => setRegTenantName(e.target.value)}
                   required
-                  className="block w-full border border-slate-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-3 text-sm outline-none transition"
+                  className="block w-full border border-slate-300 rounded-xl shadow-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-3 text-sm outline-none transition"
                   placeholder="e.g. Acme Community Foundation"
                 />
               </div>
@@ -630,7 +535,7 @@ export const AuthPage: React.FC = () => {
                       value={regAdminName}
                       onChange={(e) => setRegAdminName(e.target.value)}
                       required
-                      className="block w-full border border-slate-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-2.5 text-sm outline-none transition"
+                      className="block w-full border border-slate-300 rounded-xl shadow-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-2.5 text-sm outline-none transition"
                       placeholder="Admin Name"
                     />
                   </div>
@@ -641,7 +546,7 @@ export const AuthPage: React.FC = () => {
                       value={regAdminEmail}
                       onChange={(e) => setRegAdminEmail(e.target.value)}
                       required
-                      className="block w-full border border-slate-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-2.5 text-sm outline-none transition"
+                      className="block w-full border border-slate-300 rounded-xl shadow-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-2.5 text-sm outline-none transition"
                       placeholder="Admin Email"
                     />
                   </div>
@@ -652,13 +557,13 @@ export const AuthPage: React.FC = () => {
                       value={regAdminPassword}
                       onChange={(e) => setRegAdminPassword(e.target.value)}
                       required
-                      className="block w-full border border-slate-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-2.5 pr-10 text-sm outline-none transition"
+                      className="block w-full border border-slate-300 rounded-xl shadow-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-2.5 pr-10 text-sm outline-none transition"
                       placeholder="Password"
                     />
                     <button
                       type="button"
                       onClick={() => setShowRegPassword(!showRegPassword)}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none"
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
                       aria-label={showRegPassword ? 'Hide password' : 'Show password'}
                     >
                       {showRegPassword ? (
@@ -679,7 +584,7 @@ export const AuthPage: React.FC = () => {
               <button
                 type="submit"
                 disabled={regLoading}
-                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold py-3 rounded-xl shadow-sm transition disabled:bg-slate-400 flex items-center justify-center space-x-2 text-sm mt-6 cursor-pointer"
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold py-3 rounded-xl shadow-xs transition disabled:bg-slate-400 flex items-center justify-center space-x-2 text-sm mt-6 cursor-pointer"
               >
                 {regLoading ? (
                   <>

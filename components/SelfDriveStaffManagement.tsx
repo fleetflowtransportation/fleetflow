@@ -166,7 +166,7 @@ export const SelfDriveStaffManagement: React.FC = () => {
     if (!res.success || !res.url) {
       throw new Error(
         res.error ||
-          `Gagal upload ${kind === 'ic' ? 'IC' : 'Driving License'} ke Google Drive. Semak Settings > Integrations (Google Apps Script URL & Drive Folder).`
+          `Failed to upload ${kind === 'ic' ? 'IC' : 'Driving License'} to Google Drive. Check Settings > Integrations (Google Apps Script URL & Drive Folder).`
       );
     }
 
@@ -607,7 +607,7 @@ export const SelfDriveStaffManagement: React.FC = () => {
                     )}
                   </p>
                 )}
-                <p className="mt-1 text-[11px] text-slate-400">File akan dimuat naik ke Google Drive. Supabase simpan URL sahaja.</p>
+                <p className="mt-1 text-[11px] text-slate-400">Files will be securely uploaded to Google Drive. The database stores the document link only.</p>
               </div>
 
               {/* License Attachment */}
@@ -629,7 +629,7 @@ export const SelfDriveStaffManagement: React.FC = () => {
                     )}
                   </p>
                 )}
-                <p className="mt-1 text-[11px] text-slate-400">File akan dimuat naik ke Google Drive. Supabase simpan URL sahaja.</p>
+                <p className="mt-1 text-[11px] text-slate-400">Files will be securely uploaded to Google Drive. The database stores the document link only.</p>
               </div>
 
               {/* Notes */}

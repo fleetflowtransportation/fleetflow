@@ -343,7 +343,7 @@ export function evaluateBookingAssignment({
       const bDate = normalizeDate(b.dateTime);
       if (bDate !== bookingDate) return false;
       // Compare against the selected vehicle, not every self-drive booking.
-      const legacyVehicleName = `${b.assignedVehicleName || ''} ${b.calendarEventTitle || ''}`.toLowerCase();
+      const legacyVehicleName = `${(b as any).assignedVehicleName || ''} ${b.calendarEventTitle || ''}`.toLowerCase();
       const isSameVehicle = b.vehicleId === alzaVehicle.id || (!b.vehicleId && b.serviceType === 'Self-Drive' && legacyVehicleName.includes(alzaVehicle.name.toLowerCase()));
       if (!isSameVehicle) return false;
 

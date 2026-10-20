@@ -386,7 +386,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
                     className="w-full text-xs border border-amber-300 bg-white rounded-lg p-2 focus:ring-2 focus:ring-amber-500 outline-none font-medium text-slate-800"
                   />
                   <p className="text-[10px] text-amber-800">
-                    Sesuai untuk pemandu luar atau staf self-drive tanpa perlu daftar akaun sistem.
+                    Suitable for external drivers or self-drive staff without requiring a registered system account.
                   </p>
                 </div>
               )}

@@ -58,6 +58,8 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
   const [selectedVehicleId, setSelectedVehicleId] = useState('');
   const [selectedServiceType, setSelectedServiceType] = useState<'Perlu Driver' | 'Self-Drive'>('Perlu Driver');
   const [isSavingAssignment, setIsSavingAssignment] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmDirectComplete, setConfirmDirectComplete] = useState(false);
   const [assignmentFeedback, setAssignmentFeedback] = useState<string | null>(null);
 
   useEffect(() => {
@@ -149,10 +151,7 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (onDelete && window.confirm(`Are you sure you want to delete booking "${booking.requesterName} → ${getRouteLabel(booking)}"?`)) {
-      onDelete(booking.id);
-      onClose();
-    }
+    setConfirmDelete(true);
   };
 
   return (
@@ -229,6 +228,35 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
             </button>
           </div>
         </div>
+
+        {/* DELETE CONFIRMATION IN-MODAL BANNER */}
+        {confirmDelete && (
+          <div className="shrink-0 p-4 bg-rose-50 border-b border-rose-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs animate-in fade-in">
+            <div className="flex items-center gap-2 text-rose-900 font-semibold text-center sm:text-left">
+              <span>⚠️</span>
+              <span>Are you sure you want to delete this booking? This action cannot be undone.</span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(false)}
+                className="px-3 py-1.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-lg hover:bg-slate-50 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onDelete) onDelete(booking.id);
+                  onClose();
+                }}
+                className="px-3 py-1.5 bg-rose-600 text-white font-bold rounded-lg hover:bg-rose-700 transition shadow-xs cursor-pointer"
+              >
+                Yes, Delete
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Content Body with isolated mobile scrolling */}
         <div className="flex-1 p-4 sm:p-6 space-y-4 overflow-y-auto overscroll-contain touch-pan-y text-xs sm:text-sm text-slate-700">
@@ -533,21 +561,54 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
                       Log Meter
                     </button>
                   )}
-                  {onDirectComplete && (booking.status === 'Confirmed' || booking.status === 'Assigned' || booking.status === 'Pending') && booking.status !== 'Completed' && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (window.confirm('Mark this trip completed without an odometer log?')) {
-                          onDirectComplete(booking);
-                          onClose();
-                        }
-                      }}
-                      className={`${onLogMeter && booking.status === 'Confirmed' ? 'flex-1' : 'w-full'} flex items-center justify-center gap-1.5 py-3 px-3 text-xs font-extrabold text-slate-800 bg-white hover:bg-slate-100 border border-slate-300 rounded-xl transition active:scale-[0.98] cursor-pointer`}
-                    >
-                      Direct Complete
-                    </button>
+                  {confirmDirectComplete ? (
+                    <div className="w-full p-3.5 bg-purple-50 border border-purple-200 rounded-2xl text-center space-y-2 animate-in fade-in">
+                      <p className="text-xs font-bold text-purple-900">
+                        Mark this trip completed without an odometer log?
+                      </p>
+                      <p className="text-[11px] text-purple-600">
+                        This will conclude the trip immediately in the records.
+                      </p>
+                      <div className="flex items-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setConfirmDirectComplete(false);
+                          }}
+                          className="flex-1 py-2 px-3 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (onDirectComplete) onDirectComplete(booking);
+                            onClose();
+                          }}
+                          className="flex-1 py-2 px-3 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition shadow-xs cursor-pointer"
+                        >
+                          Yes, Complete
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    onDirectComplete && (booking.status === 'Confirmed' || booking.status === 'Assigned' || booking.status === 'Pending') && booking.status !== 'Completed' && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setConfirmDirectComplete(true);
+                        }}
+                        className={`${onLogMeter && booking.status === 'Confirmed' ? 'flex-1' : 'w-full'} flex items-center justify-center gap-1.5 py-3 px-3 text-xs font-extrabold text-slate-800 bg-white hover:bg-slate-100 border border-slate-300 rounded-xl transition active:scale-[0.98] cursor-pointer`}
+                      >
+                        Direct Complete
+                      </button>
+                    )
                   )}
                 </div>
               )}
