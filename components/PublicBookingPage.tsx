@@ -114,7 +114,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
     setFormData(prev => ({ ...prev, serviceType, shouldWait: serviceType === 'Self-Drive' ? false : prev.shouldWait, vehiclePreference: serviceType === 'Perlu Driver' ? FREE_VEHICLE_CHOICE : '' }));
   };
 
-  const selfDriveVehicles = vehicles.filter(v => v.allowSelfDrive === true && v.vehicleStatus !== 'Inactive' && v.vehicleStatus !== 'Sold');
+  const selfDriveVehicles = vehicles.filter(v => v.allowSelfDrive === true && (!v.vehicleStatus || v.vehicleStatus === 'Active'));
 
   const handleStopChange = (id: string, field: 'address' | 'notes', value: string) => {
     setStops(prev => prev.map(s => (s.id === id ? { ...s, [field]: value } : s)));
