@@ -206,7 +206,7 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
 
       // 1. Create Odometer Log (capturing both start & end odometer readings)
       const selectedBookings = bookings.filter(b => selectedBookingIds.includes(b.id));
-      if (selectedBookingIds.length > 0 && (selectedBookings.length !== selectedBookingIds.length || selectedBookings.some(b => b.serviceType !== 'Self-Drive' || b.status === 'Cancelled' || b.status === 'Completed' || b.vehicleId !== selectedVehicleId))) {
+      if (selectedBookingIds.length > 0 && (selectedBookings.length !== selectedBookingIds.length || selectedBookings.some(b => b.serviceType !== 'Self-Drive' || ['Cancelled', 'Completed', 'Conflict'].includes(b.status) || b.vehicleId !== selectedVehicleId))) {
         setFormError('One or more selected bookings are no longer eligible for completion. Refresh the page and try again.');
         setIsSubmitting(false);
         return;
