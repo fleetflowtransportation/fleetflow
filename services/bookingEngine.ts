@@ -360,14 +360,14 @@ export function evaluateBookingAssignment({
         vehicleId: null,
         calendarEventTitle: `[CONFLICT] [${alzaVehicle.name}] (SELF-DRIVE) ${requesterName} → ${destination}`, 
         calendarColor: 'grey',
-        calendarEventId: `evt-conflict-alza-${Date.now()}`,
+        calendarEventId: `evt-conflict-self-drive-${Date.now()}`,
         conflictReason: reason,
         adminNotes: `CONFLICT (Step 4): ${reason}`,
         emailNotifications: {
           requester: {
             to: requesterEmail,
             subject: `[CONFLICT] Self-Drive Booking: ${destination} (${bookingDate})`,
-            body: `Hello ${requesterName},\n\nYour Self-Drive booking request to ${destination} on ${bookingDate} (${startTime12} - ${endTime12}) COULD NOT BE CONFIRMED because the Perodua Alza is already booked during this time slot.\n\nPlease contact Admin (${adminAin.name} at ${adminAin.email}) for an alternative vehicle or to reschedule.\n\nArmada Flow`,
+            body: `Hello ${requesterName},\n\nYour Self-Drive booking request to ${destination} on ${bookingDate} (${startTime12} - ${endTime12}) COULD NOT BE CONFIRMED because the ${alzaVehicle.name} is already booked during this time slot.\n\nPlease contact Admin (${adminAin.name} at ${adminAin.email}) for an alternative vehicle or to reschedule.\n\nArmada Flow`,
           },
           admin: {
             to: adminAin.email,
@@ -388,8 +388,8 @@ export function evaluateBookingAssignment({
       assignedVehicleName: `${alzaVehicle.name} (${alzaVehicle.plateNumber})`,
       calendarEventTitle: calendarTitle,
       calendarColor: 'grey',
-      calendarEventId: `evt-alza-${Date.now()}`,
-      adminNotes: `CONFIRMED: Self-Drive reservation confirmed. Perodua Alza (${alzaVehicle.plateNumber}) allocated. No driver required.`,
+      calendarEventId: `evt-self-drive-${Date.now()}`,
+      adminNotes: `CONFIRMED: Self-Drive reservation confirmed. ${alzaVehicle.name} (${alzaVehicle.plateNumber}) allocated. No driver required.`,
       emailNotifications: {
         requester: {
           to: requesterEmail,
