@@ -24,9 +24,15 @@ export const AuthPage: React.FC = () => {
   const [isRecoveryView, setIsRecoveryView] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [showRecoveryPassword, setShowRecoveryPassword] = useState(false);
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
   const [recoverySuccess, setRecoverySuccess] = useState<string | null>(null);
   const [recoveryLoading, setRecoveryLoading] = useState(false);
+
+  // Paste Recovery Link States (for cases where localhost was opened from email)
+  const [pasteLinkInput, setPasteLinkInput] = useState('');
+  const [pasteLinkError, setPasteLinkError] = useState<string | null>(null);
+  const [pasteLinkLoading, setPasteLinkLoading] = useState(false);
 
   // Register Form States
   const [regTenantId, setRegTenantId] = useState('');
@@ -40,21 +46,61 @@ export const AuthPage: React.FC = () => {
   const [regLoading, setRegLoading] = useState(false);
 
   React.useEffect(() => {
-    const hash = window.location.hash;
-    if (hash) {
-      const params = new URLSearchParams(hash.replace(/^#/, ''));
-      const errorDescription = params.get('error_description');
-      const errorCode = params.get('error_code');
-      const type = params.get('type');
-      const accessToken = params.get('access_token');
+    const handleAuthRedirect = async () => {
+      const supabase = getSupabase();
 
-      if (errorCode || errorDescription) {
-        setLoginError(`Pautan pemulihan tidak sah atau telah tamat tempoh (${errorDescription || errorCode}). Sila mohon pautan baru.`);
-        window.history.replaceState(null, '', window.location.pathname);
-      } else if (type === 'recovery' || accessToken) {
-        setIsRecoveryView(true);
+      // Check hash params (access_token, refresh_token, type)
+      const hash = window.location.hash;
+      if (hash) {
+        const params = new URLSearchParams(hash.replace(/^#/, ''));
+        const errorDescription = params.get('error_description');
+        const errorCode = params.get('error_code');
+        const type = params.get('type');
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token') || '';
+
+        if (errorCode || errorDescription) {
+          setLoginError(`Pautan pemulihan tidak sah atau telah tamat tempoh (${decodeURIComponent(errorDescription || errorCode || '')}). Sila mohon pautan baru.`);
+          window.history.replaceState(null, '', window.location.pathname);
+          return;
+        }
+
+        if (accessToken) {
+          try {
+            const { error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+            if (error) {
+              setRecoveryError(`Ralat mengaktifkan sesi pemulihan: ${error.message}`);
+            } else {
+              setIsRecoveryView(true);
+            }
+          } catch (e: any) {
+            setRecoveryError(e.message || 'Gagal memulakan sesi pemulihan kata laluan.');
+          }
+          return;
+        }
       }
-    }
+
+      // Check query params (?code=... for PKCE flow)
+      const searchParams = new URLSearchParams(window.location.search);
+      const code = searchParams.get('code');
+      if (code) {
+        try {
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) {
+            setRecoveryError(`Ralat pertukaran kod pemulihan: ${error.message}`);
+          } else {
+            setIsRecoveryView(true);
+          }
+        } catch (e: any) {
+          setRecoveryError(e.message || 'Gagal mengesahkan kod pemulihan.');
+        }
+      }
+    };
+
+    handleAuthRedirect();
   }, []);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -129,6 +175,66 @@ export const AuthPage: React.FC = () => {
     } catch (err: any) {
       setRecoveryLoading(false);
       setRecoveryError(err.message || 'Gagal mengemas kini kata laluan.');
+    }
+  };
+
+  const handleProcessPastedLink = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setPasteLinkError(null);
+    const raw = pasteLinkInput.trim();
+    if (!raw) {
+      setPasteLinkError('Sila tampal pautan dari emel atau address bar anda.');
+      return;
+    }
+
+    setPasteLinkLoading(true);
+    try {
+      let accessToken = '';
+      let refreshToken = '';
+
+      // Support 1: Full URL with hash e.g. http://localhost:3000/#access_token=...&refresh_token=...
+      if (raw.includes('#')) {
+        const hashPart = raw.split('#')[1];
+        const params = new URLSearchParams(hashPart);
+        accessToken = params.get('access_token') || '';
+        refreshToken = params.get('refresh_token') || '';
+      }
+      // Support 2: URL params string e.g. access_token=...&refresh_token=...
+      else if (raw.includes('access_token=')) {
+        const clean = raw.replace(/^[?#]/, '');
+        const params = new URLSearchParams(clean);
+        accessToken = params.get('access_token') || '';
+        refreshToken = params.get('refresh_token') || '';
+      }
+      // Support 3: Raw JWT access token
+      else if (raw.startsWith('ey') && raw.length > 50) {
+        accessToken = raw;
+      }
+
+      if (!accessToken) {
+        setPasteLinkError('Pautan yang ditampal tidak mengandungi access_token. Sila pastikan anda menyalin keseluruhan pautan dari address bar tab error atau emel.');
+        setPasteLinkLoading(false);
+        return;
+      }
+
+      const supabase = getSupabase();
+      const { error } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken || '',
+      });
+
+      setPasteLinkLoading(false);
+      if (error) {
+        setPasteLinkError(`Pautan tidak sah atau tamat tempoh: ${error.message}`);
+      } else {
+        setIsRecoveryView(true);
+        setIsForgotPasswordView(false);
+        setPasteLinkInput('');
+        setPasteLinkError(null);
+      }
+    } catch (err: any) {
+      setPasteLinkLoading(false);
+      setPasteLinkError(err.message || 'Gagal mengesahkan pautan pemulihan.');
     }
   };
 
@@ -219,12 +325,13 @@ export const AuthPage: React.FC = () => {
                   Kata Laluan Baru
                 </label>
                 <input
-                  type="password"
+                  type={showRecoveryPassword ? 'text' : 'password'}
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   required
-                  className="block w-full border border-slate-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-3 text-sm outline-none transition"
-                  placeholder="••••••••"
+                  minLength={6}
+                  className="block w-full border border-slate-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-3 text-sm outline-none transition font-mono"
+                  placeholder="Sekurang-kurangnya 6 aksara"
                 />
               </div>
 
@@ -233,13 +340,27 @@ export const AuthPage: React.FC = () => {
                   Sahkan Kata Laluan Baru
                 </label>
                 <input
-                  type="password"
+                  type={showRecoveryPassword ? 'text' : 'password'}
                   value={confirmNewPassword}
                   onChange={(e) => setConfirmNewPassword(e.target.value)}
                   required
-                  className="block w-full border border-slate-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-3 text-sm outline-none transition"
-                  placeholder="••••••••"
+                  minLength={6}
+                  className="block w-full border border-slate-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-3 text-sm outline-none transition font-mono"
+                  placeholder="Ulang kata laluan baru"
                 />
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="showRecoveryPassword"
+                  checked={showRecoveryPassword}
+                  onChange={(e) => setShowRecoveryPassword(e.target.checked)}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                />
+                <label htmlFor="showRecoveryPassword" className="ml-2 text-xs text-slate-600 cursor-pointer select-none">
+                  Papar kata laluan
+                </label>
               </div>
 
               <button
@@ -248,12 +369,28 @@ export const AuthPage: React.FC = () => {
                 className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold py-3 rounded-xl shadow-sm transition disabled:bg-slate-400 flex items-center justify-center space-x-2 text-sm mt-6 cursor-pointer"
               >
                 {recoveryLoading ? (
-                  <span>Menyimpan...</span>
+                  <span>Menyimpan kata laluan...</span>
                 ) : (
                   <span>Simpan Kata Laluan Baru</span>
                 )}
               </button>
             </form>
+
+            <div className="mt-6 text-center border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsRecoveryView(false);
+                  setIsLoginView(true);
+                  setRecoveryError(null);
+                  setRecoverySuccess(null);
+                  window.history.replaceState(null, '', window.location.pathname);
+                }}
+                className="text-xs font-semibold text-slate-500 hover:text-slate-800 transition cursor-pointer"
+              >
+                Batal & Kembali ke Log Masuk
+              </button>
+            </div>
           </div>
         ) : isForgotPasswordView ? (
           /* Forgot Password View */
@@ -297,6 +434,43 @@ export const AuthPage: React.FC = () => {
                 )}
               </button>
             </form>
+
+            {/* Quick Helper for localhost error */}
+            <div className="mt-6 pt-5 border-t border-slate-200">
+              <div className="bg-amber-50 border border-amber-200/90 rounded-xl p-3.5 text-xs text-amber-900 mb-3">
+                <div className="flex items-start gap-2.5">
+                  <span className="text-base leading-none">💡</span>
+                  <div className="space-y-1">
+                    <p className="font-bold text-amber-950">
+                      Link dari emel keluar error <code className="bg-amber-100 px-1 py-0.5 rounded text-[11px]">localhost:3000</code>?
+                    </p>
+                    <p className="text-[11px] text-amber-800 leading-relaxed">
+                      Sebab default Supabase menghantar ke localhost. Salin keseluruhan URL dari address bar tab tersebut dan tampal di bawah:
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <form onSubmit={handleProcessPastedLink} className="space-y-2">
+                <input
+                  type="text"
+                  value={pasteLinkInput}
+                  onChange={(e) => setPasteLinkInput(e.target.value)}
+                  placeholder="Tampal URL (http://localhost:3000/#access_token=...)"
+                  className="block w-full border border-slate-300 rounded-xl shadow-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 p-2.5 text-xs outline-none font-mono"
+                />
+                {pasteLinkError && (
+                  <p className="text-xs text-red-600 font-semibold">⚠️ {pasteLinkError}</p>
+                )}
+                <button
+                  type="submit"
+                  disabled={pasteLinkLoading || !pasteLinkInput.trim()}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-xs shadow-xs transition disabled:bg-slate-300 flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  {pasteLinkLoading ? 'Mengesahkan Pautan...' : '🔓 Sahkan Pautan & Buka Borang Reset'}
+                </button>
+              </form>
+            </div>
 
             <div className="mt-6 text-center border-t border-slate-100 pt-4">
               <button
