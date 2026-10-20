@@ -64,8 +64,7 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
     ])
       .then(([t, v, b, o, s]) => {
         setTenant(t);
-        const resolvedVehicles = (v && v.length > 0) ? v : VEHICLES;
-        setVehicles(resolvedVehicles);
+        setVehicles(v || []);
         setBookings(b || []);
         setOdometerLogs(o || []);
         setSelfDriveStaff((s || []).filter(staff => staff.status === 'active'));
@@ -251,7 +250,8 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
 
       // 2. Complete every selected booking after the shared odometer log is saved.
       for (const targetBooking of selectedBookings) {
-        await storageService.updateBooking({ id: targetBooking.id, startOdometer: startNum, endOdometer: endNum, distance: distanceTraveled, vehicleId: selectedVehicleId, status: 'Completed' });
+        // The odometer delta belongs to the shared submission, not to each individual booking.
+        await storageService.updateBooking({ id: targetBooking.id, vehicleId: selectedVehicleId, status: 'Completed' });
       }
 
       // 3. Save summary for confirmation view
