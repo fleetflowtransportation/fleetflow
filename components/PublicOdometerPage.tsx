@@ -215,7 +215,12 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
     setIsSubmitting(true);
 
     try {
-      const vehicle = vehicles.find(v => v.id === selectedVehicleId);
+      const vehicle = vehicles.find(v => v.id === selectedVehicleId && v.allowSelfDrive === true && (!v.vehicleStatus || v.vehicleStatus === 'Active'));
+      if (!vehicle) {
+        setFormError('The selected vehicle is no longer enabled for self-drive. Refresh the page and try again.');
+        setIsSubmitting(false);
+        return;
+      }
       const logId = `odo-pub-${Date.now()}`;
       const distanceTraveled = calculatedDistance !== null ? calculatedDistance : Math.round((endNum - startNum) * 10) / 10;
 
@@ -250,7 +255,7 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
         // The odometer delta belongs to the shared submission, not to each individual booking.
         await storageService.updateBooking({ id: targetBooking.id, vehicleId: selectedVehicleId, status: 'Completed' });
       }
-      await storageService.updateVehicle({ id: selectedVehicleId, currentOdometer: endNum });
+      await storageService.updateVehicle({ ...vehicle, id: selectedVehicleId, currentOdometer: endNum });
       setVehicles(prev => prev.map(v => v.id === selectedVehicleId ? { ...v, currentOdometer: endNum } : v));
 
       // 3. Save summary for confirmation view
