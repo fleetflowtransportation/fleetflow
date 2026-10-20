@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { storageService } from '../services/storage';
 import { Tenant, Vehicle, Booking, OdometerLog, SelfDriveStaff } from '../types';
-import { VEHICLES } from '../constants';
 import { 
   GaugeIcon, 
   CheckCircleIcon, 
@@ -27,8 +26,8 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
   const [loading, setLoading] = useState(true);
 
   // Form State
-  const [selectedBookingId, setSelectedBookingId] = useState<string>('manual');
-  const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
+  const [selectedBookingIds, setSelectedBookingIds] = useState<string[]>([]);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string>(() => new URLSearchParams(window.location.search).get('vehicle_id') || '');
   const [selectedStaffId, setSelectedStaffId] = useState<string>('');
   const [customStaffName, setCustomStaffName] = useState<string>('');
   
@@ -64,36 +63,24 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
     ])
       .then(([t, v, b, o, s]) => {
         setTenant(t);
-        const resolvedVehicles = (v && v.length > 0) ? v : VEHICLES;
-        setVehicles(resolvedVehicles);
+        setVehicles(v || []);
         setBookings(b || []);
         setOdometerLogs(o || []);
         setSelfDriveStaff((s || []).filter(staff => staff.status === 'active'));
 
-        if (resolvedVehicles.length > 0) {
-          // Default to Alza if available
-          const alza = resolvedVehicles.find(veh => 
-            (veh.name && veh.name.toLowerCase().includes('alza')) || 
-            (veh.specifications && veh.specifications.toLowerCase().includes('alza'))
-          );
-          const chosenVehicle = alza || resolvedVehicles[0];
+        const eligibleVehicles = (v || []).filter(veh => veh.allowSelfDrive === true && (!veh.vehicleStatus || veh.vehicleStatus === 'Active'));
+        const requestedVehicleId = new URLSearchParams(window.location.search).get('vehicle_id');
+        const chosenVehicle = requestedVehicleId ? eligibleVehicles.find(veh => veh.id === requestedVehicleId) : undefined;
+        if (chosenVehicle) {
           setSelectedVehicleId(chosenVehicle.id);
-
-          // Find latest known odometer reading for chosen vehicle
-          const latestLog = (o || [])
-            .filter(l => l.vehicleId === chosenVehicle.id)
-            .sort((x, y) => new Date(y.date).getTime() - new Date(x.date).getTime())[0];
-          if (latestLog && latestLog.odometer) {
-            setStartOdometer(String(latestLog.odometer));
-          }
+          const latestLog = (o || []).filter(l => l.vehicleId === chosenVehicle.id).sort((x, y) => new Date(y.date).getTime() - new Date(x.date).getTime())[0];
+          const reading = chosenVehicle.currentOdometer && chosenVehicle.currentOdometer > 0 ? chosenVehicle.currentOdometer : latestLog?.odometer;
+          if (reading !== undefined && reading !== null) setStartOdometer(String(reading));
         }
       })
       .catch((err) => {
         console.error('Error loading data for public odometer portal:', err);
-        setVehicles(VEHICLES);
-        if (VEHICLES.length > 0) {
-          setSelectedVehicleId(VEHICLES[0].id);
-        }
+        setVehicles([]);
       })
       .finally(() => {
         setLoading(false);
@@ -107,75 +94,61 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
 
   const latestVehicleOdometer = useMemo(() => {
     if (!selectedVehicleId) return null;
-    const logs = odometerLogs
-      .filter(l => l.vehicleId === selectedVehicleId)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const vehicle = vehicles.find(v => v.id === selectedVehicleId);
+    if (vehicle?.currentOdometer !== undefined && vehicle.currentOdometer > 0) return vehicle.currentOdometer;
+    const logs = odometerLogs.filter(l => l.vehicleId === selectedVehicleId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     return logs.length > 0 && logs[0].odometer ? logs[0].odometer : null;
-  }, [odometerLogs, selectedVehicleId]);
+  }, [odometerLogs, selectedVehicleId, vehicles]);
+
+  // Preselect and initialize odometer when a vehicle-specific QR code includes vehicle_id.
+  useEffect(() => {
+    if (!selectedVehicleId || vehicles.length === 0) return;
+    const vehicle = vehicles.find(v => v.id === selectedVehicleId && v.allowSelfDrive === true && (!v.vehicleStatus || v.vehicleStatus === 'Active'));
+    if (!vehicle) {
+      setSelectedVehicleId('');
+      return;
+    }
+    if (!startOdometer) {
+      const logs = odometerLogs.filter(l => l.vehicleId === selectedVehicleId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      const reading = vehicle.currentOdometer && vehicle.currentOdometer > 0 ? vehicle.currentOdometer : logs[0]?.odometer;
+      if (reading !== undefined && reading !== null) setStartOdometer(String(reading));
+    }
+  }, [selectedVehicleId, vehicles, odometerLogs, startOdometer]);
 
   // Whenever vehicle changes, update start odometer default if empty
   const handleVehicleChange = (newVehId: string) => {
     setSelectedVehicleId(newVehId);
-    const logs = odometerLogs
-      .filter(l => l.vehicleId === newVehId)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    if (logs.length > 0 && logs[0].odometer) {
-      setStartOdometer(String(logs[0].odometer));
-    }
+    const vehicle = vehicles.find(v => v.id === newVehId);
+    const logs = odometerLogs.filter(l => l.vehicleId === newVehId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const latestReading = vehicle?.currentOdometer && vehicle.currentOdometer > 0 ? vehicle.currentOdometer : logs[0]?.odometer;
+    if (latestReading !== undefined && latestReading !== null) setStartOdometer(String(latestReading));
+    setSelectedBookingIds([]);
   };
 
-  // Active / Upcoming Self-Drive bookings
+  // Pending self-drive bookings for the selected eligible vehicle
   const relevantBookings = useMemo(() => {
     return bookings.filter(b => {
-      const isSelfDriveOrOpen = b.serviceType === 'Self-Drive' || !b.driverId;
-      const isNotCancelled = b.status !== 'Cancelled';
+      const isSelfDrive = b.serviceType === 'Self-Drive';
+      const isPending = !['Cancelled', 'Completed', 'Conflict'].includes(b.status);
+      const matchesVehicle = !!selectedVehicleId && b.vehicleId === selectedVehicleId;
       const matchesSearch = 
         (b.requesterName || '').toLowerCase().includes(bookingSearch.toLowerCase()) ||
         (b.purpose || '').toLowerCase().includes(bookingSearch.toLowerCase()) ||
         (b.destination || '').toLowerCase().includes(bookingSearch.toLowerCase());
-      return isSelfDriveOrOpen && isNotCancelled && matchesSearch;
+      return isSelfDrive && isPending && matchesVehicle && matchesSearch;
     });
-  }, [bookings, bookingSearch]);
+  }, [bookings, bookingSearch, selectedVehicleId]);
 
-  // When a booking is selected, prepopulate fields
-  const handleSelectBooking = (b: Booking) => {
-    setSelectedBookingId(b.id);
+  // Select several bookings for one vehicle in a single submission
+  const handleToggleBooking = (b: Booking) => {
+    setSelectedBookingIds(prev => prev.includes(b.id) ? prev.filter(id => id !== b.id) : [...prev, b.id]);
     
-    // Check if requester matches an authorized staff
-    const matchingStaff = selfDriveStaff.find(
-      s => s.name.trim().toLowerCase() === (b.requesterName || '').trim().toLowerCase()
-    );
-    if (matchingStaff) {
-      setSelectedStaffId(matchingStaff.id);
-      setCustomStaffName('');
-    } else {
-      setSelectedStaffId('other');
-      setCustomStaffName(b.requesterName || '');
-    }
-
-    setPurpose(b.purpose || '');
-    setDestination(b.destination || '');
-    if (b.vehicleId) {
-      setSelectedVehicleId(b.vehicleId);
-    }
-    
-    if (b.startOdometer) {
-      setStartOdometer(String(b.startOdometer));
-    } else if (b.vehicleId) {
-      const latestLog = odometerLogs
-        .filter(l => l.vehicleId === b.vehicleId)
-        .sort((x, y) => new Date(y.date).getTime() - new Date(x.date).getTime())[0];
-      if (latestLog && latestLog.odometer) {
-        setStartOdometer(String(latestLog.odometer));
-      }
-    }
+    setPurpose(prev => prev || b.purpose || '');
+    setDestination(prev => prev || b.destination || '');
+    if (b.startOdometer && !startOdometer) setStartOdometer(String(b.startOdometer));
   };
 
-  const handleManualChoice = () => {
-    setSelectedBookingId('manual');
-    setPurpose('');
-    setDestination('');
-  };
+  const handleClearBookingSelection = () => setSelectedBookingIds([]);
 
   // Distance calculation: End Odometer - Start Odometer
   const calculatedDistance = useMemo(() => {
@@ -231,11 +204,23 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
     setIsSubmitting(true);
 
     try {
-      const vehicle = vehicles.find(v => v.id === selectedVehicleId);
+      const vehicle = vehicles.find(v => v.id === selectedVehicleId && v.allowSelfDrive === true && (!v.vehicleStatus || v.vehicleStatus === 'Active'));
+      if (!vehicle) {
+        setFormError('The selected vehicle is no longer enabled for self-drive. Refresh the page and try again.');
+        setIsSubmitting(false);
+        return;
+      }
       const logId = `odo-pub-${Date.now()}`;
       const distanceTraveled = calculatedDistance !== null ? calculatedDistance : Math.round((endNum - startNum) * 10) / 10;
 
       // 1. Create Odometer Log (capturing both start & end odometer readings)
+      const selectedBookings = bookings.filter(b => selectedBookingIds.includes(b.id));
+      if (selectedBookingIds.length > 0 && (selectedBookings.length !== selectedBookingIds.length || selectedBookings.some(b => b.serviceType !== 'Self-Drive' || ['Cancelled', 'Completed', 'Conflict'].includes(b.status) || b.vehicleId !== selectedVehicleId))) {
+        setFormError('One or more selected bookings are no longer eligible for completion. Refresh the page and try again.');
+        setIsSubmitting(false);
+        return;
+      }
+
       const newOdoLog: OdometerLog = {
         id: logId,
         driverId: `staff-${effectiveStaffName.replace(/\s+/g, '-').toLowerCase()}`,
@@ -247,27 +232,20 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
         distance: distanceTraveled,
         purpose: purpose || 'Official Staff Self-Drive Trip',
         toLocation: destination || undefined,
-        remarks: remarks ? `${remarks} (Logged by: ${effectiveStaffName})` : `Logged by: ${effectiveStaffName}`,
-        bookingId: selectedBookingId !== 'manual' ? selectedBookingId : undefined,
+        remarks: `${remarks ? `${remarks} | ` : ''}Logged by: ${effectiveStaffName}${selectedBookingIds.length ? ` | Booking IDs: ${selectedBookingIds.join(', ')}` : ''}`,
+        bookingId: selectedBookingIds[0] || undefined,
         tenantId,
       };
 
       await storageService.createOdometerLog(newOdoLog);
 
-      // 2. If connected to a booking, update the booking state with start & end odometers
-      if (selectedBookingId !== 'manual') {
-        const targetBooking = bookings.find(b => b.id === selectedBookingId);
-        if (targetBooking) {
-          await storageService.updateBooking({
-            id: targetBooking.id,
-            startOdometer: startNum,
-            endOdometer: endNum,
-            distance: distanceTraveled,
-            vehicleId: selectedVehicleId,
-            status: 'Completed',
-          });
-        }
+      // 2. Complete every selected booking after the shared odometer log is saved.
+      for (const targetBooking of selectedBookings) {
+        // The odometer delta belongs to the shared submission, not to each individual booking.
+        await storageService.updateBooking({ id: targetBooking.id, vehicleId: selectedVehicleId, status: 'Completed' });
       }
+      await storageService.updateVehicle({ ...vehicle, id: selectedVehicleId, currentOdometer: endNum });
+      setVehicles(prev => prev.map(v => v.id === selectedVehicleId ? { ...v, currentOdometer: endNum } : v));
 
       // 3. Save summary for confirmation view
       setSubmittedSummary({
@@ -279,6 +257,7 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
         date,
         destination,
         purpose,
+        completedBookings: selectedBookings.length,
       });
 
     } catch (err: any) {
@@ -292,7 +271,7 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
     setSubmittedSummary(null);
     setEndOdometer('');
     setRemarks('');
-    setSelectedBookingId('manual');
+    setSelectedBookingIds([]);
     // Pre-populate new start with previous end
     if (submittedSummary && submittedSummary.endReading) {
       setStartOdometer(String(submittedSummary.endReading));
@@ -346,6 +325,7 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
             <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-xs">
               <CheckCircleIcon className="w-10 h-10" />
             </div>
+            {submittedSummary.completedBookings > 0 && <p className="text-sm font-bold text-emerald-800">{submittedSummary.completedBookings} booking(s) marked Completed.</p>}
 
             <div className="space-y-1">
               <h2 className="text-2xl font-black text-slate-900">
@@ -429,63 +409,6 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
                 </div>
               )}
 
-              {/* Booking Selection Tab (Quick Match) */}
-              {relevantBookings.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      Match Scheduled Booking (Optional)
-                    </label>
-                    {selectedBookingId !== 'manual' && (
-                      <button
-                        type="button"
-                        onClick={handleManualChoice}
-                        className="text-xs text-indigo-600 hover:underline font-semibold"
-                      >
-                        Clear Selection
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="max-h-40 overflow-y-auto space-y-1.5 rounded-xl border border-slate-200 p-2 bg-slate-50/50">
-                    <button
-                      type="button"
-                      onClick={handleManualChoice}
-                      className={`w-full text-left p-2.5 rounded-lg text-xs font-medium transition cursor-pointer border ${
-                        selectedBookingId === 'manual'
-                          ? 'bg-indigo-50 border-indigo-300 text-indigo-950 font-bold'
-                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
-                      }`}
-                    >
-                      🚗 Direct / Unscheduled Trip (Manual Entry)
-                    </button>
-
-                    {relevantBookings.map((b) => {
-                      const isSelected = selectedBookingId === b.id;
-                      return (
-                        <button
-                          key={b.id}
-                          type="button"
-                          onClick={() => handleSelectBooking(b)}
-                          className={`w-full text-left p-2.5 rounded-lg text-xs transition cursor-pointer border ${
-                            isSelected
-                              ? 'bg-indigo-50 border-indigo-400 text-indigo-950 font-bold'
-                              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
-                          }`}
-                        >
-                          <div className="flex justify-between items-center">
-                            <span className="font-bold">{b.requesterName}</span>
-                            <span className="text-[11px] text-slate-500">{b.dateTime?.split('T')[0]}</span>
-                          </div>
-                          <div className="text-[11px] text-slate-500 truncate mt-0.5">
-                            {b.purpose} {b.destination ? `• to ${b.destination}` : ''}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
 
               {/* Vehicle Selection */}
               <div>
@@ -504,7 +427,7 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
                     {vehicles.length === 0 && (
                       <option value="" disabled>Loading vehicles...</option>
                     )}
-                    {vehicles.map((v) => (
+                    {vehicles.filter(v => v.allowSelfDrive === true && (!v.vehicleStatus || v.vehicleStatus === 'Active')).map((v) => (
                       <option key={v.id} value={v.id}>
                         {v.name} ({v.plateNumber})
                       </option>
@@ -516,9 +439,9 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
                 </div>
 
                 {/* Quick 1-Tap Vehicle Selection Chips for Mobile Phones */}
-                {vehicles.length > 0 && (
+                {vehicles.some(v => v.allowSelfDrive === true && v.vehicleStatus !== 'Inactive' && v.vehicleStatus !== 'Sold') && (
                   <div className="flex flex-wrap gap-1.5 mt-2.5">
-                    {vehicles.map((v) => {
+                    {vehicles.filter(v => v.allowSelfDrive === true && v.vehicleStatus !== 'Inactive' && v.vehicleStatus !== 'Sold').map((v) => {
                       const isSelected = v.id === selectedVehicleId;
                       return (
                         <button
@@ -549,6 +472,26 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
                   </p>
                 )}
               </div>
+
+              {/* Multi-booking selection for self-drive vehicle */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Select completed self-drive booking(s)</label>
+                  {selectedBookingIds.length > 0 && <button type="button" onClick={handleClearBookingSelection} className="text-xs text-indigo-600 hover:underline font-semibold">Clear ({selectedBookingIds.length})</button>}
+                </div>
+                <p className="text-xs text-slate-500">Only incomplete self-drive bookings for the selected vehicle are listed. You can select more than one booking in this submission.</p>
+                <input value={bookingSearch} onChange={(e) => setBookingSearch(e.target.value)} placeholder="Search requester, purpose or destination" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+                <div className="max-h-56 overflow-y-auto space-y-1.5 rounded-xl border border-slate-200 p-2 bg-slate-50/50">
+                  {relevantBookings.length === 0 ? <p className="p-3 text-xs text-slate-500">No incomplete self-drive bookings found for this vehicle.</p> : relevantBookings.map((b) => {
+                    const isSelected = selectedBookingIds.includes(b.id);
+                    return <label key={b.id} className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer ${isSelected ? 'bg-indigo-50 border-indigo-400' : 'bg-white border-slate-200'}`}>
+                      <input type="checkbox" checked={isSelected} onChange={() => handleToggleBooking(b)} className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                      <span className="min-w-0 flex-1"><span className="flex items-center justify-between gap-2 text-xs"><strong>{b.requesterName}</strong><span className="shrink-0 text-slate-500">{b.dateTime?.split('T')[0]}</span></span><span className="mt-1 block truncate text-[11px] text-slate-500">{b.purpose} {b.destination ? `• to ${b.destination}` : ''}</span></span>
+                    </label>;
+                  })}
+                </div>
+              </div>
+
 
               {/* Staff Name Dropdown */}
               <div>

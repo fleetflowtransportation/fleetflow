@@ -58,10 +58,15 @@ const AdminDashboard: React.FC = () => {
     const active = bookings.filter((b) => activeStatuses.includes(b.status)).length;
     const completed = bookings.filter((b) => b.status === 'Completed').length;
     const conflicts = bookings.filter((b) => b.status === 'Conflict').length;
+    // A booking is delayed only after its expected end time plus a 2-hour grace period.
+    // Use the recorded finish time when available; otherwise assume a 2-hour booking from its start.
     const delayed = bookings.filter((b) => {
       if (!['Assigned', 'Confirmed', 'Pending'].includes(b.status)) return false;
       const start = parseDate(b.dateTime);
-      return start && start < new Date() && b.status !== 'Completed';
+      if (!start) return false;
+      const expectedEnd = parseDate(b.finishDateTime) || new Date(start.getTime() + 2 * 60 * 60 * 1000);
+      const graceEnd = new Date(expectedEnd.getTime() + 2 * 60 * 60 * 1000);
+      return graceEnd < new Date();
     }).length;
 
     const todayFuel = fuelLogs.filter((f) => {
@@ -242,6 +247,31 @@ const AdminDashboard: React.FC = () => {
           severity: 'high',
           title: `Booking conflict — ${b.destination || b.purpose}`,
           sub: b.requesterName || 'Unknown requester',
+        });
+      });
+
+    // Self-drive bookings must be completed through the QR odometer flow.
+    // Flag only after the expected finish time plus the same 2-hour grace period.
+    bookings
+      .filter((b) => {
+        if (b.serviceType !== 'Self-Drive' || !['Pending', 'Assigned', 'Confirmed'].includes(b.status)) return false;
+        const start = parseDate(b.dateTime);
+        if (!start) return false;
+        const expectedEnd = parseDate(b.finishDateTime) || new Date(start.getTime() + 2 * 60 * 60 * 1000);
+        const graceEnd = new Date(expectedEnd.getTime() + 2 * 60 * 60 * 1000);
+        return graceEnd < new Date();
+      })
+      .slice(0, 4)
+      .forEach((b) => {
+        const bookingDate = parseDate(b.dateTime);
+        const dateLabel = bookingDate
+          ? bookingDate.toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' })
+          : 'Past booking';
+        list.push({
+          id: `self-drive-overdue-${b.id}`,
+          severity: 'high',
+          title: `Self-Drive not completed — ${b.destination || b.purpose || 'Booking'}`,
+          sub: `${dateLabel} · ${b.requesterName || 'Staff'} · Odometer submission pending`,
         });
       });
 

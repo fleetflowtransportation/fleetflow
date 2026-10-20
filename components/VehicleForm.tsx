@@ -35,6 +35,7 @@ interface FormState {
   // Section 2: Operational & Ownership Status
   ownershipType: VehicleOwnershipType;
   vehicleStatus: VehicleOperationalStatus;
+  allowSelfDrive: boolean;
   assignedBranch: string;
   assignedDriverId: string;
 
@@ -69,6 +70,7 @@ const defaultFormState: FormState = {
 
   ownershipType: 'Owned',
   vehicleStatus: 'Active',
+  allowSelfDrive: false,
   assignedBranch: '',
   assignedDriverId: '',
 
@@ -137,6 +139,7 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({ isOpen, onClose, vehic
 
         ownershipType: vehicleToEdit.ownershipType || 'Owned',
         vehicleStatus: vehicleToEdit.vehicleStatus || 'Active',
+        allowSelfDrive: vehicleToEdit.allowSelfDrive === true,
         assignedBranch: vehicleToEdit.assignedBranch || '',
         assignedDriverId: vehicleToEdit.assignedDriverId || '',
 
@@ -408,6 +411,7 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({ isOpen, onClose, vehic
 
         ownershipType: formData.ownershipType || 'Owned',
         vehicleStatus: formData.vehicleStatus || 'Active',
+        allowSelfDrive: formData.allowSelfDrive,
         assignedBranch: formData.assignedBranch.trim() ? formData.assignedBranch.trim() : undefined,
         assignedDriverId: formData.assignedDriverId ? formData.assignedDriverId : undefined,
 
@@ -899,6 +903,16 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({ isOpen, onClose, vehic
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2 rounded-xl border border-teal-200 bg-teal-50/60 p-3">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input type="checkbox" name="allowSelfDrive" checked={formData.allowSelfDrive} onChange={(e) => setFormData(prev => ({ ...prev, allowSelfDrive: e.target.checked }))} className="mt-0.5 h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500" />
+                    <span>
+                      <span className="block text-sm font-bold text-teal-950">Allow Self-Drive</span>
+                      <span className="mt-0.5 block text-xs text-teal-800">Allow this vehicle to appear in the public self-drive booking form and self-drive odometer submission.</span>
+                    </span>
+                  </label>
+                </div>
+
                 {/* Assigned Branch */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">

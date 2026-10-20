@@ -77,6 +77,7 @@ export interface Vehicle {
   manufactureYear?: number; // manufacture_year
   ownershipType?: VehicleOwnershipType; // ownership_type
   vehicleStatus?: VehicleOperationalStatus; // vehicle_status
+  allowSelfDrive?: boolean; // stored in vehicle specifications metadata
   assignedBranch?: string; // assigned_branch
   assignedDriverId?: string; // assigned_driver_id
   fuelType?: FuelType; // fuel_type
