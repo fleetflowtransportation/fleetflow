@@ -417,7 +417,7 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
                     {vehicles.length === 0 && (
                       <option value="" disabled>Loading vehicles...</option>
                     )}
-                    {vehicles.filter(v => v.allowSelfDrive === true && v.vehicleStatus !== 'Inactive' && v.vehicleStatus !== 'Sold').map((v) => (
+                    {vehicles.filter(v => v.allowSelfDrive === true && (!v.vehicleStatus || v.vehicleStatus === 'Active')).map((v) => (
                       <option key={v.id} value={v.id}>
                         {v.name} ({v.plateNumber})
                       </option>
