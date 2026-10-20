@@ -1119,7 +1119,7 @@ createOdometerLog: async (data: OdometerLog): Promise<OdometerLog> => {
       if (error) {
         console.warn('[Supabase] createUser full column error:', error.message);
         if (error.message && (error.message.includes('column') || error.message.includes('schema'))) {
-          // Fallback to core columns if Supabase SQL migration has not run yet
+          // Fallback to core columns if Supabase SQL migration has not run yet (excluding password/employment_type)
           const coreRow = {
             id: dbRow.id,
             name: dbRow.name,
@@ -1130,7 +1130,6 @@ createOdometerLog: async (data: OdometerLog): Promise<OdometerLog> => {
             comments: dbRow.comments,
             role: dbRow.role,
             status: dbRow.status,
-            password: dbRow.password,
             tenant_id: dbRow.tenant_id,
           };
           const { error: coreErr } = await supabase.from('fleet_users').insert([coreRow]);
@@ -1156,7 +1155,7 @@ createOdometerLog: async (data: OdometerLog): Promise<OdometerLog> => {
       if (error) {
         console.warn('[Supabase] updateUser full column error:', error.message);
         if (error.message && (error.message.includes('column') || error.message.includes('schema'))) {
-          // Fallback to core columns
+          // Fallback to core columns (excluding password)
           const coreRow: any = {
             ...(dbRow.name !== undefined && { name: dbRow.name }),
             ...(dbRow.email !== undefined && { email: dbRow.email }),
@@ -1166,7 +1165,6 @@ createOdometerLog: async (data: OdometerLog): Promise<OdometerLog> => {
             ...(dbRow.comments !== undefined && { comments: dbRow.comments }),
             ...(dbRow.role !== undefined && { role: dbRow.role }),
             ...(dbRow.status !== undefined && { status: dbRow.status }),
-            ...(dbRow.password !== undefined && { password: dbRow.password }),
           };
           const { error: coreErr } = await supabase.from('fleet_users').update(coreRow).eq('id', data.id);
           if (coreErr) console.error('[Supabase] updateUser core fallback error:', coreErr.message);
