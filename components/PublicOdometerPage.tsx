@@ -27,7 +27,7 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
 
   // Form State
   const [selectedBookingIds, setSelectedBookingIds] = useState<string[]>([]);
-  const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string>(() => new URLSearchParams(window.location.search).get('vehicle_id') || '');
   const [selectedStaffId, setSelectedStaffId] = useState<string>('');
   const [customStaffName, setCustomStaffName] = useState<string>('');
   
@@ -110,6 +110,21 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
     const logs = odometerLogs.filter(l => l.vehicleId === selectedVehicleId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     return logs.length > 0 && logs[0].odometer ? logs[0].odometer : null;
   }, [odometerLogs, selectedVehicleId, vehicles]);
+
+  // Preselect and initialize odometer when a vehicle-specific QR code includes vehicle_id.
+  useEffect(() => {
+    if (!selectedVehicleId || vehicles.length === 0) return;
+    const vehicle = vehicles.find(v => v.id === selectedVehicleId && v.allowSelfDrive === true && (!v.vehicleStatus || v.vehicleStatus === 'Active'));
+    if (!vehicle) {
+      setSelectedVehicleId('');
+      return;
+    }
+    if (!startOdometer) {
+      const logs = odometerLogs.filter(l => l.vehicleId === selectedVehicleId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      const reading = vehicle.currentOdometer && vehicle.currentOdometer > 0 ? vehicle.currentOdometer : logs[0]?.odometer;
+      if (reading !== undefined && reading !== null) setStartOdometer(String(reading));
+    }
+  }, [selectedVehicleId, vehicles, odometerLogs, startOdometer]);
 
   // Whenever vehicle changes, update start odometer default if empty
   const handleVehicleChange = (newVehId: string) => {
