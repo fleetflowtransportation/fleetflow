@@ -250,6 +250,31 @@ const AdminDashboard: React.FC = () => {
         });
       });
 
+    // Self-drive bookings must be completed through the QR odometer flow.
+    // Flag only after the expected finish time plus the same 2-hour grace period.
+    bookings
+      .filter((b) => {
+        if (b.serviceType !== 'Self-Drive' || !['Pending', 'Assigned', 'Confirmed'].includes(b.status)) return false;
+        const start = parseDate(b.dateTime);
+        if (!start) return false;
+        const expectedEnd = parseDate(b.finishDateTime) || new Date(start.getTime() + 2 * 60 * 60 * 1000);
+        const graceEnd = new Date(expectedEnd.getTime() + 2 * 60 * 60 * 1000);
+        return graceEnd < new Date();
+      })
+      .slice(0, 4)
+      .forEach((b) => {
+        const bookingDate = parseDate(b.dateTime);
+        const dateLabel = bookingDate
+          ? bookingDate.toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' })
+          : 'Past booking';
+        list.push({
+          id: `self-drive-overdue-${b.id}`,
+          severity: 'high',
+          title: `Self-Drive not completed — ${b.destination || b.purpose || 'Booking'}`,
+          sub: `${dateLabel} · ${b.requesterName || 'Staff'} · Odometer submission pending`,
+        });
+      });
+
     issueLogs
       .filter((i) => i.status === 'Open' || i.status === 'In Progress')
       .slice(0, 4)
