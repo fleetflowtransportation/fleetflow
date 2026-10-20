@@ -70,7 +70,7 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
 
         const eligibleVehicles = (v || []).filter(veh => veh.allowSelfDrive === true && (!veh.vehicleStatus || veh.vehicleStatus === 'Active'));
         const requestedVehicleId = new URLSearchParams(window.location.search).get('vehicle_id');
-        const chosenVehicle = requestedVehicleId ? eligibleVehicles.find(veh => veh.id === requestedVehicleId) : undefined;
+        const chosenVehicle = requestedVehicleId ? eligibleVehicles.find(veh => veh.id === requestedVehicleId) : eligibleVehicles[0];
         if (chosenVehicle) {
           setSelectedVehicleId(chosenVehicle.id);
           const latestLog = (o || []).filter(l => l.vehicleId === chosenVehicle.id).sort((x, y) => new Date(y.date).getTime() - new Date(x.date).getTime())[0];
@@ -139,12 +139,18 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
     });
   }, [bookings, bookingSearch, selectedVehicleId]);
 
-  // Select several bookings for one vehicle in a single submission
+  // Select several bookings for one vehicle in a single submission.
+  // Keep destination and purpose in sync with every selected booking, including deselections.
   const handleToggleBooking = (b: Booking) => {
-    setSelectedBookingIds(prev => prev.includes(b.id) ? prev.filter(id => id !== b.id) : [...prev, b.id]);
-    
-    setPurpose(prev => prev || b.purpose || '');
-    setDestination(prev => prev || b.destination || '');
+    const nextIds = selectedBookingIds.includes(b.id)
+      ? selectedBookingIds.filter(id => id !== b.id)
+      : [...selectedBookingIds, b.id];
+    const nextBookings = bookings.filter(item => nextIds.includes(item.id));
+
+    setSelectedBookingIds(nextIds);
+    setDestination([...new Set(nextBookings.map(item => item.destination?.trim()).filter(Boolean))].join('; '));
+    setPurpose([...new Set(nextBookings.map(item => item.purpose?.trim()).filter(Boolean))].join('; '));
+
     if (b.startOdometer && !startOdometer) setStartOdometer(String(b.startOdometer));
   };
 
@@ -237,15 +243,18 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
         tenantId,
       };
 
-      await storageService.createOdometerLog(newOdoLog);
-
-      // 2. Complete every selected booking after the shared odometer log is saved.
-      for (const targetBooking of selectedBookings) {
-        // The odometer delta belongs to the shared submission, not to each individual booking.
-        await storageService.updateBooking({ id: targetBooking.id, vehicleId: selectedVehicleId, status: 'Completed' });
-      }
-      await storageService.updateVehicle({ ...vehicle, id: selectedVehicleId, currentOdometer: endNum });
+      // Save the odometer log, complete all selected bookings, and update the vehicle
+      // in one database transaction so a failure cannot leave a partial completion.
+      await storageService.completeSelfDriveOdometer({
+        tenantId: vehicle.tenantId || tenantId,
+        vehicleId: selectedVehicleId,
+        bookingIds: selectedBookingIds,
+        startOdometer: startNum,
+        endOdometer: endNum,
+        log: { ...newOdoLog, tenantId: vehicle.tenantId || tenantId },
+      });
       setVehicles(prev => prev.map(v => v.id === selectedVehicleId ? { ...v, currentOdometer: endNum } : v));
+      setBookings(prev => prev.map(b => selectedBookingIds.includes(b.id) ? { ...b, status: 'Completed' } : b));
 
       // 3. Save summary for confirmation view
       setSubmittedSummary({
@@ -476,7 +485,7 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
               {/* Multi-booking selection for self-drive vehicle */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
-                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Select completed self-drive booking(s)</label>
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Select incomplete Self-Drive booking(s)</label>
                   {selectedBookingIds.length > 0 && <button type="button" onClick={handleClearBookingSelection} className="text-xs text-indigo-600 hover:underline font-semibold">Clear ({selectedBookingIds.length})</button>}
                 </div>
                 <p className="text-xs text-slate-500">Only incomplete self-drive bookings for the selected vehicle are listed. You can select more than one booking in this submission.</p>
