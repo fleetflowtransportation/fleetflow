@@ -52,6 +52,45 @@ const AdminDashboard: React.FC = () => {
 
   const parseDate = (s?: string) => (s ? new Date(s) : null);
 
+  // Keep dashboard maintenance status aligned with the Maintenance page: due by date OR odometer.
+  const maintenanceHealth = useMemo(() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const soon = new Date(todayStart);
+    soon.setDate(soon.getDate() + 14);
+    const latestOdometerByVehicle = new Map<string, number>();
+    vehicles.forEach((vehicle) => {
+      const readings = odometerLogs
+        .filter((log) => log.vehicleId === vehicle.id)
+        .map((log) => log.odometer);
+      const intervals = maintenanceIntervals.filter((item) => item.vehicleId === vehicle.id);
+      const fallbackOdometer = intervals.reduce(
+        (max, item) => Math.max(max, item.lastServiceOdometer || 0),
+        45000
+      );
+      latestOdometerByVehicle.set(
+        vehicle.id,
+        readings.length ? Math.max(...readings) : fallbackOdometer
+      );
+    });
+
+    return maintenanceIntervals.map((item) => {
+      const currentOdometer = latestOdometerByVehicle.get(item.vehicleId) || 0;
+      const nextDueOdometer =
+        item.nextDueOdometer ?? ((item.lastServiceOdometer || 0) + (item.intervalKm || 0));
+      const kmRemaining =
+        (item.intervalKm || 0) > 0 ? nextDueOdometer - currentOdometer : null;
+      const dueDate = item.nextDueDate ? new Date(item.nextDueDate) : null;
+      if (dueDate) dueDate.setHours(0, 0, 0, 0);
+      const isDateDue = !!dueDate && !Number.isNaN(dueDate.getTime()) && dueDate <= soon;
+      const isKmDue = kmRemaining !== null && kmRemaining <= 1500;
+      const isOverdue =
+        (kmRemaining !== null && kmRemaining < 0) ||
+        (!!dueDate && !Number.isNaN(dueDate.getTime()) && dueDate < todayStart);
+      return { item, kmRemaining, dueDate, isOverdue, isDue: isDateDue || isKmDue };
+    });
+  }, [maintenanceIntervals, odometerLogs, vehicles]);
+
   // ---------- Core stats ----------
   const stats = useMemo(() => {
     const activeStatuses = ['Pending', 'Assigned', 'Confirmed'];
@@ -94,17 +133,8 @@ const AdminDashboard: React.FC = () => {
 
     const openIssues = issueLogs.filter((i) => i.status === 'Open' || i.status === 'In Progress').length;
 
-    // Maintenance due soon (next 14 days or overdue by odometer/date)
-    const now = new Date();
-    const soon = new Date(now);
-    soon.setDate(soon.getDate() + 14);
-    const maintDue = maintenanceIntervals.filter((m) => {
-      if (m.nextDueDate) {
-        const d = new Date(m.nextDueDate);
-        return d <= soon;
-      }
-      return false;
-    }).length;
+    // Count due/overdue maintenance by date or odometer, as in Maintenance.
+    const maintDue = maintenanceHealth.filter((health) => health.isDue).length;
 
     const needsAttention = conflicts + delayed + openIssues + maintDue + maintVehicles;
 
@@ -130,7 +160,7 @@ const AdminDashboard: React.FC = () => {
           ? Math.round((activeVehicles / vehicles.length) * 100)
           : 0,
     };
-  }, [bookings, fuelLogs, odometerLogs, vehicles, issueLogs, maintenanceIntervals]);
+  }, [bookings, fuelLogs, odometerLogs, vehicles, issueLogs, maintenanceIntervals, maintenanceHealth]);
 
   // ---------- Trend data (last N days) ----------
   const trendData = useMemo(() => {
@@ -235,7 +265,6 @@ const AdminDashboard: React.FC = () => {
 
     bookings
       .filter((b) => b.status === 'Conflict')
-      .slice(0, 3)
       .forEach((b) => {
         list.push({
           id: `conflict-${b.id}`,
@@ -245,9 +274,23 @@ const AdminDashboard: React.FC = () => {
         });
       });
 
+    bookings
+      .filter((b) => {
+        if (!['Assigned', 'Confirmed', 'Pending'].includes(b.status)) return false;
+        const start = parseDate(b.dateTime);
+        return !!start && start < new Date();
+      })
+      .forEach((b) => {
+        list.push({
+          id: `delayed-${b.id}`,
+          severity: 'high',
+          title: `Trip overdue — ${b.destination || b.purpose || 'Scheduled trip'}`,
+          sub: b.requesterName || 'Check trip assignment and status',
+        });
+      });
+
     issueLogs
       .filter((i) => i.status === 'Open' || i.status === 'In Progress')
-      .slice(0, 4)
       .forEach((i) => {
         const v = vehicles.find((x) => x.id === i.vehicleId);
         list.push({
@@ -258,24 +301,37 @@ const AdminDashboard: React.FC = () => {
         });
       });
 
-    const soon = new Date();
-    soon.setDate(soon.getDate() + 14);
-    maintenanceIntervals
-      .filter((m) => m.nextDueDate && new Date(m.nextDueDate) <= soon)
-      .slice(0, 4)
-      .forEach((m) => {
-        const v = vehicles.find((x) => x.id === m.vehicleId);
-        const overdue = new Date(m.nextDueDate!) < new Date();
+    maintenanceHealth
+      .filter((health) => health.isDue)
+      .forEach(({ item, kmRemaining, dueDate, isOverdue }) => {
+        const v = vehicles.find((x) => x.id === item.vehicleId);
+        const dueLabel =
+          dueDate && !Number.isNaN(dueDate.getTime())
+            ? dueDate.toLocaleDateString('en-MY')
+            : kmRemaining !== null
+            ? `${Math.max(0, kmRemaining).toLocaleString()} km remaining`
+            : 'Service due';
         list.push({
-          id: `maint-${m.id}`,
-          severity: overdue ? 'high' : 'medium',
-          title: `${m.serviceName}${overdue ? ' (Overdue)' : ''}`,
-          sub: `${v?.plateNumber || 'Vehicle'} · due ${m.nextDueDate}`,
+          id: `maint-${item.id}`,
+          severity: isOverdue ? 'high' : 'medium',
+          title: `${item.serviceName}${isOverdue ? ' (Overdue)' : ' (Due Soon)'}`,
+          sub: `${v?.plateNumber || 'Vehicle'} · ${dueLabel}`,
         });
       });
 
-    return list.slice(0, 8);
-  }, [bookings, issueLogs, maintenanceIntervals, vehicles]);
+    vehicles
+      .filter((v) => v.vehicleStatus === 'Under Maintenance')
+      .forEach((v) => {
+        list.push({
+          id: `vehicle-maint-${v.id}`,
+          severity: 'medium',
+          title: `Vehicle under maintenance — ${v.name}`,
+          sub: v.plateNumber || 'Vehicle status needs review',
+        });
+      });
+
+    return list;
+  }, [bookings, issueLogs, maintenanceHealth, vehicles]);
 
   // ---------- Recent activity ----------
   const recentActivity = useMemo(() => {
@@ -445,7 +501,7 @@ const AdminDashboard: React.FC = () => {
           <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Needs Attention</p>
           <h4 className="text-xl sm:text-2xl font-extrabold text-gray-900 mt-0.5">{stats.needsAttention}</h4>
           <p className="text-[11px] text-gray-500 mt-1 font-medium">
-            {stats.maintDue} maint · {stats.openIssues} issues
+            {stats.conflicts + stats.delayed} trips · {stats.maintDue + stats.maintVehicles} maintenance · {stats.openIssues} issues
           </p>
         </div>
 
@@ -496,8 +552,26 @@ const AdminDashboard: React.FC = () => {
           </div>
 
           <div className="p-4 sm:p-5">
-            {/* Simple dual bar chart */}
-            <div className="flex items-end gap-1 sm:gap-1.5 h-44 sm:h-52">
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="rounded-xl bg-emerald-50/80 border border-emerald-100 p-3">
+                <p className="text-[10px] uppercase tracking-wide font-bold text-emerald-700">Fuel used</p>
+                <p className="text-lg font-extrabold text-slate-900 mt-0.5">
+                  {trendData.reduce((sum, point) => sum + point.fuelL, 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  <span className="text-xs font-semibold text-slate-500 ml-1">L</span>
+                </p>
+                <p className="text-[10px] text-slate-500">Selected period</p>
+              </div>
+              <div className="rounded-xl bg-indigo-50/80 border border-indigo-100 p-3">
+                <p className="text-[10px] uppercase tracking-wide font-bold text-indigo-700">Completed trips</p>
+                <p className="text-lg font-extrabold text-slate-900 mt-0.5">
+                  {trendData.reduce((sum, point) => sum + point.trips, 0).toLocaleString()}
+                </p>
+                <p className="text-[10px] text-slate-500">Selected period</p>
+              </div>
+            </div>
+            {/* Fuel and trip counts use separate relative scales because their units differ. */}
+            <div className="overflow-x-auto pb-1">
+            <div className={`flex items-end gap-1 sm:gap-1.5 h-44 sm:h-52 ${trendRange === '30d' ? 'min-w-[620px]' : 'min-w-0'}`}>
               {trendData.map((p, idx) => (
                 <div key={idx} className="flex-1 flex flex-col items-center gap-1 h-full justify-end group">
                   <div className="w-full flex items-end justify-center gap-0.5 h-[85%]">
@@ -517,6 +591,7 @@ const AdminDashboard: React.FC = () => {
                   </span>
                 </div>
               ))}
+            </div>
             </div>
             <div className="flex items-center justify-center gap-5 mt-3 text-[11px] font-semibold text-gray-500">
               <span className="flex items-center gap-1.5">
@@ -633,9 +708,9 @@ const AdminDashboard: React.FC = () => {
               <ExclamationIcon className="h-5 w-5 mr-2 text-rose-500" />
               <h3 className="font-extrabold text-gray-800 text-sm">Needs Attention</h3>
             </div>
-            {alerts.length > 0 && (
+            {stats.needsAttention > 0 && (
               <span className="text-[10px] font-extrabold bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full">
-                {alerts.length}
+                {stats.needsAttention}
               </span>
             )}
           </div>
