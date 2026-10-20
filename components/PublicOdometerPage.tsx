@@ -139,12 +139,18 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
     });
   }, [bookings, bookingSearch, selectedVehicleId]);
 
-  // Select several bookings for one vehicle in a single submission
+  // Select several bookings for one vehicle in a single submission.
+  // Keep destination and purpose in sync with every selected booking, including deselections.
   const handleToggleBooking = (b: Booking) => {
-    setSelectedBookingIds(prev => prev.includes(b.id) ? prev.filter(id => id !== b.id) : [...prev, b.id]);
-    
-    setPurpose(prev => prev || b.purpose || '');
-    setDestination(prev => prev || b.destination || '');
+    const nextIds = selectedBookingIds.includes(b.id)
+      ? selectedBookingIds.filter(id => id !== b.id)
+      : [...selectedBookingIds, b.id];
+    const nextBookings = bookings.filter(item => nextIds.includes(item.id));
+
+    setSelectedBookingIds(nextIds);
+    setDestination([...new Set(nextBookings.map(item => item.destination?.trim()).filter(Boolean))].join('; '));
+    setPurpose([...new Set(nextBookings.map(item => item.purpose?.trim()).filter(Boolean))].join('; '));
+
     if (b.startOdometer && !startOdometer) setStartOdometer(String(b.startOdometer));
   };
 
