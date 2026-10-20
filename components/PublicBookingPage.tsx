@@ -646,8 +646,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                     ].filter(Boolean).join(', ')})</p>
                   </div>
                   <div>
-                    <span className="text-slate-400 font-medium block">Driver Standby:</span>
-                    <p className="font-bold text-slate-900">{formData.shouldWait ? '⏳ Standby On-Site' : '🚗 Drop-Off Only'}</p>
+                    {formData.serviceType === 'Perlu Driver' && <><span className="text-slate-400 font-medium block">Driver Standby:</span><p className="font-bold text-slate-900">{formData.shouldWait ? '⏳ Standby On-Site' : '🚗 Drop-Off Only'}</p></>}
                   </div>
                 </div>
 
