@@ -412,7 +412,8 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
                           {s.sequence}
                         </span>
                         <div className="min-w-0">
-                          <p className="font-bold text-slate-900 text-sm leading-snug">{s.address}</p>
+                          <p className="font-bold text-slate-900 text-sm leading-snug">{s.name || s.address}</p>
+                          {(s.name && s.name.trim() !== s.address.trim()) ? <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">{s.address}</p> : null}
                           {s.notes ? (
                             <p className="text-xs text-slate-500 mt-0.5">{s.notes}</p>
                           ) : null}
@@ -421,7 +422,10 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
                     ))}
                   </ol>
                 ) : (
-                  <p className="font-bold text-slate-900 text-sm sm:text-base">{getRouteLabel(booking)}</p>
+                  <div>
+                    <p className="font-bold text-slate-900 text-sm sm:text-base">{getStops(booking)[0]?.name || getRouteLabel(booking)}</p>
+                    {getStops(booking)[0]?.name && getStops(booking)[0].name?.trim() !== getStops(booking)[0]?.address?.trim() ? <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">{getStops(booking)[0].address}</p> : null}
+                  </div>
                 )}
               </div>
             </div>
