@@ -115,6 +115,7 @@ export const getStops = (booking: Pick<Booking, 'destination' | 'stops'> | null 
       .map((s, i) => ({
         id: s.id || createStopId(),
         sequence: i + 1,
+        name: (s.name || '').trim() || (s.address || '').trim(),
         address: (s.address || '').trim(),
         notes: s.notes?.trim() || undefined,
       }));
@@ -130,15 +131,15 @@ export const getStops = (booking: Pick<Booking, 'destination' | 'stops'> | null 
 export const getRouteLabel = (booking: Pick<Booking, 'destination' | 'stops'> | null | undefined): string => {
   const stops = getStops(booking);
   if (stops.length === 0) return (booking?.destination || '').trim() || '—';
-  if (stops.length === 1) return stops[0].address;
-  return stops.map(s => s.address).join(' → ');
+  if (stops.length === 1) return stops[0].name || stops[0].address;
+  return stops.map(s => s.name || s.address).join(' → ');
 };
 
 /** Derive the legacy `destination` string from structured stops. */
 export const deriveDestination = (stops: BookingStop[] | undefined | null, fallback = ''): string => {
   if (!stops || stops.length === 0) return fallback;
   const cleaned = stops
-    .map(s => (s.address || '').trim())
+    .map(s => (s.name || '').trim() || (s.address || '').trim())
     .filter(Boolean);
   if (cleaned.length === 0) return fallback;
   if (cleaned.length === 1) return cleaned[0];
@@ -149,11 +150,12 @@ export const deriveDestination = (stops: BookingStop[] | undefined | null, fallb
  * Prepare stops for persistence: trim, renumber sequence, drop empty addresses.
  */
 export const normalizeStopsForSave = (
-  stops: Array<{ id?: string; address: string; notes?: string }>
+  stops: Array<{ id?: string; name?: string; address: string; notes?: string }>
 ): BookingStop[] => {
   return stops
     .map(s => ({
       id: s.id || createStopId(),
+      name: (s.name || '').trim(),
       address: (s.address || '').trim(),
       notes: (s.notes || '').trim() || undefined,
     }))
@@ -161,6 +163,7 @@ export const normalizeStopsForSave = (
     .map((s, i) => ({
       id: s.id,
       sequence: i + 1,
+      name: s.name || s.address,
       address: s.address,
       notes: s.notes,
     }));
