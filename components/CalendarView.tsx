@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { parseAsLocal, getPickupLocationDisplay, resolveDriver, getDriverDisplayName, resolveVehicle } from '../utils';
+import { parseAsLocal, getPickupLocationDisplay, resolveDriver, getDriverDisplayName, resolveVehicle, getRouteLabel } from '../utils';
 import type { Booking, User, Vehicle } from '../types';
 import { getDriverCalendarColor, normalizeDate, normalizeTime } from '../services/bookingEngine';
 import { supabase, resetSupabaseConfig } from '../services/supabaseClient';
@@ -280,7 +280,7 @@ const TimelineEventCard: React.FC<TimelineEventCardProps> = ({
         minHeight: minHeightPx,
       }}
       className={`absolute z-20 rounded-xl border shadow-xs transition-all duration-150 cursor-pointer hover:shadow-lg hover:scale-[1.01] hover:z-30 overflow-hidden ${style.bg} ${style.border} ${style.text}`}
-      title={`${timeStr} | ${booking.serviceType === 'Self-Drive' ? 'Self-Drive' : driverName} | ${booking.requesterName} → ${booking.destination}`}
+      title={`${timeStr} | ${booking.serviceType === 'Self-Drive' ? 'Self-Drive' : driverName} | ${booking.requesterName} → ${getRouteLabel(booking)}`}
     >
       {isUltraShort ? (
         // Ultra-compact card for 15–30 min events: flexible micro-layout with breathing room
@@ -292,7 +292,7 @@ const TimelineEventCard: React.FC<TimelineEventCardProps> = ({
           <span className="text-slate-300 shrink-0 select-none hidden xs:inline">·</span>
           <div className="flex items-center gap-1 min-w-0 flex-1 overflow-hidden">
             <span className="truncate text-[10px] sm:text-[11px] font-black text-slate-900">
-              {booking.destination}
+              {getRouteLabel(booking)}
             </span>
             {variant !== 'week' && (
               <span className="hidden md:inline text-[9.5px] text-slate-500 font-medium truncate shrink-0">
@@ -664,6 +664,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           .select(`
             id,
             destination,
+            stops,
             purpose,
             date_time,
             finish_date_time,
@@ -710,6 +711,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         const lightweightList: Booking[] = data.map((row: any) => ({
           id: row.id,
           destination: row.destination || '',
+          stops: row.stops || undefined,
           purpose: row.purpose || '',
           dateTime: row.date_time,
           finishDateTime: row.finish_date_time || undefined,
@@ -812,6 +814,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         const fullBooking: Booking = {
           id: data.id,
           destination: data.destination || '',
+          stops: data.stops || undefined,
           purpose: data.purpose || '',
           dateTime: data.date_time,
           finishDateTime: data.finish_date_time || undefined,
@@ -922,6 +925,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         const matches = (
           (b.requesterName && b.requesterName.toLowerCase().includes(q)) ||
           (b.destination && b.destination.toLowerCase().includes(q)) ||
+          (b.stops || []).some(stop => `${stop.name || ''} ${stop.address || ''}`.toLowerCase().includes(q)) ||
           (b.purpose && b.purpose.toLowerCase().includes(q)) ||
           (b.department && b.department.toLowerCase().includes(q)) ||
           dName.includes(q) ||
@@ -1877,12 +1881,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                   handleSelectBooking(b.id);
                                 }}
                                 className={`w-full text-left px-2 py-1 rounded-lg text-[10px] leading-tight truncate border transition-all duration-150 cursor-pointer font-bold ${style.monthChip}`}
-                                title={`${b.requesterName} → ${b.destination} (${dName})`}
+                                title={`${b.requesterName} → ${getRouteLabel(b)} (${dName})`}
                               >
                                 <span className="opacity-75">
                                   {b.serviceType === 'Self-Drive' ? '[Self]' : `(${dName.split(' ')[0]})`}
                                 </span>{' '}
-                                <span className="text-slate-900">{b.destination || b.requesterName}</span>
+                                <span className="text-slate-900">{getRouteLabel(b) || b.requesterName}</span>
                               </button>
                             );
                           })}
@@ -1951,7 +1955,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                               </span>
                             </div>
 
-                            <p className="font-black text-sm mt-2 text-slate-900">{b.destination}</p>
+                            <p className="font-black text-sm mt-2 text-slate-900">{getRouteLabel(b)}</p>
                             <p className="text-xs text-slate-600 mt-0.5 font-medium">
                               {b.requesterName} {b.department ? `· ${b.department}` : ''}
                             </p>
