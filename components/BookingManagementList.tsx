@@ -124,6 +124,7 @@ export const BookingManagementList: React.FC = () => {
         const match = 
           (booking.requesterName && booking.requesterName.toLowerCase().includes(query)) ||
           (booking.destination && booking.destination.toLowerCase().includes(query)) ||
+          (booking.stops || []).some(stop => `${stop.name || ''} ${stop.address || ''}`.toLowerCase().includes(query)) ||
           (booking.purpose && booking.purpose.toLowerCase().includes(query)) ||
           (booking.department && booking.department.toLowerCase().includes(query)) ||
           (booking.address && booking.address.toLowerCase().includes(query)) ||

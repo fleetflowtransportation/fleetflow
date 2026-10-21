@@ -52,9 +52,9 @@ const emptyFormData = {
   remarks: '',
 };
 
-type StopFormRow = { id: string; address: string; notes: string };
+type StopFormRow = { id: string; name: string; address: string; notes: string };
 
-const emptyStopRow = (): StopFormRow => ({ id: createStopId(), address: '', notes: '' });
+const emptyStopRow = (): StopFormRow => ({ id: createStopId(), name: '', address: '', notes: '' });
 
 type FormData = typeof emptyFormData;
 
@@ -181,6 +181,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
         // Hydrate multi-stop from structured stops or legacy destination
         const hydrated = getStops(bookingToEdit).map(s => ({
           id: s.id || createStopId(),
+          name: s.name || s.address,
           address: s.address,
           notes: s.notes || '',
         }));
@@ -201,7 +202,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
     }
   };
 
-  const handleStopChange = (id: string, field: 'address' | 'notes', value: string) => {
+  const handleStopChange = (id: string, field: 'name' | 'address' | 'notes', value: string) => {
     setStops(prev => prev.map(s => (s.id === id ? { ...s, [field]: value } : s)));
   };
 
@@ -220,7 +221,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
   };
 
   const routePreview = (() => {
-    const filled = stops.map(s => s.address.trim()).filter(Boolean);
+    const filled = stops.map(s => s.name.trim() || s.address.trim()).filter(Boolean);
     if (filled.length === 0) return '';
     if (filled.length === 1) return filled[0];
     return filled.join(' → ');
@@ -254,9 +255,14 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
       return;
     }
 
-    const filledStops = stops.filter(s => s.address.trim());
+    const hasIncompleteStop = stops.some(s => (s.name.trim() || s.address.trim()) && !(s.name.trim() && s.address.trim()));
+    if (hasIncompleteStop) {
+      alert('Please enter both a place name and full address for every destination stop.');
+      return;
+    }
+    const filledStops = stops.filter(s => s.name.trim() && s.address.trim());
     if (filledStops.length === 0) {
-      alert('Please enter at least one destination / stop address.');
+      alert('Please enter at least one destination place name and full address.');
       return;
     }
 
@@ -605,10 +611,18 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
                           <div className="min-w-0 flex-1 space-y-1.5">
                             <input
                               type="text"
+                              value={stop.name}
+                              onChange={(e) => handleStopChange(stop.id, 'name', e.target.value)}
+                              required={index === 0}
+                              placeholder={`Stop ${index + 1} — place / venue name`}
+                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition bg-white"
+                            />
+                            <input
+                              type="text"
                               value={stop.address}
                               onChange={(e) => handleStopChange(stop.id, 'address', e.target.value)}
                               required={index === 0}
-                              placeholder={index === 0 ? 'Stop 1 — full address, hospital, school, or venue' : `Stop ${index + 1} — address`}
+                              placeholder="Full address — street, area, postcode, city"
                               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition bg-white"
                             />
                             <input
