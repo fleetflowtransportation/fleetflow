@@ -134,7 +134,8 @@ export const PICKUP_POINTS = ['YCK', 'PJBA', 'Other Location (Please Specify)'];
 export interface BookingStop {
   id: string;           // stable key for React lists
   sequence: number;     // 1-based order
-  address: string;      // required
+  name?: string;        // short place / venue name; optional for legacy records
+  address: string;      // full street address
   notes?: string;       // optional (gate, contact, etc.)
 }
 
