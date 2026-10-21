@@ -317,7 +317,7 @@ const TimelineEventCard: React.FC<TimelineEventCardProps> = ({
             </span>
           </div>
           <div className="truncate text-[10.5px] sm:text-xs font-black text-slate-900 leading-snug mt-0.5">
-            {booking.destination}
+            {getRouteLabel(booking)}
           </div>
           {variant !== 'week' && (
             <div className="hidden sm:block truncate text-[9.5px] text-slate-600 font-medium leading-none">
@@ -338,7 +338,7 @@ const TimelineEventCard: React.FC<TimelineEventCardProps> = ({
               </span>
             </div>
             <p className="font-black text-xs sm:text-sm leading-snug line-clamp-2 text-slate-900">
-              {booking.destination}
+              {getRouteLabel(booking)}
             </p>
             <p className="text-[10px] text-slate-600 truncate mt-0.5 font-medium">
               {booking.requesterName} {booking.department ? `· ${booking.department}` : ''}
