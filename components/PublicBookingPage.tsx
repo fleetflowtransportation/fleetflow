@@ -129,7 +129,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
   };
 
   const routePreview = (() => {
-    const filled = stops.map(s => s.name.trim() || s.address.trim()).filter(Boolean);
+    const filled = stops.map(s => s.name.trim()).filter(Boolean);
     if (filled.length === 0) return '';
     if (filled.length === 1) return filled[0];
     return filled.join(' → ');
