@@ -165,7 +165,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
       .filter(b => isAssignedToCurrentDriver(b) && (b.status === 'Assigned' || b.status === 'Confirmed' || b.status === 'Pending') && isPastTrip(b.dateTime))
       .filter(b => matchesSearch(b, driverSearchQuery))
       .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime()); // Most recent first
-  }, [bookings, driver.id, driverSearchQuery]);
+  }, [bookings, driver.id, driverSearchQuery, users]);
 
   // 3. History bookings (Completed with odometer or Cancelled)
   const historyBookings = useMemo(() => {
