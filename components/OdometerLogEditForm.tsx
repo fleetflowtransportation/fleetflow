@@ -128,7 +128,6 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
         let chosenVId = initialVehicleId || vehicles[0]?.id || '';
         
         const bIds = defaultBookingIds && defaultBookingIds.length > 0 ? defaultBookingIds : (defaultBookingId ? [defaultBookingId] : []);
-        setSelectedBookingIds(bIds);
         if (bIds.length > 0) {
           const selectedBookings = bookings.filter(b => bIds.includes(b.id));
           if (selectedBookings.length > 0) {
@@ -143,6 +142,13 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
         }
 
         const defaultDId = initialDriverId || (currentUser?.role === 'driver' ? currentUser.id : (drivers[0]?.id || ''));
+        const validInitialBookingIds = bIds.filter(id => {
+          const booking = bookings.find(item => item.id === id);
+          return booking && booking.vehicleId === chosenVId && (
+            booking.driverId === defaultDId || resolveDriver(users, booking.driverId, booking.calendarEventTitle)?.id === defaultDId
+          ) && ['Assigned', 'Confirmed', 'Pending'].includes(booking.status) && booking.serviceType !== 'Self-Drive';
+        });
+        setSelectedBookingIds(validInitialBookingIds);
         const isRegistered = drivers.some(d => d.id === defaultDId);
         const latestOdo = chosenVId ? getLatestOdoForVehicle(chosenVId) : 0;
 
@@ -162,13 +168,16 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
         });
       }
     }
-  }, [isOpen, logToEdit, initialVehicleId, initialDriverId, defaultBookingId, defaultBookingIds, vehicles, drivers, currentUser, bookings, getLatestOdoForVehicle]);
+  }, [isOpen, logToEdit, initialVehicleId, initialDriverId, defaultBookingId, defaultBookingIds, vehicles, drivers, currentUser, bookings, users, getLatestOdoForVehicle]);
 
   const handleVehicleChange = (newVId: string) => {
     const suggestedStart = getLatestOdoForVehicle(newVId);
     setFormData(prev => ({
       ...prev,
       vehicleId: newVId,
+      fromLocation: 'HQ / Operations Base',
+      toLocation: '',
+      purpose: '',
       // Always refresh the suggestion when vehicle changes; the driver can still edit it afterward.
       startOdometer: suggestedStart > 0 ? String(suggestedStart) : '',
     }));
@@ -292,8 +301,8 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
       toLocation: formData.toLocation.trim() ? formData.toLocation.trim() : undefined,
       purpose: formData.purpose.trim() ? formData.purpose.trim() : undefined,
       remarks: formData.remarks.trim() ? formData.remarks.trim() : undefined,
-      bookingId: selectedBookingIds[0] || defaultBookingId || (defaultBookingIds && defaultBookingIds[0]) || undefined,
-      bookingIds: selectedBookingIds.length > 0 ? selectedBookingIds : (defaultBookingIds && defaultBookingIds.length > 0 ? defaultBookingIds : undefined),
+      bookingId: selectedBookingIds.length <= 1 ? selectedBookingIds[0] : undefined,
+      bookingIds: selectedBookingIds.length > 1 ? selectedBookingIds : undefined,
     };
 
     if (logToEdit) {
@@ -301,7 +310,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
     } else {
       addOdometerLog(logPayload as any);
       const selectedVehicle = vehicles.find(vehicle => vehicle.id === formData.vehicleId);
-      if (selectedVehicle && end >= (Number(selectedVehicle.currentOdometer) || 0)) {
+      if (selectedVehicle && end >= getLatestOdoForVehicle(formData.vehicleId)) {
         updateVehicle(formData.vehicleId, { currentOdometer: end });
       }
     }
@@ -372,6 +381,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
                 value={driverSelection} 
                 onChange={(e) => {
                   setDriverSelection(e.target.value);
+                  setSelectedBookingIds([]);
                   setFormData(prev => ({ ...prev, driverId: e.target.value }));
                   setError('');
                 }} 
