@@ -173,7 +173,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
       .filter(b => isAssignedToCurrentDriver(b) && (b.status === 'Completed' || b.status === 'Cancelled'))
       .filter(b => matchesSearch(b, driverSearchQuery))
       .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
-  }, [bookings, driver.id, driverSearchQuery]);
+  }, [bookings, driver.id, driverSearchQuery, users]);
 
   // Active items based on current tab
   const activeList = useMemo(() => {
