@@ -214,9 +214,10 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
     if (logToEdit || !formData.vehicleId || !effectiveDriverId || effectiveDriverId === '__other__' || effectiveDriverId.startsWith('staff-')) return [];
     return bookings.filter((booking: Booking) => {
       const activeStatus = booking.status === 'Assigned' || booking.status === 'Confirmed' || booking.status === 'Pending';
-      const sameVehicle = booking.vehicleId === formData.vehicleId;
       const sameDriver = booking.driverId === effectiveDriverId || resolveDriver(users, booking.driverId, booking.calendarEventTitle)?.id === effectiveDriverId;
-      return activeStatus && booking.serviceType !== 'Self-Drive' && sameVehicle && sameDriver;
+      // The vehicle used for the odometer log can differ from the booking's originally assigned vehicle
+      // (e.g. a breakdown and replacement vehicle). Keep booking eligibility tied to driver, not vehicle.
+      return activeStatus && booking.serviceType !== 'Self-Drive' && sameDriver;
     }).sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
   }, [bookings, effectiveDriverId, formData.vehicleId, logToEdit, users]);
 
@@ -465,7 +466,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h3 className="text-xs font-extrabold text-slate-800">Bookings for this driver</h3>
-                  <p className="text-[11px] text-slate-600 mt-0.5">Tick the trips covered by this odometer submission. Only unfinished bookings assigned to the selected driver and vehicle are listed.</p>
+                  <p className="text-[11px] text-slate-600 mt-0.5">Tick the trips covered by this odometer submission. All unfinished bookings assigned to this driver are listed, even if a different vehicle was originally assigned. Select the vehicle actually used for this trip above.</p>
                 </div>
                 <span className="shrink-0 rounded-full bg-indigo-100 text-indigo-700 px-2 py-1 text-[10px] font-extrabold">{selectedBookingIds.length} selected</span>
               </div>
@@ -483,6 +484,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
                             <span className="text-[10px] font-semibold text-slate-500">{tripDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} · {tripDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
                           </span>
                           <span className="block text-[11px] text-slate-700 mt-0.5 break-words">{booking.destination || 'Destination not specified'}</span>
+                          {booking.vehicleId && <span className="block text-[10px] text-slate-500 mt-0.5">Originally assigned: {vehicles.find(v => v.id === booking.vehicleId)?.name || 'Vehicle'} ({vehicles.find(v => v.id === booking.vehicleId)?.plateNumber || 'unknown plate'})</span>}
                           {booking.purpose && <span className="block text-[10px] text-slate-500 mt-0.5">{booking.purpose}</span>}
                         </span>
                       </label>
