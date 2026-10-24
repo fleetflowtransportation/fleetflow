@@ -13,6 +13,7 @@ interface OdometerLogEditFormProps {
   initialDriverId?: string;
   defaultBookingId?: string;
   defaultBookingIds?: string[];
+  lockDriverToInitial?: boolean;
 }
 
 const emptyFormData = {
@@ -36,13 +37,15 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
   initialVehicleId,
   initialDriverId,
   defaultBookingId,
-  defaultBookingIds
+  defaultBookingIds,
+  lockDriverToInitial = false
 }) => {
   const { updateOdometerLog, addOdometerLog, updateVehicle, vehicles, users, currentUser, odometerLogs, bookings, selfDriveStaff } = useAppContext();
   const [selectedBookingIds, setSelectedBookingIds] = useState<string[]>([]);
   useBodyScrollLock(isOpen);
   const [formData, setFormData] = useState<FormData>(emptyFormData);
   const [driverSelection, setDriverSelection] = useState<string>('');
+  const effectiveDriverId = lockDriverToInitial ? (initialDriverId || currentUser?.id || '') : driverSelection;
   const [customDriverName, setCustomDriverName] = useState<string>('');
   const [error, setError] = useState('');
 
@@ -208,14 +211,14 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
 
   // Only show unfinished, non-self-drive bookings assigned to the selected driver and vehicle.
   const eligibleDriverBookings = useMemo(() => {
-    if (logToEdit || !formData.vehicleId || !driverSelection || driverSelection === '__other__' || driverSelection.startsWith('staff-')) return [];
+    if (logToEdit || !formData.vehicleId || !effectiveDriverId || effectiveDriverId === '__other__' || effectiveDriverId.startsWith('staff-')) return [];
     return bookings.filter((booking: Booking) => {
       const activeStatus = booking.status === 'Assigned' || booking.status === 'Confirmed' || booking.status === 'Pending';
       const sameVehicle = booking.vehicleId === formData.vehicleId;
-      const sameDriver = booking.driverId === driverSelection || resolveDriver(users, booking.driverId, booking.calendarEventTitle)?.id === driverSelection;
+      const sameDriver = booking.driverId === effectiveDriverId || resolveDriver(users, booking.driverId, booking.calendarEventTitle)?.id === effectiveDriverId;
       return activeStatus && booking.serviceType !== 'Self-Drive' && sameVehicle && sameDriver;
     }).sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
-  }, [bookings, driverSelection, formData.vehicleId, logToEdit, users]);
+  }, [bookings, effectiveDriverId, formData.vehicleId, logToEdit, users]);
 
   const handleToggleBooking = (bookingId: string) => {
     const nextIds = selectedBookingIds.includes(bookingId)
@@ -245,25 +248,26 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
       setError('Please select a vehicle.');
       return;
     }
-    if (!driverSelection) {
+    const submittedDriverSelection = lockDriverToInitial ? (initialDriverId || currentUser?.id || '') : driverSelection;
+    if (!submittedDriverSelection) {
       setError('Please select a driver or specify Other / Self-Drive Staff.');
       return;
     }
 
-    let finalDriverId = driverSelection;
+    let finalDriverId = submittedDriverSelection;
     let finalStaffName: string | undefined = undefined;
 
-    if (driverSelection.startsWith('staff-')) {
-      const staffMemberId = driverSelection.replace(/^staff-/, '');
+    if (submittedDriverSelection.startsWith('staff-')) {
+      const staffMemberId = submittedDriverSelection.replace(/^staff-/, '');
       const staff = (selfDriveStaff || []).find(s => s.id === staffMemberId);
       if (staff) {
         finalStaffName = staff.name;
         finalDriverId = `staff-${staff.id}`;
       } else {
-        finalDriverId = driverSelection;
+        finalDriverId = submittedDriverSelection;
         finalStaffName = customDriverName.trim() || driverSelection.replace(/^staff-/, '').replace(/-/g, ' ');
       }
-    } else if (driverSelection === '__other__') {
+    } else if (submittedDriverSelection === '__other__') {
       const trimmedName = customDriverName.trim();
       if (!trimmedName) {
         setError('Please enter the name of the other driver / self-drive staff.');
@@ -277,7 +281,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
         finalDriverId = `staff-${trimmedName.replace(/\s+/g, '-').toLowerCase()}`;
       }
     } else {
-      const regUser = users.find(u => u.id === driverSelection);
+      const regUser = users.find(u => u.id === submittedDriverSelection);
       finalStaffName = regUser ? regUser.name : undefined;
       finalDriverId = driverSelection;
     }
@@ -386,6 +390,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
                 ))}
               </select>
             </div>
+            {!lockDriverToInitial && (
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Driver / Staff *</label>
               <select 
@@ -450,6 +455,8 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
                 </div>
               )}
             </div>
+            )}
+
           </div>
 
           {/* DRIVER BOOKING PICKER */}
