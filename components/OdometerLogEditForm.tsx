@@ -149,6 +149,17 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
           ) && ['Assigned', 'Confirmed', 'Pending'].includes(booking.status) && booking.serviceType !== 'Self-Drive';
         });
         setSelectedBookingIds(validInitialBookingIds);
+        const validInitialBookings = bookings
+          .filter(item => validInitialBookingIds.includes(item.id))
+          .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
+        if (validInitialBookings.length > 0) {
+          fromLoc = validInitialBookings[0].pickupPoint || fromLoc;
+          toLoc = [...new Set(validInitialBookings.map(item => item.destination?.trim()).filter(Boolean))].join('; ');
+          purpose = [...new Set(validInitialBookings.map(item => item.purpose?.trim()).filter(Boolean))].join('; ');
+        } else if (bIds.length > 0) {
+          toLoc = '';
+          purpose = '';
+        }
         const isRegistered = drivers.some(d => d.id === defaultDId);
         const latestOdo = chosenVId ? getLatestOdoForVehicle(chosenVId) : 0;
 
