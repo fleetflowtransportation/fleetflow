@@ -23,6 +23,7 @@ const OdometerLogForm: React.FC<OdometerLogFormProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       initialDriverId={driverId}
+      lockDriverToInitial={true}
       initialVehicleId={defaultVehicleId}
       defaultBookingId={defaultBookingId}
       defaultBookingIds={defaultBookingIds}

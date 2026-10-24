@@ -29,7 +29,7 @@ import DriverSpeedDial from './DriverSpeedDial';
 import { FeedbackModal } from './FeedbackModal';
 import { BookingDetailModal } from './BookingDetailModal';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
-import { parseAsLocal, getPickupLocationDisplay, isOtherPickup, getRouteLabel, getStops } from '../utils';
+import { parseAsLocal, getPickupLocationDisplay, isOtherPickup, getRouteLabel, getStops, resolveDriver } from '../utils';
 
 interface DriverDashboardProps {
   driver: CurrentUser;
@@ -116,6 +116,14 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
     return { name: `Vehicle #${vehicleId.slice(-4).toUpperCase()}`, plate: '-' };
   };
 
+  // Resolve legacy booking driver references (name/email/Auth UUID) to the canonical fleet user ID.
+  // The admin assignment display already resolves these aliases; the Driver Dashboard must do the same.
+  const isAssignedToCurrentDriver = (booking: Booking) => {
+    if (!booking.driverId) return false;
+    if (booking.driverId === driver.id) return true;
+    return resolveDriver(users, booking.driverId, booking.calendarEventTitle)?.id === driver.id;
+  };
+
   // Helper search predicate for driver
   const matchesSearch = (b: Booking, query: string) => {
     if (!query) return true;
@@ -146,26 +154,26 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
   // 1. Current / Upcoming bookings (Today or Future, status Assigned, Confirmed, or Pending if assigned to driver)
   const currentBookings = useMemo(() => {
     return bookings
-      .filter(b => b.driverId === driver.id && (b.status === 'Assigned' || b.status === 'Confirmed' || b.status === 'Pending') && !isPastTrip(b.dateTime))
+      .filter(b => isAssignedToCurrentDriver(b) && (b.status === 'Assigned' || b.status === 'Confirmed' || b.status === 'Pending') && !isPastTrip(b.dateTime))
       .filter(b => matchesSearch(b, driverSearchQuery))
       .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
-  }, [bookings, driver.id, driverSearchQuery]);
+  }, [bookings, driver.id, driverSearchQuery, users]);
 
   // 2. Pending Odometer bookings from past days (Past date, but not completed yet)
   const pendingOdometerBookings = useMemo(() => {
     return bookings
-      .filter(b => b.driverId === driver.id && (b.status === 'Assigned' || b.status === 'Confirmed' || b.status === 'Pending') && isPastTrip(b.dateTime))
+      .filter(b => isAssignedToCurrentDriver(b) && (b.status === 'Assigned' || b.status === 'Confirmed' || b.status === 'Pending') && isPastTrip(b.dateTime))
       .filter(b => matchesSearch(b, driverSearchQuery))
       .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime()); // Most recent first
-  }, [bookings, driver.id, driverSearchQuery]);
+  }, [bookings, driver.id, driverSearchQuery, users]);
 
   // 3. History bookings (Completed with odometer or Cancelled)
   const historyBookings = useMemo(() => {
     return bookings
-      .filter(b => b.driverId === driver.id && (b.status === 'Completed' || b.status === 'Cancelled'))
+      .filter(b => isAssignedToCurrentDriver(b) && (b.status === 'Completed' || b.status === 'Cancelled'))
       .filter(b => matchesSearch(b, driverSearchQuery))
       .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
-  }, [bookings, driver.id, driverSearchQuery]);
+  }, [bookings, driver.id, driverSearchQuery, users]);
 
   // Active items based on current tab
   const activeList = useMemo(() => {
@@ -199,8 +207,8 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
 
   // Statistics
   const completedTripsCount = useMemo(() => {
-    return bookings.filter(b => b.driverId === driver.id && b.status === 'Completed').length;
-  }, [bookings, driver.id]);
+    return bookings.filter(b => isAssignedToCurrentDriver(b) && b.status === 'Completed').length;
+  }, [bookings, driver.id, users]);
 
   const totalDriverMileage = useMemo(() => {
     const logs = odometerLogs.filter(log => log.driverId === driver.id);
