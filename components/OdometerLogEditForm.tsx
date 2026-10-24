@@ -265,7 +265,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
         finalDriverId = `staff-${staff.id}`;
       } else {
         finalDriverId = submittedDriverSelection;
-        finalStaffName = customDriverName.trim() || driverSelection.replace(/^staff-/, '').replace(/-/g, ' ');
+        finalStaffName = customDriverName.trim() || submittedDriverSelection.replace(/^staff-/, '').replace(/-/g, ' ');
       }
     } else if (submittedDriverSelection === '__other__') {
       const trimmedName = customDriverName.trim();
@@ -283,7 +283,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
     } else {
       const regUser = users.find(u => u.id === submittedDriverSelection);
       finalStaffName = regUser ? regUser.name : undefined;
-      finalDriverId = driverSelection;
+      finalDriverId = submittedDriverSelection;
     }
 
     const start = formData.startOdometer !== '' ? Number(formData.startOdometer) : undefined;
@@ -460,7 +460,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
           </div>
 
           {/* DRIVER BOOKING PICKER */}
-          {!logToEdit && driverSelection !== '__other__' && !driverSelection.startsWith('staff-') && (
+          {!logToEdit && effectiveDriverId !== '__other__' && !effectiveDriverId.startsWith('staff-') && (
             <section className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-3.5 space-y-3">
               <div className="flex items-start justify-between gap-3">
                 <div>
