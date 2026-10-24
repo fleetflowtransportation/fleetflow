@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAppContext } from '../context/AppContext';
-import type { OdometerLog } from '../types';
+import type { OdometerLog, Booking } from '../types';
 import { XIcon, GaugeIcon } from './icons/Icons';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { parseAsLocal, resolveDriver } from '../utils';
 
 interface OdometerLogEditFormProps {
   isOpen: boolean;
@@ -37,7 +38,8 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
   defaultBookingId,
   defaultBookingIds
 }) => {
-  const { updateOdometerLog, addOdometerLog, vehicles, users, currentUser, odometerLogs, bookings, selfDriveStaff } = useAppContext();
+  const { updateOdometerLog, addOdometerLog, updateVehicle, vehicles, users, currentUser, odometerLogs, bookings, selfDriveStaff } = useAppContext();
+  const [selectedBookingIds, setSelectedBookingIds] = useState<string[]>([]);
   useBodyScrollLock(isOpen);
   const [formData, setFormData] = useState<FormData>(emptyFormData);
   const [driverSelection, setDriverSelection] = useState<string>('');
@@ -48,15 +50,15 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
     return users.filter(u => u.role === 'driver' || u.role === 'admin');
   }, [users]);
 
-  // Helper to find latest odometer reading for a vehicle
+  // Use the vehicle's current reading and odometer history so the default never falls behind.
   const getLatestOdoForVehicle = useCallback((vId: string) => {
     if (!vId) return 0;
-    const vLogs = odometerLogs.filter(l => l.vehicleId === vId);
-    if (vLogs.length > 0) {
-      return Math.max(...vLogs.map(l => l.odometer));
-    }
-    return 0;
-  }, [odometerLogs]);
+    const vehicleReading = Number(vehicles.find(v => v.id === vId)?.currentOdometer) || 0;
+    const logReadings = odometerLogs
+      .filter(l => l.vehicleId === vId)
+      .map(l => Number(l.odometer) || 0);
+    return Math.max(vehicleReading, 0, ...logReadings);
+  }, [odometerLogs, vehicles]);
 
   const prevIsOpenRef = React.useRef(false);
   const prevLogIdRef = React.useRef<string | null | undefined>(undefined);
@@ -73,6 +75,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
     if (justOpened || logChanged) {
       setError('');
       if (logToEdit) {
+        setSelectedBookingIds([]);
         const isRegistered = drivers.find(d => d.id === logToEdit.driverId);
         const matchedStaff = (selfDriveStaff || []).find(s => 
           s.id === logToEdit.driverId || 
@@ -125,6 +128,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
         let chosenVId = initialVehicleId || vehicles[0]?.id || '';
         
         const bIds = defaultBookingIds && defaultBookingIds.length > 0 ? defaultBookingIds : (defaultBookingId ? [defaultBookingId] : []);
+        setSelectedBookingIds(bIds);
         if (bIds.length > 0) {
           const selectedBookings = bookings.filter(b => bIds.includes(b.id));
           if (selectedBookings.length > 0) {
@@ -161,16 +165,14 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
   }, [isOpen, logToEdit, initialVehicleId, initialDriverId, defaultBookingId, defaultBookingIds, vehicles, drivers, currentUser, bookings, getLatestOdoForVehicle]);
 
   const handleVehicleChange = (newVId: string) => {
-    setFormData(prev => {
-      const suggestedStart = getLatestOdoForVehicle(newVId);
-      return {
-        ...prev,
-        vehicleId: newVId,
-        startOdometer: (!prev.startOdometer || prev.startOdometer === '0') && suggestedStart > 0 
-          ? String(suggestedStart) 
-          : prev.startOdometer
-      };
-    });
+    const suggestedStart = getLatestOdoForVehicle(newVId);
+    setFormData(prev => ({
+      ...prev,
+      vehicleId: newVId,
+      // Always refresh the suggestion when vehicle changes; the driver can still edit it afterward.
+      startOdometer: suggestedStart > 0 ? String(suggestedStart) : '',
+    }));
+    setSelectedBookingIds([]);
     setError('');
   };
 
@@ -182,6 +184,32 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
       setFormData(prev => ({ ...prev, [name]: value }));
       setError('');
     }
+  };
+
+  // Only show unfinished, non-self-drive bookings assigned to the selected driver and vehicle.
+  const eligibleDriverBookings = useMemo(() => {
+    if (logToEdit || !formData.vehicleId || !driverSelection || driverSelection === '__other__' || driverSelection.startsWith('staff-')) return [];
+    return bookings.filter((booking: Booking) => {
+      const activeStatus = booking.status === 'Assigned' || booking.status === 'Confirmed' || booking.status === 'Pending';
+      const sameVehicle = booking.vehicleId === formData.vehicleId;
+      const sameDriver = booking.driverId === driverSelection || resolveDriver(users, booking.driverId, booking.calendarEventTitle)?.id === driverSelection;
+      return activeStatus && booking.serviceType !== 'Self-Drive' && sameVehicle && sameDriver;
+    }).sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
+  }, [bookings, driverSelection, formData.vehicleId, logToEdit, users]);
+
+  const handleToggleBooking = (bookingId: string) => {
+    const nextIds = selectedBookingIds.includes(bookingId)
+      ? selectedBookingIds.filter(id => id !== bookingId)
+      : [...selectedBookingIds, bookingId];
+    const selected = eligibleDriverBookings.filter(booking => nextIds.includes(booking.id));
+    setSelectedBookingIds(nextIds.filter(id => eligibleDriverBookings.some(booking => booking.id === id)));
+    setFormData(prev => ({
+      ...prev,
+      fromLocation: selected[0]?.pickupPoint || (selected.length ? prev.fromLocation : 'HQ / Operations Base'),
+      toLocation: [...new Set(selected.map(booking => booking.destination?.trim()).filter(Boolean))].join('; '),
+      purpose: [...new Set(selected.map(booking => booking.purpose?.trim()).filter(Boolean))].join('; '),
+    }));
+    setError('');
   };
 
   const distance = useMemo(() => {
@@ -246,6 +274,12 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
       return;
     }
 
+    const selectedBookings = eligibleDriverBookings.filter(booking => selectedBookingIds.includes(booking.id));
+    if (!logToEdit && selectedBookings.length !== selectedBookingIds.length) {
+      setError('One or more selected bookings are no longer eligible. Please refresh and select the bookings again.');
+      return;
+    }
+
     const logPayload = {
       vehicleId: formData.vehicleId,
       driverId: finalDriverId,
@@ -258,14 +292,18 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
       toLocation: formData.toLocation.trim() ? formData.toLocation.trim() : undefined,
       purpose: formData.purpose.trim() ? formData.purpose.trim() : undefined,
       remarks: formData.remarks.trim() ? formData.remarks.trim() : undefined,
-      bookingId: defaultBookingId || (defaultBookingIds && defaultBookingIds[0]) || undefined,
-      bookingIds: defaultBookingIds && defaultBookingIds.length > 0 ? defaultBookingIds : undefined,
+      bookingId: selectedBookingIds[0] || defaultBookingId || (defaultBookingIds && defaultBookingIds[0]) || undefined,
+      bookingIds: selectedBookingIds.length > 0 ? selectedBookingIds : (defaultBookingIds && defaultBookingIds.length > 0 ? defaultBookingIds : undefined),
     };
 
     if (logToEdit) {
       updateOdometerLog(logToEdit.id, logPayload);
     } else {
       addOdometerLog(logPayload as any);
+      const selectedVehicle = vehicles.find(vehicle => vehicle.id === formData.vehicleId);
+      if (selectedVehicle && end >= (Number(selectedVehicle.currentOdometer) || 0)) {
+        updateVehicle(formData.vehicleId, { currentOdometer: end });
+      }
     }
 
     onClose();
@@ -392,6 +430,43 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
               )}
             </div>
           </div>
+
+          {/* DRIVER BOOKING PICKER */}
+          {!logToEdit && driverSelection !== '__other__' && !driverSelection.startsWith('staff-') && (
+            <section className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-3.5 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-xs font-extrabold text-slate-800">Bookings for this driver</h3>
+                  <p className="text-[11px] text-slate-600 mt-0.5">Tick the trips covered by this odometer submission. Only unfinished bookings assigned to the selected driver and vehicle are listed.</p>
+                </div>
+                <span className="shrink-0 rounded-full bg-indigo-100 text-indigo-700 px-2 py-1 text-[10px] font-extrabold">{selectedBookingIds.length} selected</span>
+              </div>
+              {eligibleDriverBookings.length > 0 ? (
+                <div className="max-h-52 overflow-y-auto space-y-2 pr-1">
+                  {eligibleDriverBookings.map(booking => {
+                    const selected = selectedBookingIds.includes(booking.id);
+                    const tripDate = parseAsLocal(booking.dateTime);
+                    return (
+                      <label key={booking.id} className={`flex items-start gap-2.5 rounded-lg border p-2.5 cursor-pointer transition ${selected ? 'border-indigo-300 bg-white shadow-sm' : 'border-slate-200 bg-white/70 hover:border-indigo-200'}`}>
+                        <input type="checkbox" checked={selected} onChange={() => handleToggleBooking(booking.id)} className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-[11px] font-extrabold text-slate-800">{booking.requesterName || 'Booking'}</span>
+                            <span className="text-[10px] font-semibold text-slate-500">{tripDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} · {tripDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+                          </span>
+                          <span className="block text-[11px] text-slate-700 mt-0.5 break-words">{booking.destination || 'Destination not specified'}</span>
+                          {booking.purpose && <span className="block text-[10px] text-slate-500 mt-0.5">{booking.purpose}</span>}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="rounded-lg bg-white/80 border border-dashed border-slate-300 p-3 text-[11px] text-slate-500">No unfinished bookings match this driver and vehicle. You can still record an odometer log without linking a booking.</p>
+              )}
+              {selectedBookingIds.length > 0 && <p className="text-[10px] font-semibold text-indigo-700">Submitting this log will link the selected bookings and mark them Completed.</p>}
+            </section>
+          )}
 
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">Trip Date *</label>
