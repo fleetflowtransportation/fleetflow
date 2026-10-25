@@ -165,7 +165,7 @@ export const ManageBookingPage: React.FC<ManageBookingPageProps> = ({ tenantId, 
       // Delete the calendar event and send the existing cancellation email when configured.
       try {
         const tenant = await storageService.getTenant(tenantId);
-        if (tenant && booking.calendarEventId) {
+        if (tenant) {
           await googleCalendarService.deleteEvent(tenant, booking.calendarEventId, booking);
         }
       } catch (syncError) {
