@@ -340,22 +340,15 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
 
     // Save the booking first so the secure management endpoint can verify it exists.
     try {
-      await storageService.createBooking(newBooking);
-      setManageLinkWarning('');
-
       const { data: linkData, error: linkError } = await getSupabase().functions.invoke('manage-booking', {
-        body: { action: 'issue', bookingId: newBooking.id, tenantId },
+        body: { action: 'create', tenantId, booking: newBooking },
       });
 
       if (linkError || !linkData?.token) {
-        console.error('[PublicBooking] Could not issue booking management link:', linkError || linkData);
-        setBookings(prev => [newBooking, ...prev]);
-        setManageLinkWarning('Your booking was saved, but the secure Manage Your Booking link could not be created. Please contact the transport admin before submitting another booking.');
-        setIsSuccess(true);
-        setSubmitResult(result);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        return;
+        console.error('[PublicBooking] Could not save booking and issue management link:', linkError || linkData);
+        throw new Error(linkData?.error || linkError?.message || 'Unable to save the booking and create its secure management link.');
       }
+      setManageLinkWarning('');
 
       const manageBookingUrl = new URL(window.location.origin + window.location.pathname);
       manageBookingUrl.search = '';
