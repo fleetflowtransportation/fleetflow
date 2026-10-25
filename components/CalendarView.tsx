@@ -910,6 +910,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   // Filtered Bookings
   const filteredBookings = useMemo(() => {
     return bookings.filter(b => {
+      // Cancelled reservations are retained in Booking Pages for audit, not shown on operational calendars.
+      if (b.status === 'Cancelled') return false;
+
       // Driver filter
       if (driverFilter === 'self-drive' && b.serviceType !== 'Self-Drive') return false;
       if (driverFilter === 'conflict' && b.status !== 'Conflict') return false;
