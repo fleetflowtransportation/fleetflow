@@ -39,6 +39,24 @@ const bookingStart = (booking: Record<string, any>) => {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
+const parseMalaysiaDate = (rawValue: unknown) => {
+  const raw = String(rawValue || "").trim();
+  if (!raw) return null;
+  const hasZone = /(?:Z|[+-]\\d\\d:\\d\\d)$/.test(raw);
+  const parsed = new Date(hasZone ? raw : `${raw}+08:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const bookingEnd = (booking: Record<string, any>) => {
+  const raw = booking.finish_date_time || (
+    booking.end_date && booking.end_time ? `${booking.end_date}T${booking.end_time}:00` : ""
+  );
+  const parsed = parseMalaysiaDate(raw);
+  if (parsed) return parsed;
+  const start = bookingStart(booking);
+  return start ? new Date(start.getTime() + 2 * 60 * 60 * 1000) : null;
+};
+
 const isPastStart = (booking: Record<string, any>) => {
   const start = bookingStart(booking);
   return !start || Date.now() >= start.getTime();
@@ -181,6 +199,36 @@ Deno.serve(async (request: Request) => {
         is_pre_working_hour: input.isPreWorkingHour === true,
         warning_notes: input.warningNotes || null,
       };
+
+      // Enforce driver/vehicle availability on the server too; the browser-side booking engine is not a security boundary.
+      const proposedStart = bookingStart(dbRow);
+      const proposedEnd = bookingEnd(dbRow);
+      if (!proposedStart || !proposedEnd || proposedEnd <= proposedStart) {
+        return json({ error: "The booking date or time is invalid." }, 400);
+      }
+      const { data: existingBookings, error: existingError } = await supabase
+        .from("bookings")
+        .select("id,status,date_time,finish_date_time,start_date,start_time,end_date,end_time,driver_id,vehicle_id")
+        .eq("tenant_id", tenantId);
+      if (existingError) return json({ error: "Unable to verify the driver and vehicle schedule." }, 500);
+
+      const proposedDriverId = dbRow.driver_id ? String(dbRow.driver_id) : "";
+      const proposedVehicleId = dbRow.vehicle_id ? String(dbRow.vehicle_id) : "";
+      const overlap = (existingBookings || []).some((existing: Record<string, any>) => {
+        if (["Cancelled", "Completed", "Conflict"].includes(String(existing.status || ""))) return false;
+        if (existing.id === bookingId) return false;
+        const existingStart = bookingStart(existing);
+        const existingEnd = bookingEnd(existing);
+        if (!existingStart || !existingEnd) return false;
+        const timeOverlaps = proposedStart < existingEnd && existingStart < proposedEnd;
+        if (!timeOverlaps) return false;
+        const sameDriver = proposedDriverId && String(existing.driver_id || "") === proposedDriverId;
+        const sameVehicle = proposedVehicleId && String(existing.vehicle_id || "") === proposedVehicleId;
+        return Boolean(sameDriver || sameVehicle);
+      });
+      if (overlap) {
+        return json({ error: "The selected driver or vehicle is no longer available for that time. Please refresh the booking form and try another slot." }, 409);
+      }
 
       const { data: created, error: createError } = await supabase
         .from("bookings")
