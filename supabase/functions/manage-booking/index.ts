@@ -122,34 +122,93 @@ Deno.serve(async (request: Request) => {
 
     if (!tenantId) return json({ error: "Missing tenant." }, 400);
 
-    if (action === "issue") {
-      const bookingId = String(body?.bookingId || "").trim();
-      if (!bookingId) return json({ error: "Missing booking ID." }, 400);
+    if (action === "create") {
+      // Create the booking and its secret management token together on the server.
+      // This prevents anonymous callers from minting a management token for someone else's known Booking ID.
+      const input = body?.booking;
+      if (!input || typeof input !== "object") return json({ error: "Missing booking details." }, 400);
+      const bookingId = String(input.id || "").trim();
+      const requesterName = String(input.requesterName || "").trim().slice(0, 200);
+      const requesterEmail = String(input.requesterEmail || "").trim().slice(0, 320);
+      const dateTime = String(input.dateTime || "").trim();
+      const finishDateTime = String(input.finishDateTime || "").trim();
+      const destination = String(input.destination || "").trim().slice(0, 3000);
+      if (!bookingId || !requesterName || !requesterEmail.includes("@") || !dateTime || !destination) {
+        return json({ error: "Required booking details are missing or invalid." }, 400);
+      }
+      const proposed = { date_time: dateTime, start_date: dateTime.slice(0, 10), start_time: dateTime.includes("T") ? dateTime.split("T")[1].slice(0, 5) : "" };
+      if (isPastStart(proposed)) return json({ error: "Booking start time must be in the future." }, 400);
 
-      const { data: booking, error } = await supabase
+      const status = ["Pending", "Assigned", "Confirmed"].includes(String(input.status)) ? String(input.status) : "Pending";
+      const stops = Array.isArray(input.stops) ? input.stops.slice(0, 5).map((stop: Record<string, any>, index: number) => ({
+        id: String(stop.id || crypto.randomUUID()).slice(0, 100),
+        sequence: index + 1,
+        name: String(stop.name || "").trim().slice(0, 160),
+        address: String(stop.address || "").trim().slice(0, 1000),
+        notes: String(stop.notes || "").trim().slice(0, 500) || undefined,
+      })) : [];
+
+      const dbRow: Record<string, any> = {
+        id: bookingId,
+        tenant_id: tenantId,
+        requester_name: requesterName,
+        requester_email: requesterEmail,
+        department: String(input.department || "").slice(0, 160),
+        purpose: String(input.purpose || "").slice(0, 1000),
+        destination,
+        stops,
+        date_time: dateTime,
+        finish_date_time: finishDateTime || null,
+        start_date: dateTime.slice(0, 10),
+        start_time: dateTime.includes("T") ? dateTime.split("T")[1].slice(0, 5) : "",
+        end_date: finishDateTime ? finishDateTime.slice(0, 10) : dateTime.slice(0, 10),
+        end_time: finishDateTime && finishDateTime.includes("T") ? finishDateTime.split("T")[1].slice(0, 5) : "",
+        pickup_point: String(input.pickupPoint || "").slice(0, 300),
+        address: String(input.address || "").slice(0, 1000),
+        passengers: Array.isArray(input.passengers) ? input.passengers : [],
+        should_wait: input.shouldWait === true,
+        status,
+        driver_id: input.driverId || null,
+        vehicle_id: input.vehicleId || null,
+        service_type: input.serviceType === "Self-Drive" ? "Self-Drive" : "Perlu Driver",
+        vehicle_preference: input.vehiclePreference || null,
+        ic_number: input.icNumber || null,
+        remarks: String(input.remarks || "").slice(0, 2000),
+        calendar_event_title: input.calendarEventTitle || null,
+        calendar_color: input.calendarColor || null,
+        admin_notes: input.adminNotes || null,
+        conflict_reason: input.conflictReason || null,
+        is_pre_working_hour: input.isPreWorkingHour === true,
+        warning_notes: input.warningNotes || null,
+      };
+
+      const { data: created, error: createError } = await supabase
         .from("bookings")
+        .insert(dbRow)
         .select("*")
-        .eq("id", bookingId)
-        .eq("tenant_id", tenantId)
-        .maybeSingle();
-
-      if (error || !booking) return json({ error: "Booking not found." }, 404);
-      if (booking.status === "Completed" || booking.status === "Cancelled" || isPastStart(booking)) {
-        return json({ error: "This booking is not eligible for a management link." }, 409);
+        .single();
+      if (createError || !created) {
+        console.error("[manage-booking] booking insert failed", createError);
+        return json({ error: "Unable to save the booking. Please try again." }, 500);
       }
 
       const token = randomToken();
       const tokenHash = await hashToken(token);
-      const { error: insertError } = await supabase.from("booking_manage_tokens").insert({
+      const { error: tokenError } = await supabase.from("booking_manage_tokens").insert({
         booking_id: bookingId,
         tenant_id: tenantId,
         token_hash: tokenHash,
       });
-      if (insertError) return json({ error: "Unable to create a secure management link." }, 500);
+      if (tokenError) {
+        await supabase.from("bookings").delete().eq("id", bookingId).eq("tenant_id", tenantId);
+        console.error("[manage-booking] token insert failed", tokenError);
+        return json({ error: "Unable to create a secure management link. The booking was not retained; please try again." }, 500);
+      }
 
-      return json({ token });
+      return json({ token, booking: toPublicBooking(created) });
     }
 
+    // There is deliberately no public "issue token for existing booking" action.
     const token = String(body?.token || "");
     const resolved = await getBookingForToken(token, tenantId);
     if ("error" in resolved) return json({ error: resolved.error }, resolved.status);
