@@ -78,7 +78,7 @@ export const ManageBookingPage: React.FC<ManageBookingPageProps> = ({ tenantId, 
   useEffect(() => { void loadBooking(); }, [loadBooking]);
 
   const routePreview = useMemo(
-    () => stops.map(stop => stop.name.trim() || stop.address.trim()).filter(Boolean).join(' → '),
+    () => stops.map(stop => (stop.name || '').trim() || stop.address.trim()).filter(Boolean).join(' → '),
     [stops]
   );
 
