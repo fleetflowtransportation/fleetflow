@@ -217,7 +217,8 @@ export const buildEmailHtml = (
     </html>
   `;
 
-  const text = `${headerTitle}\n\nRequester: ${booking.requesterName}\nDestination: ${booking.destination}\nDate & Time: ${dateStr} ${timeStr}\nPickup: ${pickupText}\nDriver: ${driverDisplay}\nPurpose: ${booking.purpose}\nStatus: ${booking.status}\n\nArmada Flow Fleet Management`;
+  const manageText = manageBookingUrl && type !== 'CANCELLED' ? `\n\nManage your booking (edit destinations/stops or cancel before it starts): ${manageBookingUrl}\nThis private link stops working when the booking starts or is completed.` : '';
+  const text = `${headerTitle}\n\nRequester: ${booking.requesterName}\nDestination: ${booking.destination}\nDate & Time: ${dateStr} ${timeStr}\nPickup: ${pickupText}\nDriver: ${driverDisplay}\nPurpose: ${booking.purpose}\nStatus: ${booking.status}${manageText}\n\nArmada Flow Fleet Management`;
 
   return { subject, html, text };
 };
