@@ -78,7 +78,6 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState<AutoAssignResult | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [manageLinkWarning, setManageLinkWarning] = useState('');
   const [loading, setLoading] = useState(true);
   const [showPolicyModal, setShowPolicyModal] = useState(false);
 
@@ -348,7 +347,6 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
         console.error('[PublicBooking] Could not save booking and issue management link:', linkError || linkData);
         throw new Error(linkData?.error || linkError?.message || 'Unable to save the booking and create its secure management link.');
       }
-      setManageLinkWarning('');
 
       const manageBookingUrl = new URL(window.location.origin + window.location.pathname);
       manageBookingUrl.search = '';
@@ -583,11 +581,6 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
 
             {/* Body */}
             <div className="p-6 sm:p-8 space-y-6 text-xs sm:text-sm text-slate-700">
-              {manageLinkWarning && (
-                <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
-                  {manageLinkWarning}
-                </div>
-              )}
               {/* Event Title pill */}
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-1">
                 <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider block">
@@ -697,7 +690,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
             {/* Footer Buttons */}
             <div className="p-5 sm:p-6 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
               <p className="text-xs text-slate-500 font-medium">
-                {manageLinkWarning ? 'No confirmation email with a management link was sent. Please contact the transport admin.' : 'Confirmation email includes your private Manage Your Booking link.'}
+                Confirmation email includes your private Manage Your Booking link.
               </p>
               
               <div className="flex items-center gap-2.5">
