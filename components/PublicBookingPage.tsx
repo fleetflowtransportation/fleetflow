@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { storageService } from '../services/storage';
+import { getSupabase } from '../services/supabaseClient';
 import { googleCalendarService } from '../services/googleCalendar';
 import { DEPARTMENTS, PICKUP_POINTS, MAX_BOOKING_STOPS, Tenant, Booking, PassengerCount } from '../types';
 import { evaluateBookingAssignment, normalizeDate, normalizeTime, type AutoAssignResult } from '../services/bookingEngine';
@@ -77,6 +78,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState<AutoAssignResult | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [manageLinkWarning, setManageLinkWarning] = useState('');
   const [loading, setLoading] = useState(true);
   const [showPolicyModal, setShowPolicyModal] = useState(false);
 
@@ -336,21 +338,50 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
       tenantId: tenantId,
     };
 
-    // Google Calendar Sync
-    if (tenant) {
-      try {
-        const calEventId = await googleCalendarService.createEvent(tenant, newBooking, freshVehicles, freshUsers);
-        if (calEventId) {
-          newBooking.calendarEventId = calEventId;
-        }
-      } catch (err) {
-        console.warn('[Google Calendar] Failed to create event:', err);
-      }
-    }
-
-    // Save booking
+    // Save the booking first so the secure management endpoint can verify it exists.
     try {
       await storageService.createBooking(newBooking);
+      setManageLinkWarning('');
+
+      const { data: linkData, error: linkError } = await getSupabase().functions.invoke('manage-booking', {
+        body: { action: 'issue', bookingId: newBooking.id, tenantId },
+      });
+
+      if (linkError || !linkData?.token) {
+        console.error('[PublicBooking] Could not issue booking management link:', linkError || linkData);
+        setBookings(prev => [newBooking, ...prev]);
+        setManageLinkWarning('Your booking was saved, but the secure Manage Your Booking link could not be created. Please contact the transport admin before submitting another booking.');
+        setIsSuccess(true);
+        setSubmitResult(result);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+
+      const manageBookingUrl = new URL(window.location.origin + window.location.pathname);
+      manageBookingUrl.search = '';
+      manageBookingUrl.searchParams.set('action', 'manage-booking');
+      manageBookingUrl.searchParams.set('tenant_id', tenantId);
+      manageBookingUrl.searchParams.set('token', linkData.token);
+
+      // Only create the calendar event and send confirmation email after the management link exists.
+      if (tenant) {
+        try {
+          const calEventId = await googleCalendarService.createEvent(
+            tenant,
+            newBooking,
+            freshVehicles,
+            freshUsers,
+            manageBookingUrl.toString()
+          );
+          if (calEventId) {
+            newBooking.calendarEventId = calEventId;
+            await storageService.updateBooking({ id: newBooking.id, calendarEventId: calEventId });
+          }
+        } catch (err) {
+          console.warn('[Google Calendar] Failed to create event:', err);
+        }
+      }
+
       setBookings(prev => [newBooking, ...prev]);
       setIsSuccess(true);
       setSubmitResult(result);
@@ -559,6 +590,11 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
 
             {/* Body */}
             <div className="p-6 sm:p-8 space-y-6 text-xs sm:text-sm text-slate-700">
+              {manageLinkWarning && (
+                <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+                  {manageLinkWarning}
+                </div>
+              )}
               {/* Event Title pill */}
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-1">
                 <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider block">
@@ -668,7 +704,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
             {/* Footer Buttons */}
             <div className="p-5 sm:p-6 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
               <p className="text-xs text-slate-500 font-medium">
-                Notification emails sent to requester & assigned driver.
+                {manageLinkWarning ? 'No confirmation email with a management link was sent. Please contact the transport admin.' : 'Confirmation email includes your private Manage Your Booking link.'}
               </p>
               
               <div className="flex items-center gap-2.5">
