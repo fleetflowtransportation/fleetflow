@@ -16,6 +16,7 @@ import BookingManagementList from './components/BookingManagementList';
 import { AuthPage } from './components/AuthPage';
 import { PublicBookingPage } from './components/PublicBookingPage';
 import { PublicOdometerPage } from './components/PublicOdometerPage';
+import ManageBookingPage from './components/ManageBookingPage';
 import { SettingsView } from './components/SettingsView';
 import { FeedbackButton } from './components/FeedbackButton';
 import { InactiveAccountScreen } from './components/InactiveAccountScreen';
@@ -77,6 +78,10 @@ const App: React.FC = () => {
 
   if (action === 'odometer') {
     return <PublicOdometerPage tenantId={publicTenantId} />;
+  }
+
+  if (action === 'manage-booking') {
+    return <ManageBookingPage tenantId={publicTenantId} token={urlParams.get('token') || ''} />;
   }
 
   if (isLoading) {
