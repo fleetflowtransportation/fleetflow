@@ -42,7 +42,7 @@ const bookingStart = (booking: Record<string, any>) => {
 const parseMalaysiaDate = (rawValue: unknown) => {
   const raw = String(rawValue || "").trim();
   if (!raw) return null;
-  const hasZone = /(?:Z|[+-]\\d\\d:\\d\\d)$/.test(raw);
+  const hasZone = /(?:Z|[+-]\d\d:\d\d)$/.test(raw);
   const parsed = new Date(hasZone ? raw : `${raw}+08:00`);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
