@@ -95,7 +95,8 @@ export const buildEmailHtml = (
   booking: Booking,
   type: 'CONFIRMATION' | 'UPDATED' | 'CANCELLED',
   vehicles?: Vehicle[],
-  users?: User[]
+  users?: User[],
+  manageBookingUrl?: string
 ): { subject: string; html: string; text: string } => {
   const dateStr = normalizeDate(booking.dateTime);
   const timeStr = normalizeTime(booking.dateTime);
@@ -196,6 +197,14 @@ export const buildEmailHtml = (
           ${booking.remarks ? `
             <div style="margin-top: 16px; padding: 12px 16px; background-color: #fffbeb; border-left: 4px solid #f59e0b; border-radius: 6px; font-size: 13px; color: #92400e;">
               <strong>Remarks:</strong> ${booking.remarks}
+            </div>
+          ` : ''}
+
+          ${manageBookingUrl && type !== 'CANCELLED' ? `
+            <div style="margin-top: 24px; padding: 20px; background-color: #eef2ff; border: 1px solid #c7d2fe; border-radius: 12px; text-align: center;">
+              <p style="margin: 0 0 12px; color: #312e81; font-size: 14px; font-weight: 700;">Need to update your destination or cancel this booking?</p>
+              <a href="${manageBookingUrl}" style="display: inline-block; padding: 12px 20px; background-color: #4338ca; color: #ffffff; text-decoration: none; border-radius: 8px; font-size: 14px; font-weight: 700;">Manage Your Booking</a>
+              <p style="margin: 12px 0 0; color: #4338ca; font-size: 11px;">This private link only manages this booking. It stops working when the booking starts or is completed.</p>
             </div>
           ` : ''}
 
@@ -601,7 +610,8 @@ export const googleCalendarService = {
     tenant: Tenant,
     booking: Booking,
     vehicles?: Vehicle[],
-    users?: User[]
+    users?: User[],
+    manageBookingUrl?: string
   ): Promise<string | null> => {
     const startIso = formatMalaysiaIso(booking.dateTime);
     let endIso = booking.finishDateTime ? formatMalaysiaIso(booking.finishDateTime) : '';
@@ -614,7 +624,7 @@ export const googleCalendarService = {
     const title = buildCalendarEventTitle(booking);
     const description = buildCalendarDescription(booking, vehicles);
     const location = booking.destination || '';
-    const emailData = buildEmailHtml(booking, 'CONFIRMATION', vehicles, users);
+    const emailData = buildEmailHtml(booking, 'CONFIRMATION', vehicles, users, manageBookingUrl);
 
     // Resolve assigned driver info
     const assignedDriver = resolveDriver(users, booking.driverId, booking.calendarEventTitle);
@@ -806,7 +816,8 @@ export const googleCalendarService = {
     tenant: Tenant,
     booking: Booking,
     vehicles?: Vehicle[],
-    users?: User[]
+    users?: User[],
+    manageBookingUrl?: string
   ): Promise<boolean> => {
     // Only update if this booking already has an associated calendarEventId.
     // Odometer logs, fuel logs, and status changes must NEVER create new calendar events.
@@ -825,7 +836,7 @@ export const googleCalendarService = {
     const title = buildCalendarEventTitle(booking);
     const description = buildCalendarDescription(booking, vehicles);
     const location = booking.destination || '';
-    const emailData = buildEmailHtml(booking, 'UPDATED', vehicles, users);
+    const emailData = buildEmailHtml(booking, 'UPDATED', vehicles, users, manageBookingUrl);
 
     // Resolve assigned driver info
     const assignedDriver = resolveDriver(users, booking.driverId, booking.calendarEventTitle);
