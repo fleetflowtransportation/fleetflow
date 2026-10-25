@@ -4,7 +4,7 @@ import { MAX_BOOKING_STOPS } from '../types';
 import { getSupabase } from '../services/supabaseClient';
 import { storageService } from '../services/storage';
 import { googleCalendarService } from '../services/googleCalendar';
-import { deriveDestination, normalizeStopsForSave } from '../utils';
+import { normalizeStopsForSave } from '../utils';
 
 interface ManageBookingPageProps {
   tenantId: string;
