@@ -95,7 +95,8 @@ export const buildEmailHtml = (
   booking: Booking,
   type: 'CONFIRMATION' | 'UPDATED' | 'CANCELLED',
   vehicles?: Vehicle[],
-  users?: User[]
+  users?: User[],
+  manageBookingUrl?: string
 ): { subject: string; html: string; text: string } => {
   const dateStr = normalizeDate(booking.dateTime);
   const timeStr = normalizeTime(booking.dateTime);
@@ -199,6 +200,14 @@ export const buildEmailHtml = (
             </div>
           ` : ''}
 
+          ${manageBookingUrl && type !== 'CANCELLED' ? `
+            <div style="margin-top: 24px; padding: 20px; background-color: #eef2ff; border: 1px solid #c7d2fe; border-radius: 12px; text-align: center;">
+              <p style="margin: 0 0 12px; color: #312e81; font-size: 14px; font-weight: 700;">Need to update your destination or cancel this booking?</p>
+              <a href="${manageBookingUrl}" style="display: inline-block; padding: 12px 20px; background-color: #4338ca; color: #ffffff; text-decoration: none; border-radius: 8px; font-size: 14px; font-weight: 700;">Manage Your Booking</a>
+              <p style="margin: 12px 0 0; color: #4338ca; font-size: 11px;">This private link only manages this booking. It stops working when the booking starts or is completed.</p>
+            </div>
+          ` : ''}
+
           <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; text-align: center;">
             This is an automated notification from Armada Flow. For any inquiries or modifications, please contact your transport coordinator.
           </div>
@@ -208,7 +217,8 @@ export const buildEmailHtml = (
     </html>
   `;
 
-  const text = `${headerTitle}\n\nRequester: ${booking.requesterName}\nDestination: ${booking.destination}\nDate & Time: ${dateStr} ${timeStr}\nPickup: ${pickupText}\nDriver: ${driverDisplay}\nPurpose: ${booking.purpose}\nStatus: ${booking.status}\n\nArmada Flow Fleet Management`;
+  const manageText = manageBookingUrl && type !== 'CANCELLED' ? `\n\nManage your booking (edit destinations/stops or cancel before it starts): ${manageBookingUrl}\nThis private link stops working when the booking starts or is completed.` : '';
+  const text = `${headerTitle}\n\nRequester: ${booking.requesterName}\nDestination: ${booking.destination}\nDate & Time: ${dateStr} ${timeStr}\nPickup: ${pickupText}\nDriver: ${driverDisplay}\nPurpose: ${booking.purpose}\nStatus: ${booking.status}${manageText}\n\nArmada Flow Fleet Management`;
 
   return { subject, html, text };
 };
@@ -601,7 +611,8 @@ export const googleCalendarService = {
     tenant: Tenant,
     booking: Booking,
     vehicles?: Vehicle[],
-    users?: User[]
+    users?: User[],
+    manageBookingUrl?: string
   ): Promise<string | null> => {
     const startIso = formatMalaysiaIso(booking.dateTime);
     let endIso = booking.finishDateTime ? formatMalaysiaIso(booking.finishDateTime) : '';
@@ -614,7 +625,7 @@ export const googleCalendarService = {
     const title = buildCalendarEventTitle(booking);
     const description = buildCalendarDescription(booking, vehicles);
     const location = booking.destination || '';
-    const emailData = buildEmailHtml(booking, 'CONFIRMATION', vehicles, users);
+    const emailData = buildEmailHtml(booking, 'CONFIRMATION', vehicles, users, manageBookingUrl);
 
     // Resolve assigned driver info
     const assignedDriver = resolveDriver(users, booking.driverId, booking.calendarEventTitle);
@@ -696,13 +707,13 @@ export const googleCalendarService = {
           attendees: attendees,
           sendInvites: true,
           sendUpdates: 'all',
-          sendEmail: Boolean(booking.requesterEmail),
-          emailSubject: emailData.subject,
-          emailHtml: emailData.html,
-          emailText: emailData.text,
-          driverEmailSubject: driverEmailData?.subject || '',
-          driverEmailHtml: driverEmailData?.html || '',
-          driverEmailText: driverEmailData?.text || '',
+          sendEmail: false,
+          emailSubject: '',
+          emailHtml: '',
+          emailText: '',
+          driverEmailSubject: '',
+          driverEmailHtml: '',
+          driverEmailText: '',
           color: getColorName(booking),
           colorId: getColorId(booking),
           event: eventPayload,
@@ -806,7 +817,8 @@ export const googleCalendarService = {
     tenant: Tenant,
     booking: Booking,
     vehicles?: Vehicle[],
-    users?: User[]
+    users?: User[],
+    manageBookingUrl?: string
   ): Promise<boolean> => {
     // Only update if this booking already has an associated calendarEventId.
     // Odometer logs, fuel logs, and status changes must NEVER create new calendar events.
@@ -825,7 +837,7 @@ export const googleCalendarService = {
     const title = buildCalendarEventTitle(booking);
     const description = buildCalendarDescription(booking, vehicles);
     const location = booking.destination || '';
-    const emailData = buildEmailHtml(booking, 'UPDATED', vehicles, users);
+    const emailData = buildEmailHtml(booking, 'UPDATED', vehicles, users, manageBookingUrl);
 
     // Resolve assigned driver info
     const assignedDriver = resolveDriver(users, booking.driverId, booking.calendarEventTitle);

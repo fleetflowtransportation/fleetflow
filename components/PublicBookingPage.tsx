@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { storageService } from '../services/storage';
+import { getSupabase } from '../services/supabaseClient';
 import { googleCalendarService } from '../services/googleCalendar';
 import { DEPARTMENTS, PICKUP_POINTS, MAX_BOOKING_STOPS, Tenant, Booking, PassengerCount } from '../types';
 import { evaluateBookingAssignment, normalizeDate, normalizeTime, type AutoAssignResult } from '../services/bookingEngine';
@@ -336,21 +337,44 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
       tenantId: tenantId,
     };
 
-    // Google Calendar Sync
-    if (tenant) {
-      try {
-        const calEventId = await googleCalendarService.createEvent(tenant, newBooking, freshVehicles, freshUsers);
-        if (calEventId) {
-          newBooking.calendarEventId = calEventId;
-        }
-      } catch (err) {
-        console.warn('[Google Calendar] Failed to create event:', err);
-      }
-    }
-
-    // Save booking
+    // Save the booking first so the secure management endpoint can verify it exists.
     try {
-      await storageService.createBooking(newBooking);
+      const { data: linkData, error: linkError } = await getSupabase().functions.invoke('manage-booking', {
+        body: { action: 'create', tenantId, booking: newBooking },
+      });
+
+      if (linkError || !linkData?.token) {
+        console.error('[PublicBooking] Could not save booking and issue management link:', linkError || linkData);
+        throw new Error(linkData?.error || linkError?.message || 'Unable to save the booking and create its secure management link.');
+      }
+
+      // Use the public custom domain, not a Vercel preview URL protected by Vercel SSO.
+      const publicAppUrl = (import.meta.env.VITE_PUBLIC_APP_URL || 'https://armadaflow.vercel.app').replace(/\/$/, '');
+      const manageBookingUrl = new URL(publicAppUrl);
+      manageBookingUrl.search = '';
+      manageBookingUrl.searchParams.set('action', 'manage-booking');
+      manageBookingUrl.searchParams.set('tenant_id', tenantId);
+      manageBookingUrl.searchParams.set('token', linkData.token);
+
+      // Only create the calendar event and send confirmation email after the management link exists.
+      if (tenant) {
+        try {
+          const calEventId = await googleCalendarService.createEvent(
+            tenant,
+            newBooking,
+            freshVehicles,
+            freshUsers,
+            manageBookingUrl.toString()
+          );
+          if (calEventId) {
+            newBooking.calendarEventId = calEventId;
+            await storageService.updateBooking({ id: newBooking.id, calendarEventId: calEventId });
+          }
+        } catch (err) {
+          console.warn('[Google Calendar] Failed to create event:', err);
+        }
+      }
+
       setBookings(prev => [newBooking, ...prev]);
       setIsSuccess(true);
       setSubmitResult(result);
@@ -668,7 +692,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
             {/* Footer Buttons */}
             <div className="p-5 sm:p-6 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
               <p className="text-xs text-slate-500 font-medium">
-                Notification emails sent to requester & assigned driver.
+                Confirmation email includes your private Manage Your Booking link.
               </p>
               
               <div className="flex items-center gap-2.5">
