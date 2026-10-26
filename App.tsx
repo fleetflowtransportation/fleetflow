@@ -200,10 +200,25 @@ const App: React.FC = () => {
   );
 };
 
-const AppWrapper: React.FC = () => (
-  <AppProvider>
-    <App />
-  </AppProvider>
-);
+const AppWrapper: React.FC = () => {
+  // Public booking management must not initialize the authenticated application shell.
+  // Keep this route completely outside AppProvider so staff never see the sign-in screen.
+  const urlParams = new URLSearchParams(window.location.search);
+  const action = urlParams.get('action');
+  const rawTenantId = urlParams.get('tenant_id') || 'yck';
+  const tenantId = (!rawTenantId || rawTenantId === 'yayasan-chow-kit-demo' || rawTenantId === 'yayasan-chow-kit')
+    ? 'yck'
+    : rawTenantId;
+
+  if (action === 'manage-booking') {
+    return <ManageBookingPage tenantId={tenantId} token={urlParams.get('token') || ''} />;
+  }
+
+  return (
+    <AppProvider>
+      <App />
+    </AppProvider>
+  );
+};
 
 export default AppWrapper;
