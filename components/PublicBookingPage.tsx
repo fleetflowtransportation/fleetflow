@@ -348,7 +348,9 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
         throw new Error(linkData?.error || linkError?.message || 'Unable to save the booking and create its secure management link.');
       }
 
-      const manageBookingUrl = new URL(window.location.origin + window.location.pathname);
+      // Use the public custom domain, not a Vercel preview URL protected by Vercel SSO.
+      const publicAppUrl = (import.meta.env.VITE_PUBLIC_APP_URL || 'https://armadaflow.vercel.app').replace(/\/$/, '');
+      const manageBookingUrl = new URL(publicAppUrl);
       manageBookingUrl.search = '';
       manageBookingUrl.searchParams.set('action', 'manage-booking');
       manageBookingUrl.searchParams.set('tenant_id', tenantId);
