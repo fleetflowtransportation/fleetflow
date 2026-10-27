@@ -1236,7 +1236,27 @@ createOdometerLog: async (data: OdometerLog): Promise<OdometerLog> => {
 
   updateVehicle: async (data: Partial<Vehicle> & { id: string }): Promise<any> => {
     try {
-      const dbRow: any = toDbVehicle(data);
+      // Vehicle updates can be partial (e.g. odometer-only updates). Always merge
+      // with the persisted row before serializing specifications metadata, otherwise
+      // omitted fields such as allowSelfDrive are accidentally reset to false.
+      const { data: existingRow, error: fetchError } = await supabase
+        .from('vehicles')
+        .select('*')
+        .eq('id', data.id)
+        .maybeSingle();
+
+      if (fetchError) throw fetchError;
+      if (!existingRow) throw new Error(`Vehicle ${data.id} was not found in Supabase.`);
+
+      const existingVehicle = fromDbVehicle(existingRow);
+      const mergedVehicle: Vehicle = {
+        ...existingVehicle,
+        ...data,
+        id: data.id,
+        tenantId: data.tenantId || existingVehicle.tenantId || getTenantId(),
+      };
+      const dbRow: any = toDbVehicle(mergedVehicle);
+
       const { error } = await supabase.from('vehicles').update(dbRow).eq('id', data.id);
       if (error) {
         console.warn('[Supabase] updateVehicle full column update error:', error.message);
@@ -1250,13 +1270,17 @@ createOdometerLog: async (data: OdometerLog): Promise<OdometerLog> => {
             tenant_id: dbRow.tenant_id,
           };
           const { error: fallbackErr } = await supabase.from('vehicles').update(fallbackRow).eq('id', data.id);
-          if (fallbackErr) console.error('[Supabase] updateVehicle fallback error:', fallbackErr.message);
+          if (fallbackErr) throw fallbackErr;
+        } else {
+          throw error;
         }
       }
+
+      return mergedVehicle;
     } catch (err: any) {
       console.error('[Supabase] updateVehicle exception:', err.message);
+      throw err;
     }
-    return data;
   },
 
   deleteVehicle: async (id: string): Promise<{ id: string }> => {
