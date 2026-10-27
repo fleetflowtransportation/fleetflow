@@ -291,7 +291,7 @@ export function evaluateBookingAssignment({
 
   const startsDuringLunch = startTime >= lunchStart && startTime < lunchEnd;
 
-  if (startsDuringLunch) {
+  if (serviceType !== 'Self-Drive' && startsDuringLunch) {
     const reason = `Booking start time (${startTime12}) overlaps with official ${isFriday ? 'Friday ' : ''}lunch break (${formatTime12H(lunchStart)} - ${formatTime12H(lunchEnd)}).`;
     return {
       status: 'Conflict',
