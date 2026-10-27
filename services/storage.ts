@@ -129,6 +129,7 @@ const toDbVehicle = (v: Partial<Vehicle>) => {
     ...(v.manufactureYear !== undefined && { manufacture_year: v.manufactureYear }),
     ...(v.ownershipType !== undefined && { ownership_type: v.ownershipType }),
     ...(v.vehicleStatus !== undefined && { vehicle_status: v.vehicleStatus }),
+    ...(v.allowSelfDrive !== undefined && { allow_self_drive: v.allowSelfDrive === true }),
     ...(v.assignedBranch !== undefined && { assigned_branch: v.assignedBranch }),
     ...(v.assignedDriverId !== undefined && { assigned_driver_id: v.assignedDriverId }),
     ...(v.fuelType !== undefined && { fuel_type: v.fuelType }),
@@ -190,7 +191,9 @@ const fromDbVehicle = (row: any): Vehicle => {
     manufactureYear: row.manufacture_year ? Number(row.manufacture_year) : (meta.manufactureYear ? Number(meta.manufactureYear) : undefined),
     ownershipType: row.ownership_type || meta.ownershipType || 'Owned',
     vehicleStatus: row.vehicle_status || meta.vehicleStatus || 'Active',
-    allowSelfDrive: meta.allowSelfDrive === true,
+    allowSelfDrive: row.allow_self_drive !== undefined && row.allow_self_drive !== null
+      ? row.allow_self_drive === true
+      : meta.allowSelfDrive === true,
     assignedBranch: row.assigned_branch || meta.assignedBranch || undefined,
     assignedDriverId: row.assigned_driver_id || meta.assignedDriverId || undefined,
     fuelType: row.fuel_type || meta.fuelType || 'Diesel',
