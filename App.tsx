@@ -45,6 +45,12 @@ const App: React.FC = () => {
   const [activeView, setActiveView] = useState<NavView>(getViewFromPath);
 
   React.useEffect(() => {
+    // Enforce pure light mode across the application
+    try {
+      document.documentElement.classList.remove('dark');
+      localStorage.removeItem('armada-theme');
+    } catch {}
+
     const handlePopState = () => {
       setActiveView(getViewFromPath());
     };
@@ -86,7 +92,7 @@ const App: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-950">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin h-10 w-10 border-4 border-gray-300 border-t-gray-800 rounded-full mx-auto mb-4"></div>
           <p className="text-gray-600">Loading fleet data...</p>
@@ -97,7 +103,7 @@ const App: React.FC = () => {
 
   if (loadError) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-950 px-4">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
         <div className="text-center max-w-md">
           <p className="text-red-600 font-semibold mb-2">Failed to load data</p>
           <p className="text-gray-600 text-sm mb-4">{loadError}</p>
@@ -184,7 +190,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-950 font-sans text-gray-800 dark:text-slate-100">
+    <div className="min-h-screen bg-gray-50 font-sans text-gray-800">
       <Header
         activeView={activeView}
         setActiveView={handleSetView}

@@ -13,17 +13,13 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script>
-  // Apply theme BEFORE paint (elak white flash)
-  (function () {
-    try {
-      var t = localStorage.getItem('armada-theme');
-      var dark = t === 'dark' || (t !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-      if (dark) document.documentElement.classList.add('dark');
-    } catch (e) {}
-  })();
+  // Enforce pure light mode across the system
+  try {
+    localStorage.removeItem('armada-theme');
+    document.documentElement.classList.remove('dark');
+  } catch (e) {}
 
   tailwind.config = {
-    darkMode: 'class',
     theme: {
       extend: {
         fontFamily: {
@@ -34,8 +30,7 @@
   };
 </script>
     <style>
-      /* Keep form text readable when the app inherits a dark system theme.
-         Explicit Tailwind text-color utilities can still override this default. */
+      /* Keep form text readable and crisp */
       input,
       textarea,
       select {
@@ -66,7 +61,7 @@
       }
     </style>
   </head>
-<body class="bg-gray-50 text-gray-800 dark:bg-slate-950 dark:text-slate-100">
+<body class="bg-gray-50 text-gray-800">
     <div id="root"></div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
