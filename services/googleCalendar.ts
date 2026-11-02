@@ -842,7 +842,7 @@ export const googleCalendarService = {
 
     // Resolve assigned driver info
     const assignedDriver = resolveDriver(users, booking.driverId, booking.calendarEventTitle);
-    const driverEmail = notifyRequesterOnly ? '' : assignedDriver?.email;
+    const driverEmail = assignedDriver?.email;
     const driverName = assignedDriver?.name;
     const driverEmailData = notifyRequesterOnly ? null : (assignedDriver ? buildDriverEmailHtml(booking, assignedDriver, vehicles) : null);
 
@@ -850,7 +850,7 @@ export const googleCalendarService = {
     if (booking.requesterEmail) {
       attendees.push({ email: booking.requesterEmail, displayName: booking.requesterName || 'Requester' });
     }
-    if (!notifyRequesterOnly && driverEmail && driverEmail.includes('@')) {
+    if (driverEmail && driverEmail.includes('@')) {
       attendees.push({ email: driverEmail, displayName: `${driverName || 'Driver'} (Armada Flow Driver)` });
     }
 
@@ -939,7 +939,7 @@ export const googleCalendarService = {
           colorId: getColorId(booking),
         };
 
-        const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(tenant.googleCalendarId)}/events/${encodeURIComponent(booking.calendarEventId)}?sendUpdates=all`, {
+        const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(tenant.googleCalendarId)}/events/${encodeURIComponent(booking.calendarEventId)}?sendUpdates=${notifyRequesterOnly ? 'none' : 'all'}`, {
           method: 'PUT',
           headers: {
             'Authorization': `Bearer ${cachedToken}`,
