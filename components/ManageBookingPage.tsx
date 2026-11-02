@@ -36,6 +36,8 @@ const toLocalDate = (value?: string) => {
 export const ManageBookingPage: React.FC<ManageBookingPageProps> = ({ tenantId, token }) => {
   const [booking, setBooking] = useState<Booking | null>(null);
   const [stops, setStops] = useState<BookingStop[]>([]);
+  const [pickupTime, setPickupTime] = useState('');
+  const [returnTime, setReturnTime] = useState('');
   const [canManage, setCanManage] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -58,6 +60,8 @@ export const ManageBookingPage: React.FC<ManageBookingPageProps> = ({ tenantId, 
       const data = await invoke({ action: 'get' });
       if (!data.booking) throw new Error('Booking details are unavailable.');
       setBooking(data.booking);
+      setPickupTime((data.booking.dateTime || '').match(/T(\\d{2}:\\d{2})/)?.[1] || '');
+      setReturnTime((data.booking.finishDateTime || '').match(/T(\\d{2}:\\d{2})/)?.[1] || '');
       setStops((data.booking.stops || []).map((stop, index) => ({
         ...stop,
         id: stop.id || stopId(),
@@ -103,6 +107,40 @@ export const ManageBookingPage: React.FC<ManageBookingPageProps> = ({ tenantId, 
 
   const removeStop = (index: number) => {
     setStops(current => current.filter((_, i) => i !== index).map((stop, i) => ({ ...stop, sequence: i + 1 })));
+  };
+
+  const saveTimes = async () => {
+    if (!booking || !canManage) return;
+    if (!pickupTime || !returnTime || returnTime <= pickupTime) {
+      setErrorMessage('Return time must be later than pickup time on the same date.');
+      return;
+    }
+    setSaving(true);
+    setErrorMessage('');
+    setNotice('');
+    try {
+      const data = await invoke({ action: 'update_times', pickupTime, returnTime });
+      if (!data.booking) throw new Error('The updated booking was not returned.');
+      const updated = data.booking;
+      setBooking(updated);
+      setPickupTime((updated.dateTime || '').match(/T(\\d{2}:\\d{2})/)?.[1] || pickupTime);
+      setReturnTime((updated.finishDateTime || '').match(/T(\\d{2}:\\d{2})/)?.[1] || returnTime);
+      try {
+        const tenant = await storageService.getTenant(tenantId);
+        if (tenant) {
+          const [users, vehicles] = await Promise.all([storageService.getUsers(), storageService.getVehicles()]);
+          await googleCalendarService.updateEvent(tenant, updated, vehicles, users, window.location.href);
+        }
+      } catch (syncError) {
+        console.warn('[ManageBookingPage] Time saved, but calendar/email sync could not be completed:', syncError);
+      }
+      setNotice('Your pickup and return times have been updated. A notification will be sent to your email.');
+    } catch (error: any) {
+      setErrorMessage(error?.message || 'Unable to update the booking times.');
+      await loadBooking();
+    } finally {
+      setSaving(false);
+    }
   };
 
   const saveRoute = async () => {
@@ -231,10 +269,29 @@ export const ManageBookingPage: React.FC<ManageBookingPageProps> = ({ tenantId, 
             ) : canManage ? (
               <>
                 <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+                  <h2 className="text-lg font-extrabold">Change Pickup & Return Time</h2>
+                  <p className="mt-1 text-sm text-slate-500">The original booking date cannot be changed. New times will be checked against the driver or vehicle schedule before they are saved. If the time conflicts, your booking will remain unchanged.</p>
+                  <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-bold text-slate-600">Pickup time</span>
+                      <input type="time" value={pickupTime} onChange={e => setPickupTime(e.target.value)} disabled={saving || cancelling} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-bold text-slate-600">Return time</span>
+                      <input type="time" value={returnTime} onChange={e => setReturnTime(e.target.value)} disabled={saving || cancelling} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" />
+                    </label>
+                  </div>
+                  <p className="mt-3 text-xs text-slate-500">Need a different date? Please submit a new booking.</p>
+                  <div className="mt-5 flex justify-end">
+                    <button type="button" onClick={() => void saveTimes()} disabled={saving || cancelling || !pickupTime || !returnTime} className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-extrabold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50">{saving ? 'Checking & saving…' : 'Save New Time'}</button>
+                  </div>
+                </section>
+
+                <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <h2 className="text-lg font-extrabold">Destination & Stops</h2>
-                      <p className="mt-1 text-sm text-slate-500">Only route addresses, stop names and stop order can be changed. Date, time, driver and vehicle assignment cannot be edited here.</p>
+                      <p className="mt-1 text-sm text-slate-500">Only route addresses, stop names and stop order can be changed here. The booking date, driver and vehicle assignment remain unchanged.</p>
                     </div>
                     <span className="rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700">{stops.length}/{MAX_BOOKING_STOPS} stops</span>
                   </div>
