@@ -17,7 +17,7 @@ import {
   PlusIcon
 } from './icons/Icons';
 import { BookingResultModal } from './BookingResultModal';
-import { evaluateBookingAssignment, normalizeDate, normalizeTime, type AutoAssignResult } from '../services/bookingEngine';
+import { type AutoAssignResult } from '../services/bookingEngine';
 import { isOtherPickup, createStopId, getStops, deriveDestination, normalizeStopsForSave, getRouteLabel } from '../utils';
 
 export interface BookingFormProps {
@@ -89,9 +89,6 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
     updateBooking, 
     vehicles, 
     users, 
-    driverSchedules, 
-    lastDriverAssignedId, 
-    bookings, 
     activeTenant 
   } = useAppContext();
   
@@ -311,27 +308,6 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
       processedData.attachmentName = bookingToEdit.attachmentName;
       processedData.attachmentUrl = bookingToEdit.attachmentUrl;
     }
-
-    const baseInput = {
-      requesterName: formData.requesterName.trim(),
-      requesterEmail: formData.requesterEmail.trim(),
-      department: formData.department,
-      bookingDate: formData.bookingDate,
-      startTime: formData.startTime,
-      endTime: formData.endTime,
-      purpose: formData.purpose.trim(),
-      destination: destinationDerived,
-      pickupPoint: formData.pickupPoint,
-      address: isOtherPickup(formData.pickupPoint) ? formData.address.trim() : '',
-      staffCount: Number(formData.staffCount) || 0,
-      kidsCount: Number(formData.kidsCount) || 0,
-      teenagersCount: Number(formData.teenagersCount) || 0,
-      serviceType: formData.serviceType,
-      vehiclePreference: formData.vehiclePreference,
-      shouldWait: formData.shouldWait,
-      remarks: formData.remarks.trim(),
-      icNumber: formData.icNumber.trim(),
-    };
 
     if (bookingToEdit) {
       // Editing an existing booking must never trigger the auto-assignment engine.
