@@ -470,54 +470,43 @@ export function evaluateBookingAssignment({
     }
   }
 
-  // STRICT ROSTER MODE:
-  // Never invent on-duty drivers. Only drivers present in driver_schedules from Supabase for this exact date are eligible.
-  if (workingDrivers.length === 0 && schedulesOnDate.length === 0) {
-    console.warn('[BookingEngine] No driver_schedules rows for', bookingDate, 'in Supabase - strict roster mode enforces Conflict.');
-  } else {
-    console.log('[BookingEngine] Roster for', bookingDate, ':', workingDrivers.map(w => `${w.driver.name}(${w.shiftStart}-${w.shiftEnd})`).join(', ') || '(none resolved)', '| raw schedule rows:', schedulesOnDate.length);
+  console.log('[BookingEngine] Roster for', bookingDate, ':', workingDrivers.map(w => `${w.driver.name}(${w.shiftStart}-${w.shiftEnd})`).join(', ') || '(no roster entries resolved)', '| raw schedule rows:', schedulesOnDate.length);
+
+  // Prefer rostered drivers whose shift covers pickup time. If nobody is on shift,
+  // allow any active driver to receive the booking as Overtime.
+  let eligible = workingDrivers.filter(w => w.shiftStart <= startTime && w.shiftEnd > startTime);
+  let isPreWorkingHour = false;
+  let isOvertimeAssignment = false;
+
+  if (eligible.length === 0) {
+    eligible = activeDrivers.map(driver => ({ driver, shiftStart: '00:00', shiftEnd: '23:59' }));
+    isOvertimeAssignment = eligible.length > 0;
   }
 
-  // If still no working drivers available on duty for this date, trigger Conflict
-  if (workingDrivers.length === 0) {
-    const reason = `No driver roster or active drivers found for ${bookingDate}.`;
+  if (eligible.length === 0) {
+    const reason = `No active drivers are available for ${bookingDate}.`;
     return {
       status: 'Conflict',
       driverId: null,
       vehicleId: null,
-      calendarEventTitle: `[CONFLICT] ${requesterName} → ${destination} (No Driver Rostered)`,
+      calendarEventTitle: `[CONFLICT] ${requesterName} → ${destination} (No Active Driver)`,
       calendarColor: 'grey',
-      calendarEventId: `evt-no-driver-${Date.now()}`,
+      calendarEventId: `evt-no-active-driver-${Date.now()}`,
       conflictReason: reason,
       adminNotes: `CONFLICT: ${reason}`,
       emailNotifications: {
         requester: {
           to: requesterEmail,
           subject: `[CONFLICT] Driver Unavailable: ${destination} (${bookingDate})`,
-          body: `Hello ${requesterName},\n\nNo driver is on duty or rostered for ${bookingDate} at ${startTime12} - ${endTime12}.\n\nPlease contact the Admin team (${adminAin.name} at ${adminAin.email}) for assistance.\n\nArmada Flow`,
+          body: `Hello ${requesterName},\\n\\nNo active driver is currently available for ${bookingDate} at ${startTime12} - ${endTime12}.\\n\\nPlease contact the Admin team (${adminAin.name} at ${adminAin.email}) for assistance.\\n\\nArmada Flow`,
         },
         admin: {
           to: adminAin.email,
-          subject: `[ACTION REQUIRED] No Driver Rostered: ${requesterName} - ${destination}`,
-          body: `Attention Admin,\n\nBooking request from ${requesterName} on ${bookingDate} (${startTime12} - ${endTime12}) cannot be auto-assigned because no active drivers are on duty in the driver roster.\n\nPlease check the Driver Shift & Duty Roster.`,
+          subject: `[ACTION REQUIRED] No Active Driver: ${requesterName} - ${destination}`,
+          body: `Attention Admin,\\n\\nBooking request from ${requesterName} on ${bookingDate} (${startTime12} - ${endTime12}) cannot be auto-assigned because no active drivers are configured.`,
         },
       },
     };
-  }
-
-  // b. Filter drivers whose shift has started
-  let eligible = workingDrivers.filter(w => w.shiftStart <= startTime && w.shiftEnd > startTime);
-  let isPreWorkingHour = false;
-
-  if (eligible.length === 0 && workingDrivers.length > 0) {
-    const sortedByEarliestShift = [...workingDrivers].sort((a, b) => a.shiftStart.localeCompare(b.shiftStart));
-    const earliestShiftTime = sortedByEarliestShift[0]?.shiftStart || '09:00';
-
-    if (startTime < earliestShiftTime) {
-      isPreWorkingHour = true;
-    }
-
-    eligible = sortedByEarliestShift.filter(w => w.shiftStart === earliestShiftTime);
   }
 
   // c. Check calendar for available drivers without clash
@@ -693,6 +682,9 @@ export function evaluateBookingAssignment({
   const preWorkingWarning = isPreWorkingHour
     ? '⚠️ ATTENTION: Booking starts before official driver working hours. Please confirm manually with the on-duty driver and Head of Transportation.'
     : '';
+  const overtimeWarning = isOvertimeAssignment
+    ? '⚠️ OVERTIME: No driver was rostered/on-shift for this pickup time. Please confirm overtime availability with the assigned driver.'
+    : '';
 
   const vehicleNotice = allocatedVehicle
     ? `Vehicle: ${allocatedVehicle.name} (${allocatedVehicle.plateNumber}).`
@@ -702,11 +694,13 @@ export function evaluateBookingAssignment({
     .map(dw => `${dw.driverInfo.driver.name}: ${dw.dayBookingsCount} trip(s)`)
     .join(', ');
 
-  const adminNotes = isPreWorkingHour
-    ? `CONFIRMED (Pre-working-hour): Auto-assigned to ${chosen.driver.name} (Earliest shift: ${formatTime12H(chosen.shiftStart)} | Today's trips: ${chosenWorkload.dayBookingsCount}). ${preWorkingWarning}`
-    : `CONFIRMED: Auto-assigned to ${chosen.driver.name} via Daily Load Balancing (${dailyTripsSummary}). ${vehicleNotice}`;
+  const adminNotes = isOvertimeAssignment
+    ? `CONFIRMED (OVERTIME): Auto-assigned to ${chosen.driver.name} via Daily Load Balancing (${dailyTripsSummary}). ${overtimeWarning} ${vehicleNotice}`
+    : isPreWorkingHour
+      ? `CONFIRMED (Pre-working-hour): Auto-assigned to ${chosen.driver.name} (Earliest shift: ${formatTime12H(chosen.shiftStart)} | Today's trips: ${chosenWorkload.dayBookingsCount}). ${preWorkingWarning}`
+      : `CONFIRMED: Auto-assigned to ${chosen.driver.name} via Daily Load Balancing (${dailyTripsSummary}). ${vehicleNotice}`;
 
-  const totalPassengers = staffCount + kidsCount + teenagersCount;
+    const totalPassengers = staffCount + kidsCount + teenagersCount;
   const passengerDetails = [
     staffCount > 0 ? `Staff: ${staffCount}` : '',
     kidsCount > 0 ? `Children: ${kidsCount}` : '',
@@ -728,7 +722,7 @@ export function evaluateBookingAssignment({
     calendarEventId: `evt-${chosen.driver.id}-${Date.now()}`,
     adminNotes,
     isPreWorkingHour,
-    warningNotes: preWorkingWarning || undefined,
+    warningNotes: overtimeWarning || preWorkingWarning || undefined,
     newLastDriverAssignedId: chosen.driver.id,
     emailNotifications: {
       requester: {
