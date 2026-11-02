@@ -273,6 +273,27 @@ Deno.serve(async (request: Request) => {
       return json({ error: "This booking has already been cancelled." }, 409);
     }
 
+    if (action === "update_times") {
+      const pickupTime = String(body?.pickupTime || "").trim();
+      const returnTime = String(body?.returnTime || "").trim();
+      if (!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(pickupTime) || !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(returnTime)) {
+        return json({ error: "Please enter valid pickup and return times." }, 400);
+      }
+      const { data: result, error } = await supabase.rpc("manage_booking_update_times", {
+        p_tenant_id: tenantId,
+        p_token_hash: tokenHash,
+        p_pickup_time: pickupTime,
+        p_return_time: returnTime,
+      });
+      if (error) {
+        console.error("[manage-booking] time update RPC failed", error);
+        return json({ error: "Unable to validate and save the new booking time. Please try again." }, 500);
+      }
+      if (!result?.ok) return json({ error: result?.error || "The requested time is unavailable." }, Number(result?.status) || 409);
+      const updatedRow = result.booking as Record<string, any>;
+      return json({ booking: toPublicBooking(updatedRow), canManage: true });
+    }
+
     if (action === "update") {
       const incoming = body?.stops;
       if (!Array.isArray(incoming) || incoming.length < 1 || incoming.length > 5) {
