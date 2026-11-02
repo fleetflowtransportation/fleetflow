@@ -698,7 +698,9 @@ export function evaluateBookingAssignment({
     ? '⚠️ ATTENTION: Booking starts before official driver working hours. Please confirm manually with the on-duty driver and Head of Transportation.'
     : '';
   const overtimeWarning = isOvertimeAssignment
-    ? `⚠️ OVERTIME: This booking requires approximately ${Math.floor(chosenWorkload.overtimeMinutes / 60)}h ${chosenWorkload.overtimeMinutes % 60}m outside ${chosen.driver.name}'s rostered shift. Please confirm overtime availability with the assigned driver.`
+    ? (hasResolvedRoster
+      ? `⚠️ OVERTIME: This booking requires approximately ${Math.floor(chosenWorkload.overtimeMinutes / 60)}h ${chosenWorkload.overtimeMinutes % 60}m outside ${chosen.driver.name}'s rostered shift. Please confirm overtime availability with the assigned driver.`
+      : '⚠️ OVERTIME: No rostered shift was found for this date. Please confirm the assigned driver\'s overtime availability.')
     : '';
 
   const vehicleNotice = allocatedVehicle
@@ -710,7 +712,7 @@ export function evaluateBookingAssignment({
     .join(', ');
 
   const adminNotes = isOvertimeAssignment
-    ? `CONFIRMED (OVERTIME): Auto-assigned to ${chosen.driver.name} via Daily Load Balancing (${dailyTripsSummary}). ${overtimeWarning} ${vehicleNotice}`
+    ? `CONFIRMED (OVERTIME): Auto-assigned to ${chosen.driver.name} by least overtime and Daily Load Balancing (${dailyTripsSummary}). ${overtimeWarning} ${vehicleNotice}`
     : isPreWorkingHour
       ? `CONFIRMED (Pre-working-hour): Auto-assigned to ${chosen.driver.name} (Earliest shift: ${formatTime12H(chosen.shiftStart)} | Today's trips: ${chosenWorkload.dayBookingsCount}). ${preWorkingWarning}`
       : `CONFIRMED: Auto-assigned to ${chosen.driver.name} via Daily Load Balancing (${dailyTripsSummary}). ${vehicleNotice}`;
