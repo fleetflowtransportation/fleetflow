@@ -3,7 +3,7 @@ import type { Booking, BookingStop, Tenant } from '../types';
 import { MAX_BOOKING_STOPS } from '../types';
 import { getSupabase } from '../services/supabaseClient';
 import { storageService } from '../services/storage';
-import { googleCalendarService } from '../services/googleCalendar';
+import { googleCalendarService, buildEmailHtml } from '../services/googleCalendar';
 import { normalizeStopsForSave } from '../utils';
 
 interface ManageBookingPageProps {
@@ -129,12 +129,19 @@ export const ManageBookingPage: React.FC<ManageBookingPageProps> = ({ tenantId, 
         const tenant = await storageService.getTenant(tenantId);
         if (tenant) {
           const [users, vehicles] = await Promise.all([storageService.getUsers(), storageService.getVehicles()]);
-          await googleCalendarService.updateEvent(tenant, updated, vehicles, users, window.location.href);
+          await googleCalendarService.updateEvent(tenant, updated, vehicles, users, window.location.href, true);
+          const email = buildEmailHtml(updated, 'UPDATED', vehicles, users, window.location.href);
+          const sent = await googleCalendarService.sendNotificationEmail(tenant, updated.requesterEmail, email.subject, email.html, updated.requesterName);
+          setNotice(sent
+            ? 'Your pickup and return times have been updated. A confirmation email has been sent.'
+            : 'Your pickup and return times have been updated, but the email notification could not be sent. Please contact the administrator.');
+        } else {
+          setNotice('Your pickup and return times have been updated.');
         }
       } catch (syncError) {
         console.warn('[ManageBookingPage] Time saved, but calendar/email sync could not be completed:', syncError);
+        setNotice('Your pickup and return times have been updated, but calendar or email notification could not be completed. Please contact the administrator.');
       }
-      setNotice('Your pickup and return times have been updated. A notification will be sent to your email.');
     } catch (error: any) {
       setErrorMessage(error?.message || 'Unable to update the booking times.');
       await loadBooking();
