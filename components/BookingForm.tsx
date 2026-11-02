@@ -334,33 +334,20 @@ const BookingForm: React.FC<BookingFormProps> = ({ isOpen = true, onClose, booki
     };
 
     if (bookingToEdit) {
-      const result = evaluateBookingAssignment({
-        booking: baseInput,
-        existingBookings: bookings.filter(b => b.id !== bookingToEdit.id),
-        driverSchedules,
-        users,
-        vehicles,
-        lastDriverAssignedId,
-      });
-
-      if (result.status === 'Conflict') {
-        const confirmConflict = window.confirm(
-          `⚠️ CONFLICT DETECTED FOR THIS DATE & TIME:\n\n${result.conflictReason}\n\nDo you still want to force update this booking? (It will be flagged as Conflict).`
-        );
-        if (!confirmConflict) {
-          return;
-        }
-      }
-
+      // Editing an existing booking must never trigger the auto-assignment engine.
+      // That engine is for NEW requests; running it here could silently move the
+      // booking to another driver/vehicle even when Admin only edits a destination.
+      // Keep the existing allocation and workflow state; only save the fields
+      // the Admin actually edited in this form.
       const updatedPayload: Partial<Booking> = {
         ...processedData,
-        status: result.status === 'Conflict' ? 'Conflict' : result.status,
-        driverId: result.driverId || bookingToEdit.driverId,
-        vehicleId: result.vehicleId || bookingToEdit.vehicleId,
-        calendarEventTitle: result.calendarEventTitle || bookingToEdit.calendarEventTitle,
-        calendarColor: result.calendarColor || bookingToEdit.calendarColor,
-        conflictReason: result.conflictReason,
-        adminNotes: result.adminNotes || `Updated via Admin Dashboard at ${new Date().toLocaleTimeString()}.`,
+        status: bookingToEdit.status,
+        driverId: bookingToEdit.driverId,
+        vehicleId: bookingToEdit.vehicleId,
+        calendarEventTitle: bookingToEdit.calendarEventTitle,
+        calendarColor: bookingToEdit.calendarColor,
+        conflictReason: bookingToEdit.conflictReason,
+        adminNotes: bookingToEdit.adminNotes,
       };
 
       updateBooking(bookingToEdit.id, updatedPayload);
