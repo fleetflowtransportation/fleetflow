@@ -276,7 +276,7 @@ Deno.serve(async (request: Request) => {
     if (action === "update_times") {
       const pickupTime = String(body?.pickupTime || "").trim();
       const returnTime = String(body?.returnTime || "").trim();
-      if (!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(pickupTime) || !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(returnTime)) {
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(pickupTime) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(returnTime)) {
         return json({ error: "Please enter valid pickup and return times." }, 400);
       }
       const { data: result, error } = await supabase.rpc("manage_booking_update_times", {
