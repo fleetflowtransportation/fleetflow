@@ -60,8 +60,8 @@ export const ManageBookingPage: React.FC<ManageBookingPageProps> = ({ tenantId, 
       const data = await invoke({ action: 'get' });
       if (!data.booking) throw new Error('Booking details are unavailable.');
       setBooking(data.booking);
-      setPickupTime((data.booking.dateTime || '').match(/T(\\d{2}:\\d{2})/)?.[1] || '');
-      setReturnTime((data.booking.finishDateTime || '').match(/T(\\d{2}:\\d{2})/)?.[1] || '');
+      setPickupTime((data.booking.dateTime || '').match(/T(\d{2}:\d{2})/)?.[1] || '');
+      setReturnTime((data.booking.finishDateTime || '').match(/T(\d{2}:\d{2})/)?.[1] || '');
       setStops((data.booking.stops || []).map((stop, index) => ({
         ...stop,
         id: stop.id || stopId(),
@@ -123,8 +123,8 @@ export const ManageBookingPage: React.FC<ManageBookingPageProps> = ({ tenantId, 
       if (!data.booking) throw new Error('The updated booking was not returned.');
       const updated = data.booking;
       setBooking(updated);
-      setPickupTime((updated.dateTime || '').match(/T(\\d{2}:\\d{2})/)?.[1] || pickupTime);
-      setReturnTime((updated.finishDateTime || '').match(/T(\\d{2}:\\d{2})/)?.[1] || returnTime);
+      setPickupTime((updated.dateTime || '').match(/T(\d{2}:\d{2})/)?.[1] || pickupTime);
+      setReturnTime((updated.finishDateTime || '').match(/T(\d{2}:\d{2})/)?.[1] || returnTime);
       try {
         const tenant = await storageService.getTenant(tenantId);
         if (tenant) {
