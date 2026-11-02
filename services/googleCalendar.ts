@@ -773,7 +773,7 @@ export const googleCalendarService = {
     // Attempt via REST API if client OAuth token is available
     if (cachedToken && tenant?.googleCalendarId && !tenant.googleCalendarId.startsWith('http')) {
       try {
-        const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(tenant.googleCalendarId)}/events?sendUpdates=all`, {
+        const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(tenant.googleCalendarId)}/events?sendUpdates=${notifyRequesterOnly ? 'none' : 'all'}`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${cachedToken}`,
@@ -818,7 +818,8 @@ export const googleCalendarService = {
     booking: Booking,
     vehicles?: Vehicle[],
     users?: User[],
-    manageBookingUrl?: string
+    manageBookingUrl?: string,
+    notifyRequesterOnly: boolean = false
   ): Promise<boolean> => {
     // Only update if this booking already has an associated calendarEventId.
     // Odometer logs, fuel logs, and status changes must NEVER create new calendar events.
@@ -841,15 +842,15 @@ export const googleCalendarService = {
 
     // Resolve assigned driver info
     const assignedDriver = resolveDriver(users, booking.driverId, booking.calendarEventTitle);
-    const driverEmail = assignedDriver?.email;
+    const driverEmail = notifyRequesterOnly ? '' : assignedDriver?.email;
     const driverName = assignedDriver?.name;
-    const driverEmailData = assignedDriver ? buildDriverEmailHtml(booking, assignedDriver, vehicles) : null;
+    const driverEmailData = notifyRequesterOnly ? null : (assignedDriver ? buildDriverEmailHtml(booking, assignedDriver, vehicles) : null);
 
     const attendees: Array<{ email: string; displayName: string }> = [];
     if (booking.requesterEmail) {
       attendees.push({ email: booking.requesterEmail, displayName: booking.requesterName || 'Requester' });
     }
-    if (driverEmail && driverEmail.includes('@')) {
+    if (!notifyRequesterOnly && driverEmail && driverEmail.includes('@')) {
       attendees.push({ email: driverEmail, displayName: `${driverName || 'Driver'} (Armada Flow Driver)` });
     }
 
@@ -875,8 +876,8 @@ export const googleCalendarService = {
           guests: guestEmails,
           attendees: attendees,
           sendInvites: true,
-          sendUpdates: 'all',
-          sendEmail: Boolean(booking.requesterEmail),
+          sendUpdates: notifyRequesterOnly ? 'none' : 'all',
+          sendEmail: notifyRequesterOnly ? false : Boolean(booking.requesterEmail),
           emailSubject: emailData.subject,
           emailHtml: emailData.html,
           emailText: emailData.text,
