@@ -700,7 +700,7 @@ export function evaluateBookingAssignment({
       ? `CONFIRMED (Pre-working-hour): Auto-assigned to ${chosen.driver.name} (Earliest shift: ${formatTime12H(chosen.shiftStart)} | Today's trips: ${chosenWorkload.dayBookingsCount}). ${preWorkingWarning}`
       : `CONFIRMED: Auto-assigned to ${chosen.driver.name} via Daily Load Balancing (${dailyTripsSummary}). ${vehicleNotice}`;
 
-    const totalPassengers = staffCount + kidsCount + teenagersCount;
+  const totalPassengers = staffCount + kidsCount + teenagersCount;
   const passengerDetails = [
     staffCount > 0 ? `Staff: ${staffCount}` : '',
     kidsCount > 0 ? `Children: ${kidsCount}` : '',
@@ -728,12 +728,12 @@ export function evaluateBookingAssignment({
       requester: {
         to: requesterEmail,
         subject: `[CONFIRMED] Transportation Booking Confirmed: ${destination}`,
-        body: `Hello ${requesterName},\n\nYour transportation booking has been SUCCESSFULLY CONFIRMED!\n\n📅 Date: ${bookingDate}\n⏰ Time: ${startTime12} - ${endTime12}\n📍 Pickup Location: ${getPickupLocationDisplay(pickupPoint, address)}\n🎯 Destination: ${destination}\n👥 Passengers: ${totalPassengers} (${passengerDetails})\n👤 Assigned Driver: ${chosen.driver.name} (Phone: ${chosen.driver.phone})\n🚐 Vehicle: ${vehicleDisplay}\n${shouldWait ? '⏳ Driver Waiting: YES (Driver will wait at destination)\n' : ''}${remarks ? '📝 Notes: ' + remarks + '\n' : ''}${isPreWorkingHour ? '\n' + preWorkingWarning + '\n' : ''}\nThe event has been added to Google Calendar and your email is invited as a guest.\n\nArmada Flow`,
+        body: `Hello ${requesterName},\n\nYour transportation booking has been SUCCESSFULLY CONFIRMED!\n\n📅 Date: ${bookingDate}\n⏰ Time: ${startTime12} - ${endTime12}\n📍 Pickup Location: ${getPickupLocationDisplay(pickupPoint, address)}\n🎯 Destination: ${destination}\n👥 Passengers: ${totalPassengers} (${passengerDetails})\n👤 Assigned Driver: ${chosen.driver.name} (Phone: ${chosen.driver.phone})\n🚐 Vehicle: ${vehicleDisplay}\n${shouldWait ? '⏳ Driver Waiting: YES (Driver will wait at destination)\n' : ''}${remarks ? '📝 Notes: ' + remarks + '\n' : ''}${isOvertimeAssignment ? '\n' + overtimeWarning + '\n' : isPreWorkingHour ? '\n' + preWorkingWarning + '\n' : ''}\nThe event has been added to Google Calendar and your email is invited as a guest.\n\nArmada Flow`,
       },
       driver: {
         to: chosen.driver.email,
         subject: `[NEW ASSIGNMENT] Trip to ${destination} (${bookingDate})`,
-        body: `Hello ${chosen.driver.name},\n\nYou have been assigned to the following trip:\n\n📅 Date: ${bookingDate}\n⏰ Time: ${startTime12} - ${endTime12}\n👤 Requester: ${requesterName} (${department})\n📞 Requester Email: ${requesterEmail}\n📍 Pickup: ${getPickupLocationDisplay(pickupPoint, address)}\n🎯 Destination: ${destination}\n👥 Passengers: ${totalPassengers} (${passengerDetails})\n🚐 Vehicle: ${vehicleDisplay}\n${shouldWait ? '⏳ Driver Waiting: YES (Please wait for passengers until completion)\n' : ''}${remarks ? '📝 Notes: ' + remarks : ''}\n${isPreWorkingHour ? '\n' + preWorkingWarning : ''}\n\nPlease ensure the vehicle is inspected and ready before departure.\n\nArmada Flow`,
+        body: `Hello ${chosen.driver.name},\n\nYou have been assigned to the following trip:\n\n📅 Date: ${bookingDate}\n⏰ Time: ${startTime12} - ${endTime12}\n👤 Requester: ${requesterName} (${department})\n📞 Requester Email: ${requesterEmail}\n📍 Pickup: ${getPickupLocationDisplay(pickupPoint, address)}\n🎯 Destination: ${destination}\n👥 Passengers: ${totalPassengers} (${passengerDetails})\n🚐 Vehicle: ${vehicleDisplay}\n${shouldWait ? '⏳ Driver Waiting: YES (Please wait for passengers until completion)\n' : ''}${remarks ? '📝 Notes: ' + remarks : ''}\n${isOvertimeAssignment ? '\n' + overtimeWarning : isPreWorkingHour ? '\n' + preWorkingWarning : ''}\n\nPlease ensure the vehicle is inspected and ready before departure.\n\nArmada Flow`,
       },
     },
   };
