@@ -472,13 +472,13 @@ export function evaluateBookingAssignment({
 
   console.log('[BookingEngine] Roster for', bookingDate, ':', workingDrivers.map(w => `${w.driver.name}(${w.shiftStart}-${w.shiftEnd})`).join(', ') || '(no roster entries resolved)', '| raw schedule rows:', schedulesOnDate.length);
 
-  // Prefer rostered drivers whose shift covers pickup time. If nobody is on shift,
-  // allow any active driver to receive the booking as Overtime.
-  let eligible = workingDrivers.filter(w => w.shiftStart <= startTime && w.shiftEnd > startTime);
+  // Evaluate every rostered driver and minimize booking time outside their shift.
+  let eligible = workingDrivers;
   let isPreWorkingHour = false;
   let isOvertimeAssignment = false;
+  const hasResolvedRoster = workingDrivers.length > 0;
 
-  if (eligible.length === 0) {
+  if (!hasResolvedRoster) {
     eligible = activeDrivers.map(driver => ({ driver, shiftStart: '00:00', shiftEnd: '23:59' }));
     isOvertimeAssignment = eligible.length > 0;
   }
@@ -586,11 +586,25 @@ export function evaluateBookingAssignment({
   // 3. Compute workload metrics for each available driver on this date
   interface DriverDailyWorkload {
     driverInfo: WorkingDriverInfo;
+    overtimeMinutes: number;
     dayBookingsCount: number;
     totalMinutesToday: number;
     isLatestDriverOnDate: boolean;
     isLastAssignedDriver: boolean;
   }
+
+  const getOvertimeMinutes = (w: WorkingDriverInfo): number => {
+    if (!hasResolvedRoster) return 0;
+    const [sh, sm] = startTime.split(':').map(Number);
+    const [eh, em] = endTime.split(':').map(Number);
+    const [ssh, ssm] = w.shiftStart.split(':').map(Number);
+    const [seh, sem] = w.shiftEnd.split(':').map(Number);
+    const bookingStart = sh * 60 + sm;
+    const bookingEnd = eh * 60 + em;
+    const shiftStart = ssh * 60 + ssm;
+    const shiftEnd = seh * 60 + sem;
+    return Math.max(0, shiftStart - bookingStart) + Math.max(0, bookingEnd - shiftEnd);
+  };
 
   const driverWorkloads: DriverDailyWorkload[] = availableDrivers.map(w => {
     const wName = (w.driver.name || '').trim().toLowerCase();
@@ -606,6 +620,7 @@ export function evaluateBookingAssignment({
 
     return {
       driverInfo: w,
+      overtimeMinutes: getOvertimeMinutes(w),
       dayBookingsCount,
       totalMinutesToday,
       isLatestDriverOnDate: Boolean(isLatestDriverOnDate),
@@ -613,15 +628,13 @@ export function evaluateBookingAssignment({
     };
   });
 
-  // 4. Sort drivers:
-  // - Priority 1: Driver with FEWEST trips on this day (e.g. if Driver A has 1 trip, Driver B has 0 trips -> Driver B chosen)
-  // - Priority 2: If trip counts are tied, avoid the driver who just took the latest trip today
-  // - Priority 3: Avoid the globally last assigned driver
-  // - Priority 4: Driver with fewer total booked minutes today
-  // - Priority 5: If pre-working hour, earlier shiftStart
-  // - Priority 6: Alphabetical tie-breaker
+  // 4. Minimize overtime first, then preserve the existing workload/fair-rotation rules.
   driverWorkloads.sort((a, b) => {
-    // 1. Lowest daily booking count first (Daily Load Balancing)
+    if (a.overtimeMinutes !== b.overtimeMinutes) {
+      return a.overtimeMinutes - b.overtimeMinutes;
+    }
+
+    // Lowest daily booking count first (Daily Load Balancing)
     if (a.dayBookingsCount !== b.dayBookingsCount) {
       return a.dayBookingsCount - b.dayBookingsCount;
     }
@@ -652,6 +665,8 @@ export function evaluateBookingAssignment({
 
   const chosenWorkload = driverWorkloads[0];
   const chosen = chosenWorkload.driverInfo;
+  isPreWorkingHour = hasResolvedRoster && startTime < chosen.shiftStart;
+  isOvertimeAssignment = isOvertimeAssignment || chosenWorkload.overtimeMinutes > 0;
 
   // Vehicle Allocation
   let allocatedVehicle: Vehicle | null = null;
@@ -683,7 +698,7 @@ export function evaluateBookingAssignment({
     ? '⚠️ ATTENTION: Booking starts before official driver working hours. Please confirm manually with the on-duty driver and Head of Transportation.'
     : '';
   const overtimeWarning = isOvertimeAssignment
-    ? '⚠️ OVERTIME: No driver was rostered/on-shift for this pickup time. Please confirm overtime availability with the assigned driver.'
+    ? `⚠️ OVERTIME: This booking requires approximately ${Math.floor(chosenWorkload.overtimeMinutes / 60)}h ${chosenWorkload.overtimeMinutes % 60}m outside ${chosen.driver.name}'s rostered shift. Please confirm overtime availability with the assigned driver.`
     : '';
 
   const vehicleNotice = allocatedVehicle
