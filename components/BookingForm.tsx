@@ -67,7 +67,7 @@ const splitIso = (iso?: string) => {
 
   // Preserve the stored schedule date/time exactly, including timestamps
   // serialized with a timezone suffix such as Z or +00:00.
-  const match = String(iso).trim().match(/^(\\d{4}-\\d{2}-\\d{2})[T ](\\d{2}:\\d{2})/);
+  const match = String(iso).trim().match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/);
   if (match) return { date: match[1], time: match[2] };
 
   // Legacy/non-ISO fallback: format using local getters, not UTC getters.
