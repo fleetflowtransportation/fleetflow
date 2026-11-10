@@ -58,17 +58,26 @@ const emptyStopRow = (): StopFormRow => ({ id: createStopId(), name: '', address
 
 type FormData = typeof emptyFormData;
 
+/**
+ * Read Malaysia-local booking wall-clock date/time without converting through
+ * UTC. toISOString() can shift early-morning bookings to the previous day.
+ */
 const splitIso = (iso?: string) => {
   if (!iso) return { date: '', time: '' };
-  try {
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return { date: '', time: '' };
-    const date = d.toISOString().split('T')[0];
-    const time = d.toTimeString().slice(0, 5);
-    return { date, time };
-  } catch {
-    return { date: '', time: '' };
-  }
+
+  // Preserve the stored schedule date/time exactly, including timestamps
+  // serialized with a timezone suffix such as Z or +00:00.
+  const match = String(iso).trim().match(/^(\\d{4}-\\d{2}-\\d{2})[T ](\\d{2}:\\d{2})/);
+  if (match) return { date: match[1], time: match[2] };
+
+  // Legacy/non-ISO fallback: format using local getters, not UTC getters.
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return { date: '', time: '' };
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return {
+    date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+    time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+  };
 };
 
 const fileToBase64 = (file: File): Promise<string> => {
