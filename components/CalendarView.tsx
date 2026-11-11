@@ -1900,8 +1900,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           {dayBookings.slice(0, 3).map(b => {
                             const dName = getDriverName(b.driverId, b.calendarEventTitle, b.serviceType);
                             const style = getEventCardStyle(b, dName);
-                            const startTime = parseAsLocal(b.dateTime).toLocaleTimeString('en-MY', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(/\\s/g, '');
-                            const endTime = b.finishDateTime ? parseAsLocal(b.finishDateTime).toLocaleTimeString('en-MY', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(/\\s/g, '') : '';
+                            const startTime = parseAsLocal(b.dateTime).toLocaleTimeString('en-MY', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(/\s/g, '');
+                            const endTime = b.finishDateTime ? parseAsLocal(b.finishDateTime).toLocaleTimeString('en-MY', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(/\s/g, '') : '';
                             const timeLabel = endTime ? `${startTime}–${endTime}` : startTime;
                             return (
                               <button
