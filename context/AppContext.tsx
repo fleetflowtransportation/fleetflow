@@ -54,7 +54,7 @@ interface AppContextType {
   lastBookingChange: BookingHistory | null;
   undoLastBookingChange: () => void;
   addUser: (user: Omit<User, 'id'>) => void;
-  updateUser: (userId: string, updatedData: Partial<Omit<User, 'id'>>) => void;
+  updateUser: (userId: string, updatedData: Partial<Omit<User, 'id'>>) => Promise<boolean>;
   deleteUser: (userId: string) => void;
   addVehicle: (vehicle: Omit<Vehicle, 'id'>) => void;
   updateVehicle: (vehicleId: string, updatedData: Partial<Omit<Vehicle, 'id'>>) => void;
@@ -1389,11 +1389,15 @@ const forgotPassword = useCallback(async (email: string): Promise<{ success: boo
       });
   }, []);
 
-  const updateUser = useCallback((userId: string, updatedData: Partial<Omit<User, 'id'>>) => {
-    setUsers(prev => prev.map(u => (u.id === userId ? { ...u, ...updatedData } : u)));
-    storageService.updateUser({ id: userId, ...updatedData }).catch(err => {
-      alert('Failed to update user: ' + err.message);
-    });
+  const updateUser = useCallback(async (userId: string, updatedData: Partial<Omit<User, 'id'>>): Promise<boolean> => {
+    try {
+      await storageService.updateUser({ id: userId, ...updatedData });
+      setUsers(prev => prev.map(u => (u.id === userId ? { ...u, ...updatedData } : u)));
+      return true;
+    } catch (err: any) {
+      console.error('Failed to update user:', err);
+      return false;
+    }
   }, []);
 
   const deleteUser = useCallback((userId: string) => {
