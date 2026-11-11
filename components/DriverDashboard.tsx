@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import './DriverDashboard.mobile.css';
 import './DriverDashboard.v2.css';
 import { useAppContext } from '../context/AppContext';
@@ -67,6 +67,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [profileMessage, setProfileMessage] = useState('');
   const [passwordMessage, setPasswordMessage] = useState('');
+  useEffect(() => { setProfileName(driverProfile?.name || driver.name); setProfilePhone(driverProfile?.phone || ''); setProfileAddress(driverProfile?.address || ''); }, [driverProfile?.name, driverProfile?.phone, driverProfile?.address, driver.name]);
   const [activeTab, setActiveTab] = useState<ActiveTab>('today');
   const [activeSection, setActiveSection] = useState<ActiveSection>('home');
   const [isFuelLogOpen, setIsFuelLogOpen] = useState(false);
@@ -244,7 +245,8 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
     setIsSavingProfile(true);
     setProfileMessage('');
     try {
-      await updateUser(driver.id, { name: cleanName, phone: profilePhone.trim(), address: profileAddress.trim() });
+      const saved = await updateUser(driver.id, { name: cleanName, phone: profilePhone.trim(), address: profileAddress.trim() });
+      if (!saved) throw new Error('Unable to save profile. Please try again.');
       setProfileMessage('Profile updated successfully.');
     } catch (error: any) {
       setProfileMessage(error?.message || 'Unable to save profile. Please try again.');
@@ -518,7 +520,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
                 {pendingOdometerBookings.length > 0 ? <><p className="driver-panel-description">Select one or more trips, then use the action bar to submit their meter readings together.</p>{pendingOdometerBookings.map(booking => renderBookingCard(booking, true))}</> : <div className="driver-empty-state success"><strong>All odometer records are up to date</strong><span>There are no past assigned trips waiting for a meter submission.</span></div>}
               </div>
       {/* COLLAPSIBLE FLEET VEHICLE LAST ODOMETER REFERENCE */}
-      {activeSection === 'profile' && vehicles.length > 0 && (
+      {activeSection === 'odometer' && vehicles.length > 0 && (
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden transition-all duration-200">
           {/* Collapsible Header Banner */}
           <button
