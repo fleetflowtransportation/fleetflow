@@ -205,3 +205,96 @@ button.driver-overview-card { cursor:pointer; }
 }
 
 .driver-primary-nav button { position:relative; }
+
+
+/* Mobile layout hardening — ensure the five-section workspace switches out of desktop sidebar mode. */
+@media screen and (max-width: 900px) {
+  .driver-dashboard .driver-workspace {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    gap: 14px !important;
+  }
+  .driver-dashboard .driver-primary-nav {
+    position: fixed !important;
+    inset: auto 10px calc(10px + env(safe-area-inset-bottom, 0px)) 10px !important;
+    z-index: 1000 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: stretch !important;
+    justify-content: space-around !important;
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 64px !important;
+    margin: 0 !important;
+    padding: 6px !important;
+    overflow: visible !important;
+    border: 1px solid #e3e9f3 !important;
+    border-radius: 18px !important;
+    background: rgba(255,255,255,.98) !important;
+    box-shadow: 0 10px 35px rgba(15,23,42,.17) !important;
+    backdrop-filter: blur(16px);
+  }
+  .driver-dashboard .driver-primary-nav > button {
+    position: relative !important;
+    display: flex !important;
+    flex: 1 1 0 !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 3px !important;
+    width: auto !important;
+    min-width: 0 !important;
+    min-height: 50px !important;
+    margin: 0 !important;
+    padding: 4px 2px !important;
+    white-space: nowrap !important;
+    text-align: center !important;
+    font-size: 10px !important;
+  }
+  .driver-dashboard .driver-primary-nav > button small {
+    position: absolute !important;
+    top: 1px !important;
+    right: calc(50% - 23px) !important;
+    transform: none !important;
+    margin: 0 !important;
+  }
+  .driver-dashboard .driver-nav-icon {
+    flex: 0 0 23px !important;
+    width: 23px !important;
+    height: 23px !important;
+  }
+  .driver-dashboard .driver-section-content {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+  .driver-dashboard .driver-page-section {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  .driver-app-main {
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 10px 10px calc(96px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .driver-dashboard {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    padding-bottom: calc(82px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+@media screen and (max-width: 600px) {
+  .driver-dashboard .driver-section-heading {
+    flex-wrap: wrap !important;
+  }
+  .driver-dashboard .driver-overview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
