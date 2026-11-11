@@ -31,6 +31,7 @@ import DriverSpeedDial from './DriverSpeedDial';
 import { FeedbackModal } from './FeedbackModal';
 import { BookingDetailModal } from './BookingDetailModal';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { getSupabase } from '../services/supabaseClient';
 import { parseAsLocal, getPickupLocationDisplay, isOtherPickup, getRouteLabel, getStops, resolveDriver } from '../utils';
 
 interface DriverDashboardProps {
@@ -57,6 +58,15 @@ const isPastTrip = (dateTimeStr: string): boolean => {
 const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
   const { bookings, odometerLogs, fuelLogs, updateBookingStatus, vehicles, users } = useAppContext();
   const driverProfile = users.find(user => user.id === driver.id);
+  const [profileName, setProfileName] = useState(driverProfile?.name || driver.name);
+  const [profilePhone, setProfilePhone] = useState(driverProfile?.phone || '');
+  const [profileAddress, setProfileAddress] = useState(driverProfile?.address || '');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [profileMessage, setProfileMessage] = useState('');
+  const [passwordMessage, setPasswordMessage] = useState('');
   const [activeTab, setActiveTab] = useState<ActiveTab>('today');
   const [activeSection, setActiveSection] = useState<ActiveSection>('home');
   const [isFuelLogOpen, setIsFuelLogOpen] = useState(false);
@@ -226,6 +236,41 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
   const fuelLogsCount = useMemo(() => {
     return fuelLogs.filter(log => log.driverId === driver.id).length;
   }, [fuelLogs, driver.id]);
+
+  const handleSaveDriverProfile = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const cleanName = profileName.trim();
+    if (!cleanName) { setProfileMessage('Please enter your name.'); return; }
+    setIsSavingProfile(true);
+    setProfileMessage('');
+    try {
+      await updateUser(driver.id, { name: cleanName, phone: profilePhone.trim(), address: profileAddress.trim() });
+      setProfileMessage('Profile updated successfully.');
+    } catch (error: any) {
+      setProfileMessage(error?.message || 'Unable to save profile. Please try again.');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handleChangePassword = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setPasswordMessage('');
+    if (newPassword.length < 8) { setPasswordMessage('Password must contain at least 8 characters.'); return; }
+    if (newPassword !== confirmPassword) { setPasswordMessage('The passwords do not match.'); return; }
+    setIsChangingPassword(true);
+    try {
+      const { error } = await getSupabase().auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      setNewPassword('');
+      setConfirmPassword('');
+      setPasswordMessage('Password updated successfully.');
+    } catch (error: any) {
+      setPasswordMessage(error?.message || 'Unable to update password. Please try again.');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
 
   const handleAcceptJob = (bookingId: string) => {
     updateBookingStatus(bookingId, 'Confirmed');
@@ -439,52 +484,6 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
   return (
     <div className="driver-dashboard relative safe-area-pb">
       
-      {/* DRIVER COCKPIT PROFILE */}
-      <div className="bg-slate-900 text-white p-5 rounded-2xl shadow-md border border-slate-800">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center space-x-3">
-            <div className="bg-indigo-600/30 p-2 rounded-xl border border-indigo-500/40 text-indigo-300">
-              <UserCircleIcon className="h-6 w-6" />
-            </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <span className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase">Driver Portal</span>
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1 animate-pulse"></span>
-                  On Duty (Online)
-                </span>
-              </div>
-              <h2 className="text-lg font-extrabold tracking-tight text-white mt-0.5">{driver.name}</h2>
-            </div>
-          </div>
-
-          <button
-            onClick={() => setActiveSection('schedule')}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-md transition active:scale-95 border border-indigo-400/40 cursor-pointer"
-            title="Open Driver Schedule & Calendar"
-          >
-            <CalendarIcon className="h-4 w-4" />
-            <span>My Schedule</span>
-          </button>
-        </div>
-
-        {/* DRIVER METRICS STRIP */}
-        <div className="grid grid-cols-3 gap-2.5 mt-4 pt-4 border-t border-slate-800 text-center">
-          <div className="bg-slate-800/60 py-2 px-2 rounded-xl border border-slate-700/60">
-            <span className="block text-lg font-extrabold text-emerald-400">{completedTripsCount}</span>
-            <span className="block text-[10px] text-slate-400 font-medium uppercase tracking-wider">Completed Trips</span>
-          </div>
-          <div className="bg-slate-800/60 py-2 px-2 rounded-xl border border-slate-700/60">
-            <span className="block text-lg font-extrabold text-indigo-300">{totalDriverMileage.toLocaleString()} km</span>
-            <span className="block text-[10px] text-slate-400 font-medium uppercase tracking-wider">Total Distance</span>
-          </div>
-          <div className="bg-slate-800/60 py-2 px-2 rounded-xl border border-slate-700/60">
-            <span className="block text-lg font-extrabold text-amber-300">{fuelLogsCount}</span>
-            <span className="block text-[10px] text-slate-400 font-medium uppercase tracking-wider">Fuel Logs</span>
-          </div>
-        </div>
-      </div>
-
       {/* PRIMARY DRIVER NAVIGATION */}
       <div className="driver-workspace">
         <nav className="driver-primary-nav" aria-label="Driver dashboard sections">
@@ -518,23 +517,6 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
               <div className="driver-panel"><div className="driver-panel-heading"><div><p className="driver-eyebrow">ACTION REQUIRED</p><h3>Trips awaiting odometer</h3></div><span className="driver-count-pill">{pendingOdometerBookings.length}</span></div>
                 {pendingOdometerBookings.length > 0 ? <><p className="driver-panel-description">Select one or more trips, then use the action bar to submit their meter readings together.</p>{pendingOdometerBookings.map(booking => renderBookingCard(booking, true))}</> : <div className="driver-empty-state success"><strong>All odometer records are up to date</strong><span>There are no past assigned trips waiting for a meter submission.</span></div>}
               </div>
-            </section>
-          )}
-          {activeSection === 'schedule' && (
-            <section className="driver-page-section space-y-4" aria-label="Driver schedule">
-              <div className="driver-section-heading"><div><p className="driver-eyebrow">PLAN YOUR DAY</p><h2>My Schedule</h2><p>View your assigned trips and duty shifts.</p></div></div>
-              <div className="driver-schedule-switch"><button type="button" className={scheduleModalTab === 'calendar' ? 'active' : ''} onClick={() => setScheduleModalTab('calendar')}>Booking calendar</button><button type="button" className={scheduleModalTab === 'schedule' ? 'active' : ''} onClick={() => setScheduleModalTab('schedule')}>Duty shifts</button></div>
-              <div className="driver-panel driver-schedule-panel">{scheduleModalTab === 'calendar' ? <CalendarView readOnly={true} /> : <DriverScheduleManager readOnly={true} />}</div>
-            </section>
-          )}
-          {activeSection === 'profile' && (
-            <section className="driver-page-section space-y-4" aria-label="Driver profile">
-              <div className="driver-section-heading"><div><p className="driver-eyebrow">ACCOUNT</p><h2>My Profile</h2><p>Your driver information and activity summary.</p></div></div>
-              <div className="driver-profile-card"><div className="driver-profile-avatar"><UserCircleIcon className="h-9 w-9" /></div><div><strong>{driver.name}</strong><span>Driver account</span>{driverProfile?.email && <small>{driverProfile.email}</small>}{driverProfile?.phone && <small>{driverProfile.phone}</small>}<small>Driver ID: {driver.id}</small></div><span className="driver-profile-status">Active</span></div>
-              <div className="driver-overview-grid"><div className="driver-overview-card"><span className="driver-overview-label">Completed trips</span><strong>{completedTripsCount}</strong><span>All-time total</span></div><div className="driver-overview-card"><span className="driver-overview-label">Distance travelled</span><strong>{totalDriverMileage.toLocaleString()} <small>km</small></strong><span>From odometer logs</span></div><div className="driver-overview-card"><span className="driver-overview-label">Fuel records</span><strong>{fuelLogsCount}</strong><span>Submitted by you</span></div></div>
-              <div className="driver-panel"><div className="driver-panel-heading"><div><p className="driver-eyebrow">FLEET REFERENCE</p><h3>Vehicle odometer readings</h3></div><span className="driver-count-pill">{vehicles.length}</span></div><p className="driver-panel-description">Latest recorded readings across the fleet. Use this as a reference before submitting a meter log.</p></div>
-            </section>
-          )}
       {/* COLLAPSIBLE FLEET VEHICLE LAST ODOMETER REFERENCE */}
       {activeSection === 'profile' && vehicles.length > 0 && (
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden transition-all duration-200">
@@ -622,6 +604,38 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
         </div>
       )}
 
+            </section>
+          )}
+          {activeSection === 'schedule' && (
+            <section className="driver-page-section space-y-4" aria-label="Driver schedule">
+              <div className="driver-section-heading"><div><p className="driver-eyebrow">PLAN YOUR DAY</p><h2>My Schedule</h2><p>View your assigned trips and duty shifts.</p></div></div>
+              <div className="driver-schedule-switch"><button type="button" className={scheduleModalTab === 'calendar' ? 'active' : ''} onClick={() => setScheduleModalTab('calendar')}>Booking calendar</button><button type="button" className={scheduleModalTab === 'schedule' ? 'active' : ''} onClick={() => setScheduleModalTab('schedule')}>Duty shifts</button></div>
+              <div className="driver-panel driver-schedule-panel">{scheduleModalTab === 'calendar' ? <CalendarView readOnly={true} /> : <DriverScheduleManager readOnly={true} />}</div>
+            </section>
+          )}
+          {activeSection === 'profile' && (
+            <section className="driver-page-section space-y-4" aria-label="Driver profile">
+              <div className="driver-section-heading"><div><p className="driver-eyebrow">ACCOUNT SETTINGS</p><h2>My Profile</h2><p>Manage your personal details and account security.</p></div></div>
+              <div className="driver-profile-card"><div className="driver-profile-avatar"><UserCircleIcon className="h-9 w-9" /></div><div><strong>{driverProfile?.name || driver.name}</strong><span>Driver account</span><small>{driverProfile?.email || ''}</small><small>Driver ID: {driver.id}</small></div><span className="driver-profile-status">Active</span></div>
+              <form className="driver-panel space-y-3" onSubmit={handleSaveDriverProfile}>
+                <div className="driver-panel-heading"><div><p className="driver-eyebrow">PERSONAL INFORMATION</p><h3>Profile details</h3></div></div>
+                <label className="driver-profile-field"><span>Full name</span><input value={profileName} onChange={e => setProfileName(e.target.value)} required maxLength={100} /></label>
+                <label className="driver-profile-field"><span>Phone number</span><input type="tel" value={profilePhone} onChange={e => setProfilePhone(e.target.value)} placeholder="e.g. 012-345 6789" maxLength={30} /></label>
+                <label className="driver-profile-field"><span>Address (optional)</span><textarea value={profileAddress} onChange={e => setProfileAddress(e.target.value)} rows={2} maxLength={300} /></label>
+                <button type="submit" disabled={isSavingProfile} className="driver-primary-action self-start">{isSavingProfile ? 'Saving…' : 'Save profile'}</button>
+                {profileMessage && <p className={profileMessage.startsWith('Profile updated') ? 'text-xs text-emerald-700' : 'text-xs text-rose-600'} role="status">{profileMessage}</p>}
+              </form>
+              <form className="driver-panel space-y-3" onSubmit={handleChangePassword}>
+                <div className="driver-panel-heading"><div><p className="driver-eyebrow">ACCOUNT SECURITY</p><h3>Change password</h3></div></div>
+                <label className="driver-profile-field"><span>New password</span><input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} minLength={8} autoComplete="new-password" required /></label>
+                <label className="driver-profile-field"><span>Confirm new password</span><input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} minLength={8} autoComplete="new-password" required /></label>
+                <p className="text-[11px] text-slate-500">Use at least 8 characters. Your password is securely updated through Supabase Auth.</p>
+                <button type="submit" disabled={isChangingPassword} className="driver-primary-action self-start">{isChangingPassword ? 'Updating…' : 'Update password'}</button>
+                {passwordMessage && <p className={passwordMessage.startsWith('Password updated') ? 'text-xs text-emerald-700' : 'text-xs text-rose-600'} role="status">{passwordMessage}</p>}
+              </form>
+              <div className="driver-overview-grid"><div className="driver-overview-card"><span className="driver-overview-label">Completed trips</span><strong>{completedTripsCount}</strong><span>All-time total</span></div><div className="driver-overview-card"><span className="driver-overview-label">Distance travelled</span><strong>{totalDriverMileage.toLocaleString()} <small>km</small></strong><span>From odometer logs</span></div><div className="driver-overview-card"><span className="driver-overview-label">Fuel records</span><strong>{fuelLogsCount}</strong><span>Submitted by you</span></div></div>
+            </section>
+          )}
       {/* DRIVER SEARCH BAR */}
       {activeSection === 'bookings' && <>
       <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
