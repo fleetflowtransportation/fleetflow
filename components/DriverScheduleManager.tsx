@@ -373,7 +373,7 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
               const isToday = dateKey === todayKey;
               const isCurrentMonth = date.getMonth() === anchor.getMonth();
               const isSelected = selectedDates.has(dateKey);
-              // Mobile: show max 1 chip + "+N", Desktop: show up to 3
+              // Render every driver's shift directly in the month cell so names and hours are visible at a glance.
               const visibleSchedules = daySchedules;
               const hiddenCount = 0;
 
