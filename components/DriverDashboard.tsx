@@ -612,7 +612,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
             <section className="driver-page-section space-y-4" aria-label="Driver schedule">
               <div className="driver-section-heading"><div><p className="driver-eyebrow">PLAN YOUR DAY</p><h2>My Schedule</h2><p>View your assigned trips and duty shifts.</p></div></div>
               <div className="driver-schedule-switch"><button type="button" className={scheduleModalTab === 'calendar' ? 'active' : ''} onClick={() => setScheduleModalTab('calendar')}>Booking calendar</button><button type="button" className={scheduleModalTab === 'schedule' ? 'active' : ''} onClick={() => setScheduleModalTab('schedule')}>Duty shifts</button></div>
-              <div className="driver-panel driver-schedule-panel">{scheduleModalTab === 'calendar' ? <CalendarView readOnly={true} driverId={driver.id} defaultView="3days" customBookings={bookings.filter(b => isAssignedToCurrentDriver(b))} /> : <DriverScheduleManager readOnly={true} driverId={driver.id} />}</div>
+              <div className="driver-panel driver-schedule-panel">{scheduleModalTab === 'calendar' ? <CalendarView readOnly={true} driverId={driver.id} defaultView="month" customBookings={bookings.filter(b => isAssignedToCurrentDriver(b))} /> : <DriverScheduleManager readOnly={true} driverId={driver.id} showAllDrivers />}</div>
             </section>
           )}
           {activeSection === 'profile' && (
