@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import './DriverDashboard.mobile.css';
+import './DriverDashboard.v2.css';
 import { useAppContext } from '../context/AppContext';
 import type { CurrentUser, Booking } from '../types';
 import FuelLogForm from './FuelLogForm';
