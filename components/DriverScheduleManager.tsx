@@ -159,7 +159,7 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
   const todayKey = toDateKey(new Date());
   const upcomingShifts = useMemo(() => personalSchedules.filter(s => parseDateKeyLoose(s.Date) >= todayKey).sort((a,b) => parseDateKeyLoose(a.Date).localeCompare(parseDateKeyLoose(b.Date)) || toTimeHHMM(a.Mula).localeCompare(toTimeHHMM(b.Mula))), [personalSchedules, todayKey]);
   const nextShift = upcomingShifts[0];
-  const weekHours = useMemo(() => personalSchedules.filter(s => { const key=parseDateKeyLoose(s.Date); const d=new Date(key+'T00:00:00'); const now=new Date(); const start=new Date(now); start.setDate(now.getDate()-((now.getDay()+6)%7)); const end=new Date(start); end.setDate(start.getDate()+7); return d>=start && d<end; }).reduce((sum,s) => { const start=toTimeHHMM(s.Mula).split(':').map(Number); const end=toTimeHHMM(s.Tamat).split(':').map(Number); let mins=end[0]*60+end[1]-(start[0]*60+start[1]); if(mins<0) mins+=1440; return sum+mins; },0), [visibleSchedules]);
+  const weekHours = useMemo(() => personalSchedules.filter(s => { const key=parseDateKeyLoose(s.Date); const d=new Date(key+'T00:00:00'); const now=new Date(); const start=new Date(now); start.setDate(now.getDate()-((now.getDay()+6)%7)); const end=new Date(start); end.setDate(start.getDate()+7); return d>=start && d<end; }).reduce((sum,s) => { const start=toTimeHHMM(s.Mula).split(':').map(Number); const end=toTimeHHMM(s.Tamat).split(':').map(Number); let mins=end[0]*60+end[1]-(start[0]*60+start[1]); if(mins<0) mins+=1440; return sum+mins; },0), [personalSchedules]);
   const gridDays = viewMode === 'month' ? buildMonthGrid(anchor) : buildWeekGrid(anchor);
 
   const goPrev = () => {
