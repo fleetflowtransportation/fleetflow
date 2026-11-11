@@ -56,6 +56,7 @@ const isPastTrip = (dateTimeStr: string): boolean => {
 
 const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
   const { bookings, odometerLogs, fuelLogs, updateBookingStatus, vehicles, users } = useAppContext();
+  const driverProfile = users.find(user => user.id === driver.id);
   const [activeTab, setActiveTab] = useState<ActiveTab>('today');
   const [activeSection, setActiveSection] = useState<ActiveSection>('home');
   const [isFuelLogOpen, setIsFuelLogOpen] = useState(false);
@@ -529,7 +530,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
           {activeSection === 'profile' && (
             <section className="driver-page-section space-y-4" aria-label="Driver profile">
               <div className="driver-section-heading"><div><p className="driver-eyebrow">ACCOUNT</p><h2>My Profile</h2><p>Your driver information and activity summary.</p></div></div>
-              <div className="driver-profile-card"><div className="driver-profile-avatar"><UserCircleIcon className="h-9 w-9" /></div><div><strong>{driver.name}</strong><span>Driver account</span><small>Driver ID: {driver.id}</small></div><span className="driver-profile-status">Active</span></div>
+              <div className="driver-profile-card"><div className="driver-profile-avatar"><UserCircleIcon className="h-9 w-9" /></div><div><strong>{driver.name}</strong><span>Driver account</span>{driverProfile?.email && <small>{driverProfile.email}</small>}{driverProfile?.phone && <small>{driverProfile.phone}</small>}<small>Driver ID: {driver.id}</small></div><span className="driver-profile-status">Active</span></div>
               <div className="driver-overview-grid"><div className="driver-overview-card"><span className="driver-overview-label">Completed trips</span><strong>{completedTripsCount}</strong><span>All-time total</span></div><div className="driver-overview-card"><span className="driver-overview-label">Distance travelled</span><strong>{totalDriverMileage.toLocaleString()} <small>km</small></strong><span>From odometer logs</span></div><div className="driver-overview-card"><span className="driver-overview-label">Fuel records</span><strong>{fuelLogsCount}</strong><span>Submitted by you</span></div></div>
               <div className="driver-panel"><div className="driver-panel-heading"><div><p className="driver-eyebrow">FLEET REFERENCE</p><h3>Vehicle odometer readings</h3></div><span className="driver-count-pill">{vehicles.length}</span></div><p className="driver-panel-description">Latest recorded readings across the fleet. Use this as a reference before submitting a meter log.</p></div>
             </section>
@@ -891,6 +892,8 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
       </div>
 
       </>}
+        </div>
+      </div>
 
       {/* FLOATING ACTION BOTTOM BAR FOR MULTI-TRIP (BULK / LUMPSUM) */}
       {selectedBookingIds.length > 0 && !isAnyModalOpen && (
