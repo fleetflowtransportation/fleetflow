@@ -58,6 +58,26 @@ const App: React.FC = () => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  // Drivers always land on their own stable, ID-based dashboard URL after login.
+  // The URL is a navigation aid only: the authenticated session remains the source of identity.
+  React.useEffect(() => {
+    if (!currentUser) return;
+
+    const role = currentUser.role?.toLowerCase();
+    const currentPath = window.location.pathname;
+    const isDriverRoute = /^\/driver(?:\/|$)/i.test(currentPath);
+
+    if (role === 'driver') {
+      const ownDriverPath = `/driver/${encodeURIComponent(currentUser.id)}`;
+      if (currentPath !== ownDriverPath) {
+        window.history.replaceState(null, '', ownDriverPath);
+      }
+    } else if (role === 'admin' && isDriverRoute) {
+      window.history.replaceState(null, '', '/');
+      setActiveView('dashboard');
+    }
+  }, [currentUser?.id, currentUser?.role]);
+
   const handleSetView = (view: NavView) => {
     setActiveView(view);
     const targetPath = view === 'dashboard' ? '/' : `/${view}`;
@@ -190,12 +210,12 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans text-gray-800">
+    <div className={`min-h-screen bg-gray-50 font-sans text-gray-800 ${isDriverRole ? 'driver-app-shell' : ''}`}>
       <Header
         activeView={activeView}
         setActiveView={handleSetView}
       />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+      <main className={isDriverRole ? 'driver-app-main' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6'}>
         {renderContent()}
       </main>
       <UndoToast />
