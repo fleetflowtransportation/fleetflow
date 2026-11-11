@@ -109,9 +109,10 @@ type ModalState =
 
 interface DriverScheduleManagerProps {
   readOnly?: boolean;
+  driverId?: string;
 }
 
-const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly = false }) => {
+const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly = false, driverId }) => {
   const { users, driverSchedules, addDriverSchedule, updateDriverSchedule, deleteDriverSchedule, deleteDriverSchedulesBulk, currentUser } = useAppContext();
   
   const isEditable = !readOnly && currentUser?.role === 'admin';
@@ -140,17 +141,22 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
   const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set());
   const [modal, setModal] = useState<ModalState>(null);
 
+  const visibleSchedules = useMemo(() => driverId ? driverSchedules.filter(s => s.DriverId === driverId || resolveDriver(users, s.DriverId)?.id === driverId) : driverSchedules, [driverSchedules, driverId, users]);
+
   const schedulesByDate = useMemo(() => {
     const map = new Map<string, DriverSchedule[]>();
-    driverSchedules.forEach(s => {
+    visibleSchedules.forEach(s => {
       const key = parseDateKeyLoose(s.Date);
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(s);
     });
     return map;
-  }, [driverSchedules]);
+  }, [visibleSchedules]);
 
   const todayKey = toDateKey(new Date());
+  const upcomingShifts = useMemo(() => visibleSchedules.filter(s => parseDateKeyLoose(s.Date) >= todayKey).sort((a,b) => parseDateKeyLoose(a.Date).localeCompare(parseDateKeyLoose(b.Date)) || toTimeHHMM(a.Mula).localeCompare(toTimeHHMM(b.Mula))), [visibleSchedules, todayKey]);
+  const nextShift = upcomingShifts[0];
+  const weekHours = useMemo(() => visibleSchedules.filter(s => { const key=parseDateKeyLoose(s.Date); const d=new Date(key+'T00:00:00'); const now=new Date(); const start=new Date(now); start.setDate(now.getDate()-((now.getDay()+6)%7)); const end=new Date(start); end.setDate(start.getDate()+7); return d>=start && d<end; }).reduce((sum,s) => { const start=toTimeHHMM(s.Mula).split(':').map(Number); const end=toTimeHHMM(s.Tamat).split(':').map(Number); let mins=end[0]*60+end[1]-(start[0]*60+start[1]); if(mins<0) mins+=1440; return sum+mins; },0), [visibleSchedules]);
   const gridDays = viewMode === 'month' ? buildMonthGrid(anchor) : buildWeekGrid(anchor);
 
   const goPrev = () => {
@@ -202,11 +208,11 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
       {/* Top Header Card — more compact on mobile */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white rounded-xl sm:rounded-2xl p-3.5 sm:p-5 shadow-xs border border-gray-200">
         <div className="min-w-0">
-          <h2 className="text-base sm:text-xl font-bold text-gray-900 leading-tight">Driver Shift & Duty Roster</h2>
+          <h2 className="text-base sm:text-xl font-bold text-gray-900 leading-tight">{driverId ? 'My Duty Shifts' : 'Driver Shift & Duty Roster'}</h2>
           <p className="text-gray-500 mt-0.5 text-[11px] sm:text-sm leading-snug">
             {isEditable 
               ? 'Tap any date to view or assign shifts.' 
-              : 'Read-only shift & duty overview.'}
+              : 'Your assigned working days and shift hours.'}
           </p>
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -251,6 +257,14 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span> Active</span>
         </div>
       </div>
+
+      {driverId && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+          <div className="rounded-xl border border-indigo-100 bg-indigo-50/70 p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-indigo-500">Next shift</p><strong className="mt-1 block text-sm text-slate-900">{nextShift ? new Date(parseDateKeyLoose(nextShift.Date)+'T00:00:00').toLocaleDateString('en-MY',{day:'numeric',month:'short'}) : 'No shift'}</strong><span className="text-[10px] text-slate-600">{nextShift ? toTime12H(nextShift.Mula)+' – '+toTime12H(nextShift.Tamat) : 'No upcoming duty'}</span></div>
+          <div className="rounded-xl border border-slate-200 bg-white p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">This week</p><strong className="mt-1 block text-sm text-slate-900">{Math.floor(weekHours/60)}h {weekHours%60}m</strong><span className="text-[10px] text-slate-500">Scheduled hours</span></div>
+          <div className="col-span-2 sm:col-span-1 rounded-xl border border-slate-200 bg-white p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Upcoming shifts</p><strong className="mt-1 block text-sm text-slate-900">{upcomingShifts.length}</strong><span className="text-[10px] text-slate-500">From today onwards</span></div>
+        </div>
+      )}
 
       {/* ========== WEEK VIEW: Vertical Day Cards (mobile-first) ========== */}
       {viewMode === 'week' ? (
