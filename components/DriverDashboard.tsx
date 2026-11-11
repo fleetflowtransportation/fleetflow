@@ -38,6 +38,7 @@ interface DriverDashboardProps {
 }
 
 type ActiveTab = 'today' | 'pending' | 'history';
+type ActiveSection = 'home' | 'bookings' | 'odometer' | 'schedule' | 'profile';
 
 // Helper to determine if a trip is from a past day (strictly before today 00:00:00)
 const isPastTrip = (dateTimeStr: string): boolean => {
@@ -56,6 +57,7 @@ const isPastTrip = (dateTimeStr: string): boolean => {
 const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
   const { bookings, odometerLogs, fuelLogs, updateBookingStatus, vehicles, users } = useAppContext();
   const [activeTab, setActiveTab] = useState<ActiveTab>('today');
+  const [activeSection, setActiveSection] = useState<ActiveSection>('home');
   const [isFuelLogOpen, setIsFuelLogOpen] = useState(false);
   const [isOdometerLogOpen, setIsOdometerLogOpen] = useState(false);
   const [isIssueLogOpen, setIsIssueLogOpen] = useState(false);
@@ -68,13 +70,11 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
   const [driverSearchQuery, setDriverSearchQuery] = useState('');
   const [isBulkCompleteConfirmOpen, setIsBulkCompleteConfirmOpen] = useState(false);
   
-  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [scheduleModalTab, setScheduleModalTab] = useState<'calendar' | 'schedule'>('calendar');
   const [isFleetOdoExpanded, setIsFleetOdoExpanded] = useState(false);
 
   // Check if any modal popup is open in the Driver portal
-  const isAnyModalOpen = isScheduleModalOpen || 
-    isFuelLogOpen || 
+  const isAnyModalOpen = isFuelLogOpen || 
     isOdometerLogOpen || 
     isIssueLogOpen || 
     isFeedbackOpen || 
@@ -168,6 +168,11 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
       .filter(b => matchesSearch(b, driverSearchQuery))
       .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime()); // Most recent first
   }, [bookings, driver.id, driverSearchQuery, users]);
+
+  const todayBookings = useMemo(() => {
+    const today = new Date().toDateString();
+    return currentBookings.filter(b => parseAsLocal(b.dateTime).toDateString() === today);
+  }, [currentBookings]);
 
   // 3. History bookings (completed trips only). Cancelled trips are not active driver tasks.
   const historyBookings = useMemo(() => {
@@ -431,7 +436,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
 
 
   return (
-    <div className="driver-dashboard max-w-md md:max-w-3xl mx-auto space-y-4 px-1 sm:px-0 pb-28 relative safe-area-pb">
+    <div className="driver-dashboard relative safe-area-pb">
       
       {/* DRIVER COCKPIT PROFILE */}
       <div className="bg-slate-900 text-white p-5 rounded-2xl shadow-md border border-slate-800">
@@ -453,12 +458,12 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
           </div>
 
           <button
-            onClick={() => setIsScheduleModalOpen(true)}
+            onClick={() => setActiveSection('schedule')}
             className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-md transition active:scale-95 border border-indigo-400/40 cursor-pointer"
             title="Open Driver Schedule & Calendar"
           >
             <CalendarIcon className="h-4 w-4" />
-            <span>Driver Schedule</span>
+            <span>My Schedule</span>
           </button>
         </div>
 
@@ -479,8 +484,58 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
         </div>
       </div>
 
+      {/* PRIMARY DRIVER NAVIGATION */}
+      <div className="driver-workspace">
+        <nav className="driver-primary-nav" aria-label="Driver dashboard sections">
+          <button type="button" className={activeSection === 'home' ? 'active' : ''} onClick={() => setActiveSection('home')}><span className="driver-nav-icon">⌂</span><span>Home</span></button>
+          <button type="button" className={activeSection === 'bookings' ? 'active' : ''} onClick={() => { setActiveSection('bookings'); setActiveTab('today'); setSelectedBookingIds([]); }}><span className="driver-nav-icon">▤</span><span>Bookings</span><small>{currentBookings.length}</small></button>
+          <button type="button" className={activeSection === 'odometer' ? 'active' : ''} onClick={() => { setActiveSection('odometer'); setSelectedBookingIds([]); }}><span className="driver-nav-icon">◷</span><span>Odometer</span>{pendingOdometerBookings.length > 0 && <small className="driver-nav-alert">{pendingOdometerBookings.length}</small>}</button>
+          <button type="button" className={activeSection === 'schedule' ? 'active' : ''} onClick={() => setActiveSection('schedule')}><span className="driver-nav-icon">▦</span><span>Schedule</span></button>
+          <button type="button" className={activeSection === 'profile' ? 'active' : ''} onClick={() => setActiveSection('profile')}><span className="driver-nav-icon">◎</span><span>Profile</span></button>
+        </nav>
+        <div className="driver-section-content">
+          {activeSection === 'home' && (
+            <section className="driver-page-section space-y-4" aria-label="Driver home">
+              <div className="driver-section-heading"><div><p className="driver-eyebrow">YOUR WORKSPACE</p><h2>Good day, {driver.name.split(' ')[0]}</h2><p>Here is your driving activity at a glance.</p></div><span className="driver-date-chip">{new Date().toLocaleDateString('en-MY', { weekday: 'short', day: 'numeric', month: 'short' })}</span></div>
+              <div className="driver-overview-grid">
+                <button type="button" onClick={() => { setActiveSection('bookings'); setActiveTab('today'); }} className="driver-overview-card"><span className="driver-overview-label">Today & upcoming</span><strong>{todayBookings.length}</strong><span>Active assignments</span></button>
+                <button type="button" onClick={() => setActiveSection('odometer')} className={pendingOdometerBookings.length ? 'driver-overview-card attention' : 'driver-overview-card'}><span className="driver-overview-label">Pending odometer</span><strong>{pendingOdometerBookings.length}</strong><span>{pendingOdometerBookings.length ? 'Needs your attention' : 'All caught up'}</span></button>
+                <div className="driver-overview-card"><span className="driver-overview-label">Completed trips</span><strong>{completedTripsCount}</strong><span>Recorded in your history</span></div>
+              </div>
+              <div className="driver-panel">
+                <div className="driver-panel-heading"><div><p className="driver-eyebrow">NEXT ASSIGNMENT</p><h3>Your next trip</h3></div><button type="button" onClick={() => { setActiveSection('bookings'); setActiveTab('today'); }}>All bookings →</button></div>
+                {currentBookings.length > 0 ? (() => { const next = currentBookings[0]; const when = formatTripDateTime(next.dateTime, next.finishDateTime); return <div className="driver-next-trip"><div className="driver-next-time"><strong>{when.time}</strong><span>{when.date}</span></div><div className="driver-next-route"><span>{getPickupLocationDisplay(next.pickupPoint, next.address)}</span><b>↓</b><strong>{getRouteLabel(next)}</strong><small>{next.requesterName || 'Requester not specified'} · {getVehicleInfo(next.vehicleId, next.serviceType).name}</small></div><button type="button" onClick={() => setViewingBooking(next)}>View trip details</button></div>; })() : <div className="driver-empty-state"><strong>No upcoming assignment</strong><span>New bookings assigned to you will appear here.</span></div>}
+              </div>
+              {pendingOdometerBookings.length > 0 && <button type="button" className="driver-reminder-card" onClick={() => setActiveSection('odometer')}><span>⚠</span><div><strong>{pendingOdometerBookings.length} trip{pendingOdometerBookings.length > 1 ? 's' : ''} need odometer submission</strong><small>Open your odometer tasks to complete the records.</small></div><b>→</b></button>}
+              <div className="driver-quick-actions"><button type="button" onClick={handleOpenGeneralOdometer}>＋ Submit odometer</button><button type="button" onClick={() => setIsFuelLogOpen(true)}>＋ Fuel record</button><button type="button" onClick={() => setIsIssueLogOpen(true)}>＋ Report issue</button></div>
+            </section>
+          )}
+          {activeSection === 'odometer' && (
+            <section className="driver-page-section space-y-4" aria-label="Odometer tasks">
+              <div className="driver-section-heading"><div><p className="driver-eyebrow">TRIP RECORDS</p><h2>Odometer</h2><p>Submit meter readings for completed journeys.</p></div><button type="button" className="driver-primary-action" onClick={handleOpenGeneralOdometer}>＋ New meter log</button></div>
+              <div className="driver-overview-grid compact"><div className="driver-overview-card attention"><span className="driver-overview-label">Awaiting records</span><strong>{pendingOdometerBookings.length}</strong><span>Past assigned trips</span></div><div className="driver-overview-card"><span className="driver-overview-label">Total distance</span><strong>{totalDriverMileage.toLocaleString()} <small>km</small></strong><span>Your recorded mileage</span></div></div>
+              <div className="driver-panel"><div className="driver-panel-heading"><div><p className="driver-eyebrow">ACTION REQUIRED</p><h3>Trips awaiting odometer</h3></div><span className="driver-count-pill">{pendingOdometerBookings.length}</span></div>
+                {pendingOdometerBookings.length > 0 ? <><p className="driver-panel-description">Select one or more trips, then use the action bar to submit their meter readings together.</p>{pendingOdometerBookings.map(booking => renderBookingCard(booking, true))}</> : <div className="driver-empty-state success"><strong>All odometer records are up to date</strong><span>There are no past assigned trips waiting for a meter submission.</span></div>}
+              </div>
+            </section>
+          )}
+          {activeSection === 'schedule' && (
+            <section className="driver-page-section space-y-4" aria-label="Driver schedule">
+              <div className="driver-section-heading"><div><p className="driver-eyebrow">PLAN YOUR DAY</p><h2>My Schedule</h2><p>View your assigned trips and duty shifts.</p></div></div>
+              <div className="driver-schedule-switch"><button type="button" className={scheduleModalTab === 'calendar' ? 'active' : ''} onClick={() => setScheduleModalTab('calendar')}>Booking calendar</button><button type="button" className={scheduleModalTab === 'schedule' ? 'active' : ''} onClick={() => setScheduleModalTab('schedule')}>Duty shifts</button></div>
+              <div className="driver-panel driver-schedule-panel">{scheduleModalTab === 'calendar' ? <CalendarView readOnly={true} /> : <DriverScheduleManager readOnly={true} />}</div>
+            </section>
+          )}
+          {activeSection === 'profile' && (
+            <section className="driver-page-section space-y-4" aria-label="Driver profile">
+              <div className="driver-section-heading"><div><p className="driver-eyebrow">ACCOUNT</p><h2>My Profile</h2><p>Your driver information and activity summary.</p></div></div>
+              <div className="driver-profile-card"><div className="driver-profile-avatar"><UserCircleIcon className="h-9 w-9" /></div><div><strong>{driver.name}</strong><span>Driver account</span><small>Driver ID: {driver.id}</small></div><span className="driver-profile-status">Active</span></div>
+              <div className="driver-overview-grid"><div className="driver-overview-card"><span className="driver-overview-label">Completed trips</span><strong>{completedTripsCount}</strong><span>All-time total</span></div><div className="driver-overview-card"><span className="driver-overview-label">Distance travelled</span><strong>{totalDriverMileage.toLocaleString()} <small>km</small></strong><span>From odometer logs</span></div><div className="driver-overview-card"><span className="driver-overview-label">Fuel records</span><strong>{fuelLogsCount}</strong><span>Submitted by you</span></div></div>
+              <div className="driver-panel"><div className="driver-panel-heading"><div><p className="driver-eyebrow">FLEET REFERENCE</p><h3>Vehicle odometer readings</h3></div><span className="driver-count-pill">{vehicles.length}</span></div><p className="driver-panel-description">Latest recorded readings across the fleet. Use this as a reference before submitting a meter log.</p></div>
+            </section>
+          )}
       {/* COLLAPSIBLE FLEET VEHICLE LAST ODOMETER REFERENCE */}
-      {vehicles.length > 0 && (
+      {activeSection === 'profile' && vehicles.length > 0 && (
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden transition-all duration-200">
           {/* Collapsible Header Banner */}
           <button
@@ -567,6 +622,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
       )}
 
       {/* DRIVER SEARCH BAR */}
+      {activeSection === 'bookings' && <>
       <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
         <div className="relative">
           <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -834,112 +890,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
         </div>
       </div>
 
-      {/* DRIVER SCHEDULE & CALENDAR MODAL */}
-      {isScheduleModalOpen && (
-        <div 
-          className="driver-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-900/80 backdrop-blur-sm overscroll-contain animate-in fade-in duration-150"
-          onTouchMove={(e) => {
-            if (e.target === e.currentTarget) e.preventDefault();
-          }}
-        >
-          <div className="driver-modal-panel bg-white w-full max-w-5xl h-[92vh] sm:h-auto sm:max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 overscroll-contain">
-            {/* Modal Header */}
-            <div className="shrink-0 px-4 sm:px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-indigo-100 text-indigo-700 rounded-xl border border-indigo-200">
-                  <CalendarIcon className="h-5 w-5" />
-                </div>
-                <div>
-                  <h3 className="text-base sm:text-lg font-extrabold text-slate-900">Driver Schedule & Calendar</h3>
-                  <p className="text-xs text-slate-500 hidden sm:block">
-                    Check duty schedules, shifts, and trip calendars across all vehicles
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                {/* Switch between Booking Calendar and Shift Schedule on Desktop */}
-                <div className="hidden sm:flex bg-slate-200/80 p-0.5 rounded-xl text-xs font-semibold">
-                  <button
-                    onClick={() => setScheduleModalTab('calendar')}
-                    className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
-                      scheduleModalTab === 'calendar'
-                        ? 'bg-white text-indigo-700 shadow-sm font-bold'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    Booking Calendar
-                  </button>
-                  <button
-                    onClick={() => setScheduleModalTab('schedule')}
-                    className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
-                      scheduleModalTab === 'schedule'
-                        ? 'bg-white text-indigo-700 shadow-sm font-bold'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    Driver Shifts
-                  </button>
-                </div>
-
-                <button
-                  onClick={() => setIsScheduleModalOpen(false)}
-                  className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-xl transition cursor-pointer"
-                  title="Close Modal"
-                >
-                  <XIcon className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Switch on Mobile */}
-            <div className="shrink-0 sm:hidden flex border-b border-slate-200 bg-slate-100 p-1 text-xs font-semibold">
-              <button
-                onClick={() => setScheduleModalTab('calendar')}
-                className={`flex-1 py-2 rounded-lg text-center transition cursor-pointer ${
-                  scheduleModalTab === 'calendar'
-                    ? 'bg-white text-indigo-700 shadow-sm font-bold'
-                    : 'text-slate-600'
-                }`}
-              >
-                Booking Calendar
-              </button>
-              <button
-                onClick={() => setScheduleModalTab('schedule')}
-                className={`flex-1 py-2 rounded-lg text-center transition cursor-pointer ${
-                  scheduleModalTab === 'schedule'
-                    ? 'bg-white text-indigo-700 shadow-sm font-bold'
-                    : 'text-slate-600'
-                }`}
-              >
-                Shift Schedule
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="flex-1 p-3 sm:p-5 overflow-y-auto overscroll-contain touch-pan-y bg-slate-50/50 min-h-0">
-              {scheduleModalTab === 'calendar' ? (
-                <CalendarView readOnly={true} />
-              ) : (
-                <DriverScheduleManager readOnly={true} />
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="shrink-0 px-4 py-3 bg-white border-t border-slate-200 flex justify-between items-center text-xs text-slate-500">
-              <span className="font-medium">
-                View: <strong className="text-slate-700">{scheduleModalTab === 'calendar' ? 'Trip & Booking Calendar' : 'Driver Shift & Duty Schedule'}</strong>
-              </span>
-              <button
-                onClick={() => setIsScheduleModalOpen(false)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl shadow-sm transition cursor-pointer"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      </>}
 
       {/* FLOATING ACTION BOTTOM BAR FOR MULTI-TRIP (BULK / LUMPSUM) */}
       {selectedBookingIds.length > 0 && !isAnyModalOpen && (
