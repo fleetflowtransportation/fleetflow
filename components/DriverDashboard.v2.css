@@ -203,3 +203,5 @@ button.driver-overview-card { cursor:pointer; }
  .driver-dashboard .driver-tabs-header { overflow-x:auto; }
  .driver-dashboard .driver-tabs-header > button { flex:1 0 auto; }
 }
+
+.driver-primary-nav button { position:relative; }
