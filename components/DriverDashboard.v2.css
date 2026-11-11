@@ -1,0 +1,119 @@
+/* Driver Dashboard V2 — redesigned information hierarchy and responsive workspace. */
+.driver-app-shell { background:#f4f6fb; }
+.driver-app-main { max-width:100%; padding:clamp(14px,2.4vw,32px); }
+.driver-dashboard {
+  --driver-ink:#14213d; --driver-muted:#64748b; --driver-line:#e5eaf2;
+  width:min(100%, 1180px); max-width:1180px; margin-inline:auto;
+  display:flex; flex-direction:column; gap:22px; color:var(--driver-ink);
+}
+.driver-dashboard > .bg-slate-900:first-child {
+  position:relative; overflow:hidden; padding:clamp(22px,3vw,34px);
+  border:0; border-radius:28px;
+  background:linear-gradient(125deg,#101b3b 0%,#202f61 58%,#354b8d 100%);
+  box-shadow:0 18px 45px rgba(25,42,89,.18);
+}
+.driver-dashboard > .bg-slate-900:first-child:after {
+  content:""; position:absolute; width:300px; height:300px; right:-90px; top:-150px;
+  border:1px solid rgba(255,255,255,.12); border-radius:50%;
+  box-shadow:0 0 0 32px rgba(255,255,255,.035),0 0 0 68px rgba(255,255,255,.025);
+  pointer-events:none;
+}
+.driver-dashboard > .bg-slate-900:first-child > * { position:relative; z-index:1; }
+.driver-dashboard > .bg-slate-900:first-child h2 { font-size:clamp(22px,3vw,30px); letter-spacing:-.035em; }
+.driver-dashboard > .bg-slate-900:first-child .grid.grid-cols-3 { gap:12px; }
+.driver-dashboard > .bg-slate-900:first-child .grid.grid-cols-3 > div {
+  padding:14px 16px; border:1px solid rgba(255,255,255,.13); border-radius:16px;
+  background:rgba(255,255,255,.075); backdrop-filter:blur(8px);
+}
+.driver-dashboard > .bg-slate-900:first-child .grid.grid-cols-3 > div > span:first-child { font-size:clamp(20px,2.5vw,27px); }
+.driver-dashboard > .bg-white.rounded-2xl.border {
+  border:1px solid var(--driver-line); border-radius:24px; overflow:visible;
+  background:#fff; box-shadow:0 8px 30px rgba(22,34,61,.055);
+}
+.driver-dashboard .driver-tabs-header {
+  padding:8px; gap:7px; border:0; border-bottom:1px solid var(--driver-line);
+  border-radius:24px 24px 0 0; background:#f8faff;
+}
+.driver-dashboard .driver-tabs-header > button {
+  min-height:44px; border-radius:13px; font-size:12px; letter-spacing:.005em;
+}
+.driver-dashboard .driver-tabs-content { padding:clamp(14px,2.3vw,26px); }
+.driver-dashboard .driver-tabs-content > .space-y-4 > .rounded-2xl,
+.driver-dashboard .driver-tabs-content > .space-y-3 > .rounded-xl {
+  border-radius:18px; box-shadow:0 4px 18px rgba(22,34,61,.045);
+}
+.driver-dashboard .driver-tabs-content > .space-y-4 > .rounded-2xl:hover {
+  border-color:#a5b4fc; box-shadow:0 10px 26px rgba(79,70,229,.09);
+}
+.driver-dashboard input:not([type=checkbox]):not([type=radio]),
+.driver-dashboard select,.driver-dashboard textarea {
+  border-radius:12px; border-color:#dce3ef; background:#fff;
+}
+.driver-dashboard button { transition:transform .16s ease,box-shadow .16s ease,background-color .16s ease; }
+.driver-dashboard button:focus-visible,
+.driver-dashboard input:focus-visible,
+.driver-dashboard select:focus-visible,
+.driver-dashboard textarea:focus-visible {
+  outline:3px solid rgba(99,102,241,.25); outline-offset:2px;
+}
+.driver-dashboard .driver-bulk-actions {
+  border:1px solid rgba(255,255,255,.16); box-shadow:0 18px 45px rgba(15,23,42,.28);
+}
+.driver-dashboard .driver-modal-panel { border-radius:24px; }
+@media (min-width:900px) {
+  .driver-app-main { padding:28px 36px 48px; }
+  .driver-dashboard > .bg-slate-900:first-child { padding:30px 34px; }
+  .driver-dashboard .driver-tabs-content { min-height:460px; }
+}
+@media (max-width:640px) {
+  .driver-app-main { padding:10px 10px calc(96px + env(safe-area-inset-bottom,0px)); }
+  .driver-dashboard { gap:14px; padding-bottom:12px; }
+  .driver-dashboard > .bg-slate-900:first-child {
+    padding:20px 17px; border-radius:22px;
+  }
+  .driver-dashboard > .bg-slate-900:first-child > .flex:first-child {
+    align-items:flex-start; gap:12px;
+  }
+  .driver-dashboard > .bg-slate-900:first-child > .flex:first-child > button {
+    min-height:42px; padding:9px 11px; white-space:nowrap;
+  }
+  .driver-dashboard > .bg-slate-900:first-child .grid.grid-cols-3 { gap:7px; }
+  .driver-dashboard > .bg-slate-900:first-child .grid.grid-cols-3 > div {
+    padding:11px 7px; border-radius:13px;
+  }
+  .driver-dashboard > .bg-white.rounded-2xl.border { border-radius:20px; }
+  .driver-dashboard .driver-tabs-header {
+    position:fixed; z-index:35; left:10px; right:10px;
+    bottom:calc(10px + env(safe-area-inset-bottom,0px));
+    padding:7px; border:1px solid #dce3ef; border-radius:18px;
+    background:rgba(255,255,255,.96); box-shadow:0 10px 35px rgba(15,23,42,.16);
+    backdrop-filter:blur(16px); gap:5px;
+  }
+  .driver-dashboard .driver-tabs-header > button {
+    flex:1 1 0; min-width:0; min-height:48px; padding:7px 4px;
+    flex-direction:column; gap:3px; font-size:10px; border-radius:12px;
+  }
+  .driver-dashboard .driver-tabs-content { padding:12px; }
+  .driver-dashboard .driver-tabs-content > .space-y-4 { gap:12px; }
+  .driver-dashboard .driver-tabs-content > .space-y-4 > .rounded-2xl {
+    border-radius:17px;
+  }
+  .driver-dashboard .driver-tabs-content > .space-y-4 > .rounded-2xl > .p-3\.5 {
+    padding:13px;
+  }
+  .driver-dashboard .driver-bulk-actions {
+    bottom:calc(76px + env(safe-area-inset-bottom,0px));
+    max-height:38dvh; overflow-y:auto;
+  }
+  .driver-dashboard .driver-modal-panel {
+    width:100%; height:100dvh; max-height:100dvh; border-radius:0;
+  }
+  .driver-dashboard .fixed.bottom-7.right-7 {
+    right:12px; bottom:calc(78px + env(safe-area-inset-bottom,0px));
+  }
+}
+@media (max-width:380px) {
+  .driver-dashboard > .bg-slate-900:first-child > .flex:first-child { flex-wrap:wrap; }
+  .driver-dashboard > .bg-slate-900:first-child > .flex:first-child > button { width:100%; justify-content:center; }
+  .driver-dashboard .driver-tabs-header > button { font-size:9px; }
+}
