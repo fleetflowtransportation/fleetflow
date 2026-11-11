@@ -1,0 +1,257 @@
+/* Driver dashboard: mobile-first layout and touch-friendly controls. */
+.driver-app-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: clip;
+}
+
+.driver-app-shell > header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+
+.driver-app-main {
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: clamp(12px, 2vw, 24px);
+  padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px));
+}
+
+.driver-dashboard {
+  width: 100%;
+  max-width: min(100%, 60rem);
+  min-width: 0;
+  margin-inline: auto;
+  padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px));
+}
+
+.driver-dashboard,
+.driver-dashboard * {
+  box-sizing: border-box;
+}
+
+.driver-dashboard button,
+.driver-dashboard input,
+.driver-dashboard select,
+.driver-dashboard textarea {
+  touch-action: manipulation;
+}
+
+.driver-dashboard .driver-tabs-header {
+  min-width: 0;
+}
+
+.driver-dashboard .driver-modal-panel {
+  min-height: 0;
+}
+
+@media (max-width: 640px) {
+  .driver-app-main {
+    padding: 12px 10px calc(7rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .driver-app-shell > header .max-w-7xl {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .driver-app-shell > header .max-w-7xl > .flex.items-center.justify-between {
+    min-height: 64px;
+    height: auto;
+    gap: 8px;
+    padding-block: 8px;
+  }
+
+  .driver-app-shell > header .max-w-7xl > .flex.items-center.justify-between > div:first-child {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .driver-app-shell > header h1 {
+    font-size: 1rem;
+    line-height: 1.25rem;
+  }
+
+  .driver-app-shell > header .max-w-7xl > .flex.items-center.justify-between > div:last-child {
+    min-width: 0;
+    flex: 0 0 auto;
+  }
+
+  .driver-app-shell > header .max-w-7xl > .flex.items-center.justify-between > div:last-child > div {
+    gap: 6px;
+  }
+
+  .driver-app-shell > header .max-w-7xl > .flex.items-center.justify-between > div:last-child > div > div {
+    padding: 6px 7px;
+    max-width: 132px;
+    min-width: 0;
+  }
+
+  .driver-app-shell > header .max-w-7xl > .flex.items-center.justify-between > div:last-child > div > div span:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 92px;
+  }
+
+  .driver-app-shell > header .max-w-7xl > .flex.items-center.justify-between > div:last-child > div > button {
+    min-width: 40px;
+    min-height: 40px;
+    padding: 8px;
+  }
+
+  .driver-dashboard {
+    max-width: 100%;
+    padding: 0 0 calc(7.5rem + env(safe-area-inset-bottom, 0px));
+    gap: 14px;
+  }
+
+  .driver-dashboard > .bg-slate-900 {
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .driver-dashboard > .bg-slate-900 .grid.grid-cols-3 {
+    gap: 6px;
+  }
+
+  .driver-dashboard > .bg-slate-900 .grid.grid-cols-3 > div {
+    min-width: 0;
+    padding: 8px 4px;
+  }
+
+  .driver-dashboard > .bg-slate-900 .grid.grid-cols-3 > div > span:first-child {
+    font-size: clamp(13px, 4vw, 18px);
+    overflow-wrap: anywhere;
+  }
+
+  .driver-dashboard > .bg-slate-900 .grid.grid-cols-3 > div > span:last-child {
+    font-size: 9px;
+    line-height: 1.2;
+  }
+
+  .driver-dashboard .driver-tabs-header {
+    display: flex;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .driver-dashboard .driver-tabs-header::-webkit-scrollbar {
+    display: none;
+  }
+
+  .driver-dashboard .driver-tabs-header > button {
+    flex: 1 0 0;
+    min-width: 0;
+    padding: 10px 5px;
+    gap: 4px;
+    white-space: normal;
+    line-height: 1.2;
+    font-size: 10px;
+  }
+
+  .driver-dashboard .driver-tabs-header > button > span:first-child {
+    overflow-wrap: anywhere;
+  }
+
+  .driver-dashboard .driver-tabs-content {
+    padding: 12px;
+  }
+
+  .driver-dashboard input:not([type="checkbox"]):not([type="radio"]),
+  .driver-dashboard select,
+  .driver-dashboard textarea {
+    min-height: 44px;
+    max-width: 100%;
+    font-size: 16px !important;
+  }
+
+  .driver-dashboard input[type="checkbox"],
+  .driver-dashboard input[type="radio"] {
+    width: 20px;
+    height: 20px;
+    flex: 0 0 auto;
+  }
+
+  .driver-dashboard .driver-bulk-actions {
+    left: 10px;
+    right: 10px;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    width: auto;
+    max-height: min(46dvh, 340px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 10px;
+    gap: 8px;
+    border-radius: 18px;
+  }
+
+  .driver-dashboard .driver-bulk-actions > div:last-child {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .driver-dashboard .driver-bulk-actions > div:last-child button {
+    min-height: 42px;
+    justify-content: center;
+    padding: 9px 7px;
+    white-space: normal;
+    line-height: 1.2;
+  }
+
+  .driver-dashboard .driver-modal-overlay {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .driver-dashboard .driver-modal-panel {
+    width: 100%;
+    max-width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+  }
+
+  .driver-dashboard .driver-modal-panel > div {
+    min-width: 0;
+  }
+
+  .driver-dashboard .fixed.bottom-7.right-7 {
+    right: 14px;
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .driver-dashboard .rounded-2xl,
+  .driver-dashboard .rounded-3xl {
+    scroll-margin-top: 76px;
+  }
+
+  .driver-dashboard p,
+  .driver-dashboard span,
+  .driver-dashboard strong {
+    overflow-wrap: break-word;
+  }
+}
+
+@media (max-width: 360px) {
+  .driver-app-shell > header .max-w-7xl > .flex.items-center.justify-between > div:last-child > div > div {
+    max-width: 112px;
+  }
+
+  .driver-app-shell > header .max-w-7xl > .flex.items-center.justify-between > div:last-child > div > div span:first-child {
+    max-width: 72px;
+  }
+
+  .driver-dashboard .driver-tabs-header > button {
+    font-size: 9px;
+    padding-inline: 3px;
+  }
+}

@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import './DriverDashboard.mobile.css';
 import { useAppContext } from '../context/AppContext';
 import type { CurrentUser, Booking } from '../types';
 import FuelLogForm from './FuelLogForm';
@@ -429,7 +430,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
 
 
   return (
-    <div className="max-w-md md:max-w-3xl mx-auto space-y-4 px-1 sm:px-0 pb-28 relative safe-area-pb">
+    <div className="driver-dashboard max-w-md md:max-w-3xl mx-auto space-y-4 px-1 sm:px-0 pb-28 relative safe-area-pb">
       
       {/* DRIVER COCKPIT PROFILE */}
       <div className="bg-slate-900 text-white p-5 rounded-2xl shadow-md border border-slate-800">
@@ -605,7 +606,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
       {/* TABBED INTERFACE */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         {/* TABS HEADER */}
-        <div className="flex border-b border-slate-200 bg-slate-100/70 p-1 gap-1">
+        <div className="driver-tabs-header flex border-b border-slate-200 bg-slate-100/70 p-1 gap-1">
           {/* TAB 1: CURRENT & UPCOMING */}
           <button
             onClick={() => {
@@ -671,7 +672,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
           </button>
         </div>
 
-        <div className="p-3.5 sm:p-5 space-y-4">
+        <div className="driver-tabs-content p-3.5 sm:p-5 space-y-4">
           {/* BULK SELECT TOOLBAR */}
           {activeList.length > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs">
@@ -835,12 +836,12 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
       {/* DRIVER SCHEDULE & CALENDAR MODAL */}
       {isScheduleModalOpen && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-900/80 backdrop-blur-sm overscroll-contain animate-in fade-in duration-150"
+          className="driver-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-900/80 backdrop-blur-sm overscroll-contain animate-in fade-in duration-150"
           onTouchMove={(e) => {
             if (e.target === e.currentTarget) e.preventDefault();
           }}
         >
-          <div className="bg-white w-full max-w-5xl h-[92vh] sm:h-auto sm:max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 overscroll-contain">
+          <div className="driver-modal-panel bg-white w-full max-w-5xl h-[92vh] sm:h-auto sm:max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 overscroll-contain">
             {/* Modal Header */}
             <div className="shrink-0 px-4 sm:px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
@@ -941,7 +942,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
 
       {/* FLOATING ACTION BOTTOM BAR FOR MULTI-TRIP (BULK / LUMPSUM) */}
       {selectedBookingIds.length > 0 && !isAnyModalOpen && (
-        <div className="fixed bottom-6 left-4 right-4 md:left-auto md:right-auto md:w-[768px] bg-slate-900 text-white p-3.5 rounded-2xl shadow-2xl border border-slate-700 flex flex-wrap items-center justify-between gap-3 z-30 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2">
+        <div className="driver-bulk-actions fixed bottom-6 left-4 right-4 md:left-auto md:right-auto md:w-[768px] bg-slate-900 text-white p-3.5 rounded-2xl shadow-2xl border border-slate-700 flex flex-wrap items-center justify-between gap-3 z-30 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2">
           <div className="flex items-center space-x-3">
             <div className="bg-indigo-600 text-white font-extrabold h-8 w-8 rounded-full flex items-center justify-center text-xs shadow-sm border border-indigo-400">
               {selectedBookingIds.length}
