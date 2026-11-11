@@ -948,7 +948,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
       return true;
     });
-  }, [bookings, driverFilter, searchQuery, getDriverName, users]);
+  }, [bookings, driverFilter, searchQuery, getDriverName, users, driverId]);
+
+  const driverUpcomingBookings = useMemo(() => filteredBookings.filter(b => parseAsLocal(b.dateTime).getTime() >= new Date().setHours(0,0,0,0)).sort((a,b) => parseAsLocal(a.dateTime).getTime()-parseAsLocal(b.dateTime).getTime()), [filteredBookings]);
 
   // Bookings grouped by date string (YYYY-MM-DD)
   const bookingsByDay = useMemo(() => {
@@ -1139,6 +1141,20 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           <div className="h-0.5 w-full bg-gradient-to-r from-indigo-500 via-sky-400 to-indigo-500 animate-pulse" />
         )}
         
+        {driverId && (
+          <div className="grid grid-cols-2 gap-2.5 p-3 sm:p-4 bg-white border-b border-slate-100">
+            <div className="rounded-xl border border-indigo-100 bg-indigo-50/70 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-indigo-500">Upcoming bookings</p>
+              <strong className="mt-1 block text-xl text-slate-900">{driverUpcomingBookings.length}</strong>
+              <span className="text-[10px] text-slate-600">Assigned to you</span>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Next trip</p>
+              {driverUpcomingBookings[0] ? <><strong className="mt-1 block text-sm text-slate-900">{parseAsLocal(driverUpcomingBookings[0].dateTime).toLocaleDateString('en-MY',{day:'numeric',month:'short'})}</strong><span className="block truncate text-[10px] text-slate-600">{parseAsLocal(driverUpcomingBookings[0].dateTime).toLocaleTimeString('en-MY',{hour:'numeric',minute:'2-digit'})} · {getRouteLabel(driverUpcomingBookings[0])}</span></> : <span className="mt-2 block text-xs text-slate-500">No upcoming trips</span>}
+            </div>
+          </div>
+        )}
+
         {/* ========================================================
             TOP TOOLBAR
             ======================================================== */}
