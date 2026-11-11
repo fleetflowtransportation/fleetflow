@@ -298,3 +298,10 @@ button.driver-overview-card { cursor:pointer; }
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 }
+
+
+/* Driver self-service profile forms */
+.driver-profile-field { display:flex; flex-direction:column; gap:6px; color:#475569; font-size:11px; font-weight:800; }
+.driver-profile-field input,.driver-profile-field textarea { width:100%; min-width:0; padding:11px 12px; border:1px solid #dce3ef; border-radius:11px; background:#fff; color:#14213d; font:500 13px inherit; }
+.driver-profile-field input:focus,.driver-profile-field textarea:focus { outline:3px solid rgba(99,102,241,.18); border-color:#818cf8; }
+.driver-profile-field textarea { resize:vertical; }
