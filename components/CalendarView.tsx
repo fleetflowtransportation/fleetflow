@@ -1818,7 +1818,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             {loading ? (
               <MonthViewSkeleton />
             ) : (
-              <div className="min-w-[320px]">
+              <div className="min-w-[320px] driver-booking-month-grid">
                 {/* Day-of-week Headers */}
                 <div className="grid grid-cols-7 border-b border-slate-200/80 text-center bg-slate-50/90 backdrop-blur-xs">
                   {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(name => (
@@ -1868,7 +1868,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           setCurrentDate(date);
                           setViewMode('day');
                         }}
-                        className={`relative p-1.5 sm:p-2 min-h-[95px] sm:min-h-[120px] transition cursor-pointer ${
+                        className={`relative p-1 sm:p-2 min-h-[7.25rem] sm:min-h-[8.5rem] transition cursor-pointer ${
                           isCurrentMonth 
                             ? (isToday ? 'bg-indigo-50/60 ring-1.5 ring-indigo-500 ring-inset' : 'bg-white hover:bg-slate-50/80') 
                             : 'bg-slate-50/60 opacity-60'
@@ -1900,7 +1900,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           {dayBookings.slice(0, 3).map(b => {
                             const dName = getDriverName(b.driverId, b.calendarEventTitle, b.serviceType);
                             const style = getEventCardStyle(b, dName);
-
+                            const startTime = parseAsLocal(b.dateTime).toLocaleTimeString('en-MY', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(/\s/g, '');
+                            const endTime = b.finishDateTime ? parseAsLocal(b.finishDateTime).toLocaleTimeString('en-MY', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(/\s/g, '') : '';
+                            const timeLabel = endTime ? `${startTime}–${endTime}` : startTime;
                             return (
                               <button
                                 key={b.id}
@@ -1908,19 +1910,20 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                   e.stopPropagation();
                                   handleSelectBooking(b.id);
                                 }}
-                                className={`w-full text-left px-2 py-1 rounded-lg text-[10px] leading-tight truncate border transition-all duration-150 cursor-pointer font-bold ${style.monthChip}`}
-                                title={`${b.requesterName} → ${getRouteLabel(b)} (${dName})`}
+                                className={`w-full text-left px-1 sm:px-2 py-1 sm:py-1.5 rounded-md sm:rounded-lg text-[8px] sm:text-[10px] leading-tight border transition-all duration-150 cursor-pointer font-bold ${style.monthChip}`}
+                                title={`${timeLabel} | ${b.requesterName} → ${getRouteLabel(b)} (${dName})`}
                               >
-                                <span className="opacity-75">
-                                  {b.serviceType === 'Self-Drive' ? '[Self]' : `(${dName.split(' ')[0]})`}
-                                </span>{' '}
-                                <span className="text-slate-900">{getRouteLabel(b) || b.requesterName}</span>
+                                <span className="flex items-center justify-between gap-0.5 mb-0.5">
+                                  <span className="font-mono font-black whitespace-nowrap">{timeLabel}</span>
+                                  <span className="opacity-75 truncate">{b.serviceType === 'Self-Drive' ? 'Self' : dName.split(' ')[0]}</span>
+                                </span>
+                                <span className="block text-slate-900 truncate">{getRouteLabel(b) || b.requesterName}</span>
                               </button>
                             );
                           })}
 
                           {dayBookings.length > 3 && (
-                            <div className="text-[10px] font-black text-indigo-600 pl-1 pt-0.5">
+                            <div className="text-[9px] sm:text-[10px] font-black text-indigo-600 pl-1 pt-0.5">
                               +{dayBookings.length - 3} more
                             </div>
                           )}

@@ -110,9 +110,10 @@ type ModalState =
 interface DriverScheduleManagerProps {
   readOnly?: boolean;
   driverId?: string;
+  showAllDrivers?: boolean;
 }
 
-const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly = false, driverId }) => {
+const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly = false, driverId, showAllDrivers = false }) => {
   const { users, driverSchedules, addDriverSchedule, updateDriverSchedule, deleteDriverSchedule, deleteDriverSchedulesBulk, currentUser } = useAppContext();
   
   const isEditable = !readOnly && currentUser?.role === 'admin';
@@ -141,7 +142,9 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
   const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set());
   const [modal, setModal] = useState<ModalState>(null);
 
-  const visibleSchedules = useMemo(() => driverId ? driverSchedules.filter(s => s.DriverId === driverId || resolveDriver(users, s.DriverId)?.id === driverId) : driverSchedules, [driverSchedules, driverId, users]);
+  const personalSchedules = useMemo(() => driverId ? driverSchedules.filter(s => s.DriverId === driverId || resolveDriver(users, s.DriverId)?.id === driverId) : driverSchedules, [driverSchedules, driverId, users]);
+  // The driver portal can show the full team roster while keeping personal summaries scoped to the signed-in driver.
+  const visibleSchedules = showAllDrivers ? driverSchedules : personalSchedules;
 
   const schedulesByDate = useMemo(() => {
     const map = new Map<string, DriverSchedule[]>();
@@ -154,9 +157,9 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
   }, [visibleSchedules]);
 
   const todayKey = toDateKey(new Date());
-  const upcomingShifts = useMemo(() => visibleSchedules.filter(s => parseDateKeyLoose(s.Date) >= todayKey).sort((a,b) => parseDateKeyLoose(a.Date).localeCompare(parseDateKeyLoose(b.Date)) || toTimeHHMM(a.Mula).localeCompare(toTimeHHMM(b.Mula))), [visibleSchedules, todayKey]);
+  const upcomingShifts = useMemo(() => personalSchedules.filter(s => parseDateKeyLoose(s.Date) >= todayKey).sort((a,b) => parseDateKeyLoose(a.Date).localeCompare(parseDateKeyLoose(b.Date)) || toTimeHHMM(a.Mula).localeCompare(toTimeHHMM(b.Mula))), [personalSchedules, todayKey]);
   const nextShift = upcomingShifts[0];
-  const weekHours = useMemo(() => visibleSchedules.filter(s => { const key=parseDateKeyLoose(s.Date); const d=new Date(key+'T00:00:00'); const now=new Date(); const start=new Date(now); start.setDate(now.getDate()-((now.getDay()+6)%7)); const end=new Date(start); end.setDate(start.getDate()+7); return d>=start && d<end; }).reduce((sum,s) => { const start=toTimeHHMM(s.Mula).split(':').map(Number); const end=toTimeHHMM(s.Tamat).split(':').map(Number); let mins=end[0]*60+end[1]-(start[0]*60+start[1]); if(mins<0) mins+=1440; return sum+mins; },0), [visibleSchedules]);
+  const weekHours = useMemo(() => personalSchedules.filter(s => { const key=parseDateKeyLoose(s.Date); const d=new Date(key+'T00:00:00'); const now=new Date(); const start=new Date(now); start.setDate(now.getDate()-((now.getDay()+6)%7)); const end=new Date(start); end.setDate(start.getDate()+7); return d>=start && d<end; }).reduce((sum,s) => { const start=toTimeHHMM(s.Mula).split(':').map(Number); const end=toTimeHHMM(s.Tamat).split(':').map(Number); let mins=end[0]*60+end[1]-(start[0]*60+start[1]); if(mins<0) mins+=1440; return sum+mins; },0), [personalSchedules]);
   const gridDays = viewMode === 'month' ? buildMonthGrid(anchor) : buildWeekGrid(anchor);
 
   const goPrev = () => {
@@ -208,11 +211,11 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
       {/* Top Header Card — more compact on mobile */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white rounded-xl sm:rounded-2xl p-3.5 sm:p-5 shadow-xs border border-gray-200">
         <div className="min-w-0">
-          <h2 className="text-base sm:text-xl font-bold text-gray-900 leading-tight">{driverId ? 'My Duty Shifts' : 'Driver Shift & Duty Roster'}</h2>
+          <h2 className="text-base sm:text-xl font-bold text-gray-900 leading-tight">{showAllDrivers ? 'Team Duty Roster' : driverId ? 'My Duty Shifts' : 'Driver Shift & Duty Roster'}</h2>
           <p className="text-gray-500 mt-0.5 text-[11px] sm:text-sm leading-snug">
             {isEditable 
               ? 'Tap any date to view or assign shifts.' 
-              : 'Your assigned working days and shift hours.'}
+              : showAllDrivers ? 'View every driver’s duty hours for better team coordination.' : 'Your assigned working days and shift hours.'}
           </p>
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -370,15 +373,15 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
               const isToday = dateKey === todayKey;
               const isCurrentMonth = date.getMonth() === anchor.getMonth();
               const isSelected = selectedDates.has(dateKey);
-              // Mobile: show max 1 chip + "+N", Desktop: show up to 3
-              const visibleSchedules = daySchedules.slice(0, 2);
-              const hiddenCount = daySchedules.length - visibleSchedules.length;
+              // Render every driver's shift directly in the month cell so names and hours are visible at a glance.
+              const visibleSchedules = daySchedules;
+              const hiddenCount = 0;
 
               return (
                 <div
                   key={dateKey}
                   onClick={() => handleDayClick(dateKey, daySchedules)}
-                  className={`relative border-b border-r border-gray-100 p-1 sm:p-1.5 transition min-h-[4.5rem] sm:min-h-[7.5rem] ${
+                  className={`relative border-b border-r border-gray-100 p-1 sm:p-1.5 transition min-h-[7.25rem] sm:min-h-[8.5rem] ${
                     isCurrentMonth ? 'bg-white' : 'bg-gray-50/70'
                   } cursor-pointer hover:bg-indigo-50/30 active:bg-indigo-50/50 ${isSelected ? 'ring-2 ring-inset ring-indigo-500 bg-indigo-50' : ''}`}
                   title="Tap to view shifts"
@@ -396,7 +399,7 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
                     )}
                   </div>
 
-                  <div className="space-y-0.5">
+                  <div className="space-y-1">
                     {visibleSchedules.map(sched => {
                       const color = colorForDriver(sched.DriverId);
                       const dName = driverName(sched.DriverId);
@@ -408,11 +411,11 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
                             e.stopPropagation(); 
                             setModal({ mode: 'dayDetail', dateKey, daySchedules }); 
                           }}
-                          className={`w-full text-left text-[9px] sm:text-[11px] leading-tight px-1 sm:px-1.5 py-0.5 sm:py-1 rounded ${color.bg} ${color.text} border border-black/5 shadow-2xs hover:opacity-90 transition cursor-pointer`}
+                          className={`w-full text-left text-[8px] sm:text-[11px] leading-tight px-1 sm:px-1.5 py-1 sm:py-1.5 rounded-md ${color.bg} ${color.text} border border-black/5 shadow-2xs hover:opacity-90 transition cursor-pointer`}
                           title={`${dName}: ${toTime12H(sched.Mula)} - ${toTime12H(sched.Tamat)}`}
                         >
                           <div className="font-extrabold truncate">{shortName}</div>
-                          <div className="text-[8px] sm:text-[10px] font-semibold opacity-90 font-mono hidden sm:block">
+                          <div className="text-[8px] sm:text-[10px] font-bold opacity-90 font-mono whitespace-nowrap">
                             {toTime12H(sched.Mula)}-{toTime12H(sched.Tamat)}
                           </div>
                         </div>
