@@ -540,6 +540,8 @@ export interface CalendarViewProps {
   customVehicles?: Vehicle[];
   onRequestBooking?: () => void;
   defaultView?: CalendarViewMode;
+  readOnly?: boolean;
+  driverId?: string;
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
@@ -548,7 +550,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   customUsers,
   customVehicles,
   onRequestBooking,
-  defaultView = 'month'
+  defaultView = 'month',
+  readOnly = false,
+  driverId
 }) => {
   let context: any = null;
   try {
@@ -910,6 +914,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   // Filtered Bookings
   const filteredBookings = useMemo(() => {
     return bookings.filter(b => {
+      // Driver portal is strictly scoped to the authenticated driver's own bookings.
+      if (driverId) {
+        const resolvedDriver = resolveDriver(users, b.driverId, b.calendarEventTitle);
+        if (b.driverId !== driverId && resolvedDriver?.id !== driverId) return false;
+      }
       // Cancelled reservations are retained in Booking Pages for audit, not shown on operational calendars.
       if (b.status === 'Cancelled') return false;
 
