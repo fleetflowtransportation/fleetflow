@@ -373,15 +373,15 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
               const isToday = dateKey === todayKey;
               const isCurrentMonth = date.getMonth() === anchor.getMonth();
               const isSelected = selectedDates.has(dateKey);
-              // Render every driver's shift directly in the month cell so names and hours are visible at a glance.
-              const visibleSchedules = daySchedules;
-              const hiddenCount = 0;
+              // Keep month cells compact; the day detail opens the complete roster when a date is selected.
+              const visibleSchedules = daySchedules.slice(0, 4);
+              const hiddenCount = Math.max(0, daySchedules.length - visibleSchedules.length);
 
               return (
                 <div
                   key={dateKey}
                   onClick={() => handleDayClick(dateKey, daySchedules)}
-                  className={`relative border-b border-r border-gray-100 p-1 sm:p-1.5 transition min-h-[7.25rem] sm:min-h-[8.5rem] ${
+                  className={`relative min-w-0 border-b border-r border-gray-100 p-0.5 sm:p-1.5 transition h-[7.6rem] sm:min-h-[8.5rem] sm:h-auto overflow-hidden ${
                     isCurrentMonth ? 'bg-white' : 'bg-gray-50/70'
                   } cursor-pointer hover:bg-indigo-50/30 active:bg-indigo-50/50 ${isSelected ? 'ring-2 ring-inset ring-indigo-500 bg-indigo-50' : ''}`}
                   title="Tap to view shifts"
@@ -399,32 +399,35 @@ const DriverScheduleManager: React.FC<DriverScheduleManagerProps> = ({ readOnly 
                     )}
                   </div>
 
-                  <div className="space-y-1">
+                  <div className="flex flex-col gap-0.5 overflow-hidden">
                     {visibleSchedules.map(sched => {
                       const color = colorForDriver(sched.DriverId);
                       const dName = driverName(sched.DriverId);
                       const shortName = dName.includes(' ') ? dName.split(' ')[0] : dName;
                       return (
-                        <div
+                        <button
                           key={sched.id}
-                          onClick={(e) => { 
-                            e.stopPropagation(); 
-                            setModal({ mode: 'dayDetail', dateKey, daySchedules }); 
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setModal({ mode: 'dayDetail', dateKey, daySchedules });
                           }}
-                          className={`w-full text-left text-[8px] sm:text-[11px] leading-tight px-1 sm:px-1.5 py-1 sm:py-1.5 rounded-md ${color.bg} ${color.text} border border-black/5 shadow-2xs hover:opacity-90 transition cursor-pointer`}
+                          className={`flex items-center gap-0.5 w-full min-w-0 h-[17px] sm:h-[19px] text-left text-[7px] sm:text-[9px] leading-none px-0.5 sm:px-1 rounded-[4px] sm:rounded-md ${color.bg} ${color.text} border border-black/5 overflow-hidden hover:opacity-90 transition cursor-pointer`}
                           title={`${dName}: ${toTime12H(sched.Mula)} - ${toTime12H(sched.Tamat)}`}
                         >
-                          <div className="font-extrabold truncate">{shortName}</div>
-                          <div className="text-[8px] sm:text-[10px] font-bold opacity-90 font-mono whitespace-nowrap">
-                            {toTime12H(sched.Mula)}-{toTime12H(sched.Tamat)}
-                          </div>
-                        </div>
+                          <span className="font-extrabold truncate min-w-0 flex-1">{shortName}</span>
+                          <span className="font-bold opacity-90 font-mono whitespace-nowrap shrink-0">{toTime12H(sched.Mula)}-{toTime12H(sched.Tamat)}</span>
+                        </button>
                       );
                     })}
                     {hiddenCount > 0 && (
-                      <div className="text-[8px] sm:text-[10px] text-indigo-600 font-extrabold px-0.5 text-center bg-indigo-50/60 rounded py-0.5">
-                        +{hiddenCount}
-                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setModal({ mode: 'dayDetail', dateKey, daySchedules }); }}
+                        className="h-[16px] text-left text-[8px] sm:text-[9px] text-indigo-600 font-extrabold px-1 truncate"
+                      >
+                        +{hiddenCount} more
+                      </button>
                     )}
                   </div>
                 </div>
