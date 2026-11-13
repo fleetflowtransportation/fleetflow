@@ -1856,10 +1856,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   </div>
                 )}
 
-                {/* 7x6 Matrix Grid */}
+                {/* Compact, mobile-first month grid: one-line event strips and tidy overflow */}
                 <div className="grid grid-cols-7 border-b border-slate-200/80 gap-px bg-slate-200/80">
                   {calendarGrid.map(({ date, dateKey, isCurrentMonth, isToday }, idx) => {
                     const dayBookings = bookingsByDay.get(dateKey) || [];
+                    const visibleBookings = dayBookings.slice(0, 4);
+                    const hiddenCount = Math.max(0, dayBookings.length - visibleBookings.length);
 
                     return (
                       <div
@@ -1868,41 +1870,30 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           setCurrentDate(date);
                           setViewMode('day');
                         }}
-                        className={`relative p-1 sm:p-2 min-h-[7.25rem] sm:min-h-[8.5rem] transition cursor-pointer ${
-                          isCurrentMonth 
-                            ? (isToday ? 'bg-indigo-50/60 ring-1.5 ring-indigo-500 ring-inset' : 'bg-white hover:bg-slate-50/80') 
+                        className={`relative min-w-0 h-[7.6rem] sm:min-h-[8.5rem] sm:h-auto overflow-hidden p-0.5 sm:p-1.5 transition cursor-pointer ${
+                          isCurrentMonth
+                            ? (isToday ? 'bg-indigo-50/60 ring-1.5 ring-indigo-500 ring-inset' : 'bg-white hover:bg-slate-50/80')
                             : 'bg-slate-50/60 opacity-60'
                         }`}
                       >
-                        {/* Date Header */}
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span
-                            className={`text-xs font-bold h-6 w-6 flex items-center justify-center rounded-full transition ${
-                              isToday
-                                ? 'bg-indigo-600 text-white font-black shadow-xs'
-                                : isCurrentMonth
-                                ? 'text-slate-800'
-                                : 'text-slate-400'
-                            }`}
-                          >
+                        <div className="flex items-center justify-between gap-0.5 mb-1 px-0.5">
+                          <span className={`text-[10px] sm:text-xs font-bold h-5 w-5 sm:h-6 sm:w-6 flex items-center justify-center rounded-full shrink-0 ${
+                            isToday ? 'bg-indigo-600 text-white font-black shadow-xs' : isCurrentMonth ? 'text-slate-800' : 'text-slate-400'
+                          }`}>
                             {date.getDate()}
                           </span>
-
                           {dayBookings.length > 0 && (
-                            <span className="sm:hidden text-[9px] font-bold px-1.5 py-0.2 bg-indigo-100 text-indigo-800 rounded-full">
-                              {dayBookings.length}
-                            </span>
+                            <span className="text-[8px] sm:text-[9px] font-bold text-slate-500 tabular-nums">{dayBookings.length}</span>
                           )}
                         </div>
 
-                        {/* Clean Event Badges */}
-                        <div className="space-y-1">
-                          {dayBookings.slice(0, 3).map(b => {
+                        <div className="flex flex-col gap-0.5 overflow-hidden">
+                          {visibleBookings.map(b => {
                             const dName = getDriverName(b.driverId, b.calendarEventTitle, b.serviceType);
                             const style = getEventCardStyle(b, dName);
                             const startTime = parseAsLocal(b.dateTime).toLocaleTimeString('en-MY', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(/\s/g, '');
-                            const endTime = b.finishDateTime ? parseAsLocal(b.finishDateTime).toLocaleTimeString('en-MY', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(/\s/g, '') : '';
-                            const timeLabel = endTime ? `${startTime}–${endTime}` : startTime;
+                            const driverLabel = b.serviceType === 'Self-Drive' ? 'Self' : dName.split(' ')[0];
+                            const routeLabel = getRouteLabel(b) || b.requesterName;
                             return (
                               <button
                                 key={b.id}
@@ -1910,21 +1901,20 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                   e.stopPropagation();
                                   handleSelectBooking(b.id);
                                 }}
-                                className={`w-full text-left px-1 sm:px-2 py-1 sm:py-1.5 rounded-md sm:rounded-lg text-[8px] sm:text-[10px] leading-tight border transition-all duration-150 cursor-pointer font-bold ${style.monthChip}`}
-                                title={`${timeLabel} | ${b.requesterName} → ${getRouteLabel(b)} (${dName})`}
+                                className={`flex items-center gap-0.5 w-full min-w-0 h-[17px] sm:h-[19px] px-0.5 sm:px-1 rounded-[4px] sm:rounded-md text-[7px] sm:text-[9px] leading-none border cursor-pointer font-bold overflow-hidden ${style.monthChip}`}
+                                title={`${startTime} | ${driverLabel} | ${routeLabel} | ${b.requesterName}`}
                               >
-                                <span className="flex items-center justify-between gap-0.5 mb-0.5">
-                                  <span className="font-mono font-black whitespace-nowrap">{timeLabel}</span>
-                                  <span className="opacity-75 truncate">{b.serviceType === 'Self-Drive' ? 'Self' : dName.split(' ')[0]}</span>
-                                </span>
-                                <span className="block text-slate-900 truncate">{getRouteLabel(b) || b.requesterName}</span>
+                                <span className="font-mono font-black shrink-0">{startTime}</span>
+                                <span className="opacity-70 shrink-0">·</span>
+                                <span className="shrink-0 max-w-[22px] sm:max-w-[48px] truncate">{driverLabel}</span>
+                                <span className="opacity-70 shrink-0">·</span>
+                                <span className="min-w-0 flex-1 truncate text-slate-900">{routeLabel}</span>
                               </button>
                             );
                           })}
-
-                          {dayBookings.length > 3 && (
-                            <div className="text-[9px] sm:text-[10px] font-black text-indigo-600 pl-1 pt-0.5">
-                              +{dayBookings.length - 3} more
+                          {hiddenCount > 0 && (
+                            <div className="h-[16px] flex items-center px-1 text-[8px] sm:text-[9px] font-extrabold text-indigo-700 truncate">
+                              +{hiddenCount} more
                             </div>
                           )}
                         </div>
