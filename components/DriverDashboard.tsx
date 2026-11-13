@@ -962,15 +962,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
         </div>
       )}
 
-      {/* Driver Floating Speed Dial Action Button */}
-      <DriverSpeedDial
-        onOpenFuelLog={() => setIsFuelLogOpen(true)}
-        onOpenOdometer={handleOpenGeneralOdometer}
-        onOpenIssueLog={() => setIsIssueLogOpen(true)}
-        onOpenFeedback={() => setIsFeedbackOpen(true)}
-        className={selectedBookingIds.length > 0 ? 'bottom-28 sm:bottom-28' : ''}
-        isHidden={isAnyModalOpen}
-      />
+      {/* Floating speed dial removed; keep existing forms and their other entry points intact. */}
 
       {/* Forms & Modals */}
       <FuelLogForm
