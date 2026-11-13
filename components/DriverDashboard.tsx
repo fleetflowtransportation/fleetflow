@@ -27,7 +27,6 @@ import {
 } from './icons/Icons';
 import CalendarView from './CalendarView';
 import DriverScheduleManager from './DriverScheduleManager';
-import DriverSpeedDial from './DriverSpeedDial';
 import { FeedbackModal } from './FeedbackModal';
 import { BookingDetailModal } from './BookingDetailModal';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
