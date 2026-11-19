@@ -992,13 +992,16 @@ const MaintenanceManagement: React.FC = () => {
 
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap gap-1 mb-1">
-                            {log.serviceItems.map((item, idx) => (
+                            {(log.serviceItemDetails?.length ? log.serviceItemDetails.map(item => item.name) : log.serviceItems).map((item, idx) => (
                               <span key={idx} className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 font-bold text-[10px] border border-indigo-100">
                                 {item}
                               </span>
                             ))}
                           </div>
                           <span className="text-xs text-slate-700 font-semibold block">🔧 {log.workshopName}</span>
+                          {log.serviceItemDetails?.length ? <div className="mt-1 text-[10px] text-slate-500">{log.serviceItemDetails.map((line,i)=><div key={i}>{line.quantity} × {line.name} — RM {line.total.toFixed(2)}</div>)}</div> : null}
+                          {log.performedBy && <p className="text-[10px] text-slate-500">Delivered by: {log.performedBy}</p>}
+                          {(log.nextServiceDate||log.nextServiceOdometer) && <p className="text-[10px] text-emerald-700">Next service: {log.nextServiceDate||''}{log.nextServiceDate&&log.nextServiceOdometer?' · ':''}{log.nextServiceOdometer?log.nextServiceOdometer.toLocaleString()+' km':''}</p>}
                           {log.remarks && (
                             <p className="text-[11px] text-slate-500 italic mt-0.5">{log.remarks}</p>
                           )}
@@ -1054,6 +1057,7 @@ const MaintenanceManagement: React.FC = () => {
       </div>}      {/* ============================================================== */}
       {/* MODAL 1: RECORD COMPLETED SERVICE                              */}
       {/* ============================================================== */}
+      {isWorkshopModalOpen && <WorkshopModal initial={editingWorkshop} onClose={()=>{setIsWorkshopModalOpen(false);setEditingWorkshop(null);}} onSave={async data=>{if(editingWorkshop){await updateWorkshop(data);}else{const {id,...newData}=data;await createWorkshop(newData);}setIsWorkshopModalOpen(false);setEditingWorkshop(null);}}/>}
       {isRecordServiceModalOpen && (
         <RecordServiceModal
           isOpen={isRecordServiceModalOpen}
