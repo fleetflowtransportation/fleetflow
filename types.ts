@@ -253,7 +253,7 @@ export interface MaintenanceInterval {
   tenantId?: string;
 }
 
-export interface MaintenanceItemDetail {
+export export interface MaintenanceItemDetail {
   name: string;
   quantity: number;
   unitPrice: number;
