@@ -540,7 +540,12 @@ const toDbMaintenanceLog = (l: Partial<MaintenanceLog>) => ({
   ...(l.odometer !== undefined && { odometer: l.odometer }),
   ...(l.serviceType !== undefined && { service_type: l.serviceType }),
   ...(l.serviceItems !== undefined && { service_items: l.serviceItems }),
-  ...(l.workshopName !== undefined && { workshop_name: l.workshopName }),\n  ...(l.workshopId !== undefined && { workshop_id: l.workshopId }),\n  ...(l.deliveredByUserId !== undefined && { delivered_by_user_id: l.deliveredByUserId }),\n  ...(l.serviceItemDetails !== undefined && { service_item_details: l.serviceItemDetails }),\n  ...(l.nextServiceDate !== undefined && { next_service_date: l.nextServiceDate }),\n  ...(l.nextServiceOdometer !== undefined && { next_service_odometer: l.nextServiceOdometer }),
+  ...(l.workshopName !== undefined && { workshop_name: l.workshopName }),
+  ...(l.workshopId !== undefined && { workshop_id: l.workshopId }),
+  ...(l.deliveredByUserId !== undefined && { delivered_by_user_id: l.deliveredByUserId }),
+  ...(l.serviceItemDetails !== undefined && { service_item_details: l.serviceItemDetails }),
+  ...(l.nextServiceDate !== undefined && { next_service_date: l.nextServiceDate }),
+  ...(l.nextServiceOdometer !== undefined && { next_service_odometer: l.nextServiceOdometer }),
   ...(l.invoiceNumber !== undefined && { invoice_number: l.invoiceNumber }),
   ...(l.totalCost !== undefined && { total_cost: l.totalCost }),
   ...(l.performedBy !== undefined && { performed_by: l.performedBy }),
@@ -556,7 +561,12 @@ const fromDbMaintenanceLog = (row: any): MaintenanceLog => ({
   odometer: Number(row.odometer || 0),
   serviceType: row.service_type || 'Scheduled Maintenance',
   serviceItems: Array.isArray(row.service_items) ? row.service_items : (row.service_items ? JSON.parse(row.service_items) : []),
-  workshopName: row.workshop_name || '',\n  workshopId: row.workshop_id || undefined,\n  deliveredByUserId: row.delivered_by_user_id || undefined,\n  serviceItemDetails: Array.isArray(row.service_item_details) ? row.service_item_details : [],\n  nextServiceDate: row.next_service_date || undefined,\n  nextServiceOdometer: row.next_service_odometer != null ? Number(row.next_service_odometer) : undefined,
+  workshopName: row.workshop_name || '',
+  workshopId: row.workshop_id || undefined,
+  deliveredByUserId: row.delivered_by_user_id || undefined,
+  serviceItemDetails: Array.isArray(row.service_item_details) ? row.service_item_details : [],
+  nextServiceDate: row.next_service_date || undefined,
+  nextServiceOdometer: row.next_service_odometer != null ? Number(row.next_service_odometer) : undefined,
   invoiceNumber: row.invoice_number || undefined,
   totalCost: Number(row.total_cost || 0),
   performedBy: row.performed_by || undefined,
@@ -565,7 +575,8 @@ const fromDbMaintenanceLog = (row: any): MaintenanceLog => ({
   tenantId: row.tenant_id || getTenantId(),
 });
 
-export const storageService = {\n  // ---- WORKSHOP DIRECTORY ----
+export const storageService = {
+  // ---- WORKSHOP DIRECTORY ----
   getWorkshops: async (): Promise<Workshop[]> => {
     const tenantId = getTenantId();
     let local: Workshop[] = [];
