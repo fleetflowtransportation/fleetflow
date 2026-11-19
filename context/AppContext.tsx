@@ -183,6 +183,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       storageService.getSelfDriveStaff(),
       storageService.getMaintenanceIntervals(),
       storageService.getMaintenanceLogs(),
+      storageService.getWorkshops(),
       storageService.getVehicleRenewals(),
     ])
       .then(([u, v, b, f, o, i, s, sds, mi, ml, ws, vr]) => {
@@ -197,6 +198,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setSelfDriveStaff(sds);
         setMaintenanceIntervals(mi);
         setMaintenanceLogs(ml);
+        setWorkshops(ws);
         setVehicleRenewals(vr);
       })
       .catch(err => {
