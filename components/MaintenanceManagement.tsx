@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
-import type { IssueLog, MaintenanceInterval, MaintenanceLog, MaintenanceCategory } from '../types';
+import type { IssueLog, MaintenanceInterval, MaintenanceLog, MaintenanceCategory, MaintenanceItemDetail, Workshop } from '../types';
 import {
   TruckIcon,
   UserCircleIcon,
@@ -139,7 +139,7 @@ const MaintenanceManagement: React.FC = () => {
   } = useAppContext();
 
   // Navigation tab within Maintenance
-  const [activeTab, setActiveTab] = useState<'intervals' | 'issues' | 'history'>('intervals');
+  const [activeTab, setActiveTab] = useState<'intervals' | 'issues' | 'history' | 'analysis' | 'workshops'>('intervals');
 
   // Vehicle filter
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>('all');
@@ -160,7 +160,7 @@ const MaintenanceManagement: React.FC = () => {
 
   const [isAddIntervalModalOpen, setIsAddIntervalModalOpen] = useState(false);
   const [editingInterval, setEditingInterval] = useState<MaintenanceInterval | null>(null);
-  const [isUpdateOdometerModalOpen, setIsUpdateOdometerModalOpen] = useState(false);
+  const [isUpdateOdometerModalOpen, setIsUpdateOdometerModalOpen] = useState(false);\n  const [isWorkshopModalOpen, setIsWorkshopModalOpen] = useState(false);\n  const [editingWorkshop, setEditingWorkshop] = useState<Workshop | null>(null);
   const [odometerTargetVehicleId, setOdometerTargetVehicleId] = useState<string>('');
 
   // Latest Odometer Map per Vehicle (calculated from odometerLogs & lastServiceOdometer)
@@ -1141,222 +1141,114 @@ const MaintenanceManagement: React.FC = () => {
 
 // 1. Record Completed Service Modal
 interface RecordServiceModalProps {
-  isOpen: boolean;
   onClose: () => void;
-  preFill: {
-    intervalId?: string;
-    vehicleId: string;
-    serviceName: string;
-    estimatedCost?: number;
-  } | null;
+  preFill: { intervalId?: string; vehicleId: string; serviceName: string; estimatedCost?: number } | null;
   vehicles: any[];
   vehicleOdometerMap: Map<string, number>;
-  onSubmit: (logData: Omit<MaintenanceLog, 'id'>, intervalId?: string) => Promise<void>;
+  users: any[];
+  workshops: Workshop[];
+  onCreateWorkshop: (data: Omit<Workshop, 'id' | 'tenantId'>) => Promise<Workshop>;
+  onSubmit: (data: Omit<MaintenanceLog, 'id'>, intervalId?: string) => Promise<void>;
 }
 
-const RecordServiceModal: React.FC<RecordServiceModalProps> = ({
-  onClose,
-  preFill,
-  vehicles,
-  vehicleOdometerMap,
-  onSubmit,
-}) => {
+const RecordServiceModal: React.FC<RecordServiceModalProps> = ({ onClose, preFill, vehicles, vehicleOdometerMap, users, workshops, onCreateWorkshop, onSubmit }) => {
   const [vehicleId, setVehicleId] = useState(preFill?.vehicleId || vehicles[0]?.id || '');
-  const [serviceDate, setServiceDate] = useState(new Date().toISOString().split('T')[0]);
-  const [odometer, setOdometer] = useState<number>(vehicleOdometerMap.get(vehicleId) || 50000);
-  const [serviceItemsText, setServiceItemsText] = useState(preFill?.serviceName || 'Engine Oil & Oil Filter');
-  const [workshopName, setWorkshopName] = useState('Authorized Service Centre');
+  const [serviceDate, setServiceDate] = useState(new Date().toISOString().slice(0, 10));
+  const [odometer, setOdometer] = useState<number>(vehicleOdometerMap.get(vehicleId) || 0);
+  const [serviceType, setServiceType] = useState<MaintenanceLog['serviceType']>('Scheduled Maintenance');
+  const [items, setItems] = useState<MaintenanceItemDetail[]>([{ name: preFill?.serviceName || 'Engine Oil', quantity: 1, unitPrice: preFill?.estimatedCost || 0, total: preFill?.estimatedCost || 0 }]);
+  const [workshopChoice, setWorkshopChoice] = useState('');
+  const [manualWorkshop, setManualWorkshop] = useState('');
+  const [registerWorkshop, setRegisterWorkshop] = useState(false);
+  const [newWorkshopPhone, setNewWorkshopPhone] = useState('');
+  const [newWorkshopAddress, setNewWorkshopAddress] = useState('');
+  const [newWorkshopContact, setNewWorkshopContact] = useState('');
+  const [newWorkshopEmail, setNewWorkshopEmail] = useState('');
+  const [newWorkshopSpecialties, setNewWorkshopSpecialties] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
-  const [totalCost, setTotalCost] = useState<number>(preFill?.estimatedCost || 220);
-  const [performedBy, setPerformedBy] = useState('Staff / Driver');
+  const [deliveredByChoice, setDeliveredByChoice] = useState('');
+  const [manualDeliveredBy, setManualDeliveredBy] = useState('');
+  const [nextServiceDate, setNextServiceDate] = useState('');
+  const [nextServiceOdometer, setNextServiceOdometer] = useState('');
   const [remarks, setRemarks] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const totalCost = items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0);
+  const activeWorkshops = workshops.filter(w => w.status === 'active').sort((a,b) => a.name.localeCompare(b.name));
+  const activeUsers = users.filter(u => u.status === 'active').sort((a,b) => a.name.localeCompare(b.name));
+  const selectedWorkshop = workshops.find(w => w.id === workshopChoice);
+  const isManualWorkshop = workshopChoice === '__manual__';
+  const isDeliveredOther = deliveredByChoice === '__other__';
+
+  const updateItem = (index: number, patch: Partial<MaintenanceItemDetail>) => setItems(prev => prev.map((item, i) => i === index ? { ...item, ...patch, total: (patch.quantity ?? item.quantity) * (patch.unitPrice ?? item.unitPrice) } : item));
+  const addItem = () => setItems(prev => [...prev, { name: '', quantity: 1, unitPrice: 0, total: 0 }]);
+  const removeItem = (index: number) => setItems(prev => prev.length > 1 ? prev.filter((_,i) => i !== index) : [{ name: '', quantity: 1, unitPrice: 0, total: 0 }]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!vehicleId || !workshopName.trim()) {
-      alert('Please select vehicle and specify workshop name.');
+    if (!vehicleId || (!selectedWorkshop && !manualWorkshop.trim()) || items.some(i => !i.name.trim())) {
+      alert('Please select a vehicle, specify workshop, and fill in all item descriptions.');
       return;
     }
-
     setIsSubmitting(true);
     try {
-      const items = serviceItemsText
-        .split(',')
-        .map(i => i.trim())
-        .filter(Boolean);
-
+      let workshopId = selectedWorkshop?.id;
+      let workshopName = selectedWorkshop?.name || manualWorkshop.trim();
+      if (isManualWorkshop && registerWorkshop && workshopName) {
+        const registered = await onCreateWorkshop({
+          name: workshopName, phone: newWorkshopPhone.trim() || undefined, address: newWorkshopAddress.trim() || undefined,
+          contactPerson: newWorkshopContact.trim() || undefined, email: newWorkshopEmail.trim() || undefined,
+          specialties: newWorkshopSpecialties.split(',').map(x => x.trim()).filter(Boolean), notes: undefined, status: 'active',
+        });
+        workshopId = registered.id;
+      }
+      const deliveredByUser = activeUsers.find(u => u.id === deliveredByChoice);
+      const deliveredBy = deliveredByUser?.name || (isDeliveredOther ? manualDeliveredBy.trim() : '');
+      const cleanItems = items.map(item => ({ name: item.name.trim(), quantity: Number(item.quantity) || 1, unitPrice: Number(item.unitPrice) || 0, total: (Number(item.quantity) || 1) * (Number(item.unitPrice) || 0) }));
       await onSubmit({
-        vehicleId,
-        serviceDate,
-        odometer: Number(odometer) || 0,
-        serviceType: 'Scheduled Maintenance',
-        serviceItems: items.length > 0 ? items : [serviceItemsText],
-        workshopName: workshopName.trim(),
-        invoiceNumber: invoiceNumber.trim() || undefined,
-        totalCost: Number(totalCost) || 0,
-        performedBy: performedBy.trim() || undefined,
+        vehicleId, serviceDate, odometer: Number(odometer) || 0, serviceType,
+        serviceItems: cleanItems.map(item => item.name), serviceItemDetails: cleanItems,
+        workshopName, workshopId, invoiceNumber: invoiceNumber.trim() || undefined,
+        totalCost, performedBy: deliveredBy || undefined, deliveredByUserId: deliveredByUser?.id,
+        nextServiceDate: nextServiceDate || undefined, nextServiceOdometer: nextServiceOdometer ? Number(nextServiceOdometer) : undefined,
         remarks: remarks.trim() || undefined,
       }, preFill?.intervalId);
-    } finally {
-      setIsSubmitting(false);
-    }
+    } finally { setIsSubmitting(false); }
   };
 
+  const inputClass = 'w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 text-sm';
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-2xs z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-2xs z-50 flex items-center justify-center p-3">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full overflow-hidden flex flex-col max-h-[94vh]">
         <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
-              <CheckCircleIcon className="h-5 w-5" />
-            </div>
-            <div>
-              <h3 className="font-extrabold text-base text-slate-900">Record Completed Service</h3>
-              <p className="text-xs text-slate-500">Logs invoice and advances scheduled interval</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-1 rounded-lg text-slate-400 hover:text-slate-700">
-            <XIcon className="h-5 w-5" />
-          </button>
+          <div><h3 className="font-extrabold text-base text-slate-900">Record Maintenance / Workshop Invoice</h3><p className="text-xs text-slate-500">Enter invoice lines, workshop details and next service targets</p></div>
+          <button onClick={onClose} className="p-1 rounded-lg text-slate-400 hover:text-slate-700"><XIcon className="h-5 w-5" /></button>
         </div>
-
-        <form onSubmit={handleSubmit} className="p-5 overflow-y-auto space-y-4 text-xs">
-          <div>
-            <label className="font-bold text-slate-700 block mb-1">Select Vehicle *</label>
-            <select
-              value={vehicleId}
-              onChange={e => {
-                const vid = e.target.value;
-                setVehicleId(vid);
-                const curOdo = vehicleOdometerMap.get(vid);
-                if (curOdo) setOdometer(curOdo);
-              }}
-              className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500"
-              required
-            >
-              {vehicles.map(v => (
-                <option key={v.id} value={v.id}>
-                  {v.name} ({v.plateNumber})
-                </option>
-              ))}
-            </select>
+        <form onSubmit={handleSubmit} className="p-4 sm:p-5 overflow-y-auto space-y-4 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div><label className="font-bold text-slate-700 block mb-1">Vehicle *</label><select value={vehicleId} onChange={e => {setVehicleId(e.target.value); setOdometer(vehicleOdometerMap.get(e.target.value) || 0);}} className={inputClass} required>{vehicles.map(v=><option key={v.id} value={v.id}>{v.name} ({v.plateNumber})</option>)}</select></div>
+            <div><label className="font-bold text-slate-700 block mb-1">Service Date *</label><input type="date" value={serviceDate} onChange={e=>setServiceDate(e.target.value)} className={inputClass} required /></div>
+            <div><label className="font-bold text-slate-700 block mb-1">Odometer (KM) *</label><input type="number" value={odometer} onChange={e=>setOdometer(Number(e.target.value))} className={inputClass} min="0" required /></div>
           </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">Service Date *</label>
-              <input
-                type="date"
-                value={serviceDate}
-                onChange={e => setServiceDate(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">Odometer at Service (KM) *</label>
-              <input
-                type="number"
-                value={odometer}
-                onChange={e => setOdometer(Number(e.target.value))}
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500"
-                required
-              />
-            </div>
+          <div><label className="font-bold text-slate-700 block mb-1">Maintenance Type</label><select value={serviceType} onChange={e=>setServiceType(e.target.value as MaintenanceLog['serviceType'])} className={inputClass}><option>Scheduled Maintenance</option><option>Unscheduled Repair</option><option>Inspection</option><option>Tire Service</option><option>Emergency Repair</option></select></div>
+          <section className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-3 space-y-2">
+            <div className="flex justify-between items-center"><div><h4 className="font-extrabold text-slate-900">Invoice Items</h4><p className="text-xs text-slate-500">Add multiple parts and labour lines</p></div><button type="button" onClick={addItem} className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-bold text-xs">+ Add Item</button></div>
+            {items.map((item,index)=><div key={index} className="grid grid-cols-12 gap-2 items-end bg-white rounded-lg p-2 border border-slate-200">
+              <div className="col-span-12 sm:col-span-5"><label className="text-[11px] font-bold text-slate-600">Item / Work Description *</label><input value={item.name} onChange={e=>updateItem(index,{name:e.target.value})} className={inputClass} placeholder="Engine oil, filter, labour..." required /></div>
+              <div className="col-span-4 sm:col-span-2"><label className="text-[11px] font-bold text-slate-600">Qty</label><input type="number" min="0.01" step="0.01" value={item.quantity} onChange={e=>updateItem(index,{quantity:Number(e.target.value)})} className={inputClass}/></div>
+              <div className="col-span-4 sm:col-span-2"><label className="text-[11px] font-bold text-slate-600">Unit Price</label><input type="number" min="0" step="0.01" value={item.unitPrice} onChange={e=>updateItem(index,{unitPrice:Number(e.target.value)})} className={inputClass}/></div>
+              <div className="col-span-4 sm:col-span-2"><label className="text-[11px] font-bold text-slate-600">Subtotal</label><div className="p-2.5 text-right font-bold text-slate-800">RM {(item.quantity*item.unitPrice).toFixed(2)}</div></div>
+              <div className="col-span-12 sm:col-span-1 text-right"><button type="button" onClick={()=>removeItem(index)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg" title="Remove item"><TrashIcon className="h-4 w-4"/></button></div>
+            </div>)}
+            <div className="flex justify-end border-t border-indigo-100 pt-2"><div className="text-right"><span className="text-xs font-bold text-slate-500">Invoice Total</span><p className="text-xl font-black text-indigo-700">RM {totalCost.toFixed(2)}</p></div></div>
+          </section>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div><label className="font-bold text-slate-700 block mb-1">Workshop *</label><select value={workshopChoice} onChange={e=>{setWorkshopChoice(e.target.value);setManualWorkshop('');setRegisterWorkshop(false);}} className={inputClass} required><option value="">Select workshop...</option>{activeWorkshops.map(w=><option key={w.id} value={w.id}>{w.name}</option>)}<option value="__manual__">Manual Entry / New Workshop</option></select></div>
+            <div><label className="font-bold text-slate-700 block mb-1">Invoice / Receipt No.</label><input value={invoiceNumber} onChange={e=>setInvoiceNumber(e.target.value)} className={inputClass} placeholder="Invoice number (optional)"/></div>
           </div>
-
-          <div>
-            <label className="font-bold text-slate-700 block mb-1">Service Items Completed *</label>
-            <input
-              type="text"
-              value={serviceItemsText}
-              onChange={e => setServiceItemsText(e.target.value)}
-              placeholder="e.g. Engine Oil & Oil Filter, Tire Rotation, Brake Fluid"
-              className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500"
-              required
-            />
-            <p className="text-[10px] text-slate-400 mt-1">Separate multiple items with commas</p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">Workshop / Service Centre *</label>
-              <input
-                type="text"
-                value={workshopName}
-                onChange={e => setWorkshopName(e.target.value)}
-                placeholder="e.g. Perodua Pandan Indah"
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">Invoice / Receipt #</label>
-              <input
-                type="text"
-                value={invoiceNumber}
-                onChange={e => setInvoiceNumber(e.target.value)}
-                placeholder="e.g. INV-2026-8812"
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">Total Cost (RM) *</label>
-              <input
-                type="number"
-                step="0.01"
-                value={totalCost}
-                onChange={e => setTotalCost(Number(e.target.value))}
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">Delivered By</label>
-              <input
-                type="text"
-                value={performedBy}
-                onChange={e => setPerformedBy(e.target.value)}
-                placeholder="e.g. Driver Syafiq"
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="font-bold text-slate-700 block mb-1">Mechanic / Service Remarks</label>
-            <textarea
-              rows={2}
-              value={remarks}
-              onChange={e => setRemarks(e.target.value)}
-              placeholder="e.g. Brake pads at 70%, next service will need aircond gas topup"
-              className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-bold text-slate-600 bg-white hover:bg-slate-100 border border-slate-300 rounded-xl transition cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-xs transition active:scale-95 cursor-pointer disabled:opacity-50"
-            >
-              {isSubmitting ? 'Saving...' : 'Save & Update Schedule'}
-            </button>
-          </div>
+          {isManualWorkshop && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-3"><div><label className="font-bold text-slate-700 block mb-1">Workshop Name *</label><input value={manualWorkshop} onChange={e=>setManualWorkshop(e.target.value)} className={inputClass} required /></div><label className="flex items-center gap-2 text-xs font-semibold text-slate-700"><input type="checkbox" checked={registerWorkshop} onChange={e=>setRegisterWorkshop(e.target.checked)}/> Save this workshop to Workshop Directory for future use</label>{registerWorkshop && <div className="grid grid-cols-1 sm:grid-cols-2 gap-2"><input value={newWorkshopPhone} onChange={e=>setNewWorkshopPhone(e.target.value)} className={inputClass} placeholder="Phone"/><input value={newWorkshopAddress} onChange={e=>setNewWorkshopAddress(e.target.value)} className={inputClass} placeholder="Address"/><input value={newWorkshopContact} onChange={e=>setNewWorkshopContact(e.target.value)} className={inputClass} placeholder="Contact person"/><input value={newWorkshopEmail} onChange={e=>setNewWorkshopEmail(e.target.value)} className={inputClass} placeholder="Email"/><input value={newWorkshopSpecialties} onChange={e=>setNewWorkshopSpecialties(e.target.value)} className={inputClass+" sm:col-span-2"} placeholder="Specialties (comma separated)"/></div>}</div>}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><div><label className="font-bold text-slate-700 block mb-1">Delivered By</label><select value={deliveredByChoice} onChange={e=>setDeliveredByChoice(e.target.value)} className={inputClass}><option value="">Select user...</option>{activeUsers.map(u=><option key={u.id} value={u.id}>{u.name} ({u.role})</option>)}<option value="__other__">Others (manual name)</option></select>{isDeliveredOther&&<input value={manualDeliveredBy} onChange={e=>setManualDeliveredBy(e.target.value)} className={inputClass+" mt-2"} placeholder="Enter name of person who delivered" required/>}</div><div><label className="font-bold text-slate-700 block mb-1">Remarks</label><textarea rows={2} value={remarks} onChange={e=>setRemarks(e.target.value)} className={inputClass} placeholder="Workshop notes, findings..."/></div></div>
+          <section className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 space-y-2"><div><h4 className="font-extrabold text-slate-900">Next Service Information <span className="text-xs font-medium text-slate-500">(Optional)</span></h4><p className="text-xs text-slate-500">For periodic service only. Alert when date or mileage arrives first.</p></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><div><label className="font-bold text-slate-700 block mb-1">Next Service Date</label><input type="date" value={nextServiceDate} onChange={e=>setNextServiceDate(e.target.value)} className={inputClass}/></div><div><label className="font-bold text-slate-700 block mb-1">Next Service Odometer (KM)</label><input type="number" min="0" value={nextServiceOdometer} onChange={e=>setNextServiceOdometer(e.target.value)} className={inputClass} placeholder="Target odometer"/></div></div></section>
+          <div className="pt-2 flex justify-end gap-2 border-t border-slate-100"><button type="button" onClick={onClose} className="px-4 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-300 rounded-xl">Cancel</button><button type="submit" disabled={isSubmitting} className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl disabled:opacity-50">{isSubmitting?'Saving...':'Save Maintenance Record'}</button></div>
         </form>
       </div>
     </div>
