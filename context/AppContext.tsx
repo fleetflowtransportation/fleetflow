@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, ReactNode, useCallback, useRef, useEffect } from 'react';
-import type { Booking, FuelLog, OdometerLog, User, Vehicle, BookingHistory, CurrentUser, IssueLog, DriverSchedule, Tenant, SelfDriveStaff, MaintenanceInterval, MaintenanceLog, VehicleRenewal } from '../types';
+import type { Booking, FuelLog, OdometerLog, User, Vehicle, BookingHistory, CurrentUser, IssueLog, DriverSchedule, Tenant, SelfDriveStaff, MaintenanceInterval, MaintenanceLog, Workshop, VehicleRenewal } from '../types';
 import { storageService } from '../services/storage';
 import { postVehicleRenew } from '../services/renewalApi';
 import { parseAsLocal, resolveDriver, getDriverDisplayName, resolveVehicle } from '../utils';
@@ -71,7 +71,7 @@ interface AppContextType {
   updateSelfDriveStaff: (staffId: string, updatedData: Partial<Omit<SelfDriveStaff, 'id'>>) => Promise<void>;
   deleteSelfDriveStaff: (staffId: string) => Promise<void>;
   maintenanceIntervals: MaintenanceInterval[];
-  maintenanceLogs: MaintenanceLog[];
+  maintenanceLogs: MaintenanceLog[];\n  workshops: Workshop[];\n  createWorkshop: (data: Omit<Workshop, 'id' | 'tenantId'>) => Promise<Workshop>;\n  updateWorkshop: (data: Workshop) => Promise<void>;\n  deactivateWorkshop: (id: string) => Promise<void>;
   addMaintenanceInterval: (data: Omit<MaintenanceInterval, 'id'>) => Promise<MaintenanceInterval>;
   updateMaintenanceInterval: (id: string, updatedData: Partial<Omit<MaintenanceInterval, 'id'>>) => Promise<void>;
   deleteMaintenanceInterval: (id: string) => Promise<void>;
@@ -98,7 +98,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [driverSchedules, setDriverSchedules] = useState<DriverSchedule[]>([]);
   const [selfDriveStaff, setSelfDriveStaff] = useState<SelfDriveStaff[]>([]);
   const [maintenanceIntervals, setMaintenanceIntervals] = useState<MaintenanceInterval[]>([]);
-  const [maintenanceLogs, setMaintenanceLogs] = useState<MaintenanceLog[]>([]);
+  const [maintenanceLogs, setMaintenanceLogs] = useState<MaintenanceLog[]>([]);\n  const [workshops, setWorkshops] = useState<Workshop[]>([]);
   const [vehicleRenewals, setVehicleRenewals] = useState<VehicleRenewal[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -180,7 +180,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       storageService.getMaintenanceLogs(),
       storageService.getVehicleRenewals(),
     ])
-      .then(([u, v, b, f, o, i, s, sds, mi, ml, vr]) => {
+      .then(([u, v, b, f, o, i, s, sds, mi, ml, ws, vr]) => {
         if (cancelled) return;
         setUsers(u);
         setVehicles(v);
@@ -1556,6 +1556,23 @@ const forgotPassword = useCallback(async (email: string): Promise<{ success: boo
   }, []);
 
   // ---- Maintenance Intervals & Logs ----
+  const createWorkshop = useCallback(async (data: Omit<Workshop, 'id' | 'tenantId'>): Promise<Workshop> => {
+    const workshop: Workshop = { ...data, id: tempId('workshop'), tenantId: storageService.getTenantId() };
+    setWorkshops(prev => [workshop, ...prev]);
+    await storageService.saveWorkshop(workshop);
+    return workshop;
+  }, []);
+
+  const updateWorkshop = useCallback(async (data: Workshop): Promise<void> => {
+    setWorkshops(prev => prev.map(w => w.id === data.id ? data : w));
+    await storageService.updateWorkshop(data);
+  }, []);
+
+  const deactivateWorkshop = useCallback(async (id: string): Promise<void> => {
+    setWorkshops(prev => prev.map(w => w.id === id ? { ...w, status: 'inactive' } : w));
+    await storageService.setWorkshopInactive(id);
+  }, []);
+
   const addMaintenanceInterval = useCallback(async (data: Omit<MaintenanceInterval, 'id'>): Promise<MaintenanceInterval> => {
     const id = tempId('m-int');
     const newInterval: MaintenanceInterval = {
