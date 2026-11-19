@@ -773,7 +773,7 @@ export const googleCalendarService = {
     // Attempt via REST API if client OAuth token is available
     if (cachedToken && tenant?.googleCalendarId && !tenant.googleCalendarId.startsWith('http')) {
       try {
-        const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(tenant.googleCalendarId)}/events?sendUpdates=${notifyRequesterOnly ? 'none' : 'all'}`, {
+        const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(tenant.googleCalendarId)}/events?sendUpdates=all`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${cachedToken}`,
