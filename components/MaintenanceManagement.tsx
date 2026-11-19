@@ -337,6 +337,7 @@ const MaintenanceManagement: React.FC = () => {
             </button>
           )}
 
+          {activeTab === 'workshops' && <button onClick={() => {setEditingWorkshop(null);setIsWorkshopModalOpen(true);}} className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl"><PlusIcon className="h-4 w-4"/><span>Add Workshop</span></button>}
           {activeTab === 'history' && (
             <button
               onClick={() => handleOpenRecordService()}
@@ -463,6 +464,8 @@ const MaintenanceManagement: React.FC = () => {
               {maintenanceLogs.length}
             </span>
           </button>
+          <button onClick={() => setActiveTab('analysis')} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer whitespace-nowrap ${activeTab==='analysis'?'bg-indigo-600 text-white shadow-xs':'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}><DocumentReportIcon className="h-4 w-4"/><span>Analysis</span></button>
+          <button onClick={() => {setActiveTab('workshops');setSelectedWorkshopId(null);}} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer whitespace-nowrap ${activeTab==='workshops'?'bg-indigo-600 text-white shadow-xs':'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}><WrenchScrewdriverIcon className="h-4 w-4"/><span>Workshop Directory</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-200 text-slate-700">{workshops.length}</span></button>
         </div>
 
         {/* Vehicle Filter Selector */}
