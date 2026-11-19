@@ -297,64 +297,18 @@ const MaintenanceManagement: React.FC = () => {
   return (
     <div className="w-full space-y-6">
       
-      {/* Top Banner & Header */}
-      <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-100">
-              <WrenchScrewdriverIcon className="h-6 w-6" />
-            </div>
-            <div>
-              <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Fleet Maintenance & Health</h2>
-              <p className="text-xs sm:text-sm text-slate-500 font-medium">
-                Preventive service intervals, odometer schedules, and driver defect reporting
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Action Buttons */}
+      {/* Compact actions — title banner removed */}
+      <div className="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          {activeTab === 'intervals' && (
-            <>
-              <button
-                onClick={() => setIsAddIntervalModalOpen(true)}
-                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-xl transition cursor-pointer"
-              >
-                <PlusIcon className="h-4 w-4" />
-                <span>Add Interval Service</span>
-              </button>
-              <button
-                onClick={() => handleOpenRecordService()}
-                className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
-              >
-                <CheckCircleIcon className="h-4 w-4" />
-                <span>Record Completed Service</span>
-              </button>
-            </>
-          )}
-
-          {activeTab === 'issues' && (
-            <button
-              onClick={() => setIsReportIssueModalOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
-            >
-              <PlusIcon className="h-4 w-4" />
-              <span>Report Vehicle Defect</span>
-            </button>
-          )}
-
+          {activeTab === 'intervals' && <>
+            <button onClick={() => setIsAddIntervalModalOpen(true)} className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-xl transition cursor-pointer"><PlusIcon className="h-4 w-4"/><span>Add Interval Service</span></button>
+            <button onClick={() => handleOpenRecordService()} className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-xs transition active:scale-95 cursor-pointer"><CheckCircleIcon className="h-4 w-4"/><span>Record Completed Service</span></button>
+          </>}
+          {activeTab === 'issues' && <button onClick={() => setIsReportIssueModalOpen(true)} className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-xs transition active:scale-95 cursor-pointer"><PlusIcon className="h-4 w-4"/><span>Report Vehicle Defect</span></button>}
           {activeTab === 'workshops' && <button onClick={() => {setEditingWorkshop(null);setIsWorkshopModalOpen(true);}} className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl"><PlusIcon className="h-4 w-4"/><span>Add Workshop</span></button>}
-          {activeTab === 'history' && (
-            <button
-              onClick={() => handleOpenRecordService()}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
-            >
-              <PlusIcon className="h-4 w-4" />
-              <span>Log Past Service</span>
-            </button>
-          )}
+          {activeTab === 'history' && <button onClick={() => handleOpenRecordService()} className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-xs transition active:scale-95 cursor-pointer"><PlusIcon className="h-4 w-4"/><span>Log Past Service</span></button>}
         </div>
+        <div className="flex items-center gap-2 shrink-0"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider hidden sm:inline">Vehicle</label><select value={selectedVehicleId} onChange={e => setSelectedVehicleId(e.target.value)} className="text-xs font-semibold bg-slate-50 border border-slate-300 text-slate-800 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none"><option value="all">🚗 All Vehicles ({vehicles.length})</option>{vehicles.map(v => <option key={v.id} value={v.id}>{v.name} ({v.plateNumber})</option>)}</select></div>
       </div>
 
       {/* KPI Status Cards */}
@@ -418,81 +372,16 @@ const MaintenanceManagement: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Tabs Navigation Bar */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5 overflow-x-auto">
-          <button
-            onClick={() => setActiveTab('intervals')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer whitespace-nowrap ${
-              activeTab === 'intervals'
-                ? 'bg-indigo-600 text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <GaugeIcon className="h-4 w-4" />
-            <span>Service Intervals & Schedules</span>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
-              activeTab === 'intervals' ? 'bg-indigo-700 text-white' : 'bg-slate-200 text-slate-700'
-            }`}>
-              {maintenanceIntervals.length}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('issues')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer whitespace-nowrap ${
-              activeTab === 'issues'
-                ? 'bg-indigo-600 text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <ExclamationIcon className="h-4 w-4" />
-            <span>Driver Defect Reports</span>
-            {maintenanceKPIs.activeIssuesCount > 0 && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-500 text-white animate-pulse">
-                {maintenanceKPIs.activeIssuesCount}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setActiveTab('history')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer whitespace-nowrap ${
-              activeTab === 'history'
-                ? 'bg-indigo-600 text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <CalendarIcon className="h-4 w-4" />
-            <span>Service Records & Invoices</span>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
-              activeTab === 'history' ? 'bg-indigo-700 text-white' : 'bg-slate-200 text-slate-700'
-            }`}>
-              {maintenanceLogs.length}
-            </span>
-          </button>
-          <button onClick={() => setActiveTab('analysis')} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer whitespace-nowrap ${activeTab==='analysis'?'bg-indigo-600 text-white shadow-xs':'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}><DocumentReportIcon className="h-4 w-4"/><span>Analysis</span></button>
-          <button onClick={() => {setActiveTab('workshops');setSelectedWorkshopId(null);}} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer whitespace-nowrap ${activeTab==='workshops'?'bg-indigo-600 text-white shadow-xs':'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}><WrenchScrewdriverIcon className="h-4 w-4"/><span>Workshop Directory</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-200 text-slate-700">{workshops.length}</span></button>
-        </div>
-
-        {/* Vehicle Filter Selector */}
-        <div className="flex items-center gap-2 shrink-0">
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider hidden md:inline">Vehicle:</label>
-          <select
-            value={selectedVehicleId}
-            onChange={e => setSelectedVehicleId(e.target.value)}
-            className="text-xs font-semibold bg-slate-50 border border-slate-300 text-slate-800 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-          >
-            <option value="all">🚗 All Vehicles ({vehicles.length})</option>
-            {vehicles.map(v => (
-              <option key={v.id} value={v.id}>
-                {v.name} ({v.plateNumber})
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
+      {/* Sidebar navigation and page content */}
+      <div className="flex flex-col lg:flex-row gap-4 items-start">
+        <nav className="w-full lg:w-64 shrink-0 bg-white rounded-2xl border border-slate-200 shadow-xs p-2 flex flex-col gap-1" aria-label="Maintenance sections">
+          <button onClick={() => setActiveTab('intervals')} className={`w-full flex items-center justify-between gap-2 px-3 py-3 rounded-xl text-sm text-left font-bold ${activeTab==='intervals'?'bg-indigo-600 text-white shadow-xs':'text-slate-600 hover:bg-slate-100'}`}><span className="flex items-center gap-2"><GaugeIcon className="h-4 w-4"/>Service Intervals</span><span className={`text-[10px] rounded-full px-2 py-0.5 ${activeTab==='intervals'?'bg-indigo-700 text-white':'bg-slate-200 text-slate-700'}`}>{maintenanceIntervals.length}</span></button>
+          <button onClick={() => setActiveTab('issues')} className={`w-full flex items-center justify-between gap-2 px-3 py-3 rounded-xl text-sm text-left font-bold ${activeTab==='issues'?'bg-indigo-600 text-white shadow-xs':'text-slate-600 hover:bg-slate-100'}`}><span className="flex items-center gap-2"><ExclamationIcon className="h-4 w-4"/>Driver Defects</span>{maintenanceKPIs.activeIssuesCount>0&&<span className="text-[10px] rounded-full px-2 py-0.5 bg-rose-500 text-white">{maintenanceKPIs.activeIssuesCount}</span>}</button>
+          <button onClick={() => setActiveTab('history')} className={`w-full flex items-center justify-between gap-2 px-3 py-3 rounded-xl text-sm text-left font-bold ${activeTab==='history'?'bg-indigo-600 text-white shadow-xs':'text-slate-600 hover:bg-slate-100'}`}><span className="flex items-center gap-2"><CalendarIcon className="h-4 w-4"/>Service Records</span><span className={`text-[10px] rounded-full px-2 py-0.5 ${activeTab==='history'?'bg-indigo-700 text-white':'bg-slate-200 text-slate-700'}`}>{maintenanceLogs.length}</span></button>
+          <button onClick={() => setActiveTab('analysis')} className={`w-full flex items-center gap-2 px-3 py-3 rounded-xl text-sm text-left font-bold ${activeTab==='analysis'?'bg-indigo-600 text-white shadow-xs':'text-slate-600 hover:bg-slate-100'}`}><DocumentReportIcon className="h-4 w-4"/>Analysis</button>
+          <button onClick={() => {setActiveTab('workshops');setSelectedWorkshopId(null);}} className={`w-full flex items-center justify-between gap-2 px-3 py-3 rounded-xl text-sm text-left font-bold ${activeTab==='workshops'?'bg-indigo-600 text-white shadow-xs':'text-slate-600 hover:bg-slate-100'}`}><span className="flex items-center gap-2"><WrenchScrewdriverIcon className="h-4 w-4"/>Workshop Directory</span><span className="text-[10px] rounded-full px-2 py-0.5 bg-slate-200 text-slate-700">{workshops.length}</span></button>
+        </nav>
+        <div className="flex-1 min-w-0 space-y-4">
       {/* Search and Secondary Filter Row */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="relative flex-1 min-w-[240px] max-w-md">
@@ -1088,6 +977,9 @@ const MaintenanceManagement: React.FC = () => {
       {/* ============================================================== */}
       {/* MODAL 2: ADD / EDIT INTERVAL SERVICE                           */}
       {/* ============================================================== */}
+      </div>
+      </div>
+
       {isAddIntervalModalOpen && (
         <AddEditIntervalModal
           isOpen={isAddIntervalModalOpen}
