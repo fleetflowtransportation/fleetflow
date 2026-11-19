@@ -253,6 +253,28 @@ export interface MaintenanceInterval {
   tenantId?: string;
 }
 
+export interface MaintenanceItemDetail {
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+}
+
+export interface Workshop {
+  id: string;
+  name: string;
+  phone?: string;
+  address?: string;
+  contactPerson?: string;
+  email?: string;
+  specialties: string[];
+  notes?: string;
+  status: 'active' | 'inactive';
+  tenantId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface MaintenanceLog {
   id: string;
   vehicleId: string;
@@ -261,6 +283,11 @@ export interface MaintenanceLog {
   serviceType: 'Scheduled Maintenance' | 'Unscheduled Repair' | 'Inspection' | 'Tire Service' | 'Emergency Repair';
   serviceItems: string[]; // e.g. ["Engine Oil & Oil Filter", "Air Filter"]
   workshopName: string; // e.g. "Perodua Service Pandan", "Bengkel Maju Jaya"
+  workshopId?: string;
+  deliveredByUserId?: string;
+  serviceItemDetails?: MaintenanceItemDetail[];
+  nextServiceDate?: string;
+  nextServiceOdometer?: number;
   invoiceNumber?: string;
   totalCost: number; // in RM
   performedBy?: string;
