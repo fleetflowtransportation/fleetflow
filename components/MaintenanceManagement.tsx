@@ -279,6 +279,14 @@ const MaintenanceManagement: React.FC = () => {
     setIsRecordServiceModalOpen(true);
   };
 
+  const analysisData = useMemo(() => {
+    const vehicleCosts = vehicles.map(v => { const logs=maintenanceLogs.filter(l=>l.vehicleId===v.id); return { name:v.name, plate:v.plateNumber, visits:logs.length, cost:logs.reduce((s,l)=>s+(l.totalCost||0),0) }; }).sort((a,b)=>b.cost-a.cost);
+    const workshopCosts = workshops.map(w => { const logs=maintenanceLogs.filter(l=>l.workshopId===w.id); return { workshop:w, visits:logs.length, cost:logs.reduce((s,l)=>s+(l.totalCost||0),0), latest:logs.sort((a,b)=>b.serviceDate.localeCompare(a.serviceDate))[0]?.serviceDate }; }).sort((a,b)=>b.cost-a.cost);
+    const itemCosts: Record<string,number>={}; maintenanceLogs.forEach(l=>{(l.serviceItemDetails||[]).forEach(i=>{itemCosts[i.name]=(itemCosts[i.name]||0)+(i.total||i.quantity*i.unitPrice);}); if(!(l.serviceItemDetails||[]).length&&l.serviceItems.length)itemCosts[l.serviceItems.join(', ')]=(itemCosts[l.serviceItems.join(', ')]||0)+l.totalCost;});
+    const months: Record<string,number>={}; maintenanceLogs.forEach(l=>{const m=l.serviceDate?.slice(0,7);if(m)months[m]=(months[m]||0)+l.totalCost;});
+    const dueRecords=maintenanceLogs.map(l=>{const odo=vehicleOdometerMap.get(l.vehicleId)||0;const km=l.nextServiceOdometer!=null?l.nextServiceOdometer-odo:null;const days=l.nextServiceDate?Math.ceil((new Date(l.nextServiceDate+'T00:00:00').getTime()-new Date().setHours(0,0,0,0))/86400000):null;const overdue=(km!==null&&km<=0)||(days!==null&&days<0);const soon=!overdue&&((km!==null&&km<=1500)||(days!==null&&days<=30));return {log:l,km,days,overdue,soon};}).filter(x=>x.overdue||x.soon).sort((a,b)=>Number(b.overdue)-Number(a.overdue));
+    return {vehicleCosts,workshopCosts,itemCosts:Object.entries(itemCosts).sort((a,b)=>b[1]-a[1]),months:Object.entries(months).sort((a,b)=>a[0].localeCompare(b[0])),dueRecords};
+  },[vehicles,maintenanceLogs,workshops,vehicleOdometerMap]);
   return (
     <div className="w-full space-y-6">
       
