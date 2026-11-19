@@ -160,7 +160,7 @@ const MaintenanceManagement: React.FC = () => {
 
   const [isAddIntervalModalOpen, setIsAddIntervalModalOpen] = useState(false);
   const [editingInterval, setEditingInterval] = useState<MaintenanceInterval | null>(null);
-  const [isUpdateOdometerModalOpen, setIsUpdateOdometerModalOpen] = useState(false);\n  const [isWorkshopModalOpen, setIsWorkshopModalOpen] = useState(false);\n  const [editingWorkshop, setEditingWorkshop] = useState<Workshop | null>(null);
+  const [isUpdateOdometerModalOpen, setIsUpdateOdometerModalOpen] = useState(false);\n  const [isWorkshopModalOpen, setIsWorkshopModalOpen] = useState(false);\n  const [editingWorkshop, setEditingWorkshop] = useState<Workshop | null>(null);\n  const [selectedWorkshopId, setSelectedWorkshopId] = useState<string | null>(null);
   const [odometerTargetVehicleId, setOdometerTargetVehicleId] = useState<string>('');
 
   // Latest Odometer Map per Vehicle (calculated from odometerLogs & lastServiceOdometer)
@@ -1253,6 +1253,23 @@ const RecordServiceModal: React.FC<RecordServiceModalProps> = ({ onClose, preFil
       </div>
     </div>
   );
+};
+
+interface WorkshopModalProps { initial?: Workshop | null; onClose: () => void; onSave: (data: Workshop) => Promise<void>; }
+const WorkshopModal: React.FC<WorkshopModalProps> = ({ initial, onClose, onSave }) => {
+  const [name,setName]=useState(initial?.name||''); const [phone,setPhone]=useState(initial?.phone||''); const [address,setAddress]=useState(initial?.address||'');
+  const [contact,setContact]=useState(initial?.contactPerson||''); const [email,setEmail]=useState(initial?.email||''); const [specialties,setSpecialties]=useState((initial?.specialties||[]).join(', '));
+  const [notes,setNotes]=useState(initial?.notes||''); const [busy,setBusy]=useState(false);
+  const cls='w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-800';
+  const save=async(e:React.FormEvent)=>{e.preventDefault(); if(!name.trim())return; setBusy(true); try{await onSave({id:initial?.id||'',name:name.trim(),phone:phone.trim()||undefined,address:address.trim()||undefined,contactPerson:contact.trim()||undefined,email:email.trim()||undefined,specialties:specialties.split(',').map(x=>x.trim()).filter(Boolean),notes:notes.trim()||undefined,status:initial?.status||'active',tenantId:initial?.tenantId});}finally{setBusy(false);}};
+  return <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-3"><div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[92vh] overflow-y-auto">
+    <div className="p-4 border-b flex justify-between items-center"><div><h3 className="font-extrabold text-slate-900">{initial?'Edit Workshop Profile':'Register Workshop'}</h3><p className="text-xs text-slate-500">Directory contact and service details</p></div><button onClick={onClose}><XIcon className="h-5 w-5"/></button></div>
+    <form onSubmit={save} className="p-4 space-y-3"><div><label className="text-xs font-bold">Workshop Name *</label><input className={cls} value={name} onChange={e=>setName(e.target.value)} required/></div>
+    <div className="grid grid-cols-2 gap-2"><div><label className="text-xs font-bold">Phone</label><input className={cls} value={phone} onChange={e=>setPhone(e.target.value)} /></div><div><label className="text-xs font-bold">Contact Person</label><input className={cls} value={contact} onChange={e=>setContact(e.target.value)}/></div></div>
+    <div><label className="text-xs font-bold">Address</label><textarea className={cls} rows={2} value={address} onChange={e=>setAddress(e.target.value)}/></div><div><label className="text-xs font-bold">Email</label><input type="email" className={cls} value={email} onChange={e=>setEmail(e.target.value)}/></div>
+    <div><label className="text-xs font-bold">Specialties (comma separated)</label><input className={cls} value={specialties} onChange={e=>setSpecialties(e.target.value)} placeholder="General service, tyres, brakes"/></div><div><label className="text-xs font-bold">Notes</label><textarea className={cls} rows={3} value={notes} onChange={e=>setNotes(e.target.value)}/></div>
+    <div className="flex justify-end gap-2 pt-2"><button type="button" onClick={onClose} className="px-4 py-2 rounded-lg border text-sm">Cancel</button><button disabled={busy} className="px-4 py-2 rounded-lg bg-indigo-600 text-white font-bold text-sm">{busy?'Saving...':'Save Workshop'}</button></div></form>
+  </div></div>;
 };
 
 // 2. Add / Edit Service Interval Modal
