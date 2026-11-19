@@ -55,7 +55,7 @@ const isPastTrip = (dateTimeStr: string): boolean => {
 };
 
 const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
-  const { bookings, odometerLogs, fuelLogs, updateBookingStatus, vehicles, users } = useAppContext();
+  const { bookings, odometerLogs, fuelLogs, updateBookingStatus, updateUser, vehicles, users } = useAppContext();
   const driverProfile = users.find(user => user.id === driver.id);
   const [profileName, setProfileName] = useState(driverProfile?.name || driver.name);
   const [profilePhone, setProfilePhone] = useState(driverProfile?.phone || '');
