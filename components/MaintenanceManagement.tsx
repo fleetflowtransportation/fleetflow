@@ -1063,7 +1063,6 @@ const MaintenanceManagement: React.FC = () => {
       {isWorkshopModalOpen && <WorkshopModal initial={editingWorkshop} onClose={()=>{setIsWorkshopModalOpen(false);setEditingWorkshop(null);}} onSave={async data=>{if(editingWorkshop){await updateWorkshop(data);}else{const {id,...newData}=data;await createWorkshop(newData);}setIsWorkshopModalOpen(false);setEditingWorkshop(null);}}/>}
       {isRecordServiceModalOpen && (
         <RecordServiceModal
-          isOpen={isRecordServiceModalOpen}
           onClose={() => {
             setIsRecordServiceModalOpen(false);
             setServiceModalPreFill(null);
@@ -1071,6 +1070,9 @@ const MaintenanceManagement: React.FC = () => {
           preFill={serviceModalPreFill}
           vehicles={vehicles}
           vehicleOdometerMap={vehicleOdometerMap}
+          users={users}
+          workshops={workshops}
+          onCreateWorkshop={createWorkshop}
           onSubmit={async (logData, intervalId) => {
             await addMaintenanceLog(logData, intervalId);
             setIsRecordServiceModalOpen(false);
