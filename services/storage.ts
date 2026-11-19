@@ -1,4 +1,4 @@
-import type { Booking, FuelLog, OdometerLog, User, Vehicle, IssueLog, DriverSchedule, Tenant, SelfDriveStaff, MaintenanceInterval, MaintenanceLog, VehicleRenewal, ComplianceType } from '../types';
+import type { Booking, FuelLog, OdometerLog, User, Vehicle, IssueLog, DriverSchedule, Tenant, SelfDriveStaff, MaintenanceInterval, MaintenanceLog, MaintenanceItemDetail, Workshop, VehicleRenewal, ComplianceType } from '../types';
 import { USERS, VEHICLES, INITIAL_BOOKINGS, INITIAL_DRIVER_SCHEDULES, INITIAL_MAINTENANCE_INTERVALS, INITIAL_MAINTENANCE_LOGS } from '../constants';
 import { supabase, DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_ANON_KEY, createDirectSupabaseClient, getActiveSupabaseUrl, getActiveSupabaseAnonKey } from './supabaseClient';
 
@@ -540,7 +540,7 @@ const toDbMaintenanceLog = (l: Partial<MaintenanceLog>) => ({
   ...(l.odometer !== undefined && { odometer: l.odometer }),
   ...(l.serviceType !== undefined && { service_type: l.serviceType }),
   ...(l.serviceItems !== undefined && { service_items: l.serviceItems }),
-  ...(l.workshopName !== undefined && { workshop_name: l.workshopName }),
+  ...(l.workshopName !== undefined && { workshop_name: l.workshopName }),\n  ...(l.workshopId !== undefined && { workshop_id: l.workshopId }),\n  ...(l.deliveredByUserId !== undefined && { delivered_by_user_id: l.deliveredByUserId }),\n  ...(l.serviceItemDetails !== undefined && { service_item_details: l.serviceItemDetails }),\n  ...(l.nextServiceDate !== undefined && { next_service_date: l.nextServiceDate }),\n  ...(l.nextServiceOdometer !== undefined && { next_service_odometer: l.nextServiceOdometer }),
   ...(l.invoiceNumber !== undefined && { invoice_number: l.invoiceNumber }),
   ...(l.totalCost !== undefined && { total_cost: l.totalCost }),
   ...(l.performedBy !== undefined && { performed_by: l.performedBy }),
@@ -556,7 +556,7 @@ const fromDbMaintenanceLog = (row: any): MaintenanceLog => ({
   odometer: Number(row.odometer || 0),
   serviceType: row.service_type || 'Scheduled Maintenance',
   serviceItems: Array.isArray(row.service_items) ? row.service_items : (row.service_items ? JSON.parse(row.service_items) : []),
-  workshopName: row.workshop_name || '',
+  workshopName: row.workshop_name || '',\n  workshopId: row.workshop_id || undefined,\n  deliveredByUserId: row.delivered_by_user_id || undefined,\n  serviceItemDetails: Array.isArray(row.service_item_details) ? row.service_item_details : [],\n  nextServiceDate: row.next_service_date || undefined,\n  nextServiceOdometer: row.next_service_odometer != null ? Number(row.next_service_odometer) : undefined,
   invoiceNumber: row.invoice_number || undefined,
   totalCost: Number(row.total_cost || 0),
   performedBy: row.performed_by || undefined,
@@ -565,7 +565,69 @@ const fromDbMaintenanceLog = (row: any): MaintenanceLog => ({
   tenantId: row.tenant_id || getTenantId(),
 });
 
-export const storageService = {
+export const storageService = {\n  // ---- WORKSHOP DIRECTORY ----
+  getWorkshops: async (): Promise<Workshop[]> => {
+    const tenantId = getTenantId();
+    let local: Workshop[] = [];
+    try {
+      const raw = localStorage.getItem(`fleetflow_workshops_${tenantId}`);
+      if (raw) local = JSON.parse(raw);
+    } catch {}
+    try {
+      const { data, error } = await supabase.from('workshops').select('*').eq('tenant_id', tenantId).order('name');
+      if (!error && data) {
+        const mapped: Workshop[] = data.map(row => ({
+          id: row.id, name: row.name, phone: row.phone || undefined, address: row.address || undefined,
+          contactPerson: row.contact_person || undefined, email: row.email || undefined,
+          specialties: Array.isArray(row.specialties) ? row.specialties : [], notes: row.notes || undefined,
+          status: row.status === 'inactive' ? 'inactive' : 'active', tenantId,
+          createdAt: row.created_at, updatedAt: row.updated_at,
+        }));
+        localStorage.setItem(`fleetflow_workshops_${tenantId}`, JSON.stringify(mapped));
+        return mapped;
+      }
+    } catch {}
+    return local;
+  },
+  saveWorkshop: async (workshop: Workshop): Promise<Workshop> => {
+    const tenantId = getTenantId();
+    const saved = { ...workshop, tenantId };
+    const row = { id: saved.id, name: saved.name, phone: saved.phone || null, address: saved.address || null,
+      contact_person: saved.contactPerson || null, email: saved.email || null, specialties: saved.specialties || [],
+      notes: saved.notes || null, status: saved.status, tenant_id: tenantId, updated_at: new Date().toISOString() };
+    try {
+      const raw = localStorage.getItem(`fleetflow_workshops_${tenantId}`);
+      const list: Workshop[] = raw ? JSON.parse(raw) : [];
+      const next = [saved, ...list.filter(w => w.id !== saved.id)];
+      localStorage.setItem(`fleetflow_workshops_${tenantId}`, JSON.stringify(next));
+    } catch {}
+    try { const { error } = await supabase.from('workshops').upsert(row); if (error) console.warn('[Supabase] saveWorkshop:', error.message); } catch {}
+    return saved;
+  },
+  updateWorkshop: async (workshop: Workshop): Promise<Workshop> => {
+    const tenantId = getTenantId();
+    const row = { name: workshop.name, phone: workshop.phone || null, address: workshop.address || null,
+      contact_person: workshop.contactPerson || null, email: workshop.email || null, specialties: workshop.specialties || [],
+      notes: workshop.notes || null, status: workshop.status, updated_at: new Date().toISOString() };
+    try {
+      const raw = localStorage.getItem(`fleetflow_workshops_${tenantId}`);
+      const list: Workshop[] = raw ? JSON.parse(raw) : [];
+      const next = list.map(w => w.id === workshop.id ? workshop : w);
+      localStorage.setItem(`fleetflow_workshops_${tenantId}`, JSON.stringify(next));
+    } catch {}
+    try { const { error } = await supabase.from('workshops').update(row).eq('id', workshop.id).eq('tenant_id', tenantId); if (error) console.warn('[Supabase] updateWorkshop:', error.message); } catch {}
+    return workshop;
+  },
+  setWorkshopInactive: async (id: string): Promise<void> => {
+    const tenantId = getTenantId();
+    try {
+      const raw = localStorage.getItem(`fleetflow_workshops_${tenantId}`);
+      if (raw) localStorage.setItem(`fleetflow_workshops_${tenantId}`, JSON.stringify(JSON.parse(raw).map((w: Workshop) => w.id === id ? { ...w, status: 'inactive' } : w)));
+    } catch {}
+    try { await supabase.from('workshops').update({ status: 'inactive', updated_at: new Date().toISOString() }).eq('id', id).eq('tenant_id', tenantId); } catch {}
+  },
+
+
   getTenantId,
   setTenantId,
   getUserByEmailGlobal: async (email: string): Promise<User | null> => {
