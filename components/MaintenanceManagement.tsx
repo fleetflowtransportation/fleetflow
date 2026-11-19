@@ -160,7 +160,10 @@ const MaintenanceManagement: React.FC = () => {
 
   const [isAddIntervalModalOpen, setIsAddIntervalModalOpen] = useState(false);
   const [editingInterval, setEditingInterval] = useState<MaintenanceInterval | null>(null);
-  const [isUpdateOdometerModalOpen, setIsUpdateOdometerModalOpen] = useState(false);\n  const [isWorkshopModalOpen, setIsWorkshopModalOpen] = useState(false);\n  const [editingWorkshop, setEditingWorkshop] = useState<Workshop | null>(null);\n  const [selectedWorkshopId, setSelectedWorkshopId] = useState<string | null>(null);
+  const [isUpdateOdometerModalOpen, setIsUpdateOdometerModalOpen] = useState(false);
+  const [isWorkshopModalOpen, setIsWorkshopModalOpen] = useState(false);
+  const [editingWorkshop, setEditingWorkshop] = useState<Workshop | null>(null);
+  const [selectedWorkshopId, setSelectedWorkshopId] = useState<string | null>(null);
   const [odometerTargetVehicleId, setOdometerTargetVehicleId] = useState<string>('');
 
   // Latest Odometer Map per Vehicle (calculated from odometerLogs & lastServiceOdometer)
