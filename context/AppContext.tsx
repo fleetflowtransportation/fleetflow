@@ -71,7 +71,11 @@ interface AppContextType {
   updateSelfDriveStaff: (staffId: string, updatedData: Partial<Omit<SelfDriveStaff, 'id'>>) => Promise<void>;
   deleteSelfDriveStaff: (staffId: string) => Promise<void>;
   maintenanceIntervals: MaintenanceInterval[];
-  maintenanceLogs: MaintenanceLog[];\n  workshops: Workshop[];\n  createWorkshop: (data: Omit<Workshop, 'id' | 'tenantId'>) => Promise<Workshop>;\n  updateWorkshop: (data: Workshop) => Promise<void>;\n  deactivateWorkshop: (id: string) => Promise<void>;
+  maintenanceLogs: MaintenanceLog[];
+  workshops: Workshop[];
+  createWorkshop: (data: Omit<Workshop, 'id' | 'tenantId'>) => Promise<Workshop>;
+  updateWorkshop: (data: Workshop) => Promise<void>;
+  deactivateWorkshop: (id: string) => Promise<void>;
   addMaintenanceInterval: (data: Omit<MaintenanceInterval, 'id'>) => Promise<MaintenanceInterval>;
   updateMaintenanceInterval: (id: string, updatedData: Partial<Omit<MaintenanceInterval, 'id'>>) => Promise<void>;
   deleteMaintenanceInterval: (id: string) => Promise<void>;
@@ -98,7 +102,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [driverSchedules, setDriverSchedules] = useState<DriverSchedule[]>([]);
   const [selfDriveStaff, setSelfDriveStaff] = useState<SelfDriveStaff[]>([]);
   const [maintenanceIntervals, setMaintenanceIntervals] = useState<MaintenanceInterval[]>([]);
-  const [maintenanceLogs, setMaintenanceLogs] = useState<MaintenanceLog[]>([]);\n  const [workshops, setWorkshops] = useState<Workshop[]>([]);
+  const [maintenanceLogs, setMaintenanceLogs] = useState<MaintenanceLog[]>([]);
+  const [workshops, setWorkshops] = useState<Workshop[]>([]);
   const [vehicleRenewals, setVehicleRenewals] = useState<VehicleRenewal[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
