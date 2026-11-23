@@ -48,6 +48,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
   const effectiveDriverId = lockDriverToInitial ? (initialDriverId || currentUser?.id || '') : driverSelection;
   const [customDriverName, setCustomDriverName] = useState<string>('');
   const [error, setError] = useState('');
+  const [showBookingConfirmation, setShowBookingConfirmation] = useState(false);
   const [parkingLocation, setParkingLocation] = useState('');
 
   const drivers = useMemo(() => {
@@ -223,10 +224,11 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
     if (logToEdit || !formData.vehicleId || !effectiveDriverId || effectiveDriverId === '__other__' || effectiveDriverId.startsWith('staff-')) return [];
     return bookings.filter((booking: Booking) => {
       const activeStatus = booking.status === 'Assigned' || booking.status === 'Confirmed' || booking.status === 'Pending';
+      const isTripTimeReached = parseAsLocal(booking.dateTime).getTime() <= Date.now();
       const sameDriver = booking.driverId === effectiveDriverId || resolveDriver(users, booking.driverId, booking.calendarEventTitle)?.id === effectiveDriverId;
       // The vehicle used for the odometer log can differ from the booking's originally assigned vehicle
       // (e.g. a breakdown and replacement vehicle). Keep booking eligibility tied to driver, not vehicle.
-      return activeStatus && booking.serviceType !== 'Self-Drive' && sameDriver;
+      return activeStatus && isTripTimeReached && booking.serviceType !== 'Self-Drive' && sameDriver;
     }).sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
   }, [bookings, effectiveDriverId, formData.vehicleId, logToEdit, users]);
 
@@ -252,7 +254,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
     return end - start;
   }, [formData.startOdometer, formData.endOdometer]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent, confirmedBookingSelection = false) => {
     e.preventDefault();
     if (!formData.vehicleId) {
       setError('Please select a vehicle.');
@@ -317,6 +319,12 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
       setError('One or more selected bookings are no longer eligible. Please refresh and select the bookings again.');
       return;
     }
+
+    if (selectedBookingIds.length > 0 && !confirmedBookingSelection) {
+      setShowBookingConfirmation(true);
+      return;
+    }
+    setShowBookingConfirmation(false);
 
     const logPayload = {
       vehicleId: formData.vehicleId,
@@ -480,7 +488,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h3 className="text-xs font-extrabold text-slate-800">Bookings for this driver</h3>
-                  <p className="text-[11px] text-slate-600 mt-0.5">Tick the trips covered by this odometer submission. All unfinished bookings assigned to this driver are listed, even if a different vehicle was originally assigned. Select the vehicle actually used for this trip above.</p>
+                  <p className="text-[11px] text-slate-600 mt-0.5">Only unfinished bookings whose scheduled trip time has passed are selectable. Future trips are hidden to prevent accidental completion.</p>
                 </div>
                 <span className="shrink-0 rounded-full bg-indigo-100 text-indigo-700 px-2 py-1 text-[10px] font-extrabold">{selectedBookingIds.length} selected</span>
               </div>
@@ -508,7 +516,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
               ) : (
                 <p className="rounded-lg bg-white/80 border border-dashed border-slate-300 p-3 text-[11px] text-slate-500">No unfinished bookings match this driver and vehicle. You can still record an odometer log without linking a booking.</p>
               )}
-              {selectedBookingIds.length > 0 && <p className="text-[10px] font-semibold text-indigo-700">Submitting this log will link the selected bookings and mark them Completed.</p>}
+              {selectedBookingIds.length > 0 && <p className="text-[10px] font-semibold text-indigo-700">Submitting will mark the selected bookings Completed. Please verify the dates before confirming.</p>}
             </section>
           )}
 
@@ -631,6 +639,14 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
               className="w-full text-xs border border-slate-300 rounded-xl p-2.5 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             />
           </div>
+
+          {showBookingConfirmation && selectedBookingIds.length > 0 && (
+            <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-3.5 space-y-3" role="alertdialog" aria-modal="true" aria-label="Confirm bookings to complete">
+              <div><h3 className="text-sm font-extrabold text-amber-950">Confirm bookings to complete</h3><p className="mt-1 text-xs text-amber-800">Please check the dates carefully. These bookings will be marked Completed when this odometer log is saved.</p></div>
+              <ul className="space-y-1.5 text-xs text-amber-950">{eligibleDriverBookings.filter(b => selectedBookingIds.includes(b.id)).map(b => { const dt = parseAsLocal(b.dateTime); return <li key={b.id} className="rounded-lg bg-white border border-amber-200 p-2"><strong>{b.requesterName || 'Booking'}</strong><br />{dt.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })} · {dt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}<br />{b.destination || 'Destination not specified'}</li>; })}</ul>
+              <div className="flex gap-2 justify-end"><button type="button" onClick={() => setShowBookingConfirmation(false)} className="px-3 py-2 rounded-lg border border-amber-300 bg-white text-amber-900 text-xs font-bold">Go Back</button><button type="button" onClick={() => handleSubmit({ preventDefault: () => {} } as React.FormEvent, true)} className="px-3 py-2 rounded-lg bg-amber-700 text-white text-xs font-extrabold">Confirm & Record</button></div>
+            </div>
+          )}
 
           <div className="pt-3 border-t border-slate-100 flex justify-end space-x-2.5">
             <button 
