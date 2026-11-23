@@ -36,6 +36,10 @@ interface FormState {
   ownershipType: VehicleOwnershipType;
   vehicleStatus: VehicleOperationalStatus;
   allowSelfDrive: boolean;
+  enableParkingLocation: boolean;
+  parkingLocationRequired: boolean;
+  parkingLocationLabel: string;
+  parkingLocationPlaceholder: string;
   assignedBranch: string;
   assignedDriverId: string;
 
@@ -71,6 +75,10 @@ const defaultFormState: FormState = {
   ownershipType: 'Owned',
   vehicleStatus: 'Active',
   allowSelfDrive: false,
+  enableParkingLocation: false,
+  parkingLocationRequired: false,
+  parkingLocationLabel: 'Where did you park the vehicle?',
+  parkingLocationPlaceholder: 'e.g. Level 4, B4 near Lift C',
   assignedBranch: '',
   assignedDriverId: '',
 
@@ -140,6 +148,10 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({ isOpen, onClose, vehic
         ownershipType: vehicleToEdit.ownershipType || 'Owned',
         vehicleStatus: vehicleToEdit.vehicleStatus || 'Active',
         allowSelfDrive: vehicleToEdit.allowSelfDrive === true,
+        enableParkingLocation: vehicleToEdit.enableParkingLocation === true,
+        parkingLocationRequired: vehicleToEdit.parkingLocationRequired === true,
+        parkingLocationLabel: vehicleToEdit.parkingLocationLabel || 'Where did you park the vehicle?',
+        parkingLocationPlaceholder: vehicleToEdit.parkingLocationPlaceholder || 'e.g. Level 4, B4 near Lift C',
         assignedBranch: vehicleToEdit.assignedBranch || '',
         assignedDriverId: vehicleToEdit.assignedDriverId || '',
 
@@ -412,6 +424,10 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({ isOpen, onClose, vehic
         ownershipType: formData.ownershipType || 'Owned',
         vehicleStatus: formData.vehicleStatus || 'Active',
         allowSelfDrive: formData.allowSelfDrive,
+        enableParkingLocation: formData.enableParkingLocation,
+        parkingLocationRequired: formData.parkingLocationRequired,
+        parkingLocationLabel: formData.parkingLocationLabel.trim() || 'Where did you park the vehicle?',
+        parkingLocationPlaceholder: formData.parkingLocationPlaceholder.trim() || 'e.g. Level 4, B4 near Lift C',
         assignedBranch: formData.assignedBranch.trim() ? formData.assignedBranch.trim() : undefined,
         assignedDriverId: formData.assignedDriverId ? formData.assignedDriverId : undefined,
 
@@ -912,6 +928,18 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({ isOpen, onClose, vehic
                     </span>
                   </label>
                 </div>
+
+                {formData.allowSelfDrive && <div className="ml-7 rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input type="checkbox" checked={formData.enableParkingLocation} onChange={e => setFormData(prev => ({ ...prev, enableParkingLocation: e.target.checked }))} className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                    <span><span className="block text-sm font-semibold text-slate-800">Collect Last Parking Location</span><span className="block text-xs text-slate-500">Ask staff to record where this vehicle was parked after a self-drive trip and show the latest location in Manage Your Booking.</span></span>
+                  </label>
+                  {formData.enableParkingLocation && <div className="pl-6 space-y-2">
+                    <label className="flex items-center gap-2 text-xs font-medium text-slate-700"><input type="checkbox" checked={formData.parkingLocationRequired} onChange={e => setFormData(prev => ({ ...prev, parkingLocationRequired: e.target.checked }))} className="h-4 w-4 rounded border-slate-300" /> Make parking location required</label>
+                    <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">Field Label</span><input value={formData.parkingLocationLabel} onChange={e => setFormData(prev => ({ ...prev, parkingLocationLabel: e.target.value }))} maxLength={100} className="w-full rounded-lg border border-slate-300 bg-white p-2 text-sm" /></label>
+                    <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">Placeholder</span><input value={formData.parkingLocationPlaceholder} onChange={e => setFormData(prev => ({ ...prev, parkingLocationPlaceholder: e.target.value }))} maxLength={160} className="w-full rounded-lg border border-slate-300 bg-white p-2 text-sm" /></label>
+                  </div>}
+                </div>}
 
                 {/* Assigned Branch */}
                 <div>
