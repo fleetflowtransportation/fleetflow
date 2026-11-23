@@ -38,6 +38,7 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
   const [destination, setDestination] = useState<string>('');
   const [purpose, setPurpose] = useState<string>('');
   const [remarks, setRemarks] = useState<string>('');
+  const [parkingLocation, setParkingLocation] = useState<string>('');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -202,6 +203,11 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
       return;
     }
 
+    if (selectedVehicle?.enableParkingLocation && selectedVehicle.parkingLocationRequired && !parkingLocation.trim()) {
+      setFormError('Please enter the vehicle parking location.');
+      return;
+    }
+
     if (!effectiveStaffName) {
       setFormError('Please select or specify the staff member name.');
       return;
@@ -238,6 +244,7 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
         distance: distanceTraveled,
         purpose: purpose || 'Official Staff Self-Drive Trip',
         toLocation: destination || undefined,
+        parkingLocation: selectedVehicle?.enableParkingLocation ? parkingLocation.trim() || undefined : undefined,
         remarks: `${remarks ? `${remarks} | ` : ''}Logged by: ${effectiveStaffName}${selectedBookingIds.length ? ` | Booking IDs: ${selectedBookingIds.join(', ')}` : ''}`,
         bookingId: selectedBookingIds[0] || undefined,
         tenantId,
@@ -280,6 +287,7 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
     setSubmittedSummary(null);
     setEndOdometer('');
     setRemarks('');
+    setParkingLocation('');
     setSelectedBookingIds([]);
     // Pre-populate new start with previous end
     if (submittedSummary && submittedSummary.endReading) {
@@ -481,6 +489,12 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
                   </p>
                 )}
               </div>
+
+              {selectedVehicle?.enableParkingLocation && <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-3 space-y-1.5">
+                <label className="block text-xs font-bold text-indigo-900">{selectedVehicle.parkingLocationLabel || 'Where did you park the vehicle?'} {selectedVehicle.parkingLocationRequired && <span className="text-rose-600">*</span>}</label>
+                <input value={parkingLocation} onChange={e => setParkingLocation(e.target.value)} maxLength={250} required={selectedVehicle.parkingLocationRequired} placeholder={selectedVehicle.parkingLocationPlaceholder || 'e.g. Level 4, B4 near Lift C'} className="w-full rounded-lg border border-indigo-200 bg-white px-3 py-2.5 text-sm text-slate-900" />
+                <p className="text-[11px] text-indigo-700">This information will be shown to the next self-drive user through Manage Your Booking.</p>
+              </div>}
 
               {/* Multi-booking selection for self-drive vehicle */}
               <div className="space-y-2">
