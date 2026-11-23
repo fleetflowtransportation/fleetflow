@@ -119,6 +119,7 @@ export const PublicOdometerPage: React.FC<PublicOdometerPageProps> = ({ tenantId
   // Whenever vehicle changes, update start odometer default if empty
   const handleVehicleChange = (newVehId: string) => {
     setSelectedVehicleId(newVehId);
+    setParkingLocation('');
     const vehicle = vehicles.find(v => v.id === newVehId);
     const logs = odometerLogs.filter(l => l.vehicleId === newVehId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     const latestReading = vehicle?.currentOdometer && vehicle.currentOdometer > 0 ? vehicle.currentOdometer : logs[0]?.odometer;
