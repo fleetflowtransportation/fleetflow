@@ -45,6 +45,7 @@ export const ManageBookingPage: React.FC<ManageBookingPageProps> = ({ tenantId, 
   const [cancelReason, setCancelReason] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [notice, setNotice] = useState('');
+  const [parkingInfo, setParkingInfo] = useState<{ location: string; updatedAt?: string; vehicleName?: string } | null>(null);
 
   const invoke = useCallback(async (body: Record<string, unknown>) => {
     const { data, error } = await getSupabase().functions.invoke('manage-booking', { body: { ...body, tenantId, token } });
@@ -60,6 +61,18 @@ export const ManageBookingPage: React.FC<ManageBookingPageProps> = ({ tenantId, 
       const data = await invoke({ action: 'get' });
       if (!data.booking) throw new Error('Booking details are unavailable.');
       setBooking(data.booking);
+      setParkingInfo(null);
+      if (data.booking.serviceType === 'Self-Drive' && data.booking.vehicleId) {
+        try {
+          const [vehicles, logResult] = await Promise.all([
+            storageService.getVehicles(),
+            getSupabase().from('odometer_logs').select('parking_location, created_at, date').eq('tenant_id', tenantId).eq('vehicle_id', data.booking.vehicleId).not('parking_location', 'is', null).order('created_at', { ascending: false }).limit(1),
+          ]);
+          const vehicle = vehicles.find(v => v.id === data.booking!.vehicleId && v.enableParkingLocation);
+          const latest = logResult.data?.[0];
+          if (vehicle && latest?.parking_location) setParkingInfo({ location: latest.parking_location, updatedAt: latest.created_at || latest.date, vehicleName: `${vehicle.name} (${vehicle.plateNumber})` });
+        } catch (parkingError) { console.warn('Unable to load last parking location for manage booking:', parkingError); }
+      }
       setPickupTime((data.booking.dateTime || '').match(/T(\d{2}:\d{2})/)?.[1] || '');
       setReturnTime((data.booking.finishDateTime || '').match(/T(\d{2}:\d{2})/)?.[1] || '');
       setStops((data.booking.stops || []).map((stop, index) => ({
@@ -264,6 +277,19 @@ export const ManageBookingPage: React.FC<ManageBookingPageProps> = ({ tenantId, 
                 <div><p className="text-xs font-semibold text-slate-500">End</p><p className="mt-1 font-bold">{toLocalDate(booking.finishDateTime)}</p></div>
               </div>
             </section>
+
+            {parkingInfo && <section className="rounded-2xl border border-teal-200 bg-teal-50 p-5 shadow-sm sm:p-6">
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-100 text-teal-700 text-xl">📍</div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold uppercase tracking-wider text-teal-800">Last Known Parking Location</p>
+                  <h2 className="mt-1 text-xl font-black text-teal-950">{parkingInfo.location}</h2>
+                  {parkingInfo.vehicleName && <p className="mt-1 text-sm font-semibold text-teal-900">{parkingInfo.vehicleName}</p>}
+                  {parkingInfo.updatedAt && <p className="mt-2 text-xs text-teal-700">Last updated: {toLocalDate(parkingInfo.updatedAt)}</p>}
+                  <p className="mt-2 text-xs text-teal-800">This is the latest location recorded by the previous user. The vehicle may have moved since then.</p>
+                </div>
+              </div>
+            </section>}
 
             {notice && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">{notice}</div>}
             {errorMessage && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">{errorMessage}</div>}
