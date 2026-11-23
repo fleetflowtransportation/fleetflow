@@ -78,6 +78,10 @@ export interface Vehicle {
   ownershipType?: VehicleOwnershipType; // ownership_type
   vehicleStatus?: VehicleOperationalStatus; // vehicle_status
   allowSelfDrive?: boolean; // stored in vehicle specifications metadata
+  enableParkingLocation?: boolean;
+  parkingLocationRequired?: boolean;
+  parkingLocationLabel?: string;
+  parkingLocationPlaceholder?: string;
   assignedBranch?: string; // assigned_branch
   assignedDriverId?: string; // assigned_driver_id
   fuelType?: FuelType; // fuel_type
@@ -209,6 +213,7 @@ export interface OdometerLog {
   purpose?: string; // Tujuan Perjalanan
   fromLocation?: string; // Lokasi Dari
   toLocation?: string; // Lokasi Ke
+  parkingLocation?: string; // Last parking location reported after trip
   startOdometer?: number; // Odometer Mula
   distance?: number; // Auto: odometer (Tamat) - startOdometer
   remarks?: string; // Catatan Tambahan
