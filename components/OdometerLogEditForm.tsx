@@ -48,6 +48,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
   const effectiveDriverId = lockDriverToInitial ? (initialDriverId || currentUser?.id || '') : driverSelection;
   const [customDriverName, setCustomDriverName] = useState<string>('');
   const [error, setError] = useState('');
+  const [parkingLocation, setParkingLocation] = useState('');
 
   const drivers = useMemo(() => {
     return users.filter(u => u.role === 'driver' || u.role === 'admin');
@@ -62,6 +63,11 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
       .map(l => Number(l.odometer) || 0);
     return Math.max(vehicleReading, 0, ...logReadings);
   }, [odometerLogs, vehicles]);
+
+  const selectedVehicle = useMemo(() => vehicles.find(v => v.id === formData.vehicleId), [vehicles, formData.vehicleId]);
+  const latestParkingLog = useMemo(() => odometerLogs
+    .filter(log => log.vehicleId === formData.vehicleId && !!log.parkingLocation?.trim())
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0], [odometerLogs, formData.vehicleId]);
 
   const prevIsOpenRef = React.useRef(false);
   const prevLogIdRef = React.useRef<string | null | undefined>(undefined);
@@ -112,6 +118,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
           setCustomDriverName(initialCustomName || 'Other Driver');
         }
 
+        setParkingLocation(logToEdit.parkingLocation || '');
         setFormData({
           vehicleId: logToEdit.vehicleId || '',
           driverId: isRegistered ? isRegistered.id : (matchedStaff ? `staff-${matchedStaff.id}` : '__other__'),
@@ -166,6 +173,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
         const isRegistered = drivers.some(d => d.id === defaultDId);
         const latestOdo = chosenVId ? getLatestOdoForVehicle(chosenVId) : 0;
 
+        setParkingLocation('');
         setDriverSelection(isRegistered ? defaultDId : (defaultDId ? '__other__' : (drivers[0]?.id || '__other__')));
         setCustomDriverName(isRegistered ? '' : (defaultDId || ''));
 
@@ -196,6 +204,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
       startOdometer: suggestedStart > 0 ? String(suggestedStart) : '',
     }));
     setSelectedBookingIds([]);
+    setParkingLocation('');
     setError('');
   };
 
@@ -247,6 +256,10 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
     e.preventDefault();
     if (!formData.vehicleId) {
       setError('Please select a vehicle.');
+      return;
+    }
+    if (selectedVehicle?.enableParkingLocation && selectedVehicle.parkingLocationRequired && !parkingLocation.trim()) {
+      setError('Please enter the vehicle parking location.');
       return;
     }
     const submittedDriverSelection = lockDriverToInitial ? (initialDriverId || currentUser?.id || '') : driverSelection;
@@ -316,6 +329,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
       fromLocation: formData.fromLocation.trim() ? formData.fromLocation.trim() : undefined,
       toLocation: formData.toLocation.trim() ? formData.toLocation.trim() : undefined,
       purpose: formData.purpose.trim() ? formData.purpose.trim() : undefined,
+      parkingLocation: selectedVehicle?.enableParkingLocation ? (parkingLocation.trim() || undefined) : undefined,
       remarks: formData.remarks.trim() ? formData.remarks.trim() : undefined,
       bookingId: selectedBookingIds.length <= 1 ? selectedBookingIds[0] : undefined,
       bookingIds: selectedBookingIds.length > 1 ? selectedBookingIds : undefined,
@@ -534,6 +548,22 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
               />
             </div>
           </div>
+
+          {selectedVehicle?.enableParkingLocation && (
+            <section className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-3.5 space-y-2">
+              <div>
+                <h3 className="text-xs font-extrabold text-indigo-950">Last Known Parking Location</h3>
+                {latestParkingLog ? (
+                  <p className="mt-1 text-[11px] text-indigo-800">{latestParkingLog.parkingLocation} <span className="text-indigo-600">· Updated {new Date(latestParkingLog.date).toLocaleString('en-MY', { dateStyle: 'medium', timeStyle: 'short' })}</span></p>
+                ) : (
+                  <p className="mt-1 text-[11px] text-indigo-700">No parking location has been recorded for this vehicle yet.</p>
+                )}
+              </div>
+              <label className="block text-xs font-bold text-indigo-950">{selectedVehicle.parkingLocationLabel || 'Where did you park the vehicle?'} {selectedVehicle.parkingLocationRequired && <span className="text-rose-600">*</span>}</label>
+              <input type="text" value={parkingLocation} onChange={e => { setParkingLocation(e.target.value); setError(''); }} maxLength={250} required={selectedVehicle.parkingLocationRequired} placeholder={selectedVehicle.parkingLocationPlaceholder || 'e.g. Level 4, B4 near Lift C'} className="w-full text-xs border border-indigo-200 rounded-xl p-2.5 bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500" />
+              <p className="text-[10px] text-indigo-700">Update this after parking so the next user can find the vehicle.</p>
+            </section>
+          )}
 
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">Trip Purpose</label>
