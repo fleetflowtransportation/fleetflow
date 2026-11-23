@@ -52,6 +52,9 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
   const users = (propUsers && propUsers.length > 0) ? propUsers : (context?.users || []);
   const vehicles = (propVehicles && propVehicles.length > 0) ? propVehicles : (context?.vehicles || []);
   const updateBooking = context?.updateBooking || (async () => {});
+  const updateOdometerLog = context?.updateOdometerLog || (() => {});
+  const odometerLogs = context?.odometerLogs || [];
+  const currentUser = context?.currentUser || null;
 
   const [isChangingAssignment, setIsChangingAssignment] = useState(false);
   const [selectedDriverId, setSelectedDriverId] = useState('');
@@ -514,6 +517,21 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
               </button>
               
               <div className="flex items-center gap-2">
+                {booking.status === 'Completed' && (
+                  <button type="button" onClick={() => {
+                    const actor = currentUser?.name || 'Admin';
+                    const reason = 'Reopened by admin for odometer correction / delayed entry';
+                    if (!window.confirm('Reopen this completed booking? It will return to Confirmed. Odometer log records and mileage readings will be kept.')) return;
+                    updateBooking(booking.id, { status: 'Confirmed', remarks: [booking.remarks, `${reason} (${actor}, ${new Date().toLocaleString('en-MY')})`].filter(Boolean).join(' | ') });
+                    odometerLogs.forEach((log: any) => {
+                      const linkedIds = [...(log.bookingIds || []), ...(log.bookingId ? [log.bookingId] : [])];
+                      if (!linkedIds.includes(booking.id)) return;
+                      const remaining = Array.from(new Set(linkedIds.filter((id: string) => id !== booking.id)));
+                      updateOdometerLog(log.id, { bookingId: (remaining.length === 1 ? remaining[0] : null) as any, bookingIds: (remaining.length > 1 ? remaining : null) as any });
+                    });
+                    onClose();
+                  }} className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl transition cursor-pointer">↩ Reopen Booking</button>
+                )}
                 <button
                   type="button"
                   onClick={handleEditClick}
