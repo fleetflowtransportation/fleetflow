@@ -31,7 +31,11 @@ export const BookingManagementList: React.FC = () => {
     deleteBookingsBulk, 
     updateBookingsStatusBulk, 
     assignBookingsBulk,
-    updateBookingStatus
+    updateBookingStatus,
+    updateBooking,
+    updateOdometerLog,
+    odometerLogs,
+    currentUser
   } = useAppContext();
 
   // Search & Filter States
@@ -1460,6 +1464,22 @@ export const BookingManagementList: React.FC = () => {
             </div>
 
             <div className="p-4 border-t border-gray-100 bg-gray-50 flex items-center justify-end gap-2.5">
+              {detailsBooking.status === 'Completed' && (
+                <button type="button" onClick={() => {
+                  const b = detailsBooking;
+                  if (!window.confirm('Reopen this completed booking? It will return to Confirmed so the odometer can be recorded again. Existing odometer readings will be preserved.')) return;
+                  const actor = currentUser?.name || currentUser?.email || 'Admin';
+                  const reason = 'Reopened by admin for odometer correction / delayed entry';
+                  updateBooking(b.id, { status: 'Confirmed', remarks: [b.remarks, reason + ' (' + actor + ', ' + new Date().toLocaleString('en-MY') + ')'].filter(Boolean).join(' | ') });
+                  odometerLogs.forEach((log: any) => {
+                    const linkedIds = [...(log.bookingIds || []), ...(log.bookingId ? [log.bookingId] : [])];
+                    if (!linkedIds.includes(b.id)) return;
+                    const remaining = Array.from(new Set(linkedIds.filter((id: string) => id !== b.id)));
+                    updateOdometerLog(log.id, { bookingId: (remaining.length === 1 ? remaining[0] : null) as any, bookingIds: (remaining.length > 1 ? remaining : null) as any });
+                  });
+                  setDetailsBooking(null);
+                }} className="px-3 py-2 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl">↩ Reopen Booking</button>
+              )}
               <button
                 type="button"
                 onClick={() => setDetailsBooking(null)}
