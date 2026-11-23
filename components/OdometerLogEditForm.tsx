@@ -224,11 +224,15 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
     if (logToEdit || !formData.vehicleId || !effectiveDriverId || effectiveDriverId === '__other__' || effectiveDriverId.startsWith('staff-')) return [];
     return bookings.filter((booking: Booking) => {
       const activeStatus = booking.status === 'Assigned' || booking.status === 'Confirmed' || booking.status === 'Pending';
-      const isTripTimeReached = parseAsLocal(booking.dateTime).getTime() <= Date.now();
+      const bookingDate = parseAsLocal(booking.dateTime);
+      const today = new Date();
+      bookingDate.setHours(0, 0, 0, 0);
+      today.setHours(0, 0, 0, 0);
+      const isTodayOrPast = bookingDate.getTime() <= today.getTime();
       const sameDriver = booking.driverId === effectiveDriverId || resolveDriver(users, booking.driverId, booking.calendarEventTitle)?.id === effectiveDriverId;
       // The vehicle used for the odometer log can differ from the booking's originally assigned vehicle
       // (e.g. a breakdown and replacement vehicle). Keep booking eligibility tied to driver, not vehicle.
-      return activeStatus && isTripTimeReached && booking.serviceType !== 'Self-Drive' && sameDriver;
+      return activeStatus && isTodayOrPast && booking.serviceType !== 'Self-Drive' && sameDriver;
     }).sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
   }, [bookings, effectiveDriverId, formData.vehicleId, logToEdit, users]);
 
@@ -488,7 +492,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h3 className="text-xs font-extrabold text-slate-800">Bookings for this driver</h3>
-                  <p className="text-[11px] text-slate-600 mt-0.5">Only unfinished bookings whose scheduled trip time has passed are selectable. Future trips are hidden to prevent accidental completion.</p>
+                  <p className="text-[11px] text-slate-600 mt-0.5">Today's and past unfinished bookings are selectable, even if today's scheduled time has not arrived yet. Tomorrow and future bookings are hidden.</p>
                 </div>
                 <span className="shrink-0 rounded-full bg-indigo-100 text-indigo-700 px-2 py-1 text-[10px] font-extrabold">{selectedBookingIds.length} selected</span>
               </div>
@@ -514,7 +518,7 @@ const OdometerLogEditForm: React.FC<OdometerLogEditFormProps> = ({
                   })}
                 </div>
               ) : (
-                <p className="rounded-lg bg-white/80 border border-dashed border-slate-300 p-3 text-[11px] text-slate-500">No unfinished bookings match this driver and vehicle. You can still record an odometer log without linking a booking.</p>
+                <p className="rounded-lg bg-white/80 border border-dashed border-slate-300 p-3 text-[11px] text-slate-500">No unfinished bookings for today or earlier match this driver. You can still record an odometer log without linking a booking.</p>
               )}
               {selectedBookingIds.length > 0 && <p className="text-[10px] font-semibold text-indigo-700">Submitting will mark the selected bookings Completed. Please verify the dates before confirming.</p>}
             </section>
