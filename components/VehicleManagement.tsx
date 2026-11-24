@@ -228,6 +228,17 @@ const VehicleManagement: React.FC = () => {
     );
   };
 
+  const latestParkingLocations = useMemo(() => {
+    const latest = new Map<string, OdometerLog>();
+    odometerLogs
+      .filter(log => !!log.parkingLocation?.trim())
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .forEach(log => {
+        if (!latest.has(log.vehicleId)) latest.set(log.vehicleId, log);
+      });
+    return latest;
+  }, [odometerLogs]);
+
   const latestOdometerReadings = useMemo(() => {
     const readings = new Map<string, number>();
     vehicles.forEach(vehicle => {
@@ -439,6 +450,7 @@ const VehicleManagement: React.FC = () => {
           filteredVehicles.map((vehicle) => {
             const status = vehicleStatuses.get(vehicle.id);
             const latestOdo = latestOdometerReadings.get(vehicle.id);
+            const latestParking = latestParkingLocations.get(vehicle.id);
             return (
               <div key={vehicle.id} className="bg-white rounded-lg shadow-md overflow-hidden flex flex-col transition-shadow hover:shadow-xl">
                 <div className="p-5 flex-grow">
@@ -493,6 +505,20 @@ const VehicleManagement: React.FC = () => {
                           <span>• {vehicle.brandMake} {vehicle.manufactureYear ? `(${vehicle.manufactureYear})` : ''}</span>
                         )}
                       </div>
+
+                      {vehicle.enableParkingLocation && (
+                        <div className="mt-3 rounded-lg border border-indigo-200 bg-indigo-50/70 p-2.5 w-full">
+                          <div className="text-[10px] font-bold uppercase tracking-wide text-indigo-700">Last Known Parking Location</div>
+                          {latestParking?.parkingLocation ? (
+                            <>
+                              <div className="mt-1 text-sm font-semibold text-indigo-950 break-words">{latestParking.parkingLocation}</div>
+                              <div className="mt-1 text-[10px] text-indigo-700">Updated {new Date(latestParking.date).toLocaleString('en-MY', { dateStyle: 'medium', timeStyle: 'short' })} · {users.find(u => u.id === latestParking.driverId)?.name || latestParking.staffName || 'Staff'}</div>
+                            </>
+                          ) : (
+                            <div className="mt-1 text-xs text-indigo-700">No parking location recorded yet.</div>
+                          )}
+                        </div>
+                      )}
 
                       <div className="mt-2 flex flex-wrap gap-1.5 items-center">
                         {status?.statusLabel === 'On Trip' && <span className="text-[11px] font-semibold bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">On Trip</span>}
