@@ -217,7 +217,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
     return bookings
       .filter(b => isAssignedToCurrentDriver(b) && b.status === 'Completed')
       .filter(b => matchesSearch(b, driverSearchQuery))
-      .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
+      .sort((a, b) => parseAsLocal(b.dateTime).getTime() - parseAsLocal(a.dateTime).getTime());
   }, [bookings, driver.id, driverSearchQuery, users]);
 
   // Active items based on current tab
