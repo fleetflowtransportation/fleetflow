@@ -119,6 +119,20 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
     return map;
   }, [vehicles, odometerLogs]);
 
+  // Last known parking location per vehicle, sourced from odometer logs.
+  const fleetParkingLocationMap = useMemo(() => {
+    const map: Record<string, { location: string; date: string }> = {};
+    vehicles.filter(v => v.enableParkingLocation).forEach(v => {
+      const latestParkingLog = odometerLogs
+        .filter(log => log.vehicleId === v.id && Boolean(log.parkingLocation?.trim()))
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+      if (latestParkingLog?.parkingLocation) {
+        map[v.id] = { location: latestParkingLog.parkingLocation.trim(), date: latestParkingLog.date };
+      }
+    });
+    return map;
+  }, [vehicles, odometerLogs]);
+
   const getVehicleInfo = (vehicleId: string | null, serviceType?: string) => {
     if (!vehicleId) {
       if (serviceType === 'Self-Drive') return { name: 'Self-Drive (Alza)', plate: 'Self-Drive' };
@@ -247,8 +261,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
       const saved = await updateUser(driver.id, { name: cleanName, phone: profilePhone.trim(), address: profileAddress.trim() });
       if (!saved) throw new Error('Unable to save profile. Please try again.');
       setProfileMessage('Profile updated successfully.');
-    } catch (error: any) {
-      setProfileMessage(error?.message || 'Unable to save profile. Please try again.');
+    } catch (error: any) {      setProfileMessage(error?.message || 'Unable to save profile. Please try again.');
     } finally {
       setIsSavingProfile(false);
     }
@@ -497,12 +510,39 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
         <div className="driver-section-content">
           {activeSection === 'home' && (
             <section className="driver-page-section space-y-4" aria-label="Driver home">
-              <div className="driver-section-heading"><div><p className="driver-eyebrow">YOUR WORKSPACE</p><h2>Good day, {driver.name.split(' ')[0]}</h2><p>Here is your driving activity at a glance.</p></div><span className="driver-date-chip">{new Date().toLocaleDateString('en-MY', { weekday: 'short', day: 'numeric', month: 'short' })}</span></div>
-              <div className="driver-overview-grid">
+              <div className="driver-section-heading"><div><p className="driver-eyebrow">YOUR WORKSPACE</p><h2>Good day, {driver.name.split(' ')[0]}</h2><p>Here is your driving activity at a glance.</p></div><span className="driver-date-chip">{new Date().toLocaleDateString('en-MY', { weekday: 'short', day: 'numeric', month: 'short' })}</span></div>              <div className="driver-overview-grid">
                 <button type="button" onClick={() => { setActiveSection('bookings'); setActiveTab('today'); }} className="driver-overview-card"><span className="driver-overview-label">Today & upcoming</span><strong>{todayBookings.length}</strong><span>Active assignments</span></button>
                 <button type="button" onClick={() => setActiveSection('odometer')} className={pendingOdometerBookings.length ? 'driver-overview-card attention' : 'driver-overview-card'}><span className="driver-overview-label">Pending odometer</span><strong>{pendingOdometerBookings.length}</strong><span>{pendingOdometerBookings.length ? 'Needs your attention' : 'All caught up'}</span></button>
                 <div className="driver-overview-card"><span className="driver-overview-label">Completed trips</span><strong>{completedTripsCount}</strong><span>Recorded in your history</span></div>
               </div>
+              {Object.keys(fleetParkingLocationMap).length > 0 && (
+                <div className="driver-panel">
+                  <div className="driver-panel-heading">
+                    <div><p className="driver-eyebrow">VEHICLE HANDOVER</p><h3>Last Known Parking Location</h3></div>
+                    <span className="text-xl" aria-hidden="true">📍</span>
+                  </div>
+                  <div className="space-y-2">
+                    {Object.entries(fleetParkingLocationMap).map(([vehicleId, parking]) => {
+                      const vehicle = vehicles.find(v => v.id === vehicleId);
+                      if (!vehicle) return null;
+                      return (
+                        <div key={vehicleId} className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <strong className="text-sm text-slate-900">{vehicle.name}</strong>
+                              <span className="ml-2 text-[10px] font-mono font-bold text-slate-500">{vehicle.plateNumber}</span>
+                            </div>
+                            <span className="text-[10px] font-bold text-indigo-700 shrink-0">Parking info</span>
+                          </div>
+                          <p className="mt-1.5 text-sm font-semibold text-slate-800 break-words">{parking.location}</p>
+                          <p className="mt-1 text-[10px] text-slate-500">Last recorded: {parseAsLocal(parking.date).toLocaleString('en-MY', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[10px] leading-relaxed text-slate-500">Location is based on the latest odometer record that included a parking location. The vehicle may have moved since then.</p>
+                </div>
+              )}
               <div className="driver-panel">
                 <div className="driver-panel-heading"><div><p className="driver-eyebrow">NEXT ASSIGNMENT</p><h3>Your next trip</h3></div><button type="button" onClick={() => { setActiveSection('bookings'); setActiveTab('today'); }}>All bookings →</button></div>
                 {currentBookings.length > 0 ? (() => { const next = currentBookings[0]; const when = formatTripDateTime(next.dateTime, next.finishDateTime); return <div className="driver-next-trip"><div className="driver-next-time"><strong>{when.time}</strong><span>{when.date}</span></div><div className="driver-next-route"><span>{getPickupLocationDisplay(next.pickupPoint, next.address)}</span><b>↓</b><strong>{getRouteLabel(next)}</strong><small>{next.requesterName || 'Requester not specified'} · {getVehicleInfo(next.vehicleId, next.serviceType).name}</small></div><button type="button" onClick={() => setViewingBooking(next)}>View trip details</button></div>; })() : <div className="driver-empty-state"><strong>No upcoming assignment</strong><span>New bookings assigned to you will appear here.</span></div>}
@@ -747,8 +787,7 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
 
         <div className="driver-tabs-content p-3.5 sm:p-5 space-y-4">
           {/* BULK SELECT TOOLBAR */}
-          {activeList.length > 0 && (
-            <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs">
+          {activeList.length > 0 && (            <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs">
               <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-700 select-none">
                 <input
                   type="checkbox"
