@@ -789,7 +789,8 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
 
         <div className="driver-tabs-content p-3.5 sm:p-5 space-y-4">
           {/* BULK SELECT TOOLBAR */}
-          {activeList.length > 0 && (            <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs">
+          {activeList.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs">
               <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-700 select-none">
                 <input
                   type="checkbox"
