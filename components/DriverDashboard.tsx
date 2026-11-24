@@ -194,6 +194,19 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
       .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime()); // Most recent first
   }, [bookings, driver.id, driverSearchQuery, users]);
 
+  const homeTodayBookings = useMemo(() => {
+    const today = new Date().toDateString();
+    const now = Date.now();
+    return bookings
+      .filter(b => isAssignedToCurrentDriver(b) && ['Assigned', 'Confirmed', 'Pending'].includes(b.status))
+      .filter(b => parseAsLocal(b.dateTime).toDateString() === today)
+      .filter(b => {
+        const finish = b.finishDateTime ? parseAsLocal(b.finishDateTime).getTime() : parseAsLocal(b.dateTime).getTime();
+        return finish >= now;
+      })
+      .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
+  }, [bookings, driver.id, users]);
+
   const todayBookings = useMemo(() => {
     const today = new Date().toDateString();
     return currentBookings.filter(b => parseAsLocal(b.dateTime).toDateString() === today);
@@ -518,36 +531,19 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
                 <div className="driver-overview-card"><span className="driver-overview-label">Completed trips</span><strong>{completedTripsCount}</strong><span>Recorded in your history</span></div>
               </div>
               {Object.keys(fleetParkingLocationMap).length > 0 && (
-                <div className="driver-panel">
-                  <div className="driver-panel-heading">
-                    <div><p className="driver-eyebrow">VEHICLE HANDOVER</p><h3>Last Known Parking Location</h3></div>
-                    <span className="text-xl" aria-hidden="true">📍</span>
-                  </div>
-                  <div className="space-y-2">
-                    {Object.entries(fleetParkingLocationMap).map(([vehicleId, parking]) => {
-                      const vehicle = vehicles.find(v => v.id === vehicleId);
-                      if (!vehicle) return null;
-                      return (
-                        <div key={vehicleId} className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <strong className="text-sm text-slate-900">{vehicle.name}</strong>
-                              <span className="ml-2 text-[10px] font-mono font-bold text-slate-500">{vehicle.plateNumber}</span>
-                            </div>
-                            <span className="text-[10px] font-bold text-indigo-700 shrink-0">Parking info</span>
-                          </div>
-                          <p className="mt-1.5 text-sm font-semibold text-slate-800 break-words">{parking.location}</p>
-                          <p className="mt-1 text-[10px] text-slate-500">Last recorded: {parseAsLocal(parking.date).toLocaleString('en-MY', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <p className="text-[10px] leading-relaxed text-slate-500">Location is based on the latest odometer record that included a parking location. The vehicle may have moved since then.</p>
+                <div className="driver-panel driver-parking-compact">
+                  <div className="driver-panel-heading"><div><p className="driver-eyebrow">VEHICLE HANDOVER</p><h3>Parking Locations</h3></div><span aria-hidden="true">📍</span></div>
+                  {Object.entries(fleetParkingLocationMap).map(([vehicleId, parking]) => {
+                    const vehicle = vehicles.find(v => v.id === vehicleId);
+                    if (!vehicle) return null;
+                    return <div key={vehicleId} className="driver-parking-row"><strong>{vehicle.name} <small>{vehicle.plateNumber}</small></strong><span>{parking.location}</span><time>{parseAsLocal(parking.date).toLocaleString('en-MY', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</time></div>;
+                  })}
+                  <p className="driver-parking-note">Last recorded location; vehicle may have moved.</p>
                 </div>
               )}
               <div className="driver-panel">
                 <div className="driver-panel-heading"><div><p className="driver-eyebrow">NEXT ASSIGNMENT</p><h3>Your next trip</h3></div><button type="button" onClick={() => { setActiveSection('bookings'); setActiveTab('today'); }}>All bookings →</button></div>
-                {currentBookings.length > 0 ? (() => { const next = currentBookings[0]; const when = formatTripDateTime(next.dateTime, next.finishDateTime); return <div className="driver-next-trip"><div className="driver-next-time"><strong>{when.time}</strong><span>{when.date}</span></div><div className="driver-next-route"><span>{getPickupLocationDisplay(next.pickupPoint, next.address)}</span><b>↓</b><strong>{getRouteLabel(next)}</strong><small>{next.requesterName || 'Requester not specified'} · {getVehicleInfo(next.vehicleId, next.serviceType).name}</small></div><button type="button" onClick={() => setViewingBooking(next)}>View trip details</button></div>; })() : <div className="driver-empty-state"><strong>No upcoming assignment</strong><span>New bookings assigned to you will appear here.</span></div>}
+                {homeTodayBookings.length > 0 ? <div className="driver-home-bookings">{homeTodayBookings.map(booking => { const when = formatTripDateTime(booking.dateTime, booking.finishDateTime); return <button key={booking.id} type="button" className="driver-home-booking" onClick={() => setViewingBooking(booking)}><div className="driver-home-booking-time">{when.time}</div><div className="driver-home-booking-route"><span>{getPickupLocationDisplay(booking.pickupPoint, booking.address)}</span><b>↓</b><strong>{getRouteLabel(booking)}</strong><small>{booking.requesterName || 'Requester not specified'} · {getVehicleInfo(booking.vehicleId, booking.serviceType).name}</small></div><span className="driver-home-booking-open">View</span></button>; })}</div> : <div className="driver-empty-state"><strong>No more bookings for today</strong><span>Today’s assignments will appear here. Future bookings are in the Bookings tab.</span></div>}
               </div>
               {pendingOdometerBookings.length > 0 && <button type="button" className="driver-reminder-card" onClick={() => setActiveSection('odometer')}><span>⚠</span><div><strong>{pendingOdometerBookings.length} trip{pendingOdometerBookings.length > 1 ? 's' : ''} need odometer submission</strong><small>Open your odometer tasks to complete the records.</small></div><b>→</b></button>}
               <div className="driver-quick-actions"><button type="button" onClick={handleOpenGeneralOdometer}>＋ Submit odometer</button><button type="button" onClick={() => setIsFuelLogOpen(true)}>＋ Fuel record</button><button type="button" onClick={() => setIsIssueLogOpen(true)}>＋ Report issue</button></div>
