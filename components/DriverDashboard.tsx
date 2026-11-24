@@ -261,7 +261,8 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
       const saved = await updateUser(driver.id, { name: cleanName, phone: profilePhone.trim(), address: profileAddress.trim() });
       if (!saved) throw new Error('Unable to save profile. Please try again.');
       setProfileMessage('Profile updated successfully.');
-    } catch (error: any) {      setProfileMessage(error?.message || 'Unable to save profile. Please try again.');
+    } catch (error: any) {
+      setProfileMessage(error?.message || 'Unable to save profile. Please try again.');
     } finally {
       setIsSavingProfile(false);
     }
@@ -510,7 +511,8 @@ const DriverDashboard: React.FC<DriverDashboardProps> = ({ driver }) => {
         <div className="driver-section-content">
           {activeSection === 'home' && (
             <section className="driver-page-section space-y-4" aria-label="Driver home">
-              <div className="driver-section-heading"><div><p className="driver-eyebrow">YOUR WORKSPACE</p><h2>Good day, {driver.name.split(' ')[0]}</h2><p>Here is your driving activity at a glance.</p></div><span className="driver-date-chip">{new Date().toLocaleDateString('en-MY', { weekday: 'short', day: 'numeric', month: 'short' })}</span></div>              <div className="driver-overview-grid">
+              <div className="driver-section-heading"><div><p className="driver-eyebrow">YOUR WORKSPACE</p><h2>Good day, {driver.name.split(' ')[0]}</h2><p>Here is your driving activity at a glance.</p></div><span className="driver-date-chip">{new Date().toLocaleDateString('en-MY', { weekday: 'short', day: 'numeric', month: 'short' })}</span></div>
+              <div className="driver-overview-grid">
                 <button type="button" onClick={() => { setActiveSection('bookings'); setActiveTab('today'); }} className="driver-overview-card"><span className="driver-overview-label">Today & upcoming</span><strong>{todayBookings.length}</strong><span>Active assignments</span></button>
                 <button type="button" onClick={() => setActiveSection('odometer')} className={pendingOdometerBookings.length ? 'driver-overview-card attention' : 'driver-overview-card'}><span className="driver-overview-label">Pending odometer</span><strong>{pendingOdometerBookings.length}</strong><span>{pendingOdometerBookings.length ? 'Needs your attention' : 'All caught up'}</span></button>
                 <div className="driver-overview-card"><span className="driver-overview-label">Completed trips</span><strong>{completedTripsCount}</strong><span>Recorded in your history</span></div>
