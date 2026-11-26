@@ -214,6 +214,28 @@ Deno.serve(async (request: Request) => {
 
       const proposedDriverId = dbRow.driver_id ? String(dbRow.driver_id) : "";
       const proposedVehicleId = dbRow.vehicle_id ? String(dbRow.vehicle_id) : "";
+
+      // Server-side roster gate: chauffeur bookings must be assigned to a driver rostered on the requested date.
+      if (dbRow.service_type === "Perlu Driver") {
+        const bookingDate = String(dbRow.start_date || dateTime.slice(0, 10));
+        const { data: rosterRows, error: rosterError } = await supabase
+          .from("driver_schedules")
+          .select("driver_id,shift_date")
+          .eq("tenant_id", tenantId)
+          .eq("shift_date", bookingDate);
+        if (rosterError) {
+          console.error("[manage-booking] roster verification failed", rosterError);
+          return json({ error: "Unable to verify the driver roster. Please contact Admin for assistance." }, 500);
+        }
+        const rosteredDriverIds = (rosterRows || []).map((r: Record<string, any>) => String(r.driver_id || ""));
+        if (rosteredDriverIds.length === 0) {
+          return json({ error: "Booking cannot be accepted because the driver roster for this date has not been set. Please contact Admin for assistance and submit your booking again after the roster is available." }, 409);
+        }
+        if (!proposedDriverId || !rosteredDriverIds.includes(proposedDriverId)) {
+          return json({ error: "This booking can only be assigned to a driver rostered for the selected date. Please refresh the booking form and contact Admin if you need help." }, 409);
+        }
+      }
+
       const overlap = (existingBookings || []).some((existing: Record<string, any>) => {
         if (["Cancelled", "Completed", "Conflict"].includes(String(existing.status || ""))) return false;
         if (existing.id === bookingId) return false;
