@@ -75,7 +75,9 @@ export const BookingManagementList: React.FC = () => {
     status: Booking['status'];
     ids: string[];
     isSubmitting: boolean;
-  }>({ isOpen: false, status: 'Completed', ids: [], isSubmitting: false });
+    cancellationReason: string;
+    cancellationRemarks: string;
+  }>({ isOpen: false, status: 'Completed', ids: [], isSubmitting: false, cancellationReason: '', cancellationRemarks: '' });
 
   // Bulk Assign Error State (In-system alert)
   const [bulkAssignError, setBulkAssignError] = useState<string | null>(null);
@@ -272,6 +274,8 @@ export const BookingManagementList: React.FC = () => {
       status,
       ids: [...selectedIds],
       isSubmitting: false,
+      cancellationReason: '',
+      cancellationRemarks: '',
     });
   };
 
@@ -279,9 +283,18 @@ export const BookingManagementList: React.FC = () => {
     if (statusConfirmState.ids.length === 0) return;
     setStatusConfirmState(prev => ({ ...prev, isSubmitting: true }));
     try {
-      await updateBookingsStatusBulk(statusConfirmState.ids, statusConfirmState.status);
+      if (statusConfirmState.status === 'Cancelled') {
+        if (!statusConfirmState.cancellationReason) throw new Error('Select cancellation reason.');
+        if (statusConfirmState.cancellationReason === 'Others' && !statusConfirmState.cancellationRemarks.trim()) throw new Error('Remarks are required for Others.');
+        const actor = currentUser?.name || currentUser?.email || 'Admin';
+        const stamp = new Date().toLocaleString('en-MY');
+        const fullReason = `${statusConfirmState.cancellationReason}${statusConfirmState.cancellationRemarks.trim() ? ` — ${statusConfirmState.cancellationRemarks.trim()}` : ''} (Cancelled by ${actor}, ${stamp})`;
+        await Promise.all(statusConfirmState.ids.map(id => updateBooking(id, { status: 'Cancelled', cancellationReason: fullReason })));
+      } else {
+        await updateBookingsStatusBulk(statusConfirmState.ids, statusConfirmState.status);
+      }
       handleClearSelection();
-      setStatusConfirmState({ isOpen: false, status: 'Completed', ids: [], isSubmitting: false });
+      setStatusConfirmState({ isOpen: false, status: 'Completed', ids: [], isSubmitting: false, cancellationReason: '', cancellationRemarks: '' });
     } catch (err) {
       console.error('Failed to update booking status:', err);
       setStatusConfirmState(prev => ({ ...prev, isSubmitting: false }));
@@ -1209,17 +1222,31 @@ export const BookingManagementList: React.FC = () => {
             </div>
 
             <h3 className="text-lg font-black text-slate-900">
-              {statusConfirmState.status === 'Completed'
-                ? 'Mark Trip as Completed?'
-                : 'Mark Trip as Confirmed?'}
+              {statusConfirmState.status === 'Completed' ? 'Mark Trip as Completed?' : statusConfirmState.status === 'Cancelled' ? 'Cancel Selected Booking(s)?' : 'Mark Trip as Confirmed?'}
             </h3>
 
             <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-              {statusConfirmState.status === 'Completed'
-                ? `Are you sure you want to mark ${statusConfirmState.ids.length} selected booking(s) as Completed? This will conclude the trips and finalize the records.`
-                : `Are you sure you want to mark ${statusConfirmState.ids.length} selected booking(s) as Confirmed? This will lock in the schedule and confirm the reservation.`}
+              {statusConfirmState.status === 'Completed' ? `Are you sure you want to mark ${statusConfirmState.ids.length} selected booking(s) as Completed? This will conclude the trips and finalize the records.` : statusConfirmState.status === 'Cancelled' ? `Cancel ${statusConfirmState.ids.length} selected booking(s)? Cancellation reason is required.` : `Are you sure you want to mark ${statusConfirmState.ids.length} selected booking(s) as Confirmed? This will lock in the schedule and confirm the reservation.`}
             </p>
 
+            {statusConfirmState.status === 'Cancelled' && (
+              <div className="mt-4 space-y-3 text-left">
+                <label className="block text-xs font-bold text-slate-700">Cancellation reason <span className="text-rose-600">*</span>
+                  <select value={statusConfirmState.cancellationReason} onChange={e => setStatusConfirmState(prev => ({ ...prev, cancellationReason: e.target.value }))} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-normal">
+                    <option value="">Select a reason</option>
+                    <option value="Meeting / program cancelled">Meeting / program cancelled</option>
+                    <option value="Travel no longer required">Travel no longer required</option>
+                    <option value="Date or time changed">Date or time changed</option>
+                    <option value="Vehicle no longer required">Vehicle no longer required</option>
+                    <option value="Booking made by mistake">Booking made by mistake</option>
+                    <option value="Others">Others</option>
+                  </select>
+                </label>
+                <label className="block text-xs font-bold text-slate-700">Additional remarks (optional)
+                  <textarea value={statusConfirmState.cancellationRemarks} onChange={e => setStatusConfirmState(prev => ({ ...prev, cancellationRemarks: e.target.value }))} rows={2} maxLength={500} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-normal" placeholder="Extra details..." />
+                </label>
+              </div>
+            )}
             {/* Selected Bookings Preview List */}
             <div className="my-4 max-h-48 overflow-y-auto space-y-2 text-left bg-slate-50 border border-slate-200/80 rounded-2xl p-3">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block px-1">
@@ -1428,6 +1455,12 @@ export const BookingManagementList: React.FC = () => {
                 </div>
               </div>
 
+              {detailsBooking.status === 'Cancelled' && detailsBooking.cancellationReason && (
+                <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900">
+                  <strong className="block text-[10px] uppercase tracking-wider font-extrabold">Cancellation Information</strong>
+                  <p className="mt-1 whitespace-pre-wrap">{detailsBooking.cancellationReason}</p>
+                </div>
+              )}
               {/* PASSENGERS & REMARKS */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100">
