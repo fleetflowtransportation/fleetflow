@@ -148,6 +148,7 @@ export const MAX_BOOKING_STOPS = 5;
 export interface Booking {
   id:string;
   createdAt?: string; // Original booking submission timestamp
+  cancellationReason?: string;
   /** Derived from stops for backward compatibility: single address or "A → B → C". Always kept in sync on save. */
   destination: string;
   purpose: string;
