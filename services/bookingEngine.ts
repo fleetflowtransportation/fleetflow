@@ -479,8 +479,29 @@ export function evaluateBookingAssignment({
   const hasResolvedRoster = workingDrivers.length > 0;
 
   if (!hasResolvedRoster) {
-    eligible = activeDrivers.map(driver => ({ driver, shiftStart: '00:00', shiftEnd: '23:59' }));
-    isOvertimeAssignment = eligible.length > 0;
+    const reason = `Booking cannot be confirmed because the driver roster for ${bookingDate} has not been set. Please contact Admin for assistance and submit the booking again after the roster is available.`;
+    return {
+      status: 'Conflict',
+      driverId: null,
+      vehicleId: null,
+      calendarEventTitle: `[REJECTED] ${requesterName} → ${destination} (Roster Not Set)`,
+      calendarColor: 'grey',
+      calendarEventId: `evt-no-roster-${Date.now()}`,
+      conflictReason: reason,
+      adminNotes: `REJECTED: ${reason}`,
+      emailNotifications: {
+        requester: {
+          to: requesterEmail,
+          subject: `[ACTION REQUIRED] Booking Not Accepted - Driver Roster Not Set (${bookingDate})`,
+          body: `Dear ${requesterName},\\n\\nYour booking request for ${bookingDate} (${startTime12} - ${endTime12}) could not be accepted because the driver roster for this date has not been published yet.\\n\\nPlease contact Admin for assistance. You may submit your booking again once the roster has been set.\\n\\nThank you,\\nArmada Flow`,
+        },
+        admin: {
+          to: adminAin.email,
+          subject: `[ACTION REQUIRED] Booking Blocked - Roster Not Set: ${requesterName}`,
+          body: `Booking request from ${requesterName} for ${bookingDate} (${startTime12} - ${endTime12}) was blocked because no driver roster is set for that date.`,
+        },
+      },
+    };
   }
 
   if (eligible.length === 0) {
