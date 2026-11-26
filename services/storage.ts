@@ -275,6 +275,7 @@ const toDbBooking = (b: Partial<Booking>) => {
 // Helper: Convert DB Booking to TS
 const fromDbBooking = (row: any): Booking => ({
   id: row.id,
+  createdAt: row.created_at || undefined,
   destination: row.destination,
   stops: row.stops || undefined,
   purpose: row.purpose,
