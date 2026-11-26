@@ -10,7 +10,7 @@ import {
   EditIcon, 
   CheckCircleIcon, 
   XIcon, 
-  InformationCircleIcon, 
+  
   DocumentDownloadIcon, 
   TruckIcon, 
   UserCircleIcon, 
@@ -838,7 +838,7 @@ export const BookingManagementList: React.FC = () => {
                   return (
                     <tr 
                       key={b.id}
-                      onClick={() => handleToggleSelectOne(b.id)}
+                      onClick={() => setDetailsBooking(b)}
                       className={`transition cursor-pointer ${
                         isChecked ? 'bg-indigo-50/80 hover:bg-indigo-50' : 'hover:bg-gray-50/70'
                       }`}
@@ -937,14 +937,7 @@ export const BookingManagementList: React.FC = () => {
                       {/* ACTIONS */}
                       <td className="py-3.5 pr-4 pl-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => setDetailsBooking(b)}
-                            className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition"
-                            title="View Full Details"
-                          >
-                            <InformationCircleIcon className="h-4 w-4" />
-                          </button>
-                          <button
+<button
                             onClick={() => {
                               setEditingBooking(b);
                               setIsFormOpen(true);
@@ -1375,6 +1368,14 @@ export const BookingManagementList: React.FC = () => {
                     {detailsBooking.finishDateTime && ` – ${parseAsLocal(detailsBooking.finishDateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`}
                   </p>
                 </div>
+              </div>
+              <div className="bg-amber-50 p-3 rounded-xl border border-amber-100">
+                <span className="text-amber-700 font-bold uppercase text-[10px] block">Booking Created</span>
+                <p className="text-sm font-bold text-gray-900 mt-0.5">
+                  {detailsBooking.createdAt
+                    ? new Date(detailsBooking.createdAt).toLocaleString('en-MY', { dateStyle: 'medium', timeStyle: 'short' })
+                    : 'Timestamp unavailable for this record'}
+                </p>
               </div>
 
               {/* LOCATION */}
