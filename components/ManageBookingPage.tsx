@@ -43,6 +43,7 @@ export const ManageBookingPage: React.FC<ManageBookingPageProps> = ({ tenantId, 
   const [saving, setSaving] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
+  const [cancelRemarks, setCancelRemarks] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [notice, setNotice] = useState('');
   const [parkingInfo, setParkingInfo] = useState<{ location: string; updatedAt?: string; vehicleName?: string } | null>(null);
@@ -208,7 +209,11 @@ export const ManageBookingPage: React.FC<ManageBookingPageProps> = ({ tenantId, 
   const cancelBooking = async () => {
     if (!booking || !canManage) return;
     if (!cancelReason.trim()) {
-      setErrorMessage('Please enter a reason for cancellation.');
+      setErrorMessage('Please select a cancellation reason.');
+      return;
+    }
+    if (cancelReason === 'Others' && !cancelRemarks.trim()) {
+      setErrorMessage('Please provide remarks when selecting Others.');
       return;
     }
     if (!window.confirm('Cancel this booking? This action cannot be undone from this link.')) return;
@@ -217,7 +222,8 @@ export const ManageBookingPage: React.FC<ManageBookingPageProps> = ({ tenantId, 
     setErrorMessage('');
     setNotice('');
     try {
-      const data = await invoke({ action: 'cancel', reason: cancelReason.trim() });
+      const fullReason = `${cancelReason}${cancelRemarks.trim() ? ` — ${cancelRemarks.trim()}` : ''}`;
+      const data = await invoke({ action: 'cancel', reason: fullReason });
       if (!data.booking) throw new Error('The cancellation status could not be confirmed.');
 
       // Delete the calendar event and send the existing cancellation email when configured.
@@ -369,8 +375,20 @@ export const ManageBookingPage: React.FC<ManageBookingPageProps> = ({ tenantId, 
                   <h2 className="text-lg font-extrabold text-rose-800">Cancel Booking</h2>
                   <p className="mt-1 text-sm text-slate-600">Cancel only if you no longer need this vehicle. This link cannot cancel a booking once its start time has arrived.</p>
                   <label className="mt-4 block">
-                    <span className="mb-1 block text-xs font-bold text-slate-600">Reason for cancellation <span className="text-rose-600">*</span></span>
-                    <textarea value={cancelReason} onChange={e => setCancelReason(e.target.value)} maxLength={500} rows={2} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-100" placeholder="e.g. Meeting postponed" />
+                    <span className="mb-1 block text-xs font-bold text-slate-600">Cancellation reason <span className="text-rose-600">*</span></span>
+                    <select value={cancelReason} onChange={e => setCancelReason(e.target.value)} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900">
+                      <option value="">Select a reason</option>
+                      <option value="Meeting / program cancelled">Meeting / program cancelled</option>
+                      <option value="Travel no longer required">Travel no longer required</option>
+                      <option value="Date or time changed">Date or time changed</option>
+                      <option value="Vehicle no longer required">Vehicle no longer required</option>
+                      <option value="Booking made by mistake">Booking made by mistake</option>
+                      <option value="Others">Others</option>
+                    </select>
+                  </label>
+                  <label className="mt-3 block">
+                    <span className="mb-1 block text-xs font-bold text-slate-600">Additional remarks <span className="text-slate-400">(optional)</span></span>
+                    <textarea value={cancelRemarks} onChange={e => setCancelRemarks(e.target.value)} maxLength={500} rows={2} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-100" placeholder="Add context if needed" />
                   </label>
                   <div className="mt-4 flex justify-end">
                     <button type="button" onClick={() => void cancelBooking()} disabled={cancelling || saving} className="rounded-xl bg-rose-600 px-5 py-3 text-sm font-extrabold text-white hover:bg-rose-700 disabled:opacity-50">{cancelling ? 'Cancelling…' : 'Cancel Booking'}</button>
