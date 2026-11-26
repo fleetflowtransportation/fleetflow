@@ -1287,7 +1287,7 @@ export const BookingManagementList: React.FC = () => {
               <button
                 type="button"
                 disabled={statusConfirmState.isSubmitting}
-                onClick={() => setStatusConfirmState({ isOpen: false, status: 'Completed', ids: [], isSubmitting: false })}
+                onClick={() => setStatusConfirmState({ isOpen: false, status: 'Completed', ids: [], isSubmitting: false, cancellationReason: '', cancellationRemarks: '' })}
                 className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl font-bold text-slate-600 hover:bg-slate-50 text-xs transition cursor-pointer disabled:opacity-50"
               >
                 Cancel
