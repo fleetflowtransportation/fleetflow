@@ -308,6 +308,7 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
 
     const newBooking: Booking = {
       id: `booking-${Date.now()}`,
+      createdAt: new Date().toISOString(),
       requesterName: formData.requesterName.trim(),
       requesterEmail: formData.requesterEmail.trim(),
       department: formData.department,
@@ -578,6 +579,11 @@ export const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ tenantId, 
                     ? 'Your trip has been registered and synced with Google Calendar.'
                     : submitResult.conflictReason || 'Please review the schedule conflict details below.'}
                 </p>
+                {submitResult.status !== 'Confirmed' && submitResult.calendarEventTitle.includes('Roster Not Set') && (
+                  <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                    <strong>Contact Admin for assistance.</strong> Please submit your booking again after the driver roster for this date has been published.
+                  </div>
+                )}
               </div>
             </div>
 
